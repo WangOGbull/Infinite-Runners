@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
   <title>Infinite Runners ^Dragons Arena^</title>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -14,16 +14,12 @@
       font-family: 'Rajdhani', sans-serif; user-select: none; -webkit-user-select: none;
     }
 
-    /* ===== UTILITY ===== */
     .hidden { display: none !important; }
-
     .cinzel { font-family: 'Cinzel Decorative', cursive; }
-
     .glow-cyan { text-shadow: 0 0 10px #00d4ff, 0 0 30px #00d4ff, 0 0 60px rgba(0,212,255,0.4); }
     .glow-red { text-shadow: 0 0 10px #ff2a2a, 0 0 30px #ff2a2a, 0 0 60px rgba(255,42,42,0.4); }
     .glow-gold { text-shadow: 0 0 10px #ffd700, 0 0 30px #ffd700, 0 0 60px rgba(255,215,0,0.4); }
 
-    /* ===== PARTICLE CANVAS ===== */
     #particleCanvas {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       pointer-events: none; z-index: 1;
@@ -32,24 +28,65 @@
     /* ===== TITLE SCREEN ===== */
     #titleScreen {
       position: fixed; inset: 0; z-index: 10;
-      background-image: url('8549.jpg'); background-size: cover; background-position: center;
+      background-image: url('background.jpg');
+      background-size: cover; background-position: center; background-repeat: no-repeat;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     #titleScreen .overlay {
       position: absolute; inset: 0;
       background: rgba(5,5,15,0.55); z-index: 0;
     }
-    #titleScreen .content { position: relative; z-index: 2; text-align: center; width: 100%; }
+    #titleScreen .content {
+      position: relative; z-index: 2; text-align: center; width: 100%;
+      padding: 0 16px;
+    }
+
+    /* Shadow Drake Watermark */
+    .shadow-drake-watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      font-family: 'Cinzel Decorative', cursive;
+      font-weight: 900;
+      font-size: clamp(24px, 8vw, 64px);
+      color: #c8a0e0;
+      text-shadow: 0 0 20px rgba(100, 50, 150, 0.5), 0 0 60px rgba(80, 40, 120, 0.3);
+      letter-spacing: 2px;
+      line-height: 1.1;
+      text-align: center;
+      width: 90%;
+      max-width: 700px;
+    }
+    .shadow-drake-watermark span {
+      display: block;
+      font-size: clamp(18px, 5vw, 42px);
+    }
 
     .game-title {
-      font-family: 'Cinzel Decorative', cursive; font-size: 52px; font-weight: 900;
-      color: #00e5ff; letter-spacing: 4px; line-height: 1.2;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(28px, 8vw, 52px);
+      font-weight: 900;
+      color: #00e5ff;
+      letter-spacing: 4px;
+      line-height: 1.2;
       animation: titlePulse 3s ease-in-out infinite;
+      position: relative;
+      z-index: 3;
     }
     .game-subtitle {
-      font-family: 'Cinzel Decorative', cursive; font-size: 28px; font-weight: 700;
-      color: #c77dff; letter-spacing: 8px; margin-top: 4px;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(16px, 4vw, 28px);
+      font-weight: 700;
+      color: #c77dff;
+      letter-spacing: 8px;
+      margin-top: 4px;
       animation: titlePulse 3s ease-in-out infinite 0.5s;
+      position: relative;
+      z-index: 3;
     }
     @keyframes titlePulse {
       0%, 100% { text-shadow: 0 0 15px rgba(0,229,255,0.5), 0 0 40px rgba(0,229,255,0.2); transform: scale(1); }
@@ -57,63 +94,126 @@
     }
 
     .choose-text {
-      font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 500;
-      color: #b0b0c0; letter-spacing: 6px; text-transform: uppercase;
-      margin: 24px 0 16px 0;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(12px, 2.5vw, 18px);
+      font-weight: 500;
+      color: #b0b0c0;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      margin: 20px 0 12px 0;
+      position: relative;
+      z-index: 3;
     }
 
     /* Dragon cards */
     .dragon-cards {
-      display: flex; gap: 16px; justify-content: center;
-      flex-wrap: wrap; padding: 0 20px; margin-bottom: 24px;
+      display: flex;
+      gap: clamp(8px, 2vw, 16px);
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 0 10px;
+      margin-bottom: 18px;
+      position: relative;
+      z-index: 3;
     }
     .dragon-card {
-      width: 130px; height: 170px; border-radius: 14px;
+      width: clamp(90px, 22vw, 140px);
+      height: clamp(120px, 28vw, 180px);
+      border-radius: 14px;
       background: rgba(255,255,255,0.05);
-      border: 2px solid rgba(255,255,255,0.1); cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      transition: all 0.3s ease; position: relative; overflow: hidden;
+      border: 2px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(4px);
     }
     .dragon-card:hover {
-      transform: translateY(-6px) scale(1.05);
+      transform: translateY(-4px) scale(1.05);
       border-color: var(--glow, #00d4ff);
       box-shadow: 0 0 20px var(--dim, rgba(0,212,255,0.2)), inset 0 0 20px var(--dim, rgba(0,212,255,0.05));
     }
-    .dragon-card img { width: 80px; height: 80px; object-fit: contain; pointer-events: none; }
+    .dragon-card img {
+      width: clamp(50px, 12vw, 80px);
+      height: clamp(50px, 12vw, 80px);
+      object-fit: contain;
+      pointer-events: none;
+      image-rendering: auto;
+    }
     .dragon-card .name {
-      font-family: 'Cinzel Decorative', cursive; font-size: 13px; font-weight: 700;
-      margin-top: 8px; color: var(--glow, #fff);
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(10px, 2vw, 14px);
+      font-weight: 700;
+      margin-top: 6px;
+      color: var(--glow, #fff);
     }
     .dragon-card .role {
-      font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 500;
-      color: #888; margin-top: 2px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(9px, 1.5vw, 12px);
+      font-weight: 500;
+      color: #888;
+      margin-top: 2px;
     }
 
-    /* Title buttons */
-    .title-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .title-buttons {
+      display: flex;
+      gap: clamp(8px, 2vw, 16px);
+      justify-content: center;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 3;
+    }
     .btn {
-      padding: 12px 36px; border-radius: 30px; border: 2px solid rgba(255,255,255,0.2);
-      background: rgba(255,255,255,0.05); color: #e0e0e0;
-      font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600;
-      letter-spacing: 3px; cursor: pointer; transition: all 0.3s ease;
+      padding: clamp(8px, 1.5vw, 12px) clamp(20px, 5vw, 36px);
+      border-radius: 30px;
+      border: 2px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: #e0e0e0;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(11px, 1.8vw, 14px);
+      font-weight: 600;
+      letter-spacing: 3px;
+      cursor: pointer;
+      transition: all 0.3s ease;
       text-transform: uppercase;
     }
     .btn:hover {
-      background: rgba(0,212,255,0.15); border-color: #00d4ff;
-      box-shadow: 0 0 20px rgba(0,212,255,0.3); transform: translateY(-2px);
+      background: rgba(0,212,255,0.15);
+      border-color: #00d4ff;
+      box-shadow: 0 0 20px rgba(0,212,255,0.3);
+      transform: translateY(-2px);
     }
     .btn.primary {
-      background: rgba(0,229,255,0.2); border-color: #00e5ff;
+      background: rgba(0,229,255,0.2);
+      border-color: #00e5ff;
     }
-    .btn.primary:hover { background: rgba(0,229,255,0.35); box-shadow: 0 0 30px rgba(0,229,255,0.4); }
+    .btn.primary:hover {
+      background: rgba(0,229,255,0.35);
+      box-shadow: 0 0 30px rgba(0,229,255,0.4);
+    }
 
     /* Wallet button */
     #walletBtn {
-      position: fixed; top: 16px; right: 16px; z-index: 20;
-      padding: 8px 20px; border-radius: 20px;
-      border: 1px solid rgba(0,212,255,0.4); background: rgba(0,0,0,0.5);
-      color: #00e5ff; font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: all 0.3s; letter-spacing: 1px;
+      position: fixed;
+      top: clamp(8px, 2vh, 16px);
+      right: clamp(8px, 2vw, 16px);
+      z-index: 20;
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(0,212,255,0.4);
+      background: rgba(0,0,0,0.6);
+      color: #00e5ff;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(10px, 1.5vw, 13px);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      letter-spacing: 1px;
+      backdrop-filter: blur(4px);
     }
     #walletBtn:hover { background: rgba(0,212,255,0.15); box-shadow: 0 0 15px rgba(0,212,255,0.3); }
     #walletBtn.connected { border-color: #00ff88; color: #00ff88; }
@@ -125,22 +225,33 @@
       display: flex; align-items: center; justify-content: center;
     }
     .modal-panel {
-      width: 420px; max-width: 92vw; border-radius: 20px;
-      background: #111122; border: 1px solid rgba(255,255,255,0.1);
-      padding: 32px; text-align: center;
+      width: clamp(320px, 90vw, 460px);
+      border-radius: 20px;
+      background: #111122;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: clamp(20px, 4vw, 32px);
+      text-align: center;
       box-shadow: 0 0 60px rgba(0,0,0,0.8);
     }
     .modal-panel .dragon-img-large {
-      width: 140px; height: 140px; object-fit: contain;
-      margin: 0 auto 12px; display: block;
+      width: clamp(100px, 25vw, 140px);
+      height: clamp(100px, 25vw, 140px);
+      object-fit: contain;
+      margin: 0 auto 12px;
+      display: block;
       filter: drop-shadow(0 0 20px var(--glow));
     }
     .modal-panel h2 {
-      font-family: 'Cinzel Decorative', cursive; font-size: 26px;
-      color: var(--glow); margin-bottom: 8px;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(20px, 5vw, 28px);
+      color: var(--glow);
+      margin-bottom: 8px;
     }
     .modal-panel .desc {
-      font-size: 14px; color: #999; line-height: 1.5; margin-bottom: 20px;
+      font-size: clamp(12px, 2vw, 14px);
+      color: #999;
+      line-height: 1.5;
+      margin-bottom: 20px;
     }
     .stat-row {
       display: flex; align-items: center; margin-bottom: 10px; gap: 10px;
@@ -181,8 +292,12 @@
       background: #0a0a1a; display: flex; align-items: center; justify-content: center;
     }
     #enterArena h1 {
-      font-family: 'Cinzel Decorative', cursive; font-size: 48px;
-      color: #00e5ff; animation: arenaPulse 1.5s ease-in-out infinite;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(24px, 8vw, 48px);
+      color: #00e5ff;
+      animation: arenaPulse 1.5s ease-in-out infinite;
+      text-align: center;
+      padding: 0 20px;
     }
     @keyframes arenaPulse {
       0%, 100% { opacity: 0.6; text-shadow: 0 0 20px rgba(0,229,255,0.4); }
@@ -246,24 +361,37 @@
     /* HUD */
     .hud {
       position: absolute; top: 0; left: 0; right: 0; pointer-events: none; z-index: 5;
-      display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 16px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: clamp(8px, 2vh, 12px) clamp(10px, 2vw, 16px);
     }
-    .hud-left { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+    .hud-left { display: flex; align-items: center; gap: clamp(8px, 1.5vw, 12px); pointer-events: auto; }
     .hud-right { pointer-events: auto; }
     .pause-btn {
-      width: 40px; height: 40px; border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.5);
-      color: #fff; font-size: 16px; display: flex; align-items: center; justify-content: center;
+      width: clamp(32px, 6vw, 40px);
+      height: clamp(32px, 6vw, 40px);
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      font-size: clamp(14px, 2vw, 16px);
+      display: flex; align-items: center; justify-content: center;
       cursor: pointer; transition: all 0.2s;
     }
     .pause-btn:hover { background: rgba(0,212,255,0.2); border-color: #00d4ff; }
     .timer-display {
-      font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 600;
-      color: #00e5ff; text-shadow: 0 0 10px rgba(0,229,255,0.5); letter-spacing: 2px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(14px, 2.5vw, 18px);
+      font-weight: 600;
+      color: #00e5ff;
+      text-shadow: 0 0 10px rgba(0,229,255,0.5);
+      letter-spacing: 2px;
     }
     #minimap {
-      width: 120px; height: 120px; border-radius: 10px;
-      border: 1px solid rgba(0,212,255,0.3); background: rgba(0,0,0,0.6);
+      width: clamp(80px, 18vw, 120px);
+      height: clamp(80px, 18vw, 120px);
+      border-radius: 10px;
+      border: 1px solid rgba(0,212,255,0.3);
+      background: rgba(0,0,0,0.6);
     }
 
     /* Mobile controls */
@@ -277,22 +405,36 @@
       pointer-events: none;
     }
     .joystick-area {
-      width: 100px; height: 100px; border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);
+      width: clamp(80px, 20vw, 100px);
+      height: clamp(80px, 20vw, 100px);
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.05);
       position: relative; pointer-events: auto; touch-action: none;
     }
     .joystick-knob {
-      width: 40px; height: 40px; border-radius: 50%;
-      background: rgba(0,212,255,0.4); border: 2px solid rgba(0,212,255,0.6);
+      width: clamp(30px, 8vw, 40px);
+      height: clamp(30px, 8vw, 40px);
+      border-radius: 50%;
+      background: rgba(0,212,255,0.4);
+      border: 2px solid rgba(0,212,255,0.6);
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%);
-      box-shadow: 0 0 10px rgba(0,212,255,0.3); pointer-events: none;
+      box-shadow: 0 0 10px rgba(0,212,255,0.3);
+      pointer-events: none;
     }
     .boost-btn {
-      width: 64px; height: 64px; border-radius: 50%;
-      border: 2px solid rgba(255,60,60,0.5); background: rgba(255,40,40,0.2);
-      color: #ff4444; font-family: 'Rajdhani', sans-serif; font-size: 10px; font-weight: 700;
-      letter-spacing: 1px; display: flex; align-items: center; justify-content: center;
+      width: clamp(50px, 13vw, 64px);
+      height: clamp(50px, 13vw, 64px);
+      border-radius: 50%;
+      border: 2px solid rgba(255,60,60,0.5);
+      background: rgba(255,40,40,0.2);
+      color: #ff4444;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(8px, 2vw, 10px);
+      font-weight: 700;
+      letter-spacing: 1px;
+      display: flex; align-items: center; justify-content: center;
       pointer-events: auto; touch-action: none; user-select: none;
       cursor: pointer; transition: all 0.15s;
     }
@@ -300,9 +442,16 @@
 
     /* Score overlay */
     .score-hud {
-      position: absolute; top: 56px; left: 16px; z-index: 5;
-      font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 500;
-      color: #b0b0c0; pointer-events: none; line-height: 1.6;
+      position: absolute;
+      top: clamp(48px, 10vh, 56px);
+      left: clamp(10px, 2vw, 16px);
+      z-index: 5;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(11px, 2vw, 13px);
+      font-weight: 500;
+      color: #b0b0c0;
+      pointer-events: none;
+      line-height: 1.6;
     }
 
     /* ===== PAUSE OVERLAY ===== */
@@ -312,10 +461,13 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     #pauseOverlay h2 {
-      font-family: 'Cinzel Decorative', cursive; font-size: 36px; color: #00e5ff; margin-bottom: 32px;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(24px, 6vw, 36px);
+      color: #00e5ff;
+      margin-bottom: clamp(20px, 4vh, 32px);
     }
     .pause-buttons { display: flex; flex-direction: column; gap: 12px; align-items: center; }
-    .pause-buttons .btn { min-width: 200px; text-align: center; }
+    .pause-buttons .btn { min-width: 160px; text-align: center; }
 
     /* ===== GAME OVER SCREEN ===== */
     #gameOverScreen {
@@ -324,23 +476,23 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     #gameOverScreen h1 {
-      font-family: 'Cinzel Decorative', cursive; font-size: 48px; color: #ff2a2a;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(28px, 8vw, 48px);
+      color: #ff2a2a;
       animation: goPulse 2s ease-in-out infinite;
     }
     @keyframes goPulse {
       0%, 100% { text-shadow: 0 0 15px rgba(255,42,42,0.5); }
       50% { text-shadow: 0 0 35px rgba(255,42,42,0.9); }
     }
-    .go-stats {
-      margin: 28px 0; text-align: center;
-    }
+    .go-stats { margin: 28px 0; text-align: center; }
     .go-stat-row {
       display: flex; justify-content: space-between; gap: 40px;
       margin-bottom: 10px; font-family: 'Rajdhani', sans-serif;
     }
     .go-stat-label { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 2px; }
     .go-stat-value { font-size: 18px; font-weight: 700; color: #00e5ff; }
-    .go-buttons { display: flex; gap: 16px; margin-top: 8px; }
+    .go-buttons { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
 
     /* ===== HOW TO PLAY ===== */
     #howToPlayScreen {
@@ -349,20 +501,28 @@
       display: flex; align-items: center; justify-content: center;
     }
     .htp-panel {
-      width: 500px; max-width: 94vw; max-height: 80vh; border-radius: 20px;
-      background: #111122; border: 1px solid rgba(255,255,255,0.1);
-      padding: 28px; overflow-y: auto;
+      width: clamp(320px, 90vw, 500px);
+      max-height: 80vh;
+      border-radius: 20px;
+      background: #111122;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: clamp(16px, 3vw, 28px);
+      overflow-y: auto;
     }
     .htp-panel h2 {
-      font-family: 'Cinzel Decorative', cursive; font-size: 24px; color: #00e5ff;
-      text-align: center; margin-bottom: 16px;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(18px, 4vw, 24px);
+      color: #00e5ff;
+      text-align: center;
+      margin-bottom: 16px;
     }
-    .htp-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .htp-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
     .htp-tab {
       flex: 1; padding: 8px; border-radius: 8px; border: none;
       background: rgba(255,255,255,0.05); color: #888;
       font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 600;
       letter-spacing: 1px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+      min-width: 60px;
     }
     .htp-tab.active { background: rgba(0,212,255,0.2); color: #00e5ff; }
     .htp-tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
@@ -380,12 +540,18 @@
       display: flex; align-items: center; justify-content: center;
     }
     .wallet-panel {
-      width: 360px; max-width: 92vw; border-radius: 20px;
-      background: #111122; border: 1px solid rgba(255,255,255,0.1);
-      padding: 28px; text-align: center;
+      width: clamp(300px, 85vw, 360px);
+      border-radius: 20px;
+      background: #111122;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: clamp(16px, 4vw, 28px);
+      text-align: center;
     }
     .wallet-panel h2 {
-      font-family: 'Cinzel Decorative', cursive; font-size: 22px; color: #00e5ff; margin-bottom: 20px;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(18px, 4vw, 22px);
+      color: #00e5ff;
+      margin-bottom: 20px;
     }
     .wallet-option {
       display: flex; align-items: center; gap: 12px;
@@ -398,11 +564,32 @@
     .wallet-name { font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600; color: #e0e0e0; }
     .wallet-close { margin-top: 16px; }
 
+    /* ===== LEADERBOARD ===== */
+    #leaderboardScreen {
+      position: fixed; inset: 0; z-index: 30;
+      background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .leaderboard-panel {
+      width: clamp(320px, 90vw, 420px);
+      border-radius: 20px;
+      background: #111122;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: clamp(16px, 3vw, 28px);
+      text-align: center;
+    }
+    .leaderboard-panel h2 {
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(18px, 4vw, 22px);
+      color: #ffd700;
+      margin-bottom: 20px;
+    }
+    #leaderboardList { max-height: 300px; overflow-y: auto; }
+
     /* ===== ANIMATIONS ===== */
     @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     .fade-in { animation: fadeIn 0.4s ease; }
 
-    /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 3px; }
@@ -417,29 +604,36 @@
   <!-- ===== TITLE SCREEN ===== -->
   <div id="titleScreen">
     <div class="overlay"></div>
+
+    <!-- Watermark -->
+    <div class="shadow-drake-watermark">
+      SHADOW DRAKE:
+      <span>CHRONICLES OF THE VOID</span>
+    </div>
+
     <div class="content">
       <div class="game-title glow-cyan">Infinite Runners</div>
       <div class="game-subtitle">^Dragons Arena^</div>
       <div class="choose-text">Choose your Infinite Dragon</div>
       <div class="dragon-cards" id="dragonCards">
         <div class="dragon-card" data-dragon="aegis" style="--glow:#c77dff;--dim:rgba(155,77,255,0.2);">
-          <img src="./dragons/aegis.png" alt="Aegis" draggable="false">
-          <div class="name">Aegis</div>
+          <img src="dragons/aegis.png" alt="Aegis" draggable="false" loading="lazy">
+          <div class="name" style="color:#c77dff;">Aegis</div>
           <div class="role">Royal Warden</div>
         </div>
         <div class="dragon-card" data-dragon="ignis" style="--glow:#ff6b35;--dim:rgba(255,77,77,0.2);">
-          <img src="./dragons/ignis.png" alt="Ignis" draggable="false">
-          <div class="name">Ignis</div>
+          <img src="dragons/ignis.png" alt="Ignis" draggable="false" loading="lazy">
+          <div class="name" style="color:#ff6b35;">Ignis</div>
           <div class="role">Flame Tyrant</div>
         </div>
         <div class="dragon-card" data-dragon="infinite" style="--glow:#48cae4;--dim:rgba(0,180,216,0.2);">
-          <img src="./dragons/infinite.png" alt="Infinite" draggable="false">
-          <div class="name">Infinite</div>
+          <img src="dragons/infinite.png" alt="Infinite" draggable="false" loading="lazy">
+          <div class="name" style="color:#48cae4;">Infinite</div>
           <div class="role">Azure Serpent</div>
         </div>
         <div class="dragon-card" data-dragon="magnetron" style="--glow:#ff33cc;--dim:rgba(255,0,170,0.2);">
-          <img src="./dragons/magnetron.png" alt="Magnetron" draggable="false">
-          <div class="name">Magnetron</div>
+          <img src="dragons/magnetron.png" alt="Magnetron" draggable="false" loading="lazy">
+          <div class="name" style="color:#ff33cc;">Magnetron</div>
           <div class="role">Electric Wyrm</div>
         </div>
       </div>
@@ -607,17 +801,16 @@
     </div>
   </div>
 
-  <!-- ===== LEADERBOARD MODAL ===== -->
-  <div id="leaderboardScreen" class="hidden" style="position:fixed;inset:0;z-index:30;background:rgba(0,0,0,0.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;">
-    <div class="wallet-panel fade-in" style="width:420px;max-width:94vw;">
-      <h2 style="font-family:'Cinzel Decorative',cursive;font-size:22px;color:#ffd700;margin-bottom:20px;text-align:center;">Leaderboard</h2>
-      <div id="leaderboardList" style="max-height:300px;overflow-y:auto;">
+  <!-- ===== LEADERBOARD SCREEN ===== -->
+  <div id="leaderboardScreen" class="hidden">
+    <div class="leaderboard-panel fade-in">
+      <h2>Leaderboard</h2>
+      <div id="leaderboardList">
         <div style="text-align:center;color:#888;padding:20px;font-size:14px;">No entries yet. Be the first to claim the top spot!</div>
       </div>
       <div style="margin-top:16px;text-align:center;"><button class="btn" id="btnLbClose">Close</button></div>
     </div>
   </div>
-
 
   <script>
   // ============================================================
@@ -633,10 +826,10 @@
 
   // ===== DRAGON DATA =====
   const DRAGONS = {
-    aegis:     { name: 'Aegis',     color: '#9b4dff', glow: '#c77dff', dim: 'rgba(155,77,255,0.15)',  img: './dragons/aegis.png',     stats: { speed: 65, power: 70, length: 75 }, desc: 'The Royal Warden. A majestic purple dragon crowned in gold, wielding arcane barrier magic.' },
-    ignis:     { name: 'Ignis',     color: '#ff4d4d', glow: '#ff6b35', dim: 'rgba(255,77,77,0.15)',  img: './dragons/ignis.png',     stats: { speed: 80, power: 85, length: 50 }, desc: 'The Flame Tyrant. A ferocious fire dragon with lava-scales that radiates intense heat.' },
-    infinite:  { name: 'Infinite',  color: '#00b4d8', glow: '#48cae4', dim: 'rgba(0,180,216,0.15)',   img: './dragons/infinite.png',  stats: { speed: 90, power: 55, length: 80 }, desc: 'The Azure Serpent. An elegant blue dragon with golden horns, known for endless stamina.' },
-    magnetron: { name: 'Magnetron', color: '#ff00aa', glow: '#ff33cc', dim: 'rgba(255,0,170,0.15)',   img: './dragons/magnetron.png', stats: { speed: 60, power: 60, length: 90 }, desc: 'The Electric Wyrm. A pink dragon crackling with electromagnetic energy.' }
+    aegis:     { name: 'Aegis',     color: '#9b4dff', glow: '#c77dff', dim: 'rgba(155,77,255,0.15)',  img: 'dragons/aegis.png',     stats: { speed: 65, power: 70, length: 75 }, desc: 'The Royal Warden. A majestic purple dragon crowned in gold, wielding arcane barrier magic.' },
+    ignis:     { name: 'Ignis',     color: '#ff4d4d', glow: '#ff6b35', dim: 'rgba(255,77,77,0.15)',  img: 'dragons/ignis.png',     stats: { speed: 80, power: 85, length: 50 }, desc: 'The Flame Tyrant. A ferocious fire dragon with lava-scales that radiates intense heat.' },
+    infinite:  { name: 'Infinite',  color: '#00b4d8', glow: '#48cae4', dim: 'rgba(0,180,216,0.15)',   img: 'dragons/infinite.png',  stats: { speed: 90, power: 55, length: 80 }, desc: 'The Azure Serpent. An elegant blue dragon with golden horns, known for endless stamina.' },
+    magnetron: { name: 'Magnetron', color: '#ff00aa', glow: '#ff33cc', dim: 'rgba(255,0,170,0.15)',   img: 'dragons/magnetron.png', stats: { speed: 60, power: 60, length: 90 }, desc: 'The Electric Wyrm. A pink dragon crackling with electromagnetic energy.' }
   };
 
   // ===== GAME CONSTANTS =====
@@ -689,16 +882,38 @@
         loadedCount++;
         if (loadedCount >= types.length) imagesLoaded = true;
       };
-      img.onerror = () => { loadedCount++; };
+      img.onerror = () => {
+        // Fallback: use colored circle if image fails
+        const fallback = createFallbackImg(DRAGONS[type].color);
+        loadedImages[type] = fallback;
+        stripMap[type] = [fallback, fallback, fallback, fallback, fallback];
+        loadedCount++;
+        if (loadedCount >= types.length) imagesLoaded = true;
+      };
       img.src = DRAGONS[type].img;
     });
-    // Collectible / coin image (same as infinite)
+    // Collectible / coin image
     const coinImg = new Image();
     coinImg.onload = () => { loadedImages['coin'] = coinImg; };
-    coinImg.src = './dragons/infinite.png';
+    coinImg.onerror = () => {
+      const fallback = createFallbackImg('#00e5ff');
+      loadedImages['coin'] = fallback;
+    };
+    coinImg.src = 'dragons/infinite.png';
   }
 
-  // ===== DRAGON STRIP SLICING =====
+  function createFallbackImg(color) {
+    const c = document.createElement('canvas');
+    c.width = 50;
+    c.height = 50;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(25, 25, 20, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
   function sliceImage(image, stripCount) {
     if (!image.width || !image.height) return [];
     const strips = [];
@@ -841,7 +1056,7 @@
         this.y -= (dy / d2c) * push;
       }
 
-      // Update segments (follow the leader)
+      // Update segments
       this.segments[0].x = this.x;
       this.segments[0].y = this.y;
       for (let i = 1; i < this.segments.length; i++) {
@@ -853,7 +1068,6 @@
           cur.x = prev.x - Math.cos(a) * SEGMENT_SPACING;
           cur.y = prev.y - Math.sin(a) * SEGMENT_SPACING;
         }
-        // Clamp inside arena
         const cdx = cur.x - ARENA_CENTER;
         const cdy = cur.y - ARENA_CENTER;
         const cd = Math.hypot(cdx, cdy);
@@ -865,7 +1079,6 @@
     }
 
     aiUpdate() {
-      // Simple AI: wander with some logic
       this.changeTimer--;
       if (this.changeTimer <= 0) {
         this.changeTimer = 40 + Math.random() * 80;
@@ -873,7 +1086,6 @@
       }
       this.targetAngle += this.turnDir * 0.03;
 
-      // Look for nearby food
       let nearestFood = null;
       let nearestDist = 200;
       for (const f of foods) {
@@ -884,7 +1096,6 @@
         this.targetAngle = Math.atan2(nearestFood.y - this.y, nearestFood.x - this.x);
       }
 
-      // Avoid boundary
       const dx = this.x - ARENA_CENTER;
       const dy = this.y - ARENA_CENTER;
       const d2c = Math.hypot(dx, dy);
@@ -892,7 +1103,6 @@
         this.targetAngle = Math.atan2(-dy, -dx) + (Math.random() - 0.5) * 0.5;
       }
 
-      // Random boost
       this.boosting = Math.random() < 0.02;
     }
 
@@ -907,14 +1117,12 @@
       const dropCount = Math.floor(this.segments.length * percent);
       for (let i = 0; i < dropCount && this.segments.length > 3; i++) {
         const seg = this.segments.pop();
-        // 50% chance to spawn food
         if (Math.random() < 0.5) spawnFood(seg.x + (Math.random()-0.5)*20, seg.y + (Math.random()-0.5)*20);
       }
     }
 
     die() {
       this.alive = false;
-      // Drop 60% of segments as food
       const dropCount = Math.floor(this.segments.length * 0.6);
       for (let i = 0; i < dropCount; i++) {
         const idx = Math.floor(Math.random() * this.segments.length);
@@ -923,13 +1131,11 @@
         this.segments.splice(idx, 1);
         if (this.segments.length <= 1) break;
       }
-      // Death particles
       for (const seg of this.segments) {
         spawnParticle(seg.x, seg.y, DRAGONS[this.type].color, 3, 4);
       }
     }
   }
-
 
   // ===== RENDERING =====
   function renderDragon(ctx, dragon, camX, camY, cw, ch) {
@@ -938,7 +1144,6 @@
     const segs = dragon.segments;
     const dData = DRAGONS[dragon.type];
 
-    // FALLBACK: If no strips loaded yet, draw colored circles
     if (strips.length === 0) {
       for (let i = segs.length - 1; i >= 0; i -= 3) {
         const sx = segs[i].x - camX + cw / 2;
@@ -956,10 +1161,8 @@
       return;
     }
 
-    // NORMAL: Draw strips along trail
     const SEGMENT_SKIP = 5;
 
-    // Body (strips 1+, tail to neck)
     for (let i = segs.length - 1; i >= SEGMENT_SKIP; i -= SEGMENT_SKIP) {
       const progress = (segs.length - i) / segs.length;
       const stripIdx = Math.max(1, Math.floor(progress * (strips.length - 2)));
@@ -987,7 +1190,6 @@
       ctx.restore();
     }
 
-    // Head (strip 0) - ALWAYS at full size, on top
     if (segs.length > 0) {
       const headStrip = strips[0];
       if (headStrip) {
@@ -1060,7 +1262,6 @@
     ctx.setLineDash([]);
     ctx.shadowBlur = 0;
 
-    // Faint danger zone outside
     const grad = ctx.createRadialGradient(cx, cy, ARENA_RADIUS * 0.7, cx, cy, ARENA_RADIUS);
     grad.addColorStop(0, 'rgba(255,0,0,0)');
     grad.addColorStop(1, 'rgba(255,0,0,0.08)');
@@ -1072,11 +1273,9 @@
   }
 
   function renderBackground(ctx, camX, camY, cw, ch) {
-    // Dark base
     ctx.fillStyle = '#0a0a1a';
     ctx.fillRect(0, 0, cw, ch);
 
-    // Grid dots
     const gridSize = 80;
     const offX = (-camX + cw / 2) % gridSize;
     const offY = (-camY + ch / 2) % gridSize;
@@ -1093,10 +1292,8 @@
   // ===== MINIMAP =====
   function renderMinimap() {
     miniCtx.clearRect(0, 0, 120, 120);
-    // Background
     miniCtx.fillStyle = 'rgba(10,10,26,0.8)';
     miniCtx.fillRect(0, 0, 120, 120);
-    // Arena border
     miniCtx.strokeStyle = 'rgba(0,212,255,0.3)';
     miniCtx.lineWidth = 1;
     miniCtx.beginPath();
@@ -1104,13 +1301,11 @@
     miniCtx.stroke();
 
     const scale = 120 / ARENA_SIZE;
-    // Food dots (sparse)
     miniCtx.fillStyle = 'rgba(0,229,255,0.2)';
     for (let i = 0; i < foods.length; i += 20) {
       const f = foods[i];
       miniCtx.fillRect(60 + (f.x - ARENA_CENTER) * scale, 60 + (f.y - ARENA_CENTER) * scale, 1, 1);
     }
-    // Dragons
     for (const d of allDragons) {
       if (!d.alive) continue;
       const dx = 60 + (d.x - ARENA_CENTER) * scale;
@@ -1134,13 +1329,11 @@
     const dragons = allDragons.filter(d => d.alive);
     for (let i = 0; i < dragons.length; i++) {
       const a = dragons[i];
-      // Food collection
       for (let fi = foods.length - 1; fi >= 0; fi--) {
         const f = foods[fi];
         if (dist(a, f) < 24) {
           a.grow(1);
           foods.splice(fi, 1);
-          // Respawn food elsewhere
           const angle = Math.random() * Math.PI * 2;
           const r = Math.sqrt(Math.random()) * (ARENA_RADIUS - 100);
           spawnFood(ARENA_CENTER + Math.cos(angle) * r, ARENA_CENTER + Math.sin(angle) * r);
@@ -1148,10 +1341,8 @@
         }
       }
 
-      // Dragon vs Dragon
       for (let j = i + 1; j < dragons.length; j++) {
         const b = dragons[j];
-        // Head vs Head
         if (dist(a, b) < 28) {
           if (a.segments.length > b.segments.length) {
             b.die(); if (a.isPlayer) { statsKills++; updateScoreHud(); }
@@ -1160,18 +1351,16 @@
             a.die(); if (b.isPlayer) { statsKills++; updateScoreHud(); }
             if (a.isPlayer) triggerGameOver();
           } else {
-            // Equal length - both die
             a.die(); b.die();
             if (a.isPlayer || b.isPlayer) triggerGameOver();
           }
           continue;
         }
 
-        // Head vs Tail (index 8+)
         for (let si = 8; si < a.segments.length; si++) {
           if (dist(b, a.segments[si]) < 20) {
             a.dropSegments(0.2);
-            a.slowTimer = 42; // ~0.7s at 60fps
+            a.slowTimer = 42;
             spawnParticle(a.segments[si].x, a.segments[si].y, DRAGONS[a.type].color, 5, 3);
             break;
           }
@@ -1192,14 +1381,13 @@
   let allDragons = [];
   let playerDragon = null;
   let camX = ARENA_CENTER, camY = ARENA_CENTER;
-  let survivalTime = 0; // in seconds
+  let survivalTime = 0;
   let statsCollectibles = 0;
   let statsKills = 0;
   let gameStartTime = 0;
   let lastFrameTime = 0;
   let animFrameId = null;
 
-  // Input state
   let mouseX = CW / 2, mouseY = CH / 2;
   let mouseDown = false;
   let spaceDown = false;
@@ -1210,15 +1398,12 @@
   function startGame() {
     initFood();
     allDragons = [];
-    // Create player
     playerDragon = new Dragon(selectedDragon, true);
     allDragons.push(playerDragon);
-    // Create AI
     const aiTypes = ['aegis', 'ignis', 'infinite', 'magnetron'];
     for (let i = 0; i < AI_COUNT; i++) {
       const type = aiTypes[i % aiTypes.length];
       const ai = new Dragon(type, false, DRAGONS[type].name + ' ' + (i + 1));
-      // Scatter AI
       const a = Math.random() * Math.PI * 2;
       const r = Math.random() * (ARENA_RADIUS - 400);
       ai.x = ARENA_CENTER + Math.cos(a) * r;
@@ -1261,7 +1446,6 @@
     survivalTime += dt;
     timerDisplay.textContent = formatTime(survivalTime);
 
-    // Player input angle
     let inputAngle = playerDragon ? playerDragon.angle : 0;
     if (playerDragon && playerDragon.alive) {
       if (joystickActive) {
@@ -1272,16 +1456,13 @@
     }
     const inputBoost = mouseDown || spaceDown || mobileBoost;
 
-    // Update dragons
     for (const d of allDragons) {
       if (d.isPlayer) d.update(inputAngle, inputBoost);
       else d.update(0, false);
     }
 
-    // Remove dead AI after some time
     for (let i = allDragons.length - 1; i >= 0; i--) {
       if (!allDragons[i].alive && !allDragons[i].isPlayer) {
-        // Clean up segments gradually
         if (allDragons[i].segments.length > 0 && Math.random() < 0.1) {
           allDragons[i].segments.pop();
         }
@@ -1291,7 +1472,6 @@
       }
     }
 
-    // Respawn AI to keep arena lively
     if (allDragons.filter(d => d.alive && !d.isPlayer).length < AI_COUNT / 2) {
       const aiTypes = ['aegis', 'ignis', 'infinite', 'magnetron'];
       const type = aiTypes[Math.floor(Math.random() * aiTypes.length)];
@@ -1307,23 +1487,17 @@
       allDragons.push(ai);
     }
 
-    // Collisions
     checkCollisions();
-
-    // Particles
     updateParticles();
 
-    // Camera
     if (playerDragon && playerDragon.alive) {
       camX += (playerDragon.x - camX) * CAMERA_LERP;
       camY += (playerDragon.y - camY) * CAMERA_LERP;
     }
 
-    // ===== RENDER =====
     renderBackground(gameCtx, camX, camY, CW, CH);
     renderFood(gameCtx, camX, camY, CW, CH);
 
-    // Sort dragons by Y for depth
     const sortedDragons = [...allDragons].filter(d => d.alive || d.segments.length > 0)
       .sort((a, b) => (a.segments[0]?.y || 0) - (b.segments[0]?.y || 0));
     for (const d of sortedDragons) {
@@ -1334,14 +1508,12 @@
     renderArenaBorder(gameCtx, camX, camY, CW, CH);
     renderMinimap();
 
-    // Update score HUD
     if (playerDragon && playerDragon.alive) {
       $('segCount').textContent = playerDragon.segments.length;
     }
 
     animFrameId = requestAnimationFrame(gameLoop);
   }
-
 
   // ===== SCREEN MANAGEMENT =====
   function showState(state) {
@@ -1404,32 +1576,19 @@
     }
   }
 
-  // ===== TRIGGER GAME OVER =====
   function triggerGameOver() {
     if (currentState === GameState.GAMEOVER) return;
     setTimeout(() => showState(GameState.GAMEOVER), 800);
   }
 
-  // ===== LOADING ANIMATION =====
   function startLoadingAnimation() {
     const fill = $('progressFill');
-    const dot1 = $('orbitDot1');
-    const dot2 = $('orbitDot2');
     fill.style.width = '0%';
     setTimeout(() => { fill.style.width = '40%'; }, 100);
     setTimeout(() => { fill.style.width = '75%'; }, 1200);
     setTimeout(() => { fill.style.width = '100%'; }, 2500);
-
-    if (selectedDragon) {
-      const d = DRAGONS[selectedDragon];
-      dot1.style.background = d.color;
-      dot1.style.boxShadow = `0 0 10px ${d.glow}`;
-      dot2.style.background = d.glow;
-      dot2.style.boxShadow = `0 0 8px ${d.color}`;
-    }
   }
 
-  // ===== DRAGON MODAL =====
   function openDragonModal(type) {
     selectedDragon = type;
     const d = DRAGONS[type];
@@ -1444,7 +1603,6 @@
     btnSelect.style.background = d.glow;
     btnSelect.style.color = '#000';
 
-    // Animate stat bars
     setTimeout(() => {
       $('statSpeed').style.width = d.stats.speed + '%';
       $('statSpeed').style.background = d.glow;
@@ -1471,23 +1629,18 @@
   }
 
   // ===== EVENT LISTENERS =====
-  // Dragon cards
   document.querySelectorAll('.dragon-card').forEach(card => {
     card.addEventListener('click', () => openDragonModal(card.dataset.dragon));
   });
 
-  // Modal buttons
   $('btnModalBack').addEventListener('click', () => showState(GameState.TITLE));
   $('btnModalSelect').addEventListener('click', () => showState(GameState.ENTER_ARENA));
-
-  // Title buttons
   $('btnHowToPlay').addEventListener('click', () => showState(GameState.HOWTOPLAY));
   $('btnLeaderboard').addEventListener('click', () => {
     leaderboardScreen.classList.remove('hidden');
   });
   $('btnLbClose').addEventListener('click', () => leaderboardScreen.classList.add('hidden'));
 
-  // Pause
   $('pauseBtn').addEventListener('click', () => {
     if (currentState === GameState.PLAYING) showState(GameState.PAUSED);
   });
@@ -1503,14 +1656,12 @@
     showState(GameState.TITLE);
   });
 
-  // Game Over
   $('btnGoPlay').addEventListener('click', () => showState(GameState.PLAYING));
   $('btnGoMenu').addEventListener('click', () => {
     if (animFrameId) cancelAnimationFrame(animFrameId);
     showState(GameState.TITLE);
   });
 
-  // How to Play
   document.querySelectorAll('.htp-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.htp-tab').forEach(t => t.classList.remove('active'));
@@ -1521,7 +1672,6 @@
   });
   $('btnHtpClose').addEventListener('click', () => showState(GameState.TITLE));
 
-  // Wallet
   walletBtn.addEventListener('click', () => {
     walletModal.classList.remove('hidden');
     if (walletConnected) {
@@ -1533,7 +1683,6 @@
         walletBtn.textContent = window.innerWidth > 768 ? 'Connect Wallet' : 'Wallet';
         walletBtn.classList.remove('connected');
         walletModal.classList.add('hidden');
-        // Reset wallet modal content
         $('walletOptions').innerHTML = '';
       });
     } else {
@@ -1558,7 +1707,6 @@
       `;
       document.querySelectorAll('.wallet-option').forEach(opt => {
         opt.addEventListener('click', () => {
-          const type = opt.dataset.wallet;
           const fakeAddr = '0x' + Math.random().toString(16).slice(2, 12) + '...' + Math.random().toString(16).slice(2, 6);
           walletConnected = true;
           walletAddress = fakeAddr;
@@ -1571,7 +1719,6 @@
   });
   $('btnWalletClose').addEventListener('click', () => walletModal.classList.add('hidden'));
 
-  // Desktop wallet button text
   function updateWalletBtnText() {
     if (!walletConnected) {
       walletBtn.textContent = window.innerWidth > 768 ? 'Connect Wallet' : 'Wallet';
@@ -1580,8 +1727,7 @@
   window.addEventListener('resize', updateWalletBtnText);
   updateWalletBtnText();
 
-  // ===== INPUT HANDLERS =====
-  // Mouse
+  // ===== INPUT =====
   document.addEventListener('mousemove', e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
@@ -1591,7 +1737,6 @@
   });
   document.addEventListener('mouseup', () => { mouseDown = false; });
 
-  // Keyboard
   document.addEventListener('keydown', e => {
     if (e.code === 'Space') {
       e.preventDefault();
@@ -1606,7 +1751,6 @@
     if (e.code === 'Space') spaceDown = false;
   });
 
-  // Touch / Mobile joystick
   const joyArea = $('joystickArea');
   const joyKnob = $('joystickKnob');
   let joyCenterX = 0, joyCenterY = 0;
@@ -1645,7 +1789,6 @@
     joystickAngle = Math.atan2(dy, dx);
   }
 
-  // Mobile boost
   const boostBtn = $('mobileBoostBtn');
   boostBtn.addEventListener('touchstart', e => { e.preventDefault(); mobileBoost = true; boostBtn.style.transform = 'scale(0.9)'; boostBtn.style.background = 'rgba(255,40,40,0.4)'; }, { passive: false });
   boostBtn.addEventListener('touchend', e => { e.preventDefault(); mobileBoost = false; boostBtn.style.transform = 'scale(1)'; boostBtn.style.background = 'rgba(255,40,40,0.2)'; }, { passive: false });
@@ -1674,7 +1817,7 @@
       this.speed = Math.random() * 0.4 + 0.1;
       this.angle = Math.random() * Math.PI * 2;
       this.alpha = Math.random() * 0.5 + 0.1;
-      this.hue = Math.random() < 0.5 ? 180 : 270; // cyan or purple
+      this.hue = Math.random() < 0.5 ? 180 : 270;
     }
     update() {
       this.x += Math.cos(this.angle) * this.speed;
