@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Infinite Runners ^Dragons Arena^</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 100vw; height: 100vh; overflow: hidden;
+      background: #0a0a1a; color: #e0e0e0;
+      font-family: 'Rajdhani', sans-serif; user-select: none; -webkit-user-select: none;
+    }
+
+    /* ===== UTILITY ===== */
+    .hidden { display: none !important; }
+
+    .cinzel { font-family: 'Cinzel Decorative', cursive; }
+
+    .glow-cyan { text-shadow: 0 0 10px #00d4ff, 0 0 30px #00d4ff, 0 0 60px rgba(0,212,255,0.4); }
+    .glow-red { text-shadow: 0 0 10px #ff2a2a, 0 0 30px #ff2a2a, 0 0 60px rgba(255,42,42,0.4); }
+    .glow-gold { text-shadow: 0 0 10px #ffd700, 0 0 30px #ffd700, 0 0 60px rgba(255,215,0,0.4); }
+
+    /* ===== PARTICLE CANVAS ===== */
+    #particleCanvas {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 1;
+    }
+
+    /* ===== TITLE SCREEN ===== */
+    #titleScreen {
+      position: fixed; inset: 0; z-index: 10;
+      background-image: url('8549.jpg'); background-size: cover; background-position: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    #titleScreen .overlay {
+      position: absolute; inset: 0;
+      background: rgba(5,5,15,0.55); z-index: 0;
+    }
+    #titleScreen .content { position: relative; z-index: 2; text-align: center; width: 100%; }
+
+    .game-title {
+      font-family: 'Cinzel Decorative', cursive; font-size: 52px; font-weight: 900;
+      color: #00e5ff; letter-spacing: 4px; line-height: 1.2;
+      animation: titlePulse 3s ease-in-out infinite;
+    }
+    .game-subtitle {
+      font-family: 'Cinzel Decorative', cursive; font-size: 28px; font-weight: 700;
+      color: #c77dff; letter-spacing: 8px; margin-top: 4px;
+      animation: titlePulse 3s ease-in-out infinite 0.5s;
+    }
+    @keyframes titlePulse {
+      0%, 100% { text-shadow: 0 0 15px rgba(0,229,255,0.5), 0 0 40px rgba(0,229,255,0.2); transform: scale(1); }
+      50% { text-shadow: 0 0 25px rgba(0,229,255,0.8), 0 0 70px rgba(0,229,255,0.4); transform: scale(1.02); }
+    }
+
+    .choose-text {
+      font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 500;
+      color: #b0b0c0; letter-spacing: 6px; text-transform: uppercase;
+      margin: 24px 0 16px 0;
+    }
+
+    /* Dragon cards */
+    .dragon-cards {
+      display: flex; gap: 16px; justify-content: center;
+      flex-wrap: wrap; padding: 0 20px; margin-bottom: 24px;
+    }
+    .dragon-card {
+      width: 130px; height: 170px; border-radius: 14px;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.1); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: all 0.3s ease; position: relative; overflow: hidden;
+    }
+    .dragon-card:hover {
+      transform: translateY(-6px) scale(1.05);
+      border-color: var(--glow, #00d4ff);
+      box-shadow: 0 0 20px var(--dim, rgba(0,212,255,0.2)), inset 0 0 20px var(--dim, rgba(0,212,255,0.05));
+    }
+    .dragon-card img { width: 80px; height: 80px; object-fit: contain; pointer-events: none; }
+    .dragon-card .name {
+      font-family: 'Cinzel Decorative', cursive; font-size: 13px; font-weight: 700;
+      margin-top: 8px; color: var(--glow, #fff);
+    }
+    .dragon-card .role {
+      font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 500;
+      color: #888; margin-top: 2px;
+    }
+
+    /* Title buttons */
+    .title-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      padding: 12px 36px; border-radius: 30px; border: 2px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05); color: #e0e0e0;
+      font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600;
+      letter-spacing: 3px; cursor: pointer; transition: all 0.3s ease;
+      text-transform: uppercase;
+    }
+    .btn:hover {
+      background: rgba(0,212,255,0.15); border-color: #00d4ff;
+      box-shadow: 0 0 20px rgba(0,212,255,0.3); transform: translateY(-2px);
+    }
+    .btn.primary {
+      background: rgba(0,229,255,0.2); border-color: #00e5ff;
+    }
+    .btn.primary:hover { background: rgba(0,229,255,0.35); box-shadow: 0 0 30px rgba(0,229,255,0.4); }
+
+    /* Wallet button */
+    #walletBtn {
+      position: fixed; top: 16px; right: 16px; z-index: 20;
+      padding: 8px 20px; border-radius: 20px;
+      border: 1px solid rgba(0,212,255,0.4); background: rgba(0,0,0,0.5);
+      color: #00e5ff; font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.3s; letter-spacing: 1px;
+    }
+    #walletBtn:hover { background: rgba(0,212,255,0.15); box-shadow: 0 0 15px rgba(0,212,255,0.3); }
+    #walletBtn.connected { border-color: #00ff88; color: #00ff88; }
+
+    /* ===== DRAGON MODAL ===== */
+    #dragonModal {
+      position: fixed; inset: 0; z-index: 30;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-panel {
+      width: 420px; max-width: 92vw; border-radius: 20px;
+      background: #111122; border: 1px solid rgba(255,255,255,0.1);
+      padding: 32px; text-align: center;
+      box-shadow: 0 0 60px rgba(0,0,0,0.8);
+    }
+    .modal-panel .dragon-img-large {
+      width: 140px; height: 140px; object-fit: contain;
+      margin: 0 auto 12px; display: block;
+      filter: drop-shadow(0 0 20px var(--glow));
+    }
+    .modal-panel h2 {
+      font-family: 'Cinzel Decorative', cursive; font-size: 26px;
+      color: var(--glow); margin-bottom: 8px;
+    }
+    .modal-panel .desc {
+      font-size: 14px; color: #999; line-height: 1.5; margin-bottom: 20px;
+    }
+    .stat-row {
+      display: flex; align-items: center; margin-bottom: 10px; gap: 10px;
+    }
+    .stat-label {
+      width: 70px; text-align: right; font-size: 12px; font-weight: 600;
+      color: #888; text-transform: uppercase; letter-spacing: 1px;
+    }
+    .stat-bar-bg {
+      flex: 1; height: 10px; border-radius: 5px;
+      background: rgba(255,255,255,0.08); overflow: hidden;
+    }
+    .stat-bar-fill {
+      height: 100%; border-radius: 5px; width: 0%;
+      background: var(--glow); transition: width 0.8s ease;
+      box-shadow: 0 0 8px var(--glow);
+    }
+    .stat-value { width: 30px; text-align: left; font-size: 12px; color: #ccc; }
+    .modal-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 24px; }
+    .btn-select {
+      padding: 12px 36px; border-radius: 30px; border: none;
+      font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 700;
+      letter-spacing: 3px; cursor: pointer; transition: all 0.3s; text-transform: uppercase;
+    }
+    .btn-select { background: var(--glow); color: #000; }
+    .btn-select:hover { filter: brightness(1.3); transform: translateY(-2px); box-shadow: 0 0 25px var(--glow); }
+    .btn-back {
+      padding: 12px 30px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.2);
+      background: transparent; color: #888;
+      font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600;
+      letter-spacing: 2px; cursor: pointer; transition: all 0.3s;
+    }
+    .btn-back:hover { border-color: #fff; color: #fff; }
+
+    /* ===== ENTER ARENA ===== */
+    #enterArena {
+      position: fixed; inset: 0; z-index: 25;
+      background: #0a0a1a; display: flex; align-items: center; justify-content: center;
+    }
+    #enterArena h1 {
+      font-family: 'Cinzel Decorative', cursive; font-size: 48px;
+      color: #00e5ff; animation: arenaPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes arenaPulse {
+      0%, 100% { opacity: 0.6; text-shadow: 0 0 20px rgba(0,229,255,0.4); }
+      50% { opacity: 1; text-shadow: 0 0 40px rgba(0,229,255,0.8), 0 0 80px rgba(0,229,255,0.3); }
+    }
+
+    /* ===== LOADING SCREEN ===== */
+    #loadingScreen {
+      position: fixed; inset: 0; z-index: 25;
+      background: #0a0a1a; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    .infinity-symbol {
+      font-size: 48px; color: #00e5ff;
+      animation: infPulse 1.2s ease-in-out infinite;
+      position: relative;
+    }
+    @keyframes infPulse {
+      0%, 100% { text-shadow: 0 0 15px rgba(0,229,255,0.5), 0 0 40px rgba(0,229,255,0.2); }
+      50% { text-shadow: 0 0 30px rgba(0,229,255,0.9), 0 0 60px rgba(0,229,255,0.4); }
+    }
+    .orbit-container { position: relative; width: 120px; height: 120px; margin: 20px 0; }
+    .orbit-dot {
+      position: absolute; width: 10px; height: 10px; border-radius: 50%;
+      top: 50%; left: 50%; margin: -5px 0 0 -5px;
+    }
+    .orbit-dot:nth-child(1) {
+      animation: orbit1 2s linear infinite;
+    }
+    .orbit-dot:nth-child(2) {
+      animation: orbit2 1.4s linear infinite reverse;
+      width: 6px; height: 6px; margin: -3px 0 0 -3px;
+    }
+    @keyframes orbit1 {
+      0% { transform: rotate(0deg) translateX(40px); }
+      100% { transform: rotate(360deg) translateX(40px); }
+    }
+    @keyframes orbit2 {
+      0% { transform: rotate(0deg) translateX(25px); }
+      100% { transform: rotate(360deg) translateX(25px); }
+    }
+    .loading-text {
+      font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 500;
+      color: #888; letter-spacing: 4px; text-transform: uppercase; margin-top: 16px;
+    }
+    .progress-bar {
+      width: 200px; height: 4px; border-radius: 2px;
+      background: rgba(255,255,255,0.08); margin-top: 12px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 2px; background: #00e5ff;
+      width: 0%; transition: width 0.3s; box-shadow: 0 0 10px rgba(0,229,255,0.5);
+    }
+
+    /* ===== GAME SCREEN ===== */
+    #gameScreen {
+      position: fixed; inset: 0; z-index: 10; display: none;
+    }
+    #gameCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+    /* HUD */
+    .hud {
+      position: absolute; top: 0; left: 0; right: 0; pointer-events: none; z-index: 5;
+      display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 16px;
+    }
+    .hud-left { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+    .hud-right { pointer-events: auto; }
+    .pause-btn {
+      width: 40px; height: 40px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.5);
+      color: #fff; font-size: 16px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .pause-btn:hover { background: rgba(0,212,255,0.2); border-color: #00d4ff; }
+    .timer-display {
+      font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 600;
+      color: #00e5ff; text-shadow: 0 0 10px rgba(0,229,255,0.5); letter-spacing: 2px;
+    }
+    #minimap {
+      width: 120px; height: 120px; border-radius: 10px;
+      border: 1px solid rgba(0,212,255,0.3); background: rgba(0,0,0,0.6);
+    }
+
+    /* Mobile controls */
+    .mobile-controls { display: none; }
+    @media (max-width: 768px), (pointer: coarse) {
+      .mobile-controls { display: flex; }
+    }
+    .mobile-controls {
+      position: absolute; bottom: 20px; left: 0; right: 0; z-index: 6;
+      justify-content: space-between; align-items: flex-end; padding: 0 20px;
+      pointer-events: none;
+    }
+    .joystick-area {
+      width: 100px; height: 100px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);
+      position: relative; pointer-events: auto; touch-action: none;
+    }
+    .joystick-knob {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(0,212,255,0.4); border: 2px solid rgba(0,212,255,0.6);
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px rgba(0,212,255,0.3); pointer-events: none;
+    }
+    .boost-btn {
+      width: 64px; height: 64px; border-radius: 50%;
+      border: 2px solid rgba(255,60,60,0.5); background: rgba(255,40,40,0.2);
+      color: #ff4444; font-family: 'Rajdhani', sans-serif; font-size: 10px; font-weight: 700;
+      letter-spacing: 1px; display: flex; align-items: center; justify-content: center;
+      pointer-events: auto; touch-action: none; user-select: none;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .boost-btn:active { transform: scale(0.9); background: rgba(255,40,40,0.4); }
+
+    /* Score overlay */
+    .score-hud {
+      position: absolute; top: 56px; left: 16px; z-index: 5;
+      font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 500;
+      color: #b0b0c0; pointer-events: none; line-height: 1.6;
+    }
+
+    /* ===== PAUSE OVERLAY ===== */
+    #pauseOverlay {
+      position: absolute; inset: 0; z-index: 20;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    #pauseOverlay h2 {
+      font-family: 'Cinzel Decorative', cursive; font-size: 36px; color: #00e5ff; margin-bottom: 32px;
+    }
+    .pause-buttons { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+    .pause-buttons .btn { min-width: 200px; text-align: center; }
+
+    /* ===== GAME OVER SCREEN ===== */
+    #gameOverScreen {
+      position: fixed; inset: 0; z-index: 30;
+      background: rgba(5,5,15,0.92); backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    #gameOverScreen h1 {
+      font-family: 'Cinzel Decorative', cursive; font-size: 48px; color: #ff2a2a;
+      animation: goPulse 2s ease-in-out infinite;
+    }
+    @keyframes goPulse {
+      0%, 100% { text-shadow: 0 0 15px rgba(255,42,42,0.5); }
+      50% { text-shadow: 0 0 35px rgba(255,42,42,0.9); }
+    }
+    .go-stats {
+      margin: 28px 0; text-align: center;
+    }
+    .go-stat-row {
+      display: flex; justify-content: space-between; gap: 40px;
+      margin-bottom: 10px; font-family: 'Rajdhani', sans-serif;
+    }
+    .go-stat-label { font-size: 14px; color: #888; text-transform: uppercase; letter-spacing: 2px; }
+    .go-stat-value { font-size: 18px; font-weight: 700; color: #00e5ff; }
+    .go-buttons { display: flex; gap: 16px; margin-top: 8px; }
+
+    /* ===== HOW TO PLAY ===== */
+    #howToPlayScreen {
+      position: fixed; inset: 0; z-index: 30;
+      background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .htp-panel {
+      width: 500px; max-width: 94vw; max-height: 80vh; border-radius: 20px;
+      background: #111122; border: 1px solid rgba(255,255,255,0.1);
+      padding: 28px; overflow-y: auto;
+    }
+    .htp-panel h2 {
+      font-family: 'Cinzel Decorative', cursive; font-size: 24px; color: #00e5ff;
+      text-align: center; margin-bottom: 16px;
+    }
+    .htp-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .htp-tab {
+      flex: 1; padding: 8px; border-radius: 8px; border: none;
+      background: rgba(255,255,255,0.05); color: #888;
+      font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 600;
+      letter-spacing: 1px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+    }
+    .htp-tab.active { background: rgba(0,212,255,0.2); color: #00e5ff; }
+    .htp-tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
+    .htp-content { font-size: 13px; line-height: 1.7; color: #bbb; }
+    .htp-content h3 { color: #00e5ff; font-size: 14px; margin: 12px 0 6px 0; text-transform: uppercase; letter-spacing: 1px; }
+    .htp-content .key { display: inline-block; padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.1); color: #fff; font-size: 12px; font-weight: 600; margin: 0 2px; }
+    .htp-close { margin-top: 16px; text-align: center; }
+    .htp-section { display: none; }
+    .htp-section.active { display: block; }
+
+    /* ===== WALLET MODAL ===== */
+    #walletModal {
+      position: fixed; inset: 0; z-index: 40;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .wallet-panel {
+      width: 360px; max-width: 92vw; border-radius: 20px;
+      background: #111122; border: 1px solid rgba(255,255,255,0.1);
+      padding: 28px; text-align: center;
+    }
+    .wallet-panel h2 {
+      font-family: 'Cinzel Decorative', cursive; font-size: 22px; color: #00e5ff; margin-bottom: 20px;
+    }
+    .wallet-option {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 18px; border-radius: 12px; margin-bottom: 10px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer; transition: all 0.25s; text-align: left;
+    }
+    .wallet-option:hover { background: rgba(255,255,255,0.1); border-color: rgba(0,212,255,0.3); transform: translateX(4px); }
+    .wallet-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .wallet-name { font-family: 'Rajdhani', sans-serif; font-size: 15px; font-weight: 600; color: #e0e0e0; }
+    .wallet-close { margin-top: 16px; }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .fade-in { animation: fadeIn 0.4s ease; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 3px; }
+  </style>
+<base target="_blank">
+</head>
+<body>
+
+  <!-- ===== PARTICLE CANVAS ===== -->
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- ===== TITLE SCREEN ===== -->
+  <div id="titleScreen">
+    <div class="overlay"></div>
+    <div class="content">
+      <div class="game-title glow-cyan">Infinite Runners</div>
+      <div class="game-subtitle">^Dragons Arena^</div>
+      <div class="choose-text">Choose your Infinite Dragon</div>
+      <div class="dragon-cards" id="dragonCards">
+        <div class="dragon-card" data-dragon="aegis" style="--glow:#c77dff;--dim:rgba(155,77,255,0.2);">
+          <img src="./dragons/aegis.png" alt="Aegis" draggable="false">
+          <div class="name">Aegis</div>
+          <div class="role">Royal Warden</div>
+        </div>
+        <div class="dragon-card" data-dragon="ignis" style="--glow:#ff6b35;--dim:rgba(255,77,77,0.2);">
+          <img src="./dragons/ignis.png" alt="Ignis" draggable="false">
+          <div class="name">Ignis</div>
+          <div class="role">Flame Tyrant</div>
+        </div>
+        <div class="dragon-card" data-dragon="infinite" style="--glow:#48cae4;--dim:rgba(0,180,216,0.2);">
+          <img src="./dragons/infinite.png" alt="Infinite" draggable="false">
+          <div class="name">Infinite</div>
+          <div class="role">Azure Serpent</div>
+        </div>
+        <div class="dragon-card" data-dragon="magnetron" style="--glow:#ff33cc;--dim:rgba(255,0,170,0.2);">
+          <img src="./dragons/magnetron.png" alt="Magnetron" draggable="false">
+          <div class="name">Magnetron</div>
+          <div class="role">Electric Wyrm</div>
+        </div>
+      </div>
+      <div class="title-buttons">
+        <button class="btn" id="btnHowToPlay">How to Play</button>
+        <button class="btn" id="btnLeaderboard">Leaderboard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wallet Button -->
+  <button id="walletBtn">Wallet</button>
+
+  <!-- ===== DRAGON MODAL ===== -->
+  <div id="dragonModal" class="hidden">
+    <div class="modal-panel fade-in" id="modalPanel">
+      <img class="dragon-img-large" id="modalImg" src="" alt="">
+      <h2 id="modalName">Dragon</h2>
+      <div class="desc" id="modalDesc"></div>
+      <div class="stats" id="modalStats">
+        <div class="stat-row"><span class="stat-label">Speed</span><div class="stat-bar-bg"><div class="stat-bar-fill" id="statSpeed"></div></div><span class="stat-value" id="valSpeed">0</span></div>
+        <div class="stat-row"><span class="stat-label">Power</span><div class="stat-bar-bg"><div class="stat-bar-fill" id="statPower"></div></div><span class="stat-value" id="valPower">0</span></div>
+        <div class="stat-row"><span class="stat-label">Length</span><div class="stat-bar-bg"><div class="stat-bar-fill" id="statLength"></div></div><span class="stat-value" id="valLength">0</span></div>
+        <div class="stat-row"><span class="stat-label">Defense</span><div class="stat-bar-bg"><div class="stat-bar-fill" id="statDefense"></div></div><span class="stat-value" id="valDefense">0</span></div>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-back" id="btnModalBack">Back</button>
+        <button class="btn-select" id="btnModalSelect">Select</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ENTER ARENA ===== -->
+  <div id="enterArena" class="hidden">
+    <h1 class="glow-cyan">Enter Arena</h1>
+  </div>
+
+  <!-- ===== LOADING SCREEN ===== -->
+  <div id="loadingScreen" class="hidden">
+    <div class="infinity-symbol">&#8734;</div>
+    <div class="orbit-container">
+      <div class="orbit-dot" id="orbitDot1" style="background:#00e5ff;box-shadow:0 0 10px #00e5ff;"></div>
+      <div class="orbit-dot" id="orbitDot2" style="background:#c77dff;box-shadow:0 0 8px #c77dff;"></div>
+    </div>
+    <div class="loading-text">Entering the Arena...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <!-- ===== GAME SCREEN ===== -->
+  <div id="gameScreen" class="hidden">
+    <canvas id="gameCanvas"></canvas>
+    <!-- HUD -->
+    <div class="hud" id="gameHud">
+      <div class="hud-left">
+        <button class="pause-btn" id="pauseBtn">||</button>
+        <div class="timer-display" id="timerDisplay">0:00</div>
+      </div>
+      <div class="hud-right">
+        <canvas id="minimap" width="120" height="120"></canvas>
+      </div>
+    </div>
+    <div class="score-hud" id="scoreHud">
+      <div>Segments: <span id="segCount" style="color:#00e5ff;">5</span></div>
+      <div>Collectibles: <span id="collectCount" style="color:#ffd700;">0</span></div>
+      <div>Kills: <span id="killCount" style="color:#ff4444;">0</span></div>
+    </div>
+    <!-- Mobile Controls -->
+    <div class="mobile-controls" id="mobileControls">
+      <div class="joystick-area" id="joystickArea">
+        <div class="joystick-knob" id="joystickKnob"></div>
+      </div>
+      <div class="boost-btn" id="mobileBoostBtn">BOOST</div>
+    </div>
+    <!-- Pause Overlay -->
+    <div id="pauseOverlay" class="hidden">
+      <h2>Paused</h2>
+      <div class="pause-buttons">
+        <button class="btn primary" id="btnResume">Resume</button>
+        <button class="btn" id="btnChangeDragon">Change Dragon</button>
+        <button class="btn" id="btnQuit">Quit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GAME OVER SCREEN ===== -->
+  <div id="gameOverScreen" class="hidden">
+    <h1>GAME OVER</h1>
+    <div class="go-stats">
+      <div class="go-stat-row"><span class="go-stat-label">Survival Time</span><span class="go-stat-value" id="goTime">0:00</span></div>
+      <div class="go-stat-row"><span class="go-stat-label">Collectibles</span><span class="go-stat-value" id="goCollect">0</span></div>
+      <div class="go-stat-row"><span class="go-stat-label">Kills</span><span class="go-stat-value" id="goKills">0</span></div>
+    </div>
+    <div class="go-buttons">
+      <button class="btn" id="btnGoMenu">Main Menu</button>
+      <button class="btn primary" id="btnGoPlay">Play Again</button>
+    </div>
+  </div>
+
+  <!-- ===== HOW TO PLAY ===== -->
+  <div id="howToPlayScreen" class="hidden">
+    <div class="htp-panel fade-in">
+      <h2>How to Play</h2>
+      <div class="htp-tabs">
+        <button class="htp-tab active" data-tab="controls">Controls</button>
+        <button class="htp-tab" data-tab="mechanics">Mechanics</button>
+        <button class="htp-tab" data-tab="tips">Tips</button>
+      </div>
+      <div class="htp-content">
+        <div class="htp-section active" id="tab-controls">
+          <h3>Desktop</h3>
+          <p>Move your <span class="key">Mouse</span> to steer the dragon. Hold <span class="key">Left Click</span> or <span class="key">Space</span> to boost.</p>
+          <h3>Mobile / Touch</h3>
+          <p>Use the virtual joystick (bottom-left) to steer. Press and hold the <span class="key">BOOST</span> button (bottom-right) to accelerate.</p>
+          <h3>Pause</h3>
+          <p>Click the <span class="key">||</span> button or press <span class="key">Escape</span> to pause the game.</p>
+        </div>
+        <div class="htp-section" id="tab-mechanics">
+          <h3>Head vs Head</h3>
+          <p>When two dragon heads collide, the longer dragon survives. The shorter dragon dies and 60% of its segments become collectible infinity symbols.</p>
+          <h3>Head vs Tail</h3>
+          <p>If your head hits another dragon's tail (segment 8 or later), the tail owner loses 20% of segments from the tail and drops them as collectibles. Their speed is reduced by 50% for 0.7 seconds.</p>
+          <h3>Tail vs Tail</h3>
+          <p>Tail collisions have no effect. Dragons pass through each other's tails freely.</p>
+          <h3>Collectibles</h3>
+          <p>Infinity symbols scattered across the arena grow your dragon. Each collectible adds one segment, up to a maximum of 80.</p>
+          <h3>Arena Boundary</h3>
+          <p>The arena is circular. Going outside the boundary will bounce you back inside.</p>
+        </div>
+        <div class="htp-section" id="tab-tips">
+          <h3>Survival Tips</h3>
+          <p>Stay near the center of the arena where food is most abundant.</p>
+          <p>Use boost strategically to escape dangerous encounters or cut off opponents.</p>
+          <p>Circle smaller dragons with your tail to trap them into hitting it.</p>
+          <p>Avoid head-to-head collisions when you are shorter than your opponent.</p>
+          <p>When long, your tail becomes a powerful weapon that others fear.</p>
+        </div>
+      </div>
+      <div class="htp-close"><button class="btn" id="btnHtpClose">Close</button></div>
+    </div>
+  </div>
+
+  <!-- ===== WALLET MODAL ===== -->
+  <div id="walletModal" class="hidden">
+    <div class="wallet-panel fade-in">
+      <h2 id="walletTitle">Connect Wallet</h2>
+      <div id="walletOptions">
+        <div class="wallet-option" data-wallet="metamask">
+          <div class="wallet-icon" style="background:rgba(255,140,0,0.2);"><span style="color:#ff8c00;">&#128048;</span></div>
+          <span class="wallet-name">MetaMask</span>
+        </div>
+        <div class="wallet-option" data-wallet="walletconnect">
+          <div class="wallet-icon" style="background:rgba(59,153,252,0.2);"><span style="color:#3b99fc;">&#9741;</span></div>
+          <span class="wallet-name">WalletConnect</span>
+        </div>
+        <div class="wallet-option" data-wallet="coinbase">
+          <div class="wallet-icon" style="background:rgba(0,82,255,0.2);"><span style="color:#0052ff;">&#9679;</span></div>
+          <span class="wallet-name">Coinbase Wallet</span>
+        </div>
+        <div class="wallet-option" data-wallet="phantom">
+          <div class="wallet-icon" style="background:rgba(171,96,247,0.2);"><span style="color:#ab60f7;">&#128009;</span></div>
+          <span class="wallet-name">Phantom</span>
+        </div>
+      </div>
+      <div class="wallet-close"><button class="btn" id="btnWalletClose">Close</button></div>
+    </div>
+  </div>
+
+  <!-- ===== LEADERBOARD MODAL ===== -->
+  <div id="leaderboardScreen" class="hidden" style="position:fixed;inset:0;z-index:30;background:rgba(0,0,0,0.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;">
+    <div class="wallet-panel fade-in" style="width:420px;max-width:94vw;">
+      <h2 style="font-family:'Cinzel Decorative',cursive;font-size:22px;color:#ffd700;margin-bottom:20px;text-align:center;">Leaderboard</h2>
+      <div id="leaderboardList" style="max-height:300px;overflow-y:auto;">
+        <div style="text-align:center;color:#888;padding:20px;font-size:14px;">No entries yet. Be the first to claim the top spot!</div>
+      </div>
+      <div style="margin-top:16px;text-align:center;"><button class="btn" id="btnLbClose">Close</button></div>
+    </div>
+  </div>
+
+
+  <script>
+  // ============================================================
+  // INFINITE RUNNERS ^DRAGONS ARENA^ - GAME ENGINE
+  // ============================================================
+
+  // ===== STATE MACHINE =====
+  const GameState = { TITLE: 0, MODAL: 1, ENTER_ARENA: 2, LOADING: 3, PLAYING: 4, PAUSED: 5, GAMEOVER: 6, HOWTOPLAY: 7 };
+  let currentState = GameState.TITLE;
+  let selectedDragon = null;
+  let walletConnected = false;
+  let walletAddress = '';
+
+  // ===== DRAGON DATA =====
+  const DRAGONS = {
+    aegis:     { name: 'Aegis',     color: '#9b4dff', glow: '#c77dff', dim: 'rgba(155,77,255,0.15)',  img: './dragons/aegis.png',     stats: { speed: 65, power: 70, length: 75 }, desc: 'The Royal Warden. A majestic purple dragon crowned in gold, wielding arcane barrier magic.' },
+    ignis:     { name: 'Ignis',     color: '#ff4d4d', glow: '#ff6b35', dim: 'rgba(255,77,77,0.15)',  img: './dragons/ignis.png',     stats: { speed: 80, power: 85, length: 50 }, desc: 'The Flame Tyrant. A ferocious fire dragon with lava-scales that radiates intense heat.' },
+    infinite:  { name: 'Infinite',  color: '#00b4d8', glow: '#48cae4', dim: 'rgba(0,180,216,0.15)',   img: './dragons/infinite.png',  stats: { speed: 90, power: 55, length: 80 }, desc: 'The Azure Serpent. An elegant blue dragon with golden horns, known for endless stamina.' },
+    magnetron: { name: 'Magnetron', color: '#ff00aa', glow: '#ff33cc', dim: 'rgba(255,0,170,0.15)',   img: './dragons/magnetron.png', stats: { speed: 60, power: 60, length: 90 }, desc: 'The Electric Wyrm. A pink dragon crackling with electromagnetic energy.' }
+  };
+
+  // ===== GAME CONSTANTS =====
+  const ARENA_SIZE = 4000;
+  const ARENA_RADIUS = ARENA_SIZE / 2;
+  const ARENA_CENTER = ARENA_SIZE / 2;
+  const BASE_SPEED = 3.5;
+  const BOOST_SPEED = 6.5;
+  const MAX_TURN_RATE = 0.06;
+  const FOOD_COUNT = 1500;
+  const AI_COUNT = 15;
+  const STARTING_SEGMENTS = 5;
+  const MAX_SEGMENTS = 80;
+  const SEGMENT_SPACING = 8;
+  const CAMERA_LERP = 0.08;
+  const DRAGON_SCALE = 0.4;
+
+  // ===== DOM REFS =====
+  const $ = id => document.getElementById(id);
+  const titleScreen     = $('titleScreen');
+  const dragonModal     = $('dragonModal');
+  const enterArena      = $('enterArena');
+  const loadingScreen   = $('loadingScreen');
+  const gameScreen      = $('gameScreen');
+  const gameCanvas      = $('gameCanvas');
+  const gameCtx         = gameCanvas.getContext('2d');
+  const pauseOverlay    = $('pauseOverlay');
+  const gameOverScreen  = $('gameOverScreen');
+  const howToPlayScreen = $('howToPlayScreen');
+  const walletModal     = $('walletModal');
+  const leaderboardScreen = $('leaderboardScreen');
+  const minimap         = $('minimap');
+  const miniCtx         = minimap.getContext('2d');
+  const timerDisplay    = $('timerDisplay');
+  const walletBtn       = $('walletBtn');
+
+  // ===== IMAGE LOADING =====
+  const stripMap = {};
+  const loadedImages = {};
+  let imagesLoaded = false;
+
+  function loadImages() {
+    const types = ['aegis', 'ignis', 'infinite', 'magnetron'];
+    let loadedCount = 0;
+    types.forEach(type => {
+      const img = new Image();
+      img.onload = () => {
+        loadedImages[type] = img;
+        stripMap[type] = sliceImage(img, 50);
+        loadedCount++;
+        if (loadedCount >= types.length) imagesLoaded = true;
+      };
+      img.onerror = () => { loadedCount++; };
+      img.src = DRAGONS[type].img;
+    });
+    // Collectible / coin image (same as infinite)
+    const coinImg = new Image();
+    coinImg.onload = () => { loadedImages['coin'] = coinImg; };
+    coinImg.src = './dragons/infinite.png';
+  }
+
+  // ===== DRAGON STRIP SLICING =====
+  function sliceImage(image, stripCount) {
+    if (!image.width || !image.height) return [];
+    const strips = [];
+    const stripWidth = image.width / stripCount;
+    for (let i = 0; i < stripCount; i++) {
+      const c = document.createElement('canvas');
+      c.width = Math.ceil(stripWidth) + 2;
+      c.height = image.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(image, i * stripWidth, 0, stripWidth, image.height, 0, 0, c.width, c.height);
+      strips.push(c);
+    }
+    return strips;
+  }
+
+  // ===== RESIZE CANVAS =====
+  let CW, CH;
+  function resize() {
+    CW = gameCanvas.width = window.innerWidth;
+    CH = gameCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ===== UTILITY =====
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+  const angleLerp = (a, b, t) => {
+    let d = b - a;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return a + d * t;
+  };
+
+  // ===== PARTICLE SYSTEM =====
+  const particles = [];
+  function spawnParticle(x, y, color, count = 1, speed = 2) {
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x, y,
+        vx: (Math.random() - 0.5) * speed * 2,
+        vy: (Math.random() - 0.5) * speed * 2,
+        life: 1, decay: 0.01 + Math.random() * 0.02,
+        size: 2 + Math.random() * 4, color
+      });
+    }
+  }
+  function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+  function renderParticles(ctx, camX, camY) {
+    for (const p of particles) {
+      const sx = p.x - camX + CW / 2;
+      const sy = p.y - camY + CH / 2;
+      if (sx < -10 || sx > CW + 10 || sy < -10 || sy > CH + 10) continue;
+      ctx.globalAlpha = p.life * 0.8;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.size * p.life, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ===== FOOD / COLLECTIBLES =====
+  let foods = [];
+  function spawnFood(x, y) {
+    foods.push({ x, y, size: 14, pulse: Math.random() * Math.PI * 2 });
+  }
+  function initFood() {
+    foods = [];
+    for (let i = 0; i < FOOD_COUNT; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * (ARENA_RADIUS - 100);
+      spawnFood(ARENA_CENTER + Math.cos(angle) * r, ARENA_CENTER + Math.sin(angle) * r);
+    }
+  }
+
+  // ===== DRAGON CLASS =====
+  class Dragon {
+    constructor(type, isPlayer = false, name = '') {
+      this.type = type;
+      this.isPlayer = isPlayer;
+      this.name = name || DRAGONS[type].name;
+      this.alive = true;
+      this.angle = Math.random() * Math.PI * 2;
+      this.speed = BASE_SPEED;
+      this.boosting = false;
+      this.slowTimer = 0;
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.random() * (ARENA_RADIUS - 300);
+      this.x = ARENA_CENTER + Math.cos(angle) * r;
+      this.y = ARENA_CENTER + Math.sin(angle) * r;
+      this.segments = [];
+      for (let i = 0; i < STARTING_SEGMENTS; i++) {
+        this.segments.push({ x: this.x - i * SEGMENT_SPACING, y: this.y });
+      }
+      this.targetAngle = this.angle;
+      this.changeTimer = 0;
+      this.turnDir = 0;
+    }
+
+    update(inputAngle, inputBoost) {
+      if (!this.alive) return;
+
+      // AI steering
+      if (!this.isPlayer) {
+        this.aiUpdate();
+      } else {
+        this.targetAngle = inputAngle;
+        this.boosting = inputBoost;
+      }
+
+      // Slow timer
+      if (this.slowTimer > 0) { this.slowTimer--; this.speed = BASE_SPEED * 0.5; }
+      else { this.speed = this.boosting ? BOOST_SPEED : BASE_SPEED; }
+
+      // Turn
+      this.angle = angleLerp(this.angle, this.targetAngle, MAX_TURN_RATE);
+
+      // Move head
+      this.x += Math.cos(this.angle) * this.speed;
+      this.y += Math.sin(this.angle) * this.speed;
+
+      // Boundary bounce
+      const dx = this.x - ARENA_CENTER;
+      const dy = this.y - ARENA_CENTER;
+      const d2c = Math.hypot(dx, dy);
+      if (d2c > ARENA_RADIUS - 40) {
+        const bounceAngle = Math.atan2(dy, dx) + Math.PI + (Math.random() - 0.5) * 0.8;
+        this.angle = bounceAngle;
+        this.targetAngle = bounceAngle;
+        const push = d2c - (ARENA_RADIUS - 40) + 20;
+        this.x -= (dx / d2c) * push;
+        this.y -= (dy / d2c) * push;
+      }
+
+      // Update segments (follow the leader)
+      this.segments[0].x = this.x;
+      this.segments[0].y = this.y;
+      for (let i = 1; i < this.segments.length; i++) {
+        const prev = this.segments[i - 1];
+        const cur = this.segments[i];
+        const a = Math.atan2(prev.y - cur.y, prev.x - cur.x);
+        const d = dist(prev, cur);
+        if (d > SEGMENT_SPACING) {
+          cur.x = prev.x - Math.cos(a) * SEGMENT_SPACING;
+          cur.y = prev.y - Math.sin(a) * SEGMENT_SPACING;
+        }
+        // Clamp inside arena
+        const cdx = cur.x - ARENA_CENTER;
+        const cdy = cur.y - ARENA_CENTER;
+        const cd = Math.hypot(cdx, cdy);
+        if (cd > ARENA_RADIUS - 10) {
+          cur.x = ARENA_CENTER + (cdx / cd) * (ARENA_RADIUS - 10);
+          cur.y = ARENA_CENTER + (cdy / cd) * (ARENA_RADIUS - 10);
+        }
+      }
+    }
+
+    aiUpdate() {
+      // Simple AI: wander with some logic
+      this.changeTimer--;
+      if (this.changeTimer <= 0) {
+        this.changeTimer = 40 + Math.random() * 80;
+        this.turnDir = (Math.random() - 0.5) * 2;
+      }
+      this.targetAngle += this.turnDir * 0.03;
+
+      // Look for nearby food
+      let nearestFood = null;
+      let nearestDist = 200;
+      for (const f of foods) {
+        const d = dist(this, f);
+        if (d < nearestDist) { nearestDist = d; nearestFood = f; }
+      }
+      if (nearestFood) {
+        this.targetAngle = Math.atan2(nearestFood.y - this.y, nearestFood.x - this.x);
+      }
+
+      // Avoid boundary
+      const dx = this.x - ARENA_CENTER;
+      const dy = this.y - ARENA_CENTER;
+      const d2c = Math.hypot(dx, dy);
+      if (d2c > ARENA_RADIUS - 200) {
+        this.targetAngle = Math.atan2(-dy, -dx) + (Math.random() - 0.5) * 0.5;
+      }
+
+      // Random boost
+      this.boosting = Math.random() < 0.02;
+    }
+
+    grow(amount = 1) {
+      for (let i = 0; i < amount && this.segments.length < MAX_SEGMENTS; i++) {
+        const last = this.segments[this.segments.length - 1];
+        this.segments.push({ x: last.x, y: last.y });
+      }
+    }
+
+    dropSegments(percent) {
+      const dropCount = Math.floor(this.segments.length * percent);
+      for (let i = 0; i < dropCount && this.segments.length > 3; i++) {
+        const seg = this.segments.pop();
+        // 50% chance to spawn food
+        if (Math.random() < 0.5) spawnFood(seg.x + (Math.random()-0.5)*20, seg.y + (Math.random()-0.5)*20);
+      }
+    }
+
+    die() {
+      this.alive = false;
+      // Drop 60% of segments as food
+      const dropCount = Math.floor(this.segments.length * 0.6);
+      for (let i = 0; i < dropCount; i++) {
+        const idx = Math.floor(Math.random() * this.segments.length);
+        const seg = this.segments[idx];
+        spawnFood(seg.x + (Math.random()-0.5)*40, seg.y + (Math.random()-0.5)*40);
+        this.segments.splice(idx, 1);
+        if (this.segments.length <= 1) break;
+      }
+      // Death particles
+      for (const seg of this.segments) {
+        spawnParticle(seg.x, seg.y, DRAGONS[this.type].color, 3, 4);
+      }
+    }
+  }
+
+
+  // ===== RENDERING =====
+  function renderDragon(ctx, dragon, camX, camY, cw, ch) {
+    if (!dragon.alive || dragon.segments.length === 0) return;
+    const strips = stripMap[dragon.type] || [];
+    const segs = dragon.segments;
+    const dData = DRAGONS[dragon.type];
+
+    // FALLBACK: If no strips loaded yet, draw colored circles
+    if (strips.length === 0) {
+      for (let i = segs.length - 1; i >= 0; i -= 3) {
+        const sx = segs[i].x - camX + cw / 2;
+        const sy = segs[i].y - camY + ch / 2;
+        if (sx < -50 || sx > cw + 50 || sy < -50 || sy > ch + 50) continue;
+        const sz = i === 0 ? 22 : 14 * (1 - i / segs.length * 0.4);
+        ctx.beginPath();
+        ctx.arc(sx, sy, sz, 0, Math.PI * 2);
+        ctx.fillStyle = i === 0 ? dData.color : dData.dim.replace('0.15', '0.4');
+        ctx.shadowColor = dData.glow;
+        ctx.shadowBlur = i === 0 ? 25 : 10;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      return;
+    }
+
+    // NORMAL: Draw strips along trail
+    const SEGMENT_SKIP = 5;
+
+    // Body (strips 1+, tail to neck)
+    for (let i = segs.length - 1; i >= SEGMENT_SKIP; i -= SEGMENT_SKIP) {
+      const progress = (segs.length - i) / segs.length;
+      const stripIdx = Math.max(1, Math.floor(progress * (strips.length - 2)));
+      const strip = strips[Math.min(stripIdx, strips.length - 1)];
+      if (!strip) continue;
+
+      const seg = segs[i];
+      let rotation = dragon.angle;
+      if (i < segs.length - SEGMENT_SKIP) {
+        const next = segs[i - SEGMENT_SKIP];
+        rotation = Math.atan2(next.y - seg.y, next.x - seg.x);
+      }
+
+      const sx = seg.x - camX + cw / 2;
+      const sy = seg.y - camY + ch / 2;
+      if (sx < -200 || sx > cw + 200 || sy < -200 || sy > ch + 200) continue;
+
+      const taper = 1.0 - (i / segs.length) * 0.4;
+
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(rotation + Math.PI);
+      ctx.scale(DRAGON_SCALE * taper, DRAGON_SCALE * taper);
+      ctx.drawImage(strip, -strip.width / 2, -strip.height / 2);
+      ctx.restore();
+    }
+
+    // Head (strip 0) - ALWAYS at full size, on top
+    if (segs.length > 0) {
+      const headStrip = strips[0];
+      if (headStrip) {
+        const h = segs[0];
+        const hsx = h.x - camX + cw / 2;
+        const hsy = h.y - camY + ch / 2;
+        if (hsx > -200 && hsx < cw + 200 && hsy > -200 && hsy < ch + 200) {
+          ctx.save();
+          ctx.translate(hsx, hsy);
+          ctx.rotate(dragon.angle + Math.PI);
+          ctx.scale(DRAGON_SCALE * 1.1, DRAGON_SCALE * 1.1);
+          ctx.shadowColor = dData.glow;
+          ctx.shadowBlur = 20;
+          ctx.drawImage(headStrip, -headStrip.width / 2, -headStrip.height / 2);
+          ctx.shadowBlur = 0;
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  function renderFood(ctx, camX, camY, cw, ch) {
+    const coinImg = loadedImages['coin'];
+    const time = Date.now() / 500;
+    for (const f of foods) {
+      const sx = f.x - camX + cw / 2;
+      const sy = f.y - camY + ch / 2;
+      if (sx < -30 || sx > cw + 30 || sy < -30 || sy > ch + 30) continue;
+
+      const pulse = 1 + Math.sin(time + f.pulse) * 0.15;
+      const sz = f.size * pulse;
+
+      if (coinImg && coinImg.complete && coinImg.naturalWidth > 0) {
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(time * 0.5 + f.pulse);
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 12;
+        ctx.drawImage(coinImg, -sz / 2, -sz / 2, sz, sz);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.fillStyle = '#00e5ff';
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 15;
+        ctx.font = `bold ${sz}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('\u221e', 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+    }
+  }
+
+  function renderArenaBorder(ctx, camX, camY, cw, ch) {
+    const cx = ARENA_CENTER - camX + cw / 2;
+    const cy = ARENA_CENTER - camY + ch / 2;
+    ctx.save();
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#00e5ff';
+    ctx.shadowBlur = 20;
+    ctx.setLineDash([20, 10]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, ARENA_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+
+    // Faint danger zone outside
+    const grad = ctx.createRadialGradient(cx, cy, ARENA_RADIUS * 0.7, cx, cy, ARENA_RADIUS);
+    grad.addColorStop(0, 'rgba(255,0,0,0)');
+    grad.addColorStop(1, 'rgba(255,0,0,0.08)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ARENA_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function renderBackground(ctx, camX, camY, cw, ch) {
+    // Dark base
+    ctx.fillStyle = '#0a0a1a';
+    ctx.fillRect(0, 0, cw, ch);
+
+    // Grid dots
+    const gridSize = 80;
+    const offX = (-camX + cw / 2) % gridSize;
+    const offY = (-camY + ch / 2) % gridSize;
+    ctx.fillStyle = 'rgba(0,212,255,0.06)';
+    for (let x = offX; x < cw; x += gridSize) {
+      for (let y = offY; y < ch; y += gridSize) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // ===== MINIMAP =====
+  function renderMinimap() {
+    miniCtx.clearRect(0, 0, 120, 120);
+    // Background
+    miniCtx.fillStyle = 'rgba(10,10,26,0.8)';
+    miniCtx.fillRect(0, 0, 120, 120);
+    // Arena border
+    miniCtx.strokeStyle = 'rgba(0,212,255,0.3)';
+    miniCtx.lineWidth = 1;
+    miniCtx.beginPath();
+    miniCtx.arc(60, 60, 58, 0, Math.PI * 2);
+    miniCtx.stroke();
+
+    const scale = 120 / ARENA_SIZE;
+    // Food dots (sparse)
+    miniCtx.fillStyle = 'rgba(0,229,255,0.2)';
+    for (let i = 0; i < foods.length; i += 20) {
+      const f = foods[i];
+      miniCtx.fillRect(60 + (f.x - ARENA_CENTER) * scale, 60 + (f.y - ARENA_CENTER) * scale, 1, 1);
+    }
+    // Dragons
+    for (const d of allDragons) {
+      if (!d.alive) continue;
+      const dx = 60 + (d.x - ARENA_CENTER) * scale;
+      const dy = 60 + (d.y - ARENA_CENTER) * scale;
+      const dColor = DRAGONS[d.type].color;
+      miniCtx.fillStyle = d.isPlayer ? '#fff' : dColor;
+      const dotSize = d.isPlayer ? 3 : 2;
+      miniCtx.beginPath();
+      miniCtx.arc(dx, dy, dotSize, 0, Math.PI * 2);
+      miniCtx.fill();
+      if (d.isPlayer) {
+        miniCtx.strokeStyle = '#00e5ff';
+        miniCtx.lineWidth = 1;
+        miniCtx.stroke();
+      }
+    }
+  }
+
+  // ===== COLLISION DETECTION =====
+  function checkCollisions() {
+    const dragons = allDragons.filter(d => d.alive);
+    for (let i = 0; i < dragons.length; i++) {
+      const a = dragons[i];
+      // Food collection
+      for (let fi = foods.length - 1; fi >= 0; fi--) {
+        const f = foods[fi];
+        if (dist(a, f) < 24) {
+          a.grow(1);
+          foods.splice(fi, 1);
+          // Respawn food elsewhere
+          const angle = Math.random() * Math.PI * 2;
+          const r = Math.sqrt(Math.random()) * (ARENA_RADIUS - 100);
+          spawnFood(ARENA_CENTER + Math.cos(angle) * r, ARENA_CENTER + Math.sin(angle) * r);
+          if (a.isPlayer) { statsCollectibles++; updateScoreHud(); }
+        }
+      }
+
+      // Dragon vs Dragon
+      for (let j = i + 1; j < dragons.length; j++) {
+        const b = dragons[j];
+        // Head vs Head
+        if (dist(a, b) < 28) {
+          if (a.segments.length > b.segments.length) {
+            b.die(); if (a.isPlayer) { statsKills++; updateScoreHud(); }
+            if (b.isPlayer) triggerGameOver();
+          } else if (b.segments.length > a.segments.length) {
+            a.die(); if (b.isPlayer) { statsKills++; updateScoreHud(); }
+            if (a.isPlayer) triggerGameOver();
+          } else {
+            // Equal length - both die
+            a.die(); b.die();
+            if (a.isPlayer || b.isPlayer) triggerGameOver();
+          }
+          continue;
+        }
+
+        // Head vs Tail (index 8+)
+        for (let si = 8; si < a.segments.length; si++) {
+          if (dist(b, a.segments[si]) < 20) {
+            a.dropSegments(0.2);
+            a.slowTimer = 42; // ~0.7s at 60fps
+            spawnParticle(a.segments[si].x, a.segments[si].y, DRAGONS[a.type].color, 5, 3);
+            break;
+          }
+        }
+        for (let si = 8; si < b.segments.length; si++) {
+          if (dist(a, b.segments[si]) < 20) {
+            b.dropSegments(0.2);
+            b.slowTimer = 42;
+            spawnParticle(b.segments[si].x, b.segments[si].y, DRAGONS[b.type].color, 5, 3);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // ===== GAME STATE =====
+  let allDragons = [];
+  let playerDragon = null;
+  let camX = ARENA_CENTER, camY = ARENA_CENTER;
+  let survivalTime = 0; // in seconds
+  let statsCollectibles = 0;
+  let statsKills = 0;
+  let gameStartTime = 0;
+  let lastFrameTime = 0;
+  let animFrameId = null;
+
+  // Input state
+  let mouseX = CW / 2, mouseY = CH / 2;
+  let mouseDown = false;
+  let spaceDown = false;
+  let joystickActive = false;
+  let joystickAngle = 0;
+  let mobileBoost = false;
+
+  function startGame() {
+    initFood();
+    allDragons = [];
+    // Create player
+    playerDragon = new Dragon(selectedDragon, true);
+    allDragons.push(playerDragon);
+    // Create AI
+    const aiTypes = ['aegis', 'ignis', 'infinite', 'magnetron'];
+    for (let i = 0; i < AI_COUNT; i++) {
+      const type = aiTypes[i % aiTypes.length];
+      const ai = new Dragon(type, false, DRAGONS[type].name + ' ' + (i + 1));
+      // Scatter AI
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * (ARENA_RADIUS - 400);
+      ai.x = ARENA_CENTER + Math.cos(a) * r;
+      ai.y = ARENA_CENTER + Math.sin(a) * r;
+      for (let s = 0; s < ai.segments.length; s++) {
+        ai.segments[s].x = ai.x - s * SEGMENT_SPACING;
+        ai.segments[s].y = ai.y;
+      }
+      allDragons.push(ai);
+    }
+    survivalTime = 0;
+    statsCollectibles = 0;
+    statsKills = 0;
+    gameStartTime = performance.now();
+    lastFrameTime = performance.now();
+    particles.length = 0;
+    updateScoreHud();
+  }
+
+  function updateScoreHud() {
+    if (playerDragon && playerDragon.alive) {
+      $('segCount').textContent = playerDragon.segments.length;
+    }
+    $('collectCount').textContent = statsCollectibles;
+    $('killCount').textContent = statsKills;
+  }
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // ===== GAME LOOP =====
+  function gameLoop(timestamp) {
+    if (currentState !== GameState.PLAYING) { animFrameId = null; return; }
+
+    const dt = Math.min((timestamp - lastFrameTime) / 1000, 0.05);
+    lastFrameTime = timestamp;
+    survivalTime += dt;
+    timerDisplay.textContent = formatTime(survivalTime);
+
+    // Player input angle
+    let inputAngle = playerDragon ? playerDragon.angle : 0;
+    if (playerDragon && playerDragon.alive) {
+      if (joystickActive) {
+        inputAngle = joystickAngle;
+      } else {
+        inputAngle = Math.atan2(mouseY - CH / 2, mouseX - CW / 2);
+      }
+    }
+    const inputBoost = mouseDown || spaceDown || mobileBoost;
+
+    // Update dragons
+    for (const d of allDragons) {
+      if (d.isPlayer) d.update(inputAngle, inputBoost);
+      else d.update(0, false);
+    }
+
+    // Remove dead AI after some time
+    for (let i = allDragons.length - 1; i >= 0; i--) {
+      if (!allDragons[i].alive && !allDragons[i].isPlayer) {
+        // Clean up segments gradually
+        if (allDragons[i].segments.length > 0 && Math.random() < 0.1) {
+          allDragons[i].segments.pop();
+        }
+        if (allDragons[i].segments.length === 0) {
+          allDragons.splice(i, 1);
+        }
+      }
+    }
+
+    // Respawn AI to keep arena lively
+    if (allDragons.filter(d => d.alive && !d.isPlayer).length < AI_COUNT / 2) {
+      const aiTypes = ['aegis', 'ignis', 'infinite', 'magnetron'];
+      const type = aiTypes[Math.floor(Math.random() * aiTypes.length)];
+      const ai = new Dragon(type, false, DRAGONS[type].name + ' ' + Math.floor(Math.random() * 99));
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * (ARENA_RADIUS - 400);
+      ai.x = ARENA_CENTER + Math.cos(a) * r;
+      ai.y = ARENA_CENTER + Math.sin(a) * r;
+      for (let s = 0; s < ai.segments.length; s++) {
+        ai.segments[s].x = ai.x - s * SEGMENT_SPACING;
+        ai.segments[s].y = ai.y;
+      }
+      allDragons.push(ai);
+    }
+
+    // Collisions
+    checkCollisions();
+
+    // Particles
+    updateParticles();
+
+    // Camera
+    if (playerDragon && playerDragon.alive) {
+      camX += (playerDragon.x - camX) * CAMERA_LERP;
+      camY += (playerDragon.y - camY) * CAMERA_LERP;
+    }
+
+    // ===== RENDER =====
+    renderBackground(gameCtx, camX, camY, CW, CH);
+    renderFood(gameCtx, camX, camY, CW, CH);
+
+    // Sort dragons by Y for depth
+    const sortedDragons = [...allDragons].filter(d => d.alive || d.segments.length > 0)
+      .sort((a, b) => (a.segments[0]?.y || 0) - (b.segments[0]?.y || 0));
+    for (const d of sortedDragons) {
+      renderDragon(gameCtx, d, camX, camY, CW, CH);
+    }
+
+    renderParticles(gameCtx, camX, camY);
+    renderArenaBorder(gameCtx, camX, camY, CW, CH);
+    renderMinimap();
+
+    // Update score HUD
+    if (playerDragon && playerDragon.alive) {
+      $('segCount').textContent = playerDragon.segments.length;
+    }
+
+    animFrameId = requestAnimationFrame(gameLoop);
+  }
+
+
+  // ===== SCREEN MANAGEMENT =====
+  function showState(state) {
+    currentState = state;
+    titleScreen.classList.add('hidden');
+    dragonModal.classList.add('hidden');
+    enterArena.classList.add('hidden');
+    loadingScreen.classList.add('hidden');
+    gameScreen.style.display = 'none';
+    pauseOverlay.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    howToPlayScreen.classList.add('hidden');
+    leaderboardScreen.classList.add('hidden');
+    walletModal.classList.add('hidden');
+    walletBtn.style.display = state === GameState.PLAYING ? 'none' : 'block';
+
+    switch (state) {
+      case GameState.TITLE:
+        titleScreen.classList.remove('hidden');
+        walletBtn.style.display = 'block';
+        startTitleParticles();
+        break;
+      case GameState.MODAL:
+        titleScreen.classList.remove('hidden');
+        dragonModal.classList.remove('hidden');
+        break;
+      case GameState.ENTER_ARENA:
+        enterArena.classList.remove('hidden');
+        setTimeout(() => showState(GameState.LOADING), 2000);
+        break;
+      case GameState.LOADING:
+        loadingScreen.classList.remove('hidden');
+        startLoadingAnimation();
+        setTimeout(() => {
+          gameScreen.style.display = 'block';
+          showState(GameState.PLAYING);
+        }, 3000);
+        break;
+      case GameState.PLAYING:
+        gameScreen.style.display = 'block';
+        startGame();
+        if (animFrameId) cancelAnimationFrame(animFrameId);
+        lastFrameTime = performance.now();
+        animFrameId = requestAnimationFrame(gameLoop);
+        break;
+      case GameState.PAUSED:
+        gameScreen.style.display = 'block';
+        pauseOverlay.classList.remove('hidden');
+        break;
+      case GameState.GAMEOVER:
+        gameScreen.style.display = 'block';
+        gameOverScreen.classList.remove('hidden');
+        $('goTime').textContent = formatTime(survivalTime);
+        $('goCollect').textContent = statsCollectibles;
+        $('goKills').textContent = statsKills;
+        break;
+      case GameState.HOWTOPLAY:
+        howToPlayScreen.classList.remove('hidden');
+        break;
+    }
+  }
+
+  // ===== TRIGGER GAME OVER =====
+  function triggerGameOver() {
+    if (currentState === GameState.GAMEOVER) return;
+    setTimeout(() => showState(GameState.GAMEOVER), 800);
+  }
+
+  // ===== LOADING ANIMATION =====
+  function startLoadingAnimation() {
+    const fill = $('progressFill');
+    const dot1 = $('orbitDot1');
+    const dot2 = $('orbitDot2');
+    fill.style.width = '0%';
+    setTimeout(() => { fill.style.width = '40%'; }, 100);
+    setTimeout(() => { fill.style.width = '75%'; }, 1200);
+    setTimeout(() => { fill.style.width = '100%'; }, 2500);
+
+    if (selectedDragon) {
+      const d = DRAGONS[selectedDragon];
+      dot1.style.background = d.color;
+      dot1.style.boxShadow = `0 0 10px ${d.glow}`;
+      dot2.style.background = d.glow;
+      dot2.style.boxShadow = `0 0 8px ${d.color}`;
+    }
+  }
+
+  // ===== DRAGON MODAL =====
+  function openDragonModal(type) {
+    selectedDragon = type;
+    const d = DRAGONS[type];
+    $('modalImg').src = d.img;
+    $('modalImg').style.setProperty('--glow', d.glow);
+    $('modalPanel').style.setProperty('--glow', d.glow);
+    $('modalName').textContent = d.name;
+    $('modalName').style.color = d.glow;
+    $('modalDesc').textContent = d.desc;
+
+    const btnSelect = $('btnModalSelect');
+    btnSelect.style.background = d.glow;
+    btnSelect.style.color = '#000';
+
+    // Animate stat bars
+    setTimeout(() => {
+      $('statSpeed').style.width = d.stats.speed + '%';
+      $('statSpeed').style.background = d.glow;
+      $('statSpeed').style.boxShadow = `0 0 8px ${d.glow}`;
+      $('valSpeed').textContent = d.stats.speed;
+
+      $('statPower').style.width = d.stats.power + '%';
+      $('statPower').style.background = d.glow;
+      $('statPower').style.boxShadow = `0 0 8px ${d.glow}`;
+      $('valPower').textContent = d.stats.power;
+
+      $('statLength').style.width = d.stats.length + '%';
+      $('statLength').style.background = d.glow;
+      $('statLength').style.boxShadow = `0 0 8px ${d.glow}`;
+      $('valLength').textContent = d.stats.length;
+
+      $('statDefense').style.width = (100 - d.stats.speed) + '%';
+      $('statDefense').style.background = d.glow;
+      $('statDefense').style.boxShadow = `0 0 8px ${d.glow}`;
+      $('valDefense').textContent = 100 - d.stats.speed;
+    }, 50);
+
+    showState(GameState.MODAL);
+  }
+
+  // ===== EVENT LISTENERS =====
+  // Dragon cards
+  document.querySelectorAll('.dragon-card').forEach(card => {
+    card.addEventListener('click', () => openDragonModal(card.dataset.dragon));
+  });
+
+  // Modal buttons
+  $('btnModalBack').addEventListener('click', () => showState(GameState.TITLE));
+  $('btnModalSelect').addEventListener('click', () => showState(GameState.ENTER_ARENA));
+
+  // Title buttons
+  $('btnHowToPlay').addEventListener('click', () => showState(GameState.HOWTOPLAY));
+  $('btnLeaderboard').addEventListener('click', () => {
+    leaderboardScreen.classList.remove('hidden');
+  });
+  $('btnLbClose').addEventListener('click', () => leaderboardScreen.classList.add('hidden'));
+
+  // Pause
+  $('pauseBtn').addEventListener('click', () => {
+    if (currentState === GameState.PLAYING) showState(GameState.PAUSED);
+  });
+  $('btnResume').addEventListener('click', () => {
+    showState(GameState.PLAYING);
+  });
+  $('btnChangeDragon').addEventListener('click', () => {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    showState(GameState.TITLE);
+  });
+  $('btnQuit').addEventListener('click', () => {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    showState(GameState.TITLE);
+  });
+
+  // Game Over
+  $('btnGoPlay').addEventListener('click', () => showState(GameState.PLAYING));
+  $('btnGoMenu').addEventListener('click', () => {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    showState(GameState.TITLE);
+  });
+
+  // How to Play
+  document.querySelectorAll('.htp-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.htp-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.htp-section').forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      $(`tab-${tab.dataset.tab}`).classList.add('active');
+    });
+  });
+  $('btnHtpClose').addEventListener('click', () => showState(GameState.TITLE));
+
+  // Wallet
+  walletBtn.addEventListener('click', () => {
+    walletModal.classList.remove('hidden');
+    if (walletConnected) {
+      $('walletTitle').textContent = 'Wallet Connected';
+      $('walletOptions').innerHTML = `<div style="padding:16px;background:rgba(0,255,136,0.1);border-radius:12px;margin-bottom:10px;"><div style="font-size:13px;color:#888;margin-bottom:4px;">Address</div><div style="font-size:15px;color:#00ff88;font-weight:600;word-break:break-all;">${walletAddress}</div></div><button class="btn" id="btnWalletDisconnect" style="width:100%;">Disconnect</button>`;
+      $('btnWalletDisconnect').addEventListener('click', () => {
+        walletConnected = false;
+        walletAddress = '';
+        walletBtn.textContent = window.innerWidth > 768 ? 'Connect Wallet' : 'Wallet';
+        walletBtn.classList.remove('connected');
+        walletModal.classList.add('hidden');
+        // Reset wallet modal content
+        $('walletOptions').innerHTML = '';
+      });
+    } else {
+      $('walletTitle').textContent = 'Connect Wallet';
+      $('walletOptions').innerHTML = `
+        <div class="wallet-option" data-wallet="metamask">
+          <div class="wallet-icon" style="background:rgba(255,140,0,0.2);"><span style="font-size:20px;">&#128048;</span></div>
+          <span class="wallet-name">MetaMask</span>
+        </div>
+        <div class="wallet-option" data-wallet="walletconnect">
+          <div class="wallet-icon" style="background:rgba(59,153,252,0.2);"><span style="font-size:20px;">&#9741;</span></div>
+          <span class="wallet-name">WalletConnect</span>
+        </div>
+        <div class="wallet-option" data-wallet="coinbase">
+          <div class="wallet-icon" style="background:rgba(0,82,255,0.2);"><span style="font-size:24px;color:#0052ff;">&#9679;</span></div>
+          <span class="wallet-name">Coinbase Wallet</span>
+        </div>
+        <div class="wallet-option" data-wallet="phantom">
+          <div class="wallet-icon" style="background:rgba(171,96,247,0.2);"><span style="font-size:20px;">&#128009;</span></div>
+          <span class="wallet-name">Phantom</span>
+        </div>
+      `;
+      document.querySelectorAll('.wallet-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          const type = opt.dataset.wallet;
+          const fakeAddr = '0x' + Math.random().toString(16).slice(2, 12) + '...' + Math.random().toString(16).slice(2, 6);
+          walletConnected = true;
+          walletAddress = fakeAddr;
+          walletBtn.textContent = fakeAddr;
+          walletBtn.classList.add('connected');
+          walletModal.classList.add('hidden');
+        });
+      });
+    }
+  });
+  $('btnWalletClose').addEventListener('click', () => walletModal.classList.add('hidden'));
+
+  // Desktop wallet button text
+  function updateWalletBtnText() {
+    if (!walletConnected) {
+      walletBtn.textContent = window.innerWidth > 768 ? 'Connect Wallet' : 'Wallet';
+    }
+  }
+  window.addEventListener('resize', updateWalletBtnText);
+  updateWalletBtnText();
+
+  // ===== INPUT HANDLERS =====
+  // Mouse
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+  document.addEventListener('mousedown', e => {
+    if (currentState === GameState.PLAYING) mouseDown = true;
+  });
+  document.addEventListener('mouseup', () => { mouseDown = false; });
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (currentState === GameState.PLAYING) spaceDown = true;
+    }
+    if (e.code === 'Escape') {
+      if (currentState === GameState.PLAYING) showState(GameState.PAUSED);
+      else if (currentState === GameState.PAUSED) showState(GameState.PLAYING);
+    }
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code === 'Space') spaceDown = false;
+  });
+
+  // Touch / Mobile joystick
+  const joyArea = $('joystickArea');
+  const joyKnob = $('joystickKnob');
+  let joyCenterX = 0, joyCenterY = 0;
+
+  joyArea.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const rect = joyArea.getBoundingClientRect();
+    joyCenterX = rect.left + rect.width / 2;
+    joyCenterY = rect.top + rect.height / 2;
+    joystickActive = true;
+    updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  joyArea.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (joystickActive) updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+
+  joyArea.addEventListener('touchend', e => {
+    e.preventDefault();
+    joystickActive = false;
+    joyKnob.style.transform = 'translate(-50%, -50%)';
+    joyKnob.style.left = '50%';
+    joyKnob.style.top = '50%';
+  }, { passive: false });
+
+  function updateJoystick(tx, ty) {
+    let dx = tx - joyCenterX;
+    let dy = ty - joyCenterY;
+    const dist = Math.hypot(dx, dy);
+    const maxDist = 35;
+    if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; }
+    joyKnob.style.left = `calc(50% + ${dx}px)`;
+    joyKnob.style.top = `calc(50% + ${dy}px)`;
+    joyKnob.style.transform = 'translate(-50%, -50%)';
+    joystickAngle = Math.atan2(dy, dx);
+  }
+
+  // Mobile boost
+  const boostBtn = $('mobileBoostBtn');
+  boostBtn.addEventListener('touchstart', e => { e.preventDefault(); mobileBoost = true; boostBtn.style.transform = 'scale(0.9)'; boostBtn.style.background = 'rgba(255,40,40,0.4)'; }, { passive: false });
+  boostBtn.addEventListener('touchend', e => { e.preventDefault(); mobileBoost = false; boostBtn.style.transform = 'scale(1)'; boostBtn.style.background = 'rgba(255,40,40,0.2)'; }, { passive: false });
+  boostBtn.addEventListener('touchcancel', e => { mobileBoost = false; boostBtn.style.transform = 'scale(1)'; boostBtn.style.background = 'rgba(255,40,40,0.2)'; });
+
+  // ===== TITLE SCREEN PARTICLES =====
+  const pCanvas = $('particleCanvas');
+  const pCtx = pCanvas.getContext('2d');
+  let pW, pH;
+  let titleParticles = [];
+  let titleAnimId = null;
+
+  function resizePCanvas() {
+    pW = pCanvas.width = window.innerWidth;
+    pH = pCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizePCanvas);
+  resizePCanvas();
+
+  class TitleParticle {
+    constructor() { this.reset(); }
+    reset() {
+      this.x = Math.random() * pW;
+      this.y = Math.random() * pH;
+      this.size = Math.random() * 2.5 + 0.5;
+      this.speed = Math.random() * 0.4 + 0.1;
+      this.angle = Math.random() * Math.PI * 2;
+      this.alpha = Math.random() * 0.5 + 0.1;
+      this.hue = Math.random() < 0.5 ? 180 : 270; // cyan or purple
+    }
+    update() {
+      this.x += Math.cos(this.angle) * this.speed;
+      this.y += Math.sin(this.angle) * this.speed;
+      if (this.x < -10 || this.x > pW + 10 || this.y < -10 || this.y > pH + 10) this.reset();
+    }
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${this.hue}, 80%, 70%, ${this.alpha})`;
+      ctx.fill();
+    }
+  }
+
+  function startTitleParticles() {
+    titleParticles = [];
+    for (let i = 0; i < 80; i++) titleParticles.push(new TitleParticle());
+    if (titleAnimId) cancelAnimationFrame(titleAnimId);
+    function loop() {
+      if (currentState !== GameState.TITLE && currentState !== GameState.MODAL) {
+        pCtx.clearRect(0, 0, pW, pH);
+        titleAnimId = null;
+        return;
+      }
+      pCtx.clearRect(0, 0, pW, pH);
+      for (const p of titleParticles) { p.update(); p.draw(pCtx); }
+      titleAnimId = requestAnimationFrame(loop);
+    }
+    titleAnimId = requestAnimationFrame(loop);
+  }
+
+  // ===== INIT =====
+  loadImages();
+  showState(GameState.TITLE);
+
+  </script>
+</body>
+</html>
