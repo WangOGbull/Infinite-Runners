@@ -1421,6 +1421,12 @@
     lastFrameTime = performance.now();
     particles.length = 0;
     updateScoreHud();
+    
+    // --- FIX: Force camera to player position immediately ---
+    if (playerDragon) {
+      camX = playerDragon.x;
+      camY = playerDragon.y;
+    }
   }
 
   function updateScoreHud() {
@@ -1490,9 +1496,10 @@
     checkCollisions();
     updateParticles();
 
+    // --- FIX: Force camera to follow player immediately ---
     if (playerDragon && playerDragon.alive) {
-      camX += (playerDragon.x - camX) * CAMERA_LERP;
-      camY += (playerDragon.y - camY) * CAMERA_LERP;
+      camX = playerDragon.x;
+      camY = playerDragon.y;
     }
 
     renderBackground(gameCtx, camX, camY, CW, CH);
@@ -1852,29 +1859,6 @@
   // ===== INIT =====
   loadImages();
   showState(GameState.TITLE);
-  // ===== GLOBAL ERROR CATCHER =====
-window.onerror = function(message, source, lineno, colno, error) {
-  console.log("=== GLOBAL ERROR CAUGHT ===");
-  console.log("Message:", message);
-  console.log("Source:", source);
-  console.log("Line:", lineno);
-  console.log("Column:", colno);
-  console.log("Error object:", error);
-  alert("Game crashed at line " + lineno + "\nMessage: " + message);
-  return true;
-};
-
-window.addEventListener('unhandledrejection', function(e) {
-  console.log("=== UNHANDLED PROMISE REJECTION ===");
-  console.log("Reason:", e.reason);
-});
-
-// ===== OVERRIDE console.log to catch everything =====
-const originalLog = console.log;
-console.log = function() {
-  originalLog.apply(console, arguments);
-  // Also write to a visible div if we want
-};  
 
   </script>
 </body>
