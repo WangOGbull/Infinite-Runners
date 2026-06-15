@@ -7,7 +7,6 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -248,9 +247,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0f;font-family:
     <h2>^Dragons Arena^</h2>
     <h3>Chronicles of the Void</h3>
     <p class="subtitle">^ Free to Play ^</p>
-    <button class="playBtn" id="btnPlayNow" onclick="buildDragonSelect();show(S.SELECT);return false;">PLAY NOW</button>
+    <button class="playBtn" id="btnPlayNow">PLAY NOW</button>
     <div class="menuBtns">
-      <button class="menuBtn" id="btnStartGame" onclick="buildDragonSelect();show(S.SELECT);return false;">Start Game</button>
+      <button class="menuBtn" id="btnStartGame">Start Game</button>
       <button class="menuBtn" id="btnLeaderboard">Leaderboard</button>
       <button class="menuBtn" id="btnHowToPlay">How to Play</button>
     </div>
@@ -475,6 +474,16 @@ const fT=s=>{const m=Math.floor(s/60);const sec=Math.floor(s%60);return m+':'+(s
 const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
 
 // ===== DRAGON IMAGE LOADING =====
+// Determine base path for GitHub Pages
+function getBasePath() {
+  const path = window.location.pathname;
+  if (path.includes('/Infinite-Runners/')) {
+    return '/Infinite-Runners/';
+  }
+  return '/';
+}
+
+const BASE_PATH = getBasePath();
 const dragonHeads={};
 const bodyStripMap={};
 const tailStripMap={};
@@ -492,7 +501,7 @@ function loadDragonImages() {
     headImg.onerror = function() {
       console.error('Failed to load head for:', key);
     };
-    headImg.src = 'dragons/' + key + '_head.png';
+    headImg.src = BASE_PATH + 'dragons/' + key + '_head.png';
 
     // Load FULL image for body + tail slicing
     const fullImg = new Image();
@@ -512,7 +521,7 @@ function loadDragonImages() {
     fullImg.onerror = function() {
       console.error('Failed to load full image for:', key);
     };
-    fullImg.src = 'dragons/' + key + '.png';
+    fullImg.src = BASE_PATH + 'dragons/' + key + '.png';
   }
 }
 
@@ -607,7 +616,6 @@ function buildDragonSelect(){
     card.className='dragonCard';
     card.style.setProperty('--dc',d.color);
     card.style.setProperty('--dim',d.dim);
-    // Use canvas for dragon portrait instead of img
     const portraitCanvas = generateDragonPortrait(key, 180);
     portraitCanvas.style.width = '100%';
     portraitCanvas.style.height = '100%';
@@ -633,7 +641,6 @@ function showDragonDetail(key){
   if(existing)existing.remove();
   const detail=document.createElement('div');
   detail.id='dragonDetail';
-  // Use canvas for full dragon image instead of img tag
   const fullCanvas = generateDragonPortrait(key, 320);
   fullCanvas.style.width = '100%';
   fullCanvas.style.height = '100%';
@@ -796,7 +803,6 @@ function renderDragon(ctx, d, gx, gy, cw, ch) {
   const toScreenY = (wy) => wy - gy + ch * 0.5;
 
   // ---- BODY SEGMENTS (1-40) ----
-  // Draw from tail to neck so head overlays on top
   for (let i = segCount - 1; i >= 1; i--) {
     const seg = segs[i];
     const sx = toScreenX(seg.x);
@@ -809,11 +815,9 @@ function renderDragon(ctx, d, gx, gy, cw, ch) {
 
     let strip = null;
     if (i <= 35 && bodyStrips && bodyStrips.length === 35) {
-      // Body segments 1-35 → body strips 0-34
       const bodyIdx = Math.min(i - 1, 34);
       strip = bodyStrips[bodyIdx];
     } else if (i >= 36 && tailStrips && tailStrips.length === 5) {
-      // Tail segments 36-40 → tail strips 0-4
       const tailIdx = Math.min(i - 36, 4);
       strip = tailStrips[tailIdx];
     }
@@ -829,7 +833,6 @@ function renderDragon(ctx, d, gx, gy, cw, ch) {
   }
 
   // ---- HEAD (with neck attached) ----
-  // Use the full head PNG, drawn LAST on top of body
   if (headImg) {
     const head = segs[0];
     const hx = toScreenX(head.x);
@@ -866,7 +869,6 @@ function renderDragon(ctx, d, gx, gy, cw, ch) {
     ctx.restore();
   }
 }
-
 
 // ===== COLLISIONS =====
 function checkCol(all){
@@ -1060,8 +1062,18 @@ function startGame(){
 }
 
 // ===== BUTTON EVENTS =====
-$('btnPlayNow').addEventListener('click',()=>{buildDragonSelect();show(S.SELECT)});
-$('btnStartGame').addEventListener('click',()=>{buildDragonSelect();show(S.SELECT)});
+document.getElementById('btnPlayNow').addEventListener('click', function(e) {
+  e.preventDefault();
+  buildDragonSelect();
+  show(S.SELECT);
+});
+
+document.getElementById('btnStartGame').addEventListener('click', function(e) {
+  e.preventDefault();
+  buildDragonSelect();
+  show(S.SELECT);
+});
+
 $('btnDsBack').addEventListener('click',()=>show(S.TITLE));
 $('btnLeaderboard').addEventListener('click',()=>{/*placeholder*/});
 $('btnHowToPlay').addEventListener('click',()=>show(S.HOWTO));
