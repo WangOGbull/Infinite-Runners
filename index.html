@@ -7,6 +7,7 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -247,9 +248,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0f;font-family:
     <h2>^Dragons Arena^</h2>
     <h3>Chronicles of the Void</h3>
     <p class="subtitle">^ Free to Play ^</p>
-    <button class="playBtn" id="btnPlayNow">PLAY NOW</button>
+    <button class="playBtn" id="btnPlayNow" onclick="buildDragonSelect();show(S.SELECT);return false;">PLAY NOW</button>
     <div class="menuBtns">
-      <button class="menuBtn" id="btnStartGame">Start Game</button>
+      <button class="menuBtn" id="btnStartGame" onclick="buildDragonSelect();show(S.SELECT);return false;">Start Game</button>
       <button class="menuBtn" id="btnLeaderboard">Leaderboard</button>
       <button class="menuBtn" id="btnHowToPlay">How to Play</button>
     </div>
@@ -473,72 +474,6 @@ const rR=(lo,hi)=>lo+Math.random()*(hi-lo);
 const fT=s=>{const m=Math.floor(s/60);const sec=Math.floor(s%60);return m+':'+(sec<10?'0':'')+sec};
 const clamp=(v,lo,hi)=>v<lo?lo:v>hi?hi:v;
 
-// ===== DRAGON IMAGE LOADING =====
-// Determine base path for GitHub Pages
-function getBasePath() {
-  const path = window.location.pathname;
-  if (path.includes('/Infinite-Runners/')) {
-    return '/Infinite-Runners/';
-  }
-  return '/';
-}
-
-const BASE_PATH = getBasePath();
-const dragonHeads={};
-const bodyStripMap={};
-const tailStripMap={};
-const loadedHeads={};
-const loadedFull={};
-
-function loadDragonImages() {
-  for(const key in DRAGONS) {
-    // Load HEAD image (pre-cut by Kimi)
-    const headImg = new Image();
-    headImg.onload = function() {
-      loadedHeads[key] = this;
-      dragonHeads[key] = this;
-    };
-    headImg.onerror = function() {
-      console.error('Failed to load head for:', key);
-    };
-    headImg.src = BASE_PATH + 'dragons/' + key + '_head.png';
-
-    // Load FULL image for body + tail slicing
-    const fullImg = new Image();
-    fullImg.onload = function() {
-      loadedFull[key] = this;
-      const w = this.width, h = this.height;
-      const headW = Math.floor(w * 0.20);
-      const bodyW = Math.floor(w * 0.60);
-      const tailW = w - headW - bodyW;
-
-      // Body strips: 35 strips from middle 60%
-      bodyStripMap[key] = sliceRegion(this, headW, bodyW, 35, h);
-
-      // Tail strips: 5 strips from right 20%
-      tailStripMap[key] = sliceRegion(this, headW + bodyW, tailW, 5, h);
-    };
-    fullImg.onerror = function() {
-      console.error('Failed to load full image for:', key);
-    };
-    fullImg.src = BASE_PATH + 'dragons/' + key + '.png';
-  }
-}
-
-function sliceRegion(img, xOffset, regionWidth, nStrip, imgH) {
-  const strips = [];
-  const sw = regionWidth / nStrip;
-  for(let i = 0; i < nStrip; i++) {
-    const c = document.createElement('canvas');
-    c.width = Math.ceil(sw) + 2;
-    c.height = imgH;
-    const ctx = c.getContext('2d');
-    ctx.drawImage(img, xOffset + i * sw, 0, sw, imgH, 0, 0, c.width, c.height);
-    strips.push(c);
-  }
-  return strips;
-}
-
 // ===== DRAGON DATA =====
 const DRAGONS={
   aegis:{name:'Aegis',color:'#9b4dff',glow:'#c77dff',dim:'rgba(155,77,255,0.15)',stats:{speed:65,power:70,length:75,defense:80},special:'The Royal Warden',desc:'A majestic purple dragon crowned in gold. Balanced stats, perfect for beginners.'},
@@ -553,7 +488,6 @@ const BASE_SPEED=3.5,BOOST_SPEED=6.5,TURN_RATE=0.06;
 const FOOD_COUNT=1200,AI_COUNT=6;
 const START_SEGS=3,MAX_SEGS=40;
 const CAM_LERP=0.08,D_SCALE=1.2;
-const STRIP_COUNT=40;
 
 // ===== STATE =====
 const S={TITLE:0,SELECT:1,DETAIL:2,ENTER:3,LOADING:4,PLAYING:5,PAUSED:6,OVER:7,HOWTO:8};
@@ -616,6 +550,7 @@ function buildDragonSelect(){
     card.className='dragonCard';
     card.style.setProperty('--dc',d.color);
     card.style.setProperty('--dim',d.dim);
+    // Use canvas for dragon portrait instead of img
     const portraitCanvas = generateDragonPortrait(key, 180);
     portraitCanvas.style.width = '100%';
     portraitCanvas.style.height = '100%';
@@ -641,6 +576,7 @@ function showDragonDetail(key){
   if(existing)existing.remove();
   const detail=document.createElement('div');
   detail.id='dragonDetail';
+  // Use canvas for full dragon image instead of img tag
   const fullCanvas = generateDragonPortrait(key, 320);
   fullCanvas.style.width = '100%';
   fullCanvas.style.height = '100%';
@@ -772,6 +708,161 @@ class Dragon{
       }
     }
   }
+}
+
+// ===== GENERATE DRAGON PORTRAIT =====
+function generateDragonPortrait(type, size) {
+  size = size || 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const d = DRAGONS[type];
+  if (!d) return canvas;
+
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // Background
+  ctx.fillStyle = 'rgba(10,10,15,0.9)';
+  ctx.fillRect(0, 0, size, size);
+
+  // Draw a simple dragon face using shapes
+  const scale = size / 256;
+
+  // Head base
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 10 * scale, 60 * scale, 50 * scale, 0, 0, Math.PI * 2);
+  ctx.fillStyle = d.color;
+  ctx.fill();
+
+  // Snout
+  ctx.beginPath();
+  ctx.ellipse(cx + 20 * scale, cy + 15 * scale, 30 * scale, 20 * scale, 0, 0, Math.PI * 2);
+  ctx.fillStyle = d.color;
+  ctx.fill();
+
+  // Nostrils
+  ctx.beginPath();
+  ctx.arc(cx + 30 * scale, cy + 10 * scale, 3 * scale, 0, Math.PI * 2);
+  ctx.fillStyle = '#000';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 20 * scale, cy + 10 * scale, 3 * scale, 0, Math.PI * 2);
+  ctx.fillStyle = '#000';
+  ctx.fill();
+
+  // Eyes
+  const eyeR = 14 * scale;
+  for (let side = -1; side <= 1; side += 2) {
+    const ex = cx + side * 20 * scale;
+    const ey = cy - 10 * scale;
+    ctx.beginPath();
+    ctx.arc(ex, ey, eyeR, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ex + side * 5 * scale, ey, 6 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+  }
+
+  // Horns
+  for (let side = -1; side <= 1; side += 2) {
+    ctx.beginPath();
+    ctx.moveTo(cx + side * 30 * scale, cy - 30 * scale);
+    ctx.lineTo(cx + side * 35 * scale, cy - 60 * scale);
+    ctx.lineTo(cx + side * 25 * scale, cy - 30 * scale);
+    ctx.closePath();
+    ctx.fillStyle = d.glow || d.color;
+    ctx.fill();
+  }
+
+  // Mouth
+  ctx.beginPath();
+  ctx.arc(cx + 20 * scale, cy + 20 * scale, 15 * scale, 0, Math.PI);
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2 * scale;
+  ctx.stroke();
+
+  // Glow effect
+  ctx.beginPath();
+  ctx.arc(cx, cy, 70 * scale, 0, Math.PI * 2);
+  const grad = ctx.createRadialGradient(cx, cy, 10 * scale, cx, cy, 70 * scale);
+  grad.addColorStop(0, d.glow || d.color);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.globalAlpha = 0.3;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  return canvas;
+}
+
+// ===== DRAGON IMAGE LOADING =====
+function getBasePath() {
+  const path = window.location.pathname;
+  if (path.includes('/Infinite-Runners/')) {
+    return '/Infinite-Runners/';
+  }
+  return '/';
+}
+
+const BASE_PATH = getBasePath();
+const dragonHeads={};
+const bodyStripMap={};
+const tailStripMap={};
+const loadedHeads={};
+const loadedFull={};
+
+function loadDragonImages() {
+  for(const key in DRAGONS) {
+    // Load HEAD image (pre-cut by Kimi)
+    const headImg = new Image();
+    headImg.onload = function() {
+      loadedHeads[key] = this;
+      dragonHeads[key] = this;
+    };
+    headImg.onerror = function() {
+      console.error('Failed to load head for:', key);
+    };
+    headImg.src = BASE_PATH + 'dragons/' + key + '_head.png';
+
+    // Load FULL image for body + tail slicing
+    const fullImg = new Image();
+    fullImg.onload = function() {
+      loadedFull[key] = this;
+      const w = this.width, h = this.height;
+      const headW = Math.floor(w * 0.20);
+      const bodyW = Math.floor(w * 0.60);
+      const tailW = w - headW - bodyW;
+
+      // Body strips: 35 strips from middle 60%
+      bodyStripMap[key] = sliceRegion(this, headW, bodyW, 35, h);
+
+      // Tail strips: 5 strips from right 20%
+      tailStripMap[key] = sliceRegion(this, headW + bodyW, tailW, 5, h);
+    };
+    fullImg.onerror = function() {
+      console.error('Failed to load full image for:', key);
+    };
+    fullImg.src = BASE_PATH + 'dragons/' + key + '.png';
+  }
+}
+
+function sliceRegion(img, xOffset, regionWidth, nStrip, imgH) {
+  const strips = [];
+  const sw = regionWidth / nStrip;
+  for(let i = 0; i < nStrip; i++) {
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(sw) + 2;
+    c.height = imgH;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, xOffset + i * sw, 0, sw, imgH, 0, 0, c.width, c.height);
+    strips.push(c);
+  }
+  return strips;
 }
 
 // ===== RENDER DRAGON =====
@@ -1062,18 +1153,8 @@ function startGame(){
 }
 
 // ===== BUTTON EVENTS =====
-document.getElementById('btnPlayNow').addEventListener('click', function(e) {
-  e.preventDefault();
-  buildDragonSelect();
-  show(S.SELECT);
-});
-
-document.getElementById('btnStartGame').addEventListener('click', function(e) {
-  e.preventDefault();
-  buildDragonSelect();
-  show(S.SELECT);
-});
-
+$('btnPlayNow').addEventListener('click',()=>{buildDragonSelect();show(S.SELECT)});
+$('btnStartGame').addEventListener('click',()=>{buildDragonSelect();show(S.SELECT)});
 $('btnDsBack').addEventListener('click',()=>show(S.TITLE));
 $('btnLeaderboard').addEventListener('click',()=>{/*placeholder*/});
 $('btnHowToPlay').addEventListener('click',()=>show(S.HOWTO));
