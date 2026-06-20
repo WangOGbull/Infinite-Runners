@@ -2,15 +2,13 @@ import CONFIG from './config.js';
 
 class MovementSystem {
   constructor() {
-    this.inputAngles = new Map(); // dragonId -> angle
-    this.boosting = new Map();     // dragonId -> boolean
+    this.inputAngles = new Map();
+    this.boosting = new Map();
 
-    // Mobile joystick
     this.joystickActive = false;
     this.joystickCenter = { x: 0, y: 0 };
     this.joystickCurrent = { x: 0, y: 0 };
 
-    // Mouse/keyboard for PC
     this.mousePos = { x: 0, y: 0 };
     this.keys = new Set();
 
@@ -18,7 +16,6 @@ class MovementSystem {
   }
 
   setupInputs() {
-    // Keyboard
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
       if (e.code === 'Space') {
@@ -33,7 +30,6 @@ class MovementSystem {
       }
     });
 
-    // Mouse tracking
     window.addEventListener('mousemove', (e) => {
       this.mousePos.x = e.clientX;
       this.mousePos.y = e.clientY;
@@ -41,7 +37,6 @@ class MovementSystem {
     window.addEventListener('mousedown', () => this.setBoost('local', true));
     window.addEventListener('mouseup', () => this.setBoost('local', false));
 
-    // Touch / Joystick
     const joyArea = document.getElementById('joyArea');
     const boostBtn = document.getElementById('boostBtn');
 
@@ -113,7 +108,6 @@ class MovementSystem {
   }
 
   getInputAngle(dragonId, headX, headY, camera) {
-    // Mobile joystick takes priority
     if (this.joystickActive) {
       const dx = this.joystickCurrent.x - this.joystickCenter.x;
       const dy = this.joystickCurrent.y - this.joystickCenter.y;
@@ -123,7 +117,6 @@ class MovementSystem {
       }
     }
 
-    // PC mouse
     const screenPos = camera.worldToScreen(headX, headY);
     const dx = this.mousePos.x - screenPos.x;
     const dy = this.mousePos.y - screenPos.y;
@@ -131,18 +124,11 @@ class MovementSystem {
   }
 
   update(dragonManager, camera, deltaTime) {
-    const inputMap = new Map();
-
+    // Set boost flags only — movement is handled in main.js via dragonManager.update()
     for (const dragon of dragonManager.getLivingDragons()) {
-      // Apply boost
       dragon.boostActive = !!this.boosting.get(dragon.id) || !!this.boosting.get('local');
-
-      // Get input angle
-      const angle = this.getInputAngle(dragon.id, dragon.head.x, dragon.head.y, camera);
-      inputMap.set(dragon.id, angle);
     }
-
-    dragonManager.update(deltaTime, inputMap);
+    this.updateJoystickVisual();
   }
 }
 
