@@ -15,30 +15,16 @@ class CameraSystem {
     if (!targetDragon || targetDragon.state !== 'alive') return;
 
     const head = targetDragon.head;
-    this.targetX = head.x;
-    this.targetY = head.y;
 
-    // Calculate zoom based on dragon length
-    const zoomFromLength = CONFIG.CAMERA_BASE_ZOOM + 
-      (targetDragon.length - CONFIG.DRAGON_START_SEGMENTS) * CONFIG.CAMERA_ZOOM_PER_SEGMENT;
+    // Lead in movement direction so player sees where they're going
+    const leadX = Math.cos(head.angle) * CONFIG.CAMERA_LEAD_DISTANCE;
+    const leadY = Math.sin(head.angle) * CONFIG.CAMERA_LEAD_DISTANCE;
 
-    // Ensure dragon doesn't exceed max screen percentage
-    const bounds = targetDragon.getBounds();
-    const dragonWidth = bounds.maxX - bounds.minX;
-    const dragonHeight = bounds.maxY - bounds.minY;
-    const screenW = this.canvas.width;
-    const screenH = this.canvas.height;
+    this.targetX = head.x + leadX;
+    this.targetY = head.y + leadY;
 
-    let zoomFromSize = this.zoom;
-    if (screenW > 0 && screenH > 0) {
-      const maxDragonScreen = CONFIG.CAMERA_DRAGON_SCREEN_PERCENT_MAX;
-      const zoomX = (screenW * maxDragonScreen) / (dragonWidth + 100);
-      const zoomY = (screenH * maxDragonScreen) / (dragonHeight + 100);
-      zoomFromSize = Math.min(zoomX, zoomY);
-    }
-
-    this.targetZoom = Math.max(CONFIG.CAMERA_MIN_ZOOM, 
-      Math.min(CONFIG.CAMERA_MAX_ZOOM, Math.min(zoomFromLength, zoomFromSize)));
+    // Fixed zoom — Snake Clash does NOT zoom out to fit the whole dragon
+    this.targetZoom = CONFIG.CAMERA_BASE_ZOOM;
 
     // Smooth lerp
     this.x += (this.targetX - this.x) * CONFIG.CAMERA_SMOOTH_FACTOR;
