@@ -91,8 +91,8 @@ const CONFIG = {
   RENDER_DISTANCE: 1200,
 
   // ==================== ASSETS ====================
- ASSET_BASE_URL: './dragons/',
-DRAGON_NAMES: DRAGONS
+  ASSET_BASE_URL: 'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/dragons/',
+  DRAGON_NAMES: DRAGONS
 };
 
 // Freeze to prevent accidental mutation
