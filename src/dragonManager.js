@@ -12,21 +12,14 @@ class Dragon {
     this.collected = 0;
     this.kills = 0;
 
-    // Movement
     this.x = x;
     this.y = y;
     this.angle = 0;
-    this.targetAngle = 0;
     this.speed = CONFIG.DRAGON_BASE_SPEED;
     this.boostActive = false;
 
-    // Segment size from asset (use body as reference)
     this.segmentSize = this.asset ? this.asset.body.width : 64;
-
-    // Position history for smooth follow
     this.history = [];
-
-    // Segments: [head, body..., tail]
     this.segments = [];
     this.initSegments();
   }
@@ -41,7 +34,6 @@ class Dragon {
         angle: this.angle,
         type
       });
-      // Pre-fill history so tail doesn't snap
       this.history.push({ x: this.x - i * spacing, y: this.y, angle: this.angle });
     }
   }
@@ -59,9 +51,8 @@ class Dragon {
     while (diff < -Math.PI) diff += Math.PI * 2;
     this.angle += diff * CONFIG.DRAGON_TURN_SPEED * (deltaTime / 16);
 
-    // Calculate current speed with penalty per segment
-    const penalty = (this.length - CONFIG.DRAGON_START_SEGMENTS) * CONFIG.DRAGON_SPEED_PER_SEGMENT_PENALTY;
-    let currentSpeed = Math.max(CONFIG.DRAGON_MIN_SPEED, CONFIG.DRAGON_BASE_SPEED + penalty);
+    // Constant speed — Snake Clash does NOT slow down as you grow
+    let currentSpeed = CONFIG.DRAGON_BASE_SPEED;
     if (this.boostActive) currentSpeed *= 1.8;
 
     // Move head
@@ -70,32 +61,46 @@ class Dragon {
     head.y += Math.sin(this.angle) * currentSpeed * (deltaTime / 16);
     head.angle = this.angle;
 
-    // Record history
+    // Record head position into path history
     this.history.unshift({ x: head.x, y: head.y, angle: this.angle });
     if (this.history.length > CONFIG.POSITION_HISTORY_BUFFER_SIZE) {
       this.history.pop();
     }
 
-    // Update body segments using history
+    // Place body segments at exact path-distance from head
     const spacing = this.segmentSize * CONFIG.DRAGON_SEGMENT_SPACING;
-    const historyStep = Math.max(1, Math.floor(spacing / currentSpeed));
 
     for (let i = 1; i < this.segments.length; i++) {
       const seg = this.segments[i];
-      const targetIndex = Math.min(i * historyStep, this.history.length - 1);
-      const target = this.history[targetIndex];
+      const targetDist = i * spacing;
+      let accumulated = 0;
+      let placed = false;
 
-      if (target) {
-        const followSpeed = Math.max(0.05, CONFIG.DRAGON_FOLLOW_SPEED - i * CONFIG.DRAGON_FOLLOW_SPEED_DECAY);
-        seg.x += (target.x - seg.x) * followSpeed * (deltaTime / 16);
-        seg.y += (target.y - seg.y) * followSpeed * (deltaTime / 16);
+      for (let j = 0; j < this.history.length - 1; j++) {
+        const p1 = this.history[j];
+        const p2 = this.history[j + 1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Calculate angle toward target
-        const dx = target.x - seg.x;
-        const dy = target.y - seg.y;
-        if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
-          seg.angle = Math.atan2(dy, dx);
+        if (accumulated + dist >= targetDist) {
+          const t = (targetDist - accumulated) / dist;
+          seg.x = p1.x + dx * t;
+          seg.y = p1.y + dy * t;
+          // Face toward head (direction from older to newer point)
+          seg.angle = Math.atan2(p1.y - p2.y, p1.x - p2.x);
+          placed = true;
+          break;
         }
+        accumulated += dist;
+      }
+
+      if (!placed) {
+        // Not enough history yet — clamp to last known point
+        const last = this.history[this.history.length - 1];
+        seg.x = last.x;
+        seg.y = last.y;
+        seg.angle = last.angle;
       }
     }
   }
@@ -119,17 +124,16 @@ class Dragon {
   }
 
   shrink(amount) {
-    // Remove body segments from tail side
     for (let i = 0; i < amount; i++) {
       if (this.segments.length <= CONFIG.DRAGON_START_SEGMENTS) break;
-      this.segments.splice(this.segments.length - 2, 1); // Remove segment before tail
+      this.segments.splice(this.segments.length - 2, 1);
     }
   }
 
   render(ctx, camera) {
     if (!this.asset) return;
 
-    // Draw from tail to head so head is on top
+    // Draw tail first, head last
     for (let i = this.segments.length - 1; i >= 0; i--) {
       const seg = this.segments[i];
       const screenPos = camera.worldToScreen(seg.x, seg.y);
@@ -162,7 +166,6 @@ class Dragon {
   }
 
   getBounds() {
-    // Simple bounding box for culling
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const seg of this.segments) {
       minX = Math.min(minX, seg.x);
@@ -215,7 +218,7 @@ class DragonManager {
 
   update(deltaTime, inputMap) {
     for (const dragon of this.dragons.values()) {
-      const input = inputMap.get(dragon.id) || 0;
+      const input = inputMap.get(dragon.id) || dragon.angle;
       dragon.update(deltaTime, input);
     }
   }
