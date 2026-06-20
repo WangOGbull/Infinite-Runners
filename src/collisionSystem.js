@@ -7,7 +7,6 @@ class CollisionSystem {
 
   checkAll(dragonManager, foodSystem, arenaManager) {
     const dragons = dragonManager.getLivingDragons();
-    const foods = foodSystem.getFoods();
     const bounds = arenaManager.getBounds();
 
     for (const dragon of dragons) {
@@ -20,26 +19,10 @@ class CollisionSystem {
         foodSystem.removeFood(food.id);
       }
 
-      // 2. Head vs Own Body (skip head + first few segments)
-      for (let i = 3; i < dragon.segments.length - 1; i++) {
-        const seg = dragon.segments[i];
-        const dx = head.x - seg.x;
-        const dy = head.y - seg.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < CONFIG.DRAGON_COLLISION_RADIUS) {
-          this.eventBus.emit('collision:self', { dragon });
-          dragon.state = 'dead';
-          this.eventBus.emit('dragon:death', { dragon, killer: null });
-          break;
-        }
-      }
-      if (dragon.state !== 'alive') continue;
-
-      // 3. Head vs Other Dragons
+      // 2. Head vs Other Dragons — NO self-collision (Snake Clash rule)
       for (const other of dragons) {
         if (other === dragon || other.state !== 'alive') continue;
 
-        // Head vs other body
         for (let i = 0; i < other.segments.length; i++) {
           const seg = other.segments[i];
           const dx = head.x - seg.x;
@@ -48,7 +31,7 @@ class CollisionSystem {
 
           if (dist < CONFIG.DRAGON_COLLISION_RADIUS) {
             if (seg.type === 'head') {
-              // Head-on collision: longer wins
+              // Head-on: longer wins
               if (dragon.length > other.length) {
                 other.state = 'dead';
                 this.eventBus.emit('dragon:death', { dragon: other, killer: dragon });
@@ -58,14 +41,12 @@ class CollisionSystem {
                 this.eventBus.emit('dragon:death', { dragon, killer: other });
                 other.kills++;
               } else {
-                // Equal length: both die
                 dragon.state = 'dead';
                 other.state = 'dead';
                 this.eventBus.emit('dragon:death', { dragon, killer: null });
                 this.eventBus.emit('dragon:death', { dragon: other, killer: null });
               }
             } else if (seg.type === 'tail') {
-              // Hit tail: cut 20%
               this.eventBus.emit('collision:tail', { attacker: dragon, victim: other });
             } else {
               // Hit body: attacker dies
@@ -80,7 +61,7 @@ class CollisionSystem {
       }
       if (dragon.state !== 'alive') continue;
 
-      // 4. Head vs Boundary
+      // 3. Head vs Boundary
       if (!arenaManager.isInside(head.x, head.y)) {
         this.eventBus.emit('collision:wall', { dragon });
         dragon.state = 'dead';
