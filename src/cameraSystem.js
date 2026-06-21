@@ -16,17 +16,14 @@ class CameraSystem {
 
     const head = targetDragon.head;
 
-    // Lead in movement direction so player sees where they're going
     const leadX = Math.cos(head.angle) * CONFIG.CAMERA_LEAD_DISTANCE;
     const leadY = Math.sin(head.angle) * CONFIG.CAMERA_LEAD_DISTANCE;
 
     this.targetX = head.x + leadX;
     this.targetY = head.y + leadY;
 
-    // Fixed zoom — Snake Clash does NOT zoom out to fit the whole dragon
     this.targetZoom = CONFIG.CAMERA_BASE_ZOOM;
 
-    // Smooth lerp
     this.x += (this.targetX - this.x) * CONFIG.CAMERA_SMOOTH_FACTOR;
     this.y += (this.targetY - this.y) * CONFIG.CAMERA_SMOOTH_FACTOR;
     this.zoom += (this.targetZoom - this.zoom) * CONFIG.CAMERA_SMOOTH_FACTOR;
