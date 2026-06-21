@@ -7,7 +7,6 @@ class CollisionSystem {
 
   checkAll(dragonManager, foodSystem, arenaManager) {
     const dragons = dragonManager.getLivingDragons();
-    const bounds = arenaManager.getBounds();
 
     for (const dragon of dragons) {
       const head = dragon.head;
@@ -19,7 +18,7 @@ class CollisionSystem {
         foodSystem.removeFood(food.id);
       }
 
-      // 2. Head vs Other Dragons — NO self-collision (Snake Clash rule)
+      // 2. Head vs Other Dragons — NO self-collision
       for (const other of dragons) {
         if (other === dragon || other.state !== 'alive') continue;
 
@@ -31,7 +30,6 @@ class CollisionSystem {
 
           if (dist < CONFIG.DRAGON_COLLISION_RADIUS) {
             if (seg.type === 'head') {
-              // Head-on: longer wins
               if (dragon.length > other.length) {
                 other.state = 'dead';
                 this.eventBus.emit('dragon:death', { dragon: other, killer: dragon });
@@ -49,7 +47,6 @@ class CollisionSystem {
             } else if (seg.type === 'tail') {
               this.eventBus.emit('collision:tail', { attacker: dragon, victim: other });
             } else {
-              // Hit body: attacker dies
               dragon.state = 'dead';
               this.eventBus.emit('dragon:death', { dragon, killer: other });
               other.kills++;
