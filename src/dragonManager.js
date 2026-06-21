@@ -45,29 +45,24 @@ class Dragon {
   update(deltaTime, inputAngle) {
     if (this.state !== 'alive') return;
 
-    // Smooth turn
     let diff = inputAngle - this.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     this.angle += diff * CONFIG.DRAGON_TURN_SPEED * (deltaTime / 16);
 
-    // Constant speed — Snake Clash does NOT slow down as you grow
     let currentSpeed = CONFIG.DRAGON_BASE_SPEED;
     if (this.boostActive) currentSpeed *= 1.8;
 
-    // Move head
     const head = this.head;
     head.x += Math.cos(this.angle) * currentSpeed * (deltaTime / 16);
     head.y += Math.sin(this.angle) * currentSpeed * (deltaTime / 16);
     head.angle = this.angle;
 
-    // Record head position into path history
     this.history.unshift({ x: head.x, y: head.y, angle: this.angle });
     if (this.history.length > CONFIG.POSITION_HISTORY_BUFFER_SIZE) {
       this.history.pop();
     }
 
-    // Place body segments at exact path-distance from head
     const spacing = this.segmentSize * CONFIG.DRAGON_SEGMENT_SPACING;
 
     for (let i = 1; i < this.segments.length; i++) {
@@ -87,7 +82,6 @@ class Dragon {
           const t = (targetDist - accumulated) / dist;
           seg.x = p1.x + dx * t;
           seg.y = p1.y + dy * t;
-          // Face toward head (direction from older to newer point)
           seg.angle = Math.atan2(p1.y - p2.y, p1.x - p2.x);
           placed = true;
           break;
@@ -96,7 +90,6 @@ class Dragon {
       }
 
       if (!placed) {
-        // Not enough history yet — clamp to last known point
         const last = this.history[this.history.length - 1];
         seg.x = last.x;
         seg.y = last.y;
@@ -111,7 +104,6 @@ class Dragon {
     const tail = this.tail;
     for (let i = 0; i < amount; i++) {
       if (this.segments.length >= CONFIG.DRAGON_MAX_SEGMENTS) break;
-      // Insert before tail
       this.segments.splice(this.segments.length - 1, 0, {
         x: tail.x,
         y: tail.y,
@@ -133,7 +125,6 @@ class Dragon {
   render(ctx, camera) {
     if (!this.asset) return;
 
-    // Draw tail first, head last
     for (let i = this.segments.length - 1; i >= 0; i--) {
       const seg = this.segments[i];
       const screenPos = camera.worldToScreen(seg.x, seg.y);
