@@ -124,7 +124,6 @@ class MovementSystem {
   }
 
   update(dragonManager, camera, deltaTime) {
-    // Set boost flags only — movement is handled in main.js via dragonManager.update()
     for (const dragon of dragonManager.getLivingDragons()) {
       dragon.boostActive = !!this.boosting.get(dragon.id) || !!this.boosting.get('local');
     }
