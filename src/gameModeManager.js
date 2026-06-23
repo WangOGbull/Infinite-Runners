@@ -2,144 +2,124 @@ import CONFIG from './config.js';
 
 class GameModeManager {
 
-  constructor(){
-
-    this.mode='FFA';
+  constructor() {
+    this.mode = 'FFA';
   }
 
+  setMode(mode) {
 
-
-  setMode(mode){
-
-    if(
-
-      CONFIG.GAME_MODES.includes(mode)
-
-    ){
-
-      this.mode=mode;
-
-    }
-
-    else{
-
-      this.mode='FFA';
-
+    if (CONFIG.GAME_MODES.includes(mode)) {
+      this.mode = mode;
+    } else {
+      this.mode = 'FFA';
     }
 
   }
 
-
-
-  getMode(){
-
+  getMode() {
     return this.mode;
-
   }
 
+  getMaxPlayers() {
 
-
-  getMaxPlayers(){
-
-    return(
-
-      CONFIG.MAX_PLAYERS[
-
-        this.mode
-
-      ]
-
-      ||
-
-      CONFIG.MAX_PLAYERS.FFA
-
+    return (
+      CONFIG.MAX_PLAYERS[this.mode]
+      || CONFIG.MAX_PLAYERS.FFA
     );
 
   }
 
+  getDuration() {
 
-
-  getDuration(){
-
-    return(
-
-      CONFIG.GAME_DURATION[
-
-        this.mode
-
-      ]
-
-      ||
-
-      CONFIG.GAME_DURATION.FFA
-
+    return (
+      CONFIG.GAME_DURATION[this.mode]
+      || CONFIG.GAME_DURATION.FFA
     );
 
   }
 
+  getArenaSize() {
 
-
-  getArenaSize(){
-
-    return(
-
-      CONFIG.ARENA[
-
-        this.mode
-
-      ]
-
-      ||
-
-      CONFIG.ARENA.FFA
-
+    return (
+      CONFIG.ARENA[this.mode]
+      || CONFIG.ARENA.FFA
     );
 
   }
 
+  getTeamForPlayer(playerIndex) {
 
-
-  getTeamForPlayer(playerIndex){
-
-    switch(this.mode){
+    switch (this.mode) {
 
       case '1v1':
-
-        return playerIndex%2;
-
-
+        return playerIndex % 2;
 
       case '2v2':
-
-        return Math.floor(
-
-          playerIndex/2
-
-        );
-
-
+        return Math.floor(playerIndex / 2);
 
       case '4v4':
+        return Math.floor(playerIndex / 4);
 
-        return Math.floor(
-
-          playerIndex/4
-
-        );
-
-
-
+      case 'FFA':
       default:
-
         return playerIndex;
+
     }
 
   }
 
+  checkWinCondition(dragons) {
 
+    const alive = dragons.filter(
+      dragon => dragon.state === 'alive'
+    );
 
-  checkWinCondition(dragons){
+    if (alive.length === 0) {
 
-    const alive=dragons.filter(
+      return {
+        winner: null,
+        reason: 'none'
+      };
 
-      dragon
+    }
+
+    if (this.mode === 'FFA') {
+
+      if (alive.length === 1) {
+
+        return {
+          winner: alive[0],
+          reason: 'last_alive'
+        };
+
+      }
+
+      return null;
+    }
+
+    const teamsAlive = new Set();
+
+    for (const dragon of alive) {
+
+      teamsAlive.add(
+        dragon.teamId
+      );
+
+    }
+
+    if (teamsAlive.size === 1) {
+
+      return {
+        winner: alive[0],
+        reason: 'team_elimination'
+      };
+
+    }
+
+    return null;
+
+  }
+
+}
+
+export default GameModeManager;
