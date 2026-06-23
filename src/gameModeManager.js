@@ -1,59 +1,145 @@
 import CONFIG from './config.js';
 
 class GameModeManager {
-  constructor() {
-    this.mode = 'FFA';
-    this.teams = new Map(); // playerId -> teamId
+
+  constructor(){
+
+    this.mode='FFA';
   }
 
-  setMode(mode) {
-    this.mode = mode;
-    this.teams.clear();
+
+
+  setMode(mode){
+
+    if(
+
+      CONFIG.GAME_MODES.includes(mode)
+
+    ){
+
+      this.mode=mode;
+
+    }
+
+    else{
+
+      this.mode='FFA';
+
+    }
+
   }
 
-  getMode() {
+
+
+  getMode(){
+
     return this.mode;
+
   }
 
-  getMaxPlayers() {
-    return CONFIG.MAX_PLAYERS[this.mode] || 8;
+
+
+  getMaxPlayers(){
+
+    return(
+
+      CONFIG.MAX_PLAYERS[
+
+        this.mode
+
+      ]
+
+      ||
+
+      CONFIG.MAX_PLAYERS.FFA
+
+    );
+
   }
 
-  getTeamForPlayer(playerIndex) {
-    switch (this.mode) {
-      case '1v1': return playerIndex % 2;
-      case '2v2': return playerIndex % 2;
-      case '4v4': return playerIndex % 4;
-      case 'FFA': return playerIndex;
-      default: return 0;
+
+
+  getDuration(){
+
+    return(
+
+      CONFIG.GAME_DURATION[
+
+        this.mode
+
+      ]
+
+      ||
+
+      CONFIG.GAME_DURATION.FFA
+
+    );
+
+  }
+
+
+
+  getArenaSize(){
+
+    return(
+
+      CONFIG.ARENA[
+
+        this.mode
+
+      ]
+
+      ||
+
+      CONFIG.ARENA.FFA
+
+    );
+
+  }
+
+
+
+  getTeamForPlayer(playerIndex){
+
+    switch(this.mode){
+
+      case '1v1':
+
+        return playerIndex%2;
+
+
+
+      case '2v2':
+
+        return Math.floor(
+
+          playerIndex/2
+
+        );
+
+
+
+      case '4v4':
+
+        return Math.floor(
+
+          playerIndex/4
+
+        );
+
+
+
+      default:
+
+        return playerIndex;
     }
+
   }
 
-  getDuration() {
-    return CONFIG.GAME_DURATION[this.mode] || 300000;
-  }
 
-  checkWinCondition(dragons) {
-    const alive = dragons.filter(d => d.state === 'alive');
 
-    if (this.mode === 'FFA') {
-      if (alive.length <= 1) {
-        return { winner: alive[0] || null, reason: 'last_alive' };
-      }
-    } else if (['1v1', '2v2', '4v4'].includes(this.mode)) {
-      // Team mode: check if only one team remains
-      const teamsAlive = new Set(alive.map(d => d.teamId));
-      if (teamsAlive.size <= 1) {
-        return { winner: alive[0] || null, reason: 'team_elimination' };
-      }
-    }
+  checkWinCondition(dragons){
 
-    return null;
-  }
+    const alive=dragons.filter(
 
-  getArenaSize() {
-    return CONFIG.ARENA[this.mode] || CONFIG.ARENA['FFA'];
-  }
-}
-
-export default GameModeManager;
+      dragon
