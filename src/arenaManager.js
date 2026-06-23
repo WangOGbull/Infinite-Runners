@@ -1,88 +1,312 @@
 import CONFIG from './config.js';
 
 class ArenaManager {
-  constructor() {
-    this.width = 3000;
-    this.height = 3000;
-    this.mode = 'FFA';
+
+  constructor(){
+
+    this.mode='FFA';
+
+    this.width=4200;
+
+    this.height=4200;
   }
 
-  setMode(mode) {
-    this.mode = mode;
-    const size = CONFIG.ARENA[mode] || CONFIG.ARENA['FFA'];
-    this.width = size.width;
-    this.height = size.height;
+
+
+  setMode(mode){
+
+    this.mode=mode;
+
+
+
+    const size=CONFIG.ARENA[mode]
+
+      || CONFIG.ARENA.FFA;
+
+
+
+    this.width=size.width;
+
+    this.height=size.height;
   }
 
-  getBounds() {
-    return {
-      minX: -this.width / 2,
-      minY: -this.height / 2,
-      maxX: this.width / 2,
-      maxY: this.height / 2
+
+
+  getBounds(){
+
+    return{
+
+      minX:-this.width/2,
+
+      minY:-this.height/2,
+
+      maxX:this.width/2,
+
+      maxY:this.height/2
+
     };
+
   }
 
-  getSpawnPositions(count) {
-    const bounds = this.getBounds();
-    const margin = CONFIG.PLAYER_SPAWN_MARGIN;
-    const minDist = CONFIG.PLAYER_SPAWN_MIN_DISTANCE;
 
-    const positions = [];
-    const maxAttempts = 100;
 
-    for (let i = 0; i < count; i++) {
-      let attempts = 0;
-      let pos;
-      do {
-        pos = {
-          x: bounds.minX + margin + Math.random() * (this.width - margin * 2),
-          y: bounds.minY + margin + Math.random() * (this.height - margin * 2)
-        };
-        attempts++;
-      } while (attempts < maxAttempts && positions.some(p => {
-        const dx = p.x - pos.x;
-        const dy = p.y - pos.y;
-        return Math.sqrt(dx * dx + dy * dy) < minDist;
-      }));
-      positions.push(pos);
+  getSpawnPositions(count){
+
+    const bounds=this.getBounds();
+
+
+
+    const positions=[];
+
+
+
+    const radius=Math.min(
+
+      this.width,
+
+      this.height
+
+    )*0.28;
+
+
+
+    for(
+
+      let i=0;
+
+      i<count;
+
+      i++
+
+    ){
+
+      const angle=
+
+        (Math.PI*2/count)
+
+        *i;
+
+
+
+      positions.push({
+
+        x:Math.cos(angle)*radius,
+
+        y:Math.sin(angle)*radius
+
+      });
+
     }
+
+
+
     return positions;
   }
 
-  isInside(x, y) {
-    const bounds = this.getBounds();
-    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+
+
+  isInside(x,y){
+
+    const bounds=this.getBounds();
+
+
+
+    return(
+
+      x>=bounds.minX &&
+
+      x<=bounds.maxX &&
+
+      y>=bounds.minY &&
+
+      y<=bounds.maxY
+
+    );
+
   }
 
-  render(ctx, camera) {
-    const bounds = this.getBounds();
 
-    // Draw background
-    ctx.fillStyle = '#0d1b2a';
-    ctx.fillRect(bounds.minX, bounds.minY, this.width, this.height);
 
-    // Draw grid
-    ctx.strokeStyle = 'rgba(0, 180, 216, 0.08)';
-    ctx.lineWidth = 1;
-    const gridSize = CONFIG.ARENA_GRID_SIZE;
+  render(ctx,camera){
+
+    const bounds=this.getBounds();
+
+
+
+    // BACKGROUND
+
+    ctx.fillStyle='#071018';
+
+
+
+    ctx.fillRect(
+
+      bounds.minX,
+
+      bounds.minY,
+
+      this.width,
+
+      this.height
+
+    );
+
+
+
+    // GRID
+
+
 
     ctx.beginPath();
-    for (let x = bounds.minX; x <= bounds.maxX; x += gridSize) {
-      ctx.moveTo(x, bounds.minY);
-      ctx.lineTo(x, bounds.maxY);
+
+
+
+    ctx.strokeStyle=
+
+      'rgba(255,255,255,0.04)';
+
+
+
+    ctx.lineWidth=2;
+
+
+
+    const grid=CONFIG.ARENA_GRID_SIZE;
+
+
+
+    for(
+
+      let x=bounds.minX;
+
+      x<=bounds.maxX;
+
+      x+=grid
+
+    ){
+
+      ctx.moveTo(
+
+        x,
+
+        bounds.minY
+
+      );
+
+
+
+      ctx.lineTo(
+
+        x,
+
+        bounds.maxY
+
+      );
+
     }
-    for (let y = bounds.minY; y <= bounds.maxY; y += gridSize) {
-      ctx.moveTo(bounds.minX, y);
-      ctx.lineTo(bounds.maxX, y);
+
+
+
+    for(
+
+      let y=bounds.minY;
+
+      y<=bounds.maxY;
+
+      y+=grid
+
+    ){
+
+      ctx.moveTo(
+
+        bounds.minX,
+
+        y
+
+      );
+
+
+
+      ctx.lineTo(
+
+        bounds.maxX,
+
+        y
+
+      );
+
     }
+
+
+
     ctx.stroke();
 
-    // Draw boundary
-    ctx.strokeStyle = 'rgba(0, 180, 216, 0.4)';
-    ctx.lineWidth = CONFIG.ARENA_BOUNDARY_THICKNESS;
-    ctx.strokeRect(bounds.minX, bounds.minY, this.width, this.height);
+
+
+    // BORDER
+
+
+
+    ctx.strokeStyle=
+
+      'rgba(0,255,255,0.35)';
+
+
+
+    ctx.lineWidth=
+
+      CONFIG.ARENA_BOUNDARY_THICKNESS;
+
+
+
+    ctx.strokeRect(
+
+      bounds.minX,
+
+      bounds.minY,
+
+      this.width,
+
+      this.height
+
+    );
+
+
+
+    // CENTER GLOW
+
+
+
+    ctx.beginPath();
+
+
+
+    ctx.arc(
+
+      0,
+
+      0,
+
+      150,
+
+      0,
+
+      Math.PI*2
+
+    );
+
+
+
+    ctx.fillStyle=
+
+      'rgba(255,255,255,0.03)';
+
+
+
+    ctx.fill();
+
   }
+
 }
 
 export default ArenaManager;
