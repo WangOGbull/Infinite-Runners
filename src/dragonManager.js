@@ -7,17 +7,14 @@ class Dragon {
 
     this.id=id;
     this.name=name;
+    this.teamId=teamId;
 
     this.asset=AssetLoader.getDragonByName(name);
-
-    this.teamId=teamId;
 
     this.state='alive';
 
     this.score=0;
-
     this.collected=0;
-
     this.kills=0;
 
     this.x=x;
@@ -29,41 +26,24 @@ class Dragon {
 
     this.boostActive=false;
 
-    // Decoupled from PNG sizes
-    this.segmentSize=48;
-
     this.history=[];
 
     this.segments=[];
 
-    this.initSegments();
+    this.segmentSize=100;
+
+    this.initializeDragon();
   }
 
-  get head(){
 
-    return this.segments[0];
 
-  }
-
-  get tail(){
-
-    return this.segments[this.segments.length-1];
-
-  }
-
-  get length(){
-
-    return this.segments.length;
-
-  }
-
-  initSegments(){
+  initializeDragon(){
 
     this.segments=[];
 
     this.history=[];
 
-    const spacing=this.segmentSize*CONFIG.DRAGON_SEGMENT_SPACING;
+    const spacing=55;
 
     for(let i=0;i<CONFIG.DRAGON_START_SEGMENTS;i++){
 
@@ -81,29 +61,30 @@ class Dragon {
 
       }
 
-      const px=this.x-(i*spacing);
-
-      const py=this.y;
-
       this.segments.push({
 
-        x:px,
+        x:this.x-(i*spacing),
 
-        y:py,
+        y:this.y,
 
-        angle:this.angle,
+        angle:0,
 
         type
 
       });
 
+    }
+
+
+    for(let i=0;i<CONFIG.POSITION_HISTORY_BUFFER_SIZE;i++){
+
       this.history.push({
 
-        x:px,
+        x:this.x,
 
-        y:py,
+        y:this.y,
 
-        angle:this.angle
+        angle:0
 
       });
 
@@ -111,11 +92,39 @@ class Dragon {
 
   }
 
+
+
+  get head(){
+
+    return this.segments[0];
+
+  }
+
+
+  get tail(){
+
+    return this.segments[this.segments.length-1];
+
+  }
+
+
+  get length(){
+
+    return this.segments.length;
+
+  }
+
+
+
   update(deltaTime,inputAngle){
 
     if(this.state!=='alive') return;
 
+
+
     let diff=inputAngle-this.angle;
+
+
 
     while(diff>Math.PI){
 
@@ -123,15 +132,23 @@ class Dragon {
 
     }
 
+
+
     while(diff<-Math.PI){
 
       diff+=Math.PI*2;
 
     }
 
+
+
     this.angle+=diff*CONFIG.DRAGON_TURN_SPEED*(deltaTime/16);
 
+
+
     let speed=CONFIG.DRAGON_BASE_SPEED;
+
+
 
     if(this.boostActive){
 
@@ -139,13 +156,19 @@ class Dragon {
 
     }
 
+
+
     const head=this.head;
+
+
 
     head.x+=Math.cos(this.angle)*speed*(deltaTime/16);
 
     head.y+=Math.sin(this.angle)*speed*(deltaTime/16);
 
     head.angle=this.angle;
+
+
 
     this.history.unshift({
 
@@ -157,81 +180,63 @@ class Dragon {
 
     });
 
+
+
     if(this.history.length>CONFIG.POSITION_HISTORY_BUFFER_SIZE){
 
       this.history.pop();
 
     }
 
-    const spacing=this.segmentSize*CONFIG.DRAGON_SEGMENT_SPACING;
+
+
+    const spacing=55;
+
+
 
     for(let i=1;i<this.segments.length;i++){
 
       const seg=this.segments[i];
 
-      const target=i*spacing;
 
-      let accumulated=0;
 
-      let found=false;
+      const historyIndex=i*7;
 
-      for(let j=0;j<this.history.length-1;j++){
 
-        const p1=this.history[j];
 
-        const p2=this.history[j+1];
+      const historyPoint=this.history[Math.min(
 
-        const dx=p2.x-p1.x;
+        historyIndex,
 
-        const dy=p2.y-p1.y;
+        this.history.length-1
 
-        const dist=Math.hypot(dx,dy);
+      )];
 
-        if(dist===0){
 
-          continue;
 
-        }
+      if(!historyPoint) continue;
 
-        if(accumulated+dist>=target){
 
-          const t=(target-accumulated)/dist;
 
-          seg.x=p1.x+(dx*t);
+      seg.x=historyPoint.x;
 
-          seg.y=p1.y+(dy*t);
+      seg.y=historyPoint.y;
 
-          seg.angle=Math.atan2(dy,dx);
 
-          found=true;
 
-          break;
-
-        }
-
-        accumulated+=dist;
-
-      }
-
-      if(!found){
-
-        const last=this.history[this.history.length-1];
-
-        seg.x=last.x;
-
-        seg.y=last.y;
-
-        seg.angle=last.angle;
-
-      }
+      seg.angle=historyPoint.angle;
 
     }
 
   }
 
+
+
   grow(amount=1){
 
     for(let i=0;i<amount;i++){
+
+
 
       if(this.segments.length>=CONFIG.DRAGON_MAX_SEGMENTS){
 
@@ -239,7 +244,11 @@ class Dragon {
 
       }
 
+
+
       const tail=this.tail;
+
+
 
       this.segments.splice(
 
@@ -263,21 +272,29 @@ class Dragon {
 
     }
 
+
+
     this.collected+=amount;
 
     this.score+=amount*CONFIG.FOOD_NORMAL_POINTS;
 
   }
 
+
+
   shrink(amount){
 
     for(let i=0;i<amount;i++){
+
+
 
       if(this.segments.length<=CONFIG.DRAGON_START_SEGMENTS){
 
         break;
 
       }
+
+
 
       this.segments.splice(
 
@@ -291,17 +308,53 @@ class Dragon {
 
   }
 
+
+
   render(ctx,camera){
 
-    if(!this.asset){
+    if(!this.asset) return;
 
-      return;
 
-    }
+
+    const scale=camera.zoom*CONFIG.DRAGON_DISPLAY_SCALE;
+
+
 
     for(let i=this.segments.length-1;i>=0;i--){
 
+
+
       const seg=this.segments[i];
+
+
+
+      let sprite;
+
+
+
+      if(seg.type==='head'){
+
+        sprite=this.asset.head;
+
+      }
+
+      else if(seg.type==='tail'){
+
+        sprite=this.asset.tail;
+
+      }
+
+      else{
+
+        sprite=this.asset.body;
+
+      }
+
+
+
+      if(!sprite) continue;
+
+
 
       const pos=camera.worldToScreen(
 
@@ -311,43 +364,11 @@ class Dragon {
 
       );
 
-      let sprite;
 
-      let size=95;
-
-      if(seg.type==='head'){
-
-        sprite=this.asset.head;
-
-        size=125;
-
-      }
-
-      else if(seg.type==='body'){
-
-        sprite=this.asset.body;
-
-        size=95;
-
-      }
-
-      else{
-
-        sprite=this.asset.tail;
-
-        size=85;
-
-      }
-
-      if(!sprite){
-
-        continue;
-
-      }
-
-      size*=camera.zoom;
 
       ctx.save();
+
+
 
       ctx.translate(
 
@@ -357,31 +378,75 @@ class Dragon {
 
       );
 
+
+
       ctx.rotate(
 
         seg.angle
 
       );
 
+
+
+      let width=sprite.width*scale;
+
+      let height=sprite.height*scale;
+
+
+
+      if(seg.type==='head'){
+
+        width*=0.9;
+
+        height*=0.9;
+
+      }
+
+
+
+      if(seg.type==='body'){
+
+        width*=0.85;
+
+        height*=0.85;
+
+      }
+
+
+
+      if(seg.type==='tail'){
+
+        width*=0.8;
+
+        height*=0.8;
+
+      }
+
+
+
       ctx.drawImage(
 
         sprite,
 
-        -size/2,
+        -width/2,
 
-        -size/2,
+        -height/2,
 
-        size,
+        width,
 
-        size
+        height
 
       );
+
+
 
       ctx.restore();
 
     }
 
   }
+
+
 
   getBounds(){
 
@@ -393,41 +458,21 @@ class Dragon {
 
     let maxY=-Infinity;
 
+
+
     for(const seg of this.segments){
 
-      minX=Math.min(
+      minX=Math.min(minX,seg.x);
 
-        minX,
+      minY=Math.min(minY,seg.y);
 
-        seg.x
+      maxX=Math.max(maxX,seg.x);
 
-      );
-
-      minY=Math.min(
-
-        minY,
-
-        seg.y
-
-      );
-
-      maxX=Math.max(
-
-        maxX,
-
-        seg.x
-
-      );
-
-      maxY=Math.max(
-
-        maxY,
-
-        seg.y
-
-      );
+      maxY=Math.max(maxY,seg.y);
 
     }
+
+
 
     return{
 
@@ -443,31 +488,38 @@ class Dragon {
 
   }
 
+
+
   destroy(){
 
     this.state='dead';
 
-    this.segments=[];
-
     this.history=[];
+
+    this.segments=[];
 
   }
 
 }
 
-class DragonManager {
+
+
+class DragonManager{
 
   constructor(){
 
     this.dragons=new Map();
 
     this.nextId=1;
-
   }
+
+
 
   createDragon(name,x,y,teamId=null){
 
     const id=`dragon_${this.nextId++}`;
+
+
 
     const dragon=new Dragon(
 
@@ -483,6 +535,8 @@ class DragonManager {
 
     );
 
+
+
     this.dragons.set(
 
       id,
@@ -491,31 +545,39 @@ class DragonManager {
 
     );
 
-    return dragon;
 
+
+    return dragon;
   }
+
+
 
   removeDragon(id){
 
     const dragon=this.dragons.get(id);
 
-    if(!dragon){
 
-      return;
 
-    }
+    if(!dragon) return;
+
+
 
     dragon.destroy();
 
-    this.dragons.delete(id);
 
+
+    this.dragons.delete(id);
   }
+
+
 
   getDragon(id){
 
     return this.dragons.get(id);
 
   }
+
+
 
   getAllDragons(){
 
@@ -527,27 +589,31 @@ class DragonManager {
 
   }
 
+
+
   getLivingDragons(){
 
     return this.getAllDragons()
 
-    .filter(
+      .filter(
 
-      d=>d.state==='alive'
+        dragon=>dragon.state==='alive'
 
-    );
+      );
 
   }
+
+
 
   update(deltaTime,inputMap){
 
     for(const dragon of this.dragons.values()){
 
-      const input=inputMap.get(
+      const input=inputMap.get(dragon.id)
 
-        dragon.id
+      ?? dragon.angle;
 
-      ) ?? dragon.angle;
+
 
       dragon.update(
 
@@ -560,6 +626,8 @@ class DragonManager {
     }
 
   }
+
+
 
   render(ctx,camera){
 
@@ -581,6 +649,8 @@ class DragonManager {
 
   }
 
+
+
   clear(){
 
     for(const dragon of this.dragons.values()){
@@ -589,12 +659,17 @@ class DragonManager {
 
     }
 
+
+
     this.dragons.clear();
 
-    this.nextId=1;
 
+
+    this.nextId=1;
   }
 
 }
+
+
 
 export { Dragon, DragonManager };
