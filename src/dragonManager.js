@@ -2,233 +2,599 @@ import CONFIG from './config.js';
 import AssetLoader from './assetLoader.js';
 
 class Dragon {
-  constructor(id, name, x, y, teamId = null) {
-    this.id = id;
-    this.name = name;
-    this.asset = AssetLoader.getDragonByName(name);
-    this.teamId = teamId;
-    this.state = 'alive';
-    this.score = 0;
-    this.collected = 0;
-    this.kills = 0;
 
-    this.x = x;
-    this.y = y;
-    this.angle = 0;
-    this.speed = CONFIG.DRAGON_BASE_SPEED;
-    this.boostActive = false;
+  constructor(id,name,x,y,teamId=null){
 
-    this.segmentSize = this.asset ? this.asset.body.width : 64;
-    this.history = [];
-    this.segments = [];
+    this.id=id;
+    this.name=name;
+
+    this.asset=AssetLoader.getDragonByName(name);
+
+    this.teamId=teamId;
+
+    this.state='alive';
+
+    this.score=0;
+
+    this.collected=0;
+
+    this.kills=0;
+
+    this.x=x;
+    this.y=y;
+
+    this.angle=0;
+
+    this.speed=CONFIG.DRAGON_BASE_SPEED;
+
+    this.boostActive=false;
+
+    // Decoupled from PNG sizes
+    this.segmentSize=48;
+
+    this.history=[];
+
+    this.segments=[];
+
     this.initSegments();
   }
 
-  initSegments() {
-    const spacing = this.segmentSize * CONFIG.DRAGON_SEGMENT_SPACING;
-    for (let i = 0; i < CONFIG.DRAGON_START_SEGMENTS; i++) {
-      const type = i === 0 ? 'head' : (i === CONFIG.DRAGON_START_SEGMENTS - 1 ? 'tail' : 'body');
+  get head(){
+
+    return this.segments[0];
+
+  }
+
+  get tail(){
+
+    return this.segments[this.segments.length-1];
+
+  }
+
+  get length(){
+
+    return this.segments.length;
+
+  }
+
+  initSegments(){
+
+    this.segments=[];
+
+    this.history=[];
+
+    const spacing=this.segmentSize*CONFIG.DRAGON_SEGMENT_SPACING;
+
+    for(let i=0;i<CONFIG.DRAGON_START_SEGMENTS;i++){
+
+      let type='body';
+
+      if(i===0){
+
+        type='head';
+
+      }
+
+      else if(i===CONFIG.DRAGON_START_SEGMENTS-1){
+
+        type='tail';
+
+      }
+
+      const px=this.x-(i*spacing);
+
+      const py=this.y;
+
       this.segments.push({
-        x: this.x - i * spacing,
-        y: this.y,
-        angle: this.angle,
+
+        x:px,
+
+        y:py,
+
+        angle:this.angle,
+
         type
+
       });
-      this.history.push({ x: this.x - i * spacing, y: this.y, angle: this.angle });
+
+      this.history.push({
+
+        x:px,
+
+        y:py,
+
+        angle:this.angle
+
+      });
+
     }
+
   }
 
-  get head() { return this.segments[0]; }
-  get tail() { return this.segments[this.segments.length - 1]; }
-  get length() { return this.segments.length; }
+  update(deltaTime,inputAngle){
 
-  update(deltaTime, inputAngle) {
-    if (this.state !== 'alive') return;
+    if(this.state!=='alive') return;
 
-    let diff = inputAngle - this.angle;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    this.angle += diff * CONFIG.DRAGON_TURN_SPEED * (deltaTime / 16);
+    let diff=inputAngle-this.angle;
 
-    let currentSpeed = CONFIG.DRAGON_BASE_SPEED;
-    if (this.boostActive) currentSpeed *= 1.8;
+    while(diff>Math.PI){
 
-    const head = this.head;
-    head.x += Math.cos(this.angle) * currentSpeed * (deltaTime / 16);
-    head.y += Math.sin(this.angle) * currentSpeed * (deltaTime / 16);
-    head.angle = this.angle;
+      diff-=Math.PI*2;
 
-    this.history.unshift({ x: head.x, y: head.y, angle: this.angle });
-    if (this.history.length > CONFIG.POSITION_HISTORY_BUFFER_SIZE) {
+    }
+
+    while(diff<-Math.PI){
+
+      diff+=Math.PI*2;
+
+    }
+
+    this.angle+=diff*CONFIG.DRAGON_TURN_SPEED*(deltaTime/16);
+
+    let speed=CONFIG.DRAGON_BASE_SPEED;
+
+    if(this.boostActive){
+
+      speed*=1.8;
+
+    }
+
+    const head=this.head;
+
+    head.x+=Math.cos(this.angle)*speed*(deltaTime/16);
+
+    head.y+=Math.sin(this.angle)*speed*(deltaTime/16);
+
+    head.angle=this.angle;
+
+    this.history.unshift({
+
+      x:head.x,
+
+      y:head.y,
+
+      angle:this.angle
+
+    });
+
+    if(this.history.length>CONFIG.POSITION_HISTORY_BUFFER_SIZE){
+
       this.history.pop();
+
     }
 
-    const spacing = this.segmentSize * CONFIG.DRAGON_SEGMENT_SPACING;
+    const spacing=this.segmentSize*CONFIG.DRAGON_SEGMENT_SPACING;
 
-    for (let i = 1; i < this.segments.length; i++) {
-      const seg = this.segments[i];
-      const targetDist = i * spacing;
-      let accumulated = 0;
-      let placed = false;
+    for(let i=1;i<this.segments.length;i++){
 
-      for (let j = 0; j < this.history.length - 1; j++) {
-        const p1 = this.history[j];
-        const p2 = this.history[j + 1];
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+      const seg=this.segments[i];
 
-        if (accumulated + dist >= targetDist) {
-          const t = (targetDist - accumulated) / dist;
-          seg.x = p1.x + dx * t;
-          seg.y = p1.y + dy * t;
-          seg.angle = Math.atan2(p1.y - p2.y, p1.x - p2.x);
-          placed = true;
-          break;
+      const target=i*spacing;
+
+      let accumulated=0;
+
+      let found=false;
+
+      for(let j=0;j<this.history.length-1;j++){
+
+        const p1=this.history[j];
+
+        const p2=this.history[j+1];
+
+        const dx=p2.x-p1.x;
+
+        const dy=p2.y-p1.y;
+
+        const dist=Math.hypot(dx,dy);
+
+        if(dist===0){
+
+          continue;
+
         }
-        accumulated += dist;
+
+        if(accumulated+dist>=target){
+
+          const t=(target-accumulated)/dist;
+
+          seg.x=p1.x+(dx*t);
+
+          seg.y=p1.y+(dy*t);
+
+          seg.angle=Math.atan2(dy,dx);
+
+          found=true;
+
+          break;
+
+        }
+
+        accumulated+=dist;
+
       }
 
-      if (!placed) {
-        const last = this.history[this.history.length - 1];
-        seg.x = last.x;
-        seg.y = last.y;
-        seg.angle = last.angle;
+      if(!found){
+
+        const last=this.history[this.history.length-1];
+
+        seg.x=last.x;
+
+        seg.y=last.y;
+
+        seg.angle=last.angle;
+
       }
+
     }
+
   }
 
-  grow(amount = 1) {
-    if (this.segments.length >= CONFIG.DRAGON_MAX_SEGMENTS) return;
+  grow(amount=1){
 
-    const tail = this.tail;
-    for (let i = 0; i < amount; i++) {
-      if (this.segments.length >= CONFIG.DRAGON_MAX_SEGMENTS) break;
-      this.segments.splice(this.segments.length - 1, 0, {
-        x: tail.x,
-        y: tail.y,
-        angle: tail.angle,
-        type: 'body'
-      });
+    for(let i=0;i<amount;i++){
+
+      if(this.segments.length>=CONFIG.DRAGON_MAX_SEGMENTS){
+
+        break;
+
+      }
+
+      const tail=this.tail;
+
+      this.segments.splice(
+
+        this.segments.length-1,
+
+        0,
+
+        {
+
+          x:tail.x,
+
+          y:tail.y,
+
+          angle:tail.angle,
+
+          type:'body'
+
+        }
+
+      );
+
     }
-    this.collected += amount;
-    this.score += amount * CONFIG.FOOD_NORMAL_POINTS;
+
+    this.collected+=amount;
+
+    this.score+=amount*CONFIG.FOOD_NORMAL_POINTS;
+
   }
 
-  shrink(amount) {
-    for (let i = 0; i < amount; i++) {
-      if (this.segments.length <= CONFIG.DRAGON_START_SEGMENTS) break;
-      this.segments.splice(this.segments.length - 2, 1);
+  shrink(amount){
+
+    for(let i=0;i<amount;i++){
+
+      if(this.segments.length<=CONFIG.DRAGON_START_SEGMENTS){
+
+        break;
+
+      }
+
+      this.segments.splice(
+
+        this.segments.length-2,
+
+        1
+
+      );
+
     }
+
   }
 
-  render(ctx, camera) {
-    if (!this.asset) return;
+  render(ctx,camera){
 
-    for (let i = this.segments.length - 1; i >= 0; i--) {
-      const seg = this.segments[i];
-      const screenPos = camera.worldToScreen(seg.x, seg.y);
-      const scale = camera.zoom * CONFIG.DRAGON_DISPLAY_SCALE;
+    if(!this.asset){
+
+      return;
+
+    }
+
+    for(let i=this.segments.length-1;i>=0;i--){
+
+      const seg=this.segments[i];
+
+      const pos=camera.worldToScreen(
+
+        seg.x,
+
+        seg.y
+
+      );
 
       let sprite;
-      let spriteScale = scale;
-      if (seg.type === 'head') sprite = this.asset.head;
-      else if (seg.type === 'tail') {
-        sprite = this.asset.tail;
-        spriteScale = scale * CONFIG.DRAGON_TAIL_TAPER_SCALE;
-      } else {
-        sprite = this.asset.body;
+
+      let size=95;
+
+      if(seg.type==='head'){
+
+        sprite=this.asset.head;
+
+        size=125;
+
       }
 
-      if (!sprite) continue;
+      else if(seg.type==='body'){
+
+        sprite=this.asset.body;
+
+        size=95;
+
+      }
+
+      else{
+
+        sprite=this.asset.tail;
+
+        size=85;
+
+      }
+
+      if(!sprite){
+
+        continue;
+
+      }
+
+      size*=camera.zoom;
 
       ctx.save();
-      ctx.translate(screenPos.x, screenPos.y);
-      ctx.rotate(seg.angle);
-      ctx.drawImage(
-        sprite,
-        -sprite.width * spriteScale / 2,
-        -sprite.height * spriteScale / 2,
-        sprite.width * spriteScale,
-        sprite.height * spriteScale
+
+      ctx.translate(
+
+        pos.x,
+
+        pos.y
+
       );
+
+      ctx.rotate(
+
+        seg.angle
+
+      );
+
+      ctx.drawImage(
+
+        sprite,
+
+        -size/2,
+
+        -size/2,
+
+        size,
+
+        size
+
+      );
+
       ctx.restore();
+
     }
+
   }
 
-  getBounds() {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const seg of this.segments) {
-      minX = Math.min(minX, seg.x);
-      minY = Math.min(minY, seg.y);
-      maxX = Math.max(maxX, seg.x);
-      maxY = Math.max(maxY, seg.y);
+  getBounds(){
+
+    let minX=Infinity;
+
+    let minY=Infinity;
+
+    let maxX=-Infinity;
+
+    let maxY=-Infinity;
+
+    for(const seg of this.segments){
+
+      minX=Math.min(
+
+        minX,
+
+        seg.x
+
+      );
+
+      minY=Math.min(
+
+        minY,
+
+        seg.y
+
+      );
+
+      maxX=Math.max(
+
+        maxX,
+
+        seg.x
+
+      );
+
+      maxY=Math.max(
+
+        maxY,
+
+        seg.y
+
+      );
+
     }
-    return { minX, minY, maxX, maxY };
+
+    return{
+
+      minX,
+
+      minY,
+
+      maxX,
+
+      maxY
+
+    };
+
   }
 
-  destroy() {
-    this.state = 'dead';
-    this.segments = [];
-    this.history = [];
+  destroy(){
+
+    this.state='dead';
+
+    this.segments=[];
+
+    this.history=[];
+
   }
+
 }
 
 class DragonManager {
-  constructor() {
-    this.dragons = new Map();
-    this.nextId = 1;
+
+  constructor(){
+
+    this.dragons=new Map();
+
+    this.nextId=1;
+
   }
 
-  createDragon(name, x, y, teamId = null) {
-    const id = `dragon_${this.nextId++}`;
-    const dragon = new Dragon(id, name, x, y, teamId);
-    this.dragons.set(id, dragon);
+  createDragon(name,x,y,teamId=null){
+
+    const id=`dragon_${this.nextId++}`;
+
+    const dragon=new Dragon(
+
+      id,
+
+      name,
+
+      x,
+
+      y,
+
+      teamId
+
+    );
+
+    this.dragons.set(
+
+      id,
+
+      dragon
+
+    );
+
     return dragon;
+
   }
 
-  removeDragon(id) {
-    const dragon = this.dragons.get(id);
-    if (dragon) {
-      dragon.destroy();
-      this.dragons.delete(id);
+  removeDragon(id){
+
+    const dragon=this.dragons.get(id);
+
+    if(!dragon){
+
+      return;
+
     }
+
+    dragon.destroy();
+
+    this.dragons.delete(id);
+
   }
 
-  getDragon(id) {
+  getDragon(id){
+
     return this.dragons.get(id);
+
   }
 
-  getAllDragons() {
-    return Array.from(this.dragons.values());
+  getAllDragons(){
+
+    return Array.from(
+
+      this.dragons.values()
+
+    );
+
   }
 
-  getLivingDragons() {
-    return this.getAllDragons().filter(d => d.state === 'alive');
+  getLivingDragons(){
+
+    return this.getAllDragons()
+
+    .filter(
+
+      d=>d.state==='alive'
+
+    );
+
   }
 
-  update(deltaTime, inputMap) {
-    for (const dragon of this.dragons.values()) {
-      const input = inputMap.get(dragon.id) || dragon.angle;
-      dragon.update(deltaTime, input);
+  update(deltaTime,inputMap){
+
+    for(const dragon of this.dragons.values()){
+
+      const input=inputMap.get(
+
+        dragon.id
+
+      ) ?? dragon.angle;
+
+      dragon.update(
+
+        deltaTime,
+
+        input
+
+      );
+
     }
+
   }
 
-  render(ctx, camera) {
-    for (const dragon of this.dragons.values()) {
-      if (dragon.state === 'alive') {
-        dragon.render(ctx, camera);
+  render(ctx,camera){
+
+    for(const dragon of this.dragons.values()){
+
+      if(dragon.state==='alive'){
+
+        dragon.render(
+
+          ctx,
+
+          camera
+
+        );
+
       }
+
     }
+
   }
 
-  clear() {
-    for (const dragon of this.dragons.values()) {
+  clear(){
+
+    for(const dragon of this.dragons.values()){
+
       dragon.destroy();
+
     }
+
     this.dragons.clear();
-    this.nextId = 1;
+
+    this.nextId=1;
+
   }
+
 }
 
 export { Dragon, DragonManager };
