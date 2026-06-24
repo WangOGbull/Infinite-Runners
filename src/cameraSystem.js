@@ -68,4 +68,14 @@ export default class CameraSystem {
       y: cy + (wy - this.y) * this.zoom
     };
   }
+
+  isInView(wx, wy, radius) {
+    const cx = this.canvas.width / 2;
+    const cy = this.canvas.height / 2;
+    const sx = cx + (wx - this.x) * this.zoom;
+    const sy = cy + (wy - this.y) * this.zoom;
+    const margin = radius * this.zoom;
+    return sx > -margin && sx < this.canvas.width + margin &&
+           sy > -margin && sy < this.canvas.height + margin;
+  }
 }
