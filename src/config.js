@@ -22,7 +22,6 @@ const CONFIG = {
   ARENA_GRID_SIZE: 100,
 
   // ==================== CAMERA ====================
-  // FIXED: Zoomed way out so you can see the arena and where you're going
 
   CAMERA_BASE_ZOOM: 0.55,
 
@@ -53,7 +52,6 @@ const CONFIG = {
   DRAGON_SEGMENT_SPACING: 0.55,
 
   // ==================== DRAGON DISPLAY ====================
-  // FIXED: Was 0.28 (GIANT). Now 0.08 for proper screen size.
 
   DRAGON_DISPLAY_SCALE: 0.08,
 
@@ -64,7 +62,6 @@ const CONFIG = {
   DRAGON_TAIL_TAPER_SCALE: 0.85,
 
   // ==================== HISTORY ====================
-  // FIXED: Was 3500 (massive memory, clumped segments). Now 2000.
 
   POSITION_HISTORY_BUFFER_SIZE: 2000,
 
@@ -85,10 +82,15 @@ const CONFIG = {
   FOOD_SYMBOL: '∞',
 
   FOOD_TYPES: [
+
     'blue',
+
     'red',
+
     'purple',
+
     'orange'
+
   ],
 
   FOOD_RADIUS: 4,
@@ -96,10 +98,15 @@ const CONFIG = {
   // ==================== PLAYERS ====================
 
   MAX_PLAYERS: {
+
     '1v1': 2,
+
     '2v2': 4,
+
     '4v4': 8,
+
     'FFA': 8
+
   },
 
   PLAYER_SPAWN_MARGIN: 250,
@@ -109,17 +116,27 @@ const CONFIG = {
   // ==================== GAME MODES ====================
 
   GAME_MODES: [
+
     '1v1',
+
     '2v2',
+
     '4v4',
+
     'FFA'
+
   ],
 
   GAME_DURATION: {
+
     '1v1': 180000,
+
     '2v2': 240000,
+
     '4v4': 300000,
+
     'FFA': 300000
+
   },
 
   // ==================== NETWORK ====================
@@ -149,8 +166,11 @@ const CONFIG = {
 };
 
 Object.freeze(CONFIG);
+
 Object.freeze(CONFIG.ARENA);
+
 Object.freeze(CONFIG.MAX_PLAYERS);
+
 Object.freeze(CONFIG.GAME_DURATION);
 
 export default CONFIG;
