@@ -14,27 +14,22 @@ export default class CameraSystem {
   update(localDragon, arenaManager) {
     if (!localDragon) return;
 
-    // Lead the dragon slightly so you can see where you're going
     const leadDist = CONFIG.CAMERA_LEAD_DISTANCE;
     const targetX = localDragon.head.x + Math.cos(localDragon.angle) * leadDist;
     const targetY = localDragon.head.y + Math.sin(localDragon.angle) * leadDist;
 
-    // Dynamic zoom: bigger dragon = pull camera back
     const segCount = localDragon.segments ? localDragon.segments.length : CONFIG.DRAGON_START_SEGMENTS;
     const growthRatio = Math.min(segCount / CONFIG.DRAGON_MAX_SEGMENTS, 1);
-    
-    // Zoom range: max zoom (close) when small, min zoom (far) when big
+
     const maxZ = CONFIG.CAMERA_MAX_ZOOM;
     const minZ = CONFIG.CAMERA_MIN_ZOOM;
     this.targetZoom = maxZ - (growthRatio * (maxZ - minZ));
 
-    // Smooth lerp
     const smooth = CONFIG.CAMERA_SMOOTH_FACTOR;
     this.x += (targetX - this.x) * smooth;
     this.y += (targetY - this.y) * smooth;
     this.zoom += (this.targetZoom - this.zoom) * smooth;
 
-    // Clamp to arena so camera doesn't show void
     const bounds = arenaManager.getBounds();
     const viewW = this.canvas.width / this.zoom;
     const viewH = this.canvas.height / this.zoom;
