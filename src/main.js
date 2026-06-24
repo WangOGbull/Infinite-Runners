@@ -312,14 +312,11 @@ class Game {
     this.startLocalGame('FFA');
   }
 
-  // ==================== FIXED: CANVAS CLEAR BEFORE COUNTDOWN ====================
   startGameLoop() {
     this.state = 'PLAYING';
     this.isPaused = false;
     this.gameStartTime = Date.now();
 
-    // CRITICAL FIX: Wipe canvas clean BEFORE showing countdown
-    // This kills the ghost dragon from the previous round
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -339,4 +336,158 @@ class Game {
   }
 
   loop() {
-    if (this.state !== 'PLAY
+    if (this.state !== 'PLAYING') return;
+
+    const now = performance.now();
+    let deltaTime = now - this.lastTime;
+    this.lastTime = now;
+
+    if (deltaTime > CONFIG.MAX_DELTA_TIME) deltaTime = CONFIG.MAX_DELTA_TIME;
+
+    if (!this.isPaused) {
+      this.update(deltaTime);
+      this.render();
+    }
+
+    this.animationFrame = requestAnimationFrame(() => this.loop());
+  }
+
+  update(deltaTime) {
+    this.gameTimer = Date.now() - this.gameStartTime;
+    const minutes = Math.floor(this.gameTimer / 60000);
+    const seconds = Math.floor((this.gameTimer % 60000) / 1000);
+    const timeStr = minutes + ':' + seconds.toString().padStart(2, '0');
+
+    this.foodSystem.update(deltaTime);
+    this.movementSystem.update(this.dragonManager, this.cameraSystem, deltaTime);
+
+    const inputMap = new Map();
+
+    for (const dragon of this.dragonManager.getLivingDragons()) {
+      let angle;
+      if (dragon === this.localDragon) {
+        angle = this.movementSystem.getInputAngle(
+          dragon.id,
+          dragon.head.x,
+          dragon.head.y,
+          this.cameraSystem
+        );
+      } else {
+        angle = this.aiController.getInputAngle(dragon);
+      }
+      inputMap.set(dragon.id, angle);
+    }
+
+    this.dragonManager.update(deltaTime, inputMap);
+    this.cameraSystem.update(this.localDragon, this.arenaManager);
+    this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
+
+    const result = this.gameModeManager.checkWinCondition(this.dragonManager.getAllDragons());
+    if (result && result.winner) {
+      this.endGame();
+      return;
+    }
+
+    const score = this.localDragon ? this.localDragon.score : 0;
+    this.uiManager.updateHUD(score, timeStr);
+
+    const minimap = document.getElementById('minimapCanvas');
+    if (minimap) {
+      this.uiManager.renderMinimap(
+        minimap,
+        this.cameraSystem,
+        this.arenaManager,
+        this.dragonManager.getAllDragons(),
+        this.foodSystem.getFoods()
+      );
+    }
+  }
+
+  render() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      this.cameraSystem.canvas = canvas;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    this.cameraSystem.apply(ctx);
+    this.arenaManager.render(ctx, this.cameraSystem);
+    this.foodSystem.render(ctx, this.cameraSystem);
+    this.dragonManager.render(ctx, this.cameraSystem);
+    this.cameraSystem.reset(ctx);
+  }
+
+  pauseGame() {
+    this.isPaused = true;
+    this.uiManager.showPauseOverlay(true);
+  }
+
+  resumeGame() {
+    this.isPaused = false;
+    this.uiManager.showPauseOverlay(false);
+    this.lastTime = performance.now();
+  }
+
+  endGame() {
+    this.state = 'GAME_OVER';
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    const stats = {
+      time: document.getElementById('timerDisplay').textContent,
+      collected: this.localDragon ? this.localDragon.collected : 0,
+      kills: this.localDragon ? this.localDragon.kills : 0
+    };
+
+    this.uiManager.updateGameOver(stats);
+    this.uiManager.showScreen('gameOverScreen');
+  }
+
+  restartGame() {
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+
+    this.dragonManager.clear();
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    this.startLocalGame(this.selectedMode || 'FFA');
+  }
+
+  quitGame() {
+    this.state = 'MENU';
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.dragonManager.clear();
+    this.isPaused = false;
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  window.game = new Game();
+});
