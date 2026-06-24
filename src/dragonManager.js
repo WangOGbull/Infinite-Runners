@@ -1,4 +1,5 @@
 import CONFIG from './config.js';
+import AssetLoader from './assetLoader.js';
 
 export class DragonManager {
   constructor() {
@@ -137,25 +138,36 @@ export class DragonManager {
   }
 
   renderDragon(ctx, dragon) {
-    const assets = window.game?.assetLoader?.getDragon?.(dragon.type) ||
-                   (typeof AssetLoader !== 'undefined' ? AssetLoader.getDragon(dragon.type) : null);
+    let assets = null;
+    try {
+      if (AssetLoader && typeof AssetLoader.getDragon === 'function') {
+        assets = AssetLoader.getDragon(dragon.type);
+      }
+    } catch (e) {
+      assets = null;
+    }
 
     const baseScale = CONFIG.DRAGON_DISPLAY_SCALE;
+    const segCount = dragon.segments.length;
 
-    for (let i = dragon.segments.length - 1; i >= 0; i--) {
+    // Draw from tail to head so head is on top
+    for (let i = segCount - 1; i >= 0; i--) {
       const seg = dragon.segments[i];
+
+      // Taper the tail end
       let segScale = baseScale;
-      const tailStart = Math.floor(dragon.segments.length * 0.75);
-      if (i >= tailStart) {
-        const taper = 1 - ((i - tailStart) / (dragon.segments.length - tailStart)) * 0.4;
-        segScale *= Math.max(0.5, taper);
+      const tailStart = Math.floor(segCount * 0.75);
+      if (i >= tailStart && segCount > 1) {
+        const taper = 1 - ((i - tailStart) / (segCount - tailStart)) * 0.35;
+        segScale *= Math.max(0.55, taper);
       }
 
       ctx.save();
       ctx.translate(seg.x, seg.y);
 
+      // Calculate segment angle
       let angle = dragon.angle;
-      if (i < dragon.segments.length - 1) {
+      if (i < segCount - 1) {
         const next = dragon.segments[i + 1];
         angle = Math.atan2(next.y - seg.y, next.x - seg.x);
       } else if (dragon.history.length > 5) {
@@ -164,36 +176,65 @@ export class DragonManager {
       }
       ctx.rotate(angle);
 
-      const img = assets?.body || assets?.image;
-      if (img && img.complete && img.naturalWidth > 0) {
+      // Pick image: tail asset for last segment, body for others
+      let img = null;
+      if (i === 0 && assets && assets.tail && assets.tail.complete && assets.tail.naturalWidth > 0) {
+        img = assets.tail;
+      } else if (assets && assets.body && assets.body.complete && assets.body.naturalWidth > 0) {
+        img = assets.body;
+      } else if (assets && assets.image && assets.image.complete && assets.image.naturalWidth > 0) {
+        img = assets.image;
+      }
+
+      if (img) {
         const w = img.naturalWidth * segScale;
         const h = img.naturalHeight * segScale;
         ctx.drawImage(img, -w / 2, -h / 2, w, h);
       } else {
+        // Bigger fallback so you can see it
         ctx.fillStyle = this.getDragonColor(dragon.type);
         ctx.beginPath();
-        ctx.arc(0, 0, 20 * segScale, 0, Math.PI * 2);
+        ctx.arc(0, 0, 18 * segScale, 0, Math.PI * 2);
         ctx.fill();
+        // Glow ring
+        ctx.strokeStyle = this.getDragonColor(dragon.type);
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 24 * segScale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
       }
 
       ctx.restore();
     }
 
+    // --- DRAW HEAD ---
     ctx.save();
     ctx.translate(dragon.head.x, dragon.head.y);
     ctx.rotate(dragon.angle);
 
-    const headImg = assets?.head || assets?.image;
-    const headScale = baseScale * 1.15;
+    let headImg = null;
+    if (assets && assets.head && assets.head.complete && assets.head.naturalWidth > 0) {
+      headImg = assets.head;
+    } else if (assets && assets.image && assets.image.complete && assets.image.naturalWidth > 0) {
+      headImg = assets.image;
+    }
 
-    if (headImg && headImg.complete && headImg.naturalWidth > 0) {
+    const headScale = baseScale * 1.1;
+
+    if (headImg) {
       const w = headImg.naturalWidth * headScale;
       const h = headImg.naturalHeight * headScale;
       ctx.drawImage(headImg, -w / 2, -h / 2, w, h);
     } else {
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(0, 0, 22 * headScale, 0, Math.PI * 2);
+      ctx.arc(0, 0, 20 * headScale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = this.getDragonColor(dragon.type);
+      ctx.beginPath();
+      ctx.arc(0, 0, 14 * headScale, 0, Math.PI * 2);
       ctx.fill();
     }
 
