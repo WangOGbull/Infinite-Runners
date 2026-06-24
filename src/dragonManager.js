@@ -28,7 +28,6 @@ export class DragonManager {
       invulnerable: 0
     };
 
-    // Initialize segments in a line behind the head
     const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
     for (let i = 0; i < CONFIG.DRAGON_START_SEGMENTS; i++) {
       dragon.segments.push({
@@ -37,7 +36,6 @@ export class DragonManager {
       });
     }
 
-    // Pre-fill history so tail doesn't snap on spawn
     for (let i = 0; i < CONFIG.DRAGON_START_SEGMENTS * 10; i++) {
       dragon.history.push({
         x: x - Math.cos(dragon.angle) * i * (spacing / 10),
@@ -63,7 +61,6 @@ export class DragonManager {
     for (const dragon of this.dragons) {
       if (!dragon.alive) continue;
 
-      // --- TURNING ---
       const inputAngle = inputMap.get(dragon.id);
       if (inputAngle !== undefined) {
         let diff = inputAngle - dragon.angle;
@@ -72,7 +69,6 @@ export class DragonManager {
         dragon.angle += diff * CONFIG.DRAGON_TURN_SPEED * dtFactor;
       }
 
-      // --- MOVEMENT ---
       let moveSpeed = dragon.speed;
       if (dragon.boostActive) {
         moveSpeed *= CONFIG.DRAGON_BOOST_MULTIPLIER;
@@ -84,10 +80,8 @@ export class DragonManager {
       dragon.head.x += vx;
       dragon.head.y += vy;
 
-      // --- HISTORY (for snake-like tail follow) ---
       dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
 
-      // --- SEGMENT PLACEMENT (distance-based along history) ---
       const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
 
       for (let i = 0; i < dragon.segments.length; i++) {
@@ -117,7 +111,6 @@ export class DragonManager {
         }
       }
 
-      // --- TRIM HISTORY ---
       const maxNeeded = dragon.segments.length * spacing * 3;
       let totalDist = 0;
       let trimIdx = dragon.history.length;
@@ -149,11 +142,8 @@ export class DragonManager {
 
     const baseScale = CONFIG.DRAGON_DISPLAY_SCALE;
 
-    // Draw from tail to head so head is on top
     for (let i = dragon.segments.length - 1; i >= 0; i--) {
       const seg = dragon.segments[i];
-
-      // Taper the tail end
       let segScale = baseScale;
       const tailStart = Math.floor(dragon.segments.length * 0.75);
       if (i >= tailStart) {
@@ -164,7 +154,6 @@ export class DragonManager {
       ctx.save();
       ctx.translate(seg.x, seg.y);
 
-      // Calculate segment angle from history or next segment
       let angle = dragon.angle;
       if (i < dragon.segments.length - 1) {
         const next = dragon.segments[i + 1];
@@ -190,7 +179,6 @@ export class DragonManager {
       ctx.restore();
     }
 
-    // --- DRAW HEAD ---
     ctx.save();
     ctx.translate(dragon.head.x, dragon.head.y);
     ctx.rotate(dragon.angle);
