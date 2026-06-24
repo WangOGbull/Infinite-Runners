@@ -21,21 +21,18 @@ const CONFIG = {
   ARENA_BOUNDARY_THICKNESS: 12,
   ARENA_GRID_SIZE: 100,
 
-
-
   // ==================== CAMERA ====================
+  // FIXED: Zoomed way out so you can see the arena and where you're going
 
-  CAMERA_BASE_ZOOM: 1.15,
+  CAMERA_BASE_ZOOM: 0.55,
 
-  CAMERA_MIN_ZOOM: 0.95,
+  CAMERA_MIN_ZOOM: 0.30,
 
-  CAMERA_MAX_ZOOM: 1.25,
+  CAMERA_MAX_ZOOM: 0.80,
 
   CAMERA_SMOOTH_FACTOR: 0.08,
 
-  CAMERA_LEAD_DISTANCE: 70,
-
-
+  CAMERA_LEAD_DISTANCE: 90,
 
   // ==================== DRAGON MOVEMENT ====================
 
@@ -45,37 +42,31 @@ const CONFIG = {
 
   DRAGON_TURN_SPEED: 0.14,
 
-
-
   // ==================== DRAGON GROWTH ====================
 
-  DRAGON_START_SEGMENTS: 10,
+  DRAGON_START_SEGMENTS: 5,
 
   DRAGON_MAX_SEGMENTS: 35,
 
   DRAGON_SEGMENTS_PER_FOOD: 1,
 
-  DRAGON_SEGMENT_SPACING: 0.45,
-
-
+  DRAGON_SEGMENT_SPACING: 0.55,
 
   // ==================== DRAGON DISPLAY ====================
+  // FIXED: Was 0.28 (GIANT). Now 0.08 for proper screen size.
 
-  DRAGON_DISPLAY_SCALE: 0.28,
+  DRAGON_DISPLAY_SCALE: 0.08,
 
-  DRAGON_COLLISION_RADIUS: 18,
+  DRAGON_COLLISION_RADIUS: 10,
 
-  DRAGON_HEAD_HITBOX_RADIUS: 22,
+  DRAGON_HEAD_HITBOX_RADIUS: 14,
 
-  DRAGON_TAIL_TAPER_SCALE: 0.9,
-
-
+  DRAGON_TAIL_TAPER_SCALE: 0.85,
 
   // ==================== HISTORY ====================
+  // FIXED: Was 3500 (massive memory, clumped segments). Now 2000.
 
-  POSITION_HISTORY_BUFFER_SIZE: 3500,
-
-
+  POSITION_HISTORY_BUFFER_SIZE: 2000,
 
   // ==================== FOOD ====================
 
@@ -94,68 +85,42 @@ const CONFIG = {
   FOOD_SYMBOL: '∞',
 
   FOOD_TYPES: [
-
     'blue',
-
     'red',
-
     'purple',
-
     'orange'
-
   ],
 
   FOOD_RADIUS: 4,
 
-
-
   // ==================== PLAYERS ====================
 
   MAX_PLAYERS: {
-
     '1v1': 2,
-
     '2v2': 4,
-
     '4v4': 8,
-
     'FFA': 8
-
   },
 
   PLAYER_SPAWN_MARGIN: 250,
 
   PLAYER_SPAWN_MIN_DISTANCE: 450,
 
-
-
   // ==================== GAME MODES ====================
 
   GAME_MODES: [
-
     '1v1',
-
     '2v2',
-
     '4v4',
-
     'FFA'
-
   ],
 
   GAME_DURATION: {
-
     '1v1': 180000,
-
     '2v2': 240000,
-
     '4v4': 300000,
-
     'FFA': 300000
-
   },
-
-
 
   // ==================== NETWORK ====================
 
@@ -164,8 +129,6 @@ const CONFIG = {
   NETWORK_INTERPOLATION_DELAY: 100,
 
   NETWORK_PREDICTION_ENABLED: true,
-
-
 
   // ==================== PERFORMANCE ====================
 
@@ -177,8 +140,6 @@ const CONFIG = {
 
   RENDER_DISTANCE: 1600,
 
-
-
   // ==================== ASSETS ====================
 
   ASSET_BASE_URL:
@@ -187,16 +148,9 @@ const CONFIG = {
   DRAGON_NAMES: DRAGONS
 };
 
-
-
 Object.freeze(CONFIG);
-
 Object.freeze(CONFIG.ARENA);
-
 Object.freeze(CONFIG.MAX_PLAYERS);
-
 Object.freeze(CONFIG.GAME_DURATION);
-
-
 
 export default CONFIG;
