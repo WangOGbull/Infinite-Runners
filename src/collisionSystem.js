@@ -60,10 +60,10 @@ class CollisionSystem {
 
           if (dist < CONFIG.DRAGON_COLLISION_RADIUS) {
             if (i === other.segments.length - 1) {
-              // Hit tail
-              this.eventBus.emit('collision:tail', { attacker: dragon, victim: other });
+              // Head hits tail: attacker loses 2, defender gains 1
+              this.eventBus.emit('collision:tail-hit', { attacker: dragon, defender: other });
             } else {
-              // Hit body - attacker dies
+              // Hit body: attacker dies
               dragon.alive = false;
               this.eventBus.emit('dragon:death', { dragon, killer: other });
               other.kills = (other.kills || 0) + 1;
