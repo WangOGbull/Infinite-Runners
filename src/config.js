@@ -22,7 +22,6 @@ const CONFIG = {
   ARENA_GRID_SIZE: 100,
 
   // ==================== CAMERA ====================
-  // FIXED: No dynamic zoom. Single fixed value.
 
   CAMERA_BASE_ZOOM: 0.85,
 
@@ -46,7 +45,7 @@ const CONFIG = {
 
   DRAGON_START_SEGMENTS: 5,
 
-  DRAGON_MAX_SEGMENTS: 35,
+  DRAGON_MAX_SEGMENTS: 28,
 
   DRAGON_SEGMENTS_PER_FOOD: 1,
 
