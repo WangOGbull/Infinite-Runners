@@ -123,9 +123,17 @@ class MovementSystem {
     return Math.atan2(dy, dx);
   }
 
+  // FIXED: Only the local dragon gets the 'local' boost. AI dragons no longer
+  // receive free boost when the player presses Space / clicks.
   update(dragonManager, camera, deltaTime) {
+    const localId = window.game?.localDragon?.id;
     for (const dragon of dragonManager.getLivingDragons()) {
-      dragon.boostActive = !!this.boosting.get(dragon.id) || !!this.boosting.get('local');
+      if (dragon.id === localId) {
+        dragon.boostActive = !!this.boosting.get('local') || !!this.boosting.get(dragon.id);
+      } else {
+        // AI dragons only boost if explicitly programmed to (currently none)
+        dragon.boostActive = !!this.boosting.get(dragon.id);
+      }
     }
     this.updateJoystickVisual();
   }
