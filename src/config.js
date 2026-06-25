@@ -22,12 +22,13 @@ const CONFIG = {
   ARENA_GRID_SIZE: 100,
 
   // ==================== CAMERA ====================
+  // FIXED: No dynamic zoom. Single fixed value.
 
-  CAMERA_BASE_ZOOM: 0.55,
+  CAMERA_BASE_ZOOM: 0.85,
 
-  CAMERA_MIN_ZOOM: 0.30,
+  CAMERA_MIN_ZOOM: 0.85,
 
-  CAMERA_MAX_ZOOM: 0.80,
+  CAMERA_MAX_ZOOM: 0.85,
 
   CAMERA_SMOOTH_FACTOR: 0.08,
 
@@ -49,7 +50,7 @@ const CONFIG = {
 
   DRAGON_SEGMENTS_PER_FOOD: 1,
 
-  DRAGON_SEGMENT_SPACING: 0.55,
+  DRAGON_SEGMENT_SPACING: 0.65,
 
   // ==================== DRAGON DISPLAY ====================
 
@@ -166,11 +167,8 @@ const CONFIG = {
 };
 
 Object.freeze(CONFIG);
-
 Object.freeze(CONFIG.ARENA);
-
 Object.freeze(CONFIG.MAX_PLAYERS);
-
 Object.freeze(CONFIG.GAME_DURATION);
 
 export default CONFIG;
