@@ -53,7 +53,6 @@ class AIController {
     const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
     let targetAngle = dragon.angle;
 
-    // Find nearest food
     const foods = this.food.getFoods();
     let nearest = null;
     let nearestDist = Infinity;
@@ -72,7 +71,6 @@ class AIController {
       targetAngle = Math.atan2(nearest.y - head.y, nearest.x - head.x);
     }
 
-    // Wall avoidance (circular arena aware)
     const radius = this.arena.getRadius();
     const distFromCenter = Math.sqrt(head.x * head.x + head.y * head.y);
     const margin = settings.wallMargin;
@@ -82,7 +80,6 @@ class AIController {
       targetAngle = centerAngle;
     }
 
-    // Difficulty-based randomness
     targetAngle += (Math.random() - 0.5) * settings.randomness;
 
     return targetAngle;
@@ -127,10 +124,10 @@ class Game {
     this.setupEventListeners();
     this.setupFirebase();
 
-    this.uiManager.showScreen('loadingScreen');
+    // Title screen shows FIRST — assets load in background
+    this.uiManager.showScreen('titleScreen');
     await AssetLoader.loadDragons();
     this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
-    this.uiManager.showScreen('titleScreen');
   }
 
   setupFirebase() {
@@ -312,7 +309,6 @@ class Game {
 
       this.uiManager.showScreen('lobbyScreen');
 
-      // Continuous listener for room updates + auto-start
       this.roomRef.on('value', snap => {
         const roomData = snap.val();
         if (!roomData) return;
@@ -323,7 +319,6 @@ class Game {
         }));
         this.uiManager.updateLobby(players, 4, this.roomCode, this.isHost);
 
-        // Auto-start when host clicks Start Game
         if (roomData.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
           this.selectedMode = roomData.mode || 'FFA';
           this.isMultiplayer = true;
