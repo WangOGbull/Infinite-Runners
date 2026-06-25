@@ -50,6 +50,24 @@ class FoodSystem {
     return food;
   }
 
+  spawnFoodAt(x, y, bonus = false) {
+    if (!this.arenaBounds) return;
+    const id = `food_${this.nextId++}`;
+    const color = this.colors[Math.floor(Math.random() * this.colors.length)];
+    const food = {
+      id,
+      x,
+      y,
+      radius: bonus ? CONFIG.FOOD_BONUS_SCALE * CONFIG.FOOD_RADIUS : CONFIG.FOOD_RADIUS,
+      color,
+      value: bonus ? CONFIG.FOOD_BONUS_POINTS / 10 : CONFIG.FOOD_NORMAL_POINTS / 10,
+      bonus,
+      pulse: Math.random() * Math.PI * 2
+    };
+    this.foods.set(id, food);
+    return food;
+  }
+
   removeFood(id) {
     if (!this.foods.has(id)) return;
     this.foods.delete(id);
