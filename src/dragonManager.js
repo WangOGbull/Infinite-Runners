@@ -147,7 +147,7 @@ export class DragonManager {
 
     for (let i = segCount - 1; i >= 0; i--) {
       const seg = dragon.segments[i];
-      const isTail = (i === 0);
+      const isTail = (i === segCount - 1);
 
       let partImg = assets.body;
       let partScale = baseScale * (assets.display?.body?.scale || 1);
@@ -183,7 +183,7 @@ export class DragonManager {
 
     ctx.save();
     ctx.translate(dragon.head.x, dragon.head.y);
-    ctx.rotate(dragon.angle);
+    ctx.rotate(dragon.angle + Math.PI / 2);
 
     const headScale = baseScale * (assets.display?.head?.scale || 1);
     const w = assets.head.naturalWidth * headScale;
