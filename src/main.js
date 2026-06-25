@@ -176,11 +176,17 @@ class Game {
       this.growthSystem.onEat(dragon, food);
     });
 
-    this.eventBus.on('collision:tail', ({ attacker, victim }) => {
-      this.growthSystem.onCollisionTailCut(victim, 0.2);
+    this.eventBus.on('collision:tail-hit', ({ attacker, defender }) => {
+      this.growthSystem.onTailHit({ attacker, defender });
     });
 
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
+      // Shatter dead dragon into food collectibles
+      for (const seg of dragon.segments) {
+        this.foodSystem.spawnFoodAt(seg.x, seg.y);
+      }
+      this.foodSystem.spawnFoodAt(dragon.head.x, dragon.head.y, true);
+
       if (dragon === this.localDragon) {
         this.endGame();
       }
