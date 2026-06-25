@@ -6,8 +6,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0f;font-family:
 i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 /* ==================== SCREENS ==================== */
-.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10}
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10;transition:transform 0.5s cubic-bezier(0.4,0,0.2,1),opacity 0.5s cubic-bezier(0.4,0,0.2,1)}
 .screen.active{display:flex}
+.screen.slide-out-left{transform:translateX(-100%);opacity:0;pointer-events:none}
+.screen.slide-in-right{transform:translateX(100%);opacity:0}
+.screen.slide-in-right.active{transform:translateX(0);opacity:1}
 
 /* ==================== PARTICLE CANVAS (Layer 1 BG) ==================== */
 #pCanvas{position:fixed;inset:0;z-index:0;pointer-events:none}
@@ -65,6 +68,21 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .modeCard .mLabel{font-family:'Cinzel Decorative',cursive;font-size:15px;letter-spacing:2px;color:#caf0f8}
 .modeCard .mDesc{font-size:11px;color:rgba(200,220,240,0.55);letter-spacing:.5px;margin-top:4px}
 
+/* ==================== DIFFICULTY MODAL ==================== */
+#difficultyModal{background:rgba(3,8,20,0.92)}
+.difficultyBox{width:92%;max-width:400px;border-radius:20px;padding:32px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.2);text-align:center}
+.difficultyBox h2{font-family:'Cinzel Decorative',cursive;font-size:20px;letter-spacing:3px;color:#48cae4;margin-bottom:24px;text-shadow:0 0 12px rgba(72,202,228,0.35)}
+.difficultyGrid{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+.diffBtn{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(0,180,216,0.15);background:linear-gradient(135deg,rgba(0,119,182,0.15),rgba(0,180,216,0.05));color:#fff;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;cursor:pointer;transition:all .2s}
+.diffBtn:hover{border-color:rgba(0,180,216,0.5);box-shadow:0 4px 20px rgba(0,180,216,0.15);transform:translateY(-2px)}
+.diffBtn:active{transform:translateY(0) scale(0.98)}
+
+/* ==================== MP MODE SELECT ==================== */
+#mpModeSelect{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
+.mpModeBox{width:92%;max-width:420px;border-radius:20px;padding:32px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.18);text-align:center}
+.mpModeBox h2{font-family:'Cinzel Decorative',cursive;font-size:20px;letter-spacing:3px;color:#48cae4;margin-bottom:20px;text-shadow:0 0 12px rgba(72,202,228,0.35)}
+.mpModeGrid{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+
 /* ==================== MULTIPLAYER MENU ==================== */
 #mpMenuScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
 #mpMenuScreen .mpBox{width:92%;max-width:420px;border-radius:20px;padding:32px 24px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.18);text-align:center}
@@ -119,6 +137,10 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 #loadingScreen h2{font-family:'Cinzel Decorative',cursive;font-size:13px;letter-spacing:3px;color:#48cae4;margin-bottom:12px}
 #loadingScreen .progbar{width:160px;height:3px;border-radius:4px;background:rgba(0,180,216,0.12);overflow:hidden}
 #loadingScreen .progbar div{height:100%;border-radius:4px;background:linear-gradient(90deg,#00b4d8,#48cae4);animation:fillbar 3s ease-in-out forwards}
+
+/* Loading text slide-in */
+.loadingText{font-family:'Cinzel Decorative',cursive;font-size:18px;letter-spacing:4px;color:#48cae4;margin-top:16px;opacity:0;transform:translateX(60px);transition:all 0.6s cubic-bezier(0.4,0,0.2,1)}
+.loadingText.visible{opacity:1;transform:translateX(0)}
 
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 @keyframes orbit1{0%{transform:rotate(0)translateX(40px)}100%{transform:rotate(360deg)translateX(40px)}}
