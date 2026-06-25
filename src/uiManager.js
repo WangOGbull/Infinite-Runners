@@ -8,8 +8,11 @@ class UIManager {
     this.selectedMode = 'FFA';
     this.isHost = false;
     this.roomCode = '';
+    this.selectedDifficulty = 'advanced';
+    this.selectedMpMode = 'FFA';
 
     this.initScreens();
+    this.createDynamicModals();
     this.initLucide();
     this.initParticles();
     this.bindEvents();
@@ -26,10 +29,65 @@ class UIManager {
     });
   }
 
+  createDynamicModals() {
+    // Difficulty Modal
+    if (!document.getElementById('difficultyModal')) {
+      const diffModal = document.createElement('div');
+      diffModal.id = 'difficultyModal';
+      diffModal.className = 'screen';
+      diffModal.innerHTML = `
+        <div class="difficultyBox">
+          <h2>Select Difficulty</h2>
+          <div class="difficultyGrid">
+            <button class="diffBtn" data-diff="beginner">Beginner</button>
+            <button class="diffBtn" data-diff="easy">Easy</button>
+            <button class="diffBtn" data-diff="advanced">Advanced</button>
+            <button class="diffBtn" data-diff="master">Master</button>
+            <button class="diffBtn" data-diff="legendary">Legendary</button>
+          </div>
+          <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
+        </div>
+      `;
+      document.body.appendChild(diffModal);
+      this.screens['difficultyModal'] = diffModal;
+    }
+
+    // MP Mode Select
+    if (!document.getElementById('mpModeSelect')) {
+      const mpMode = document.createElement('div');
+      mpMode.id = 'mpModeSelect';
+      mpMode.className = 'screen';
+      mpMode.innerHTML = `
+        <div class="mpModeBox">
+          <h2>Select Mode</h2>
+          <div class="mpModeGrid">
+            <button class="modeCard" data-mpmode="1v1">
+              <div class="mIcon">⚔️</div>
+              <div class="mLabel">1v1</div>
+              <div class="mDesc">One on one battle</div>
+            </button>
+            <button class="modeCard" data-mpmode="2v2">
+              <div class="mIcon">🛡️</div>
+              <div class="mLabel">2v2</div>
+              <div class="mDesc">Team battle</div>
+            </button>
+            <button class="modeCard" data-mpmode="FFA">
+              <div class="mIcon">🔥</div>
+              <div class="mLabel">FFA</div>
+              <div class="mDesc">Free For All</div>
+            </button>
+          </div>
+          <button class="menuBtn" id="btnMpModeBack"><i data-lucide="arrow-left"></i> Back</button>
+        </div>
+      `;
+      document.body.appendChild(mpMode);
+      this.screens['mpModeSelect'] = mpMode;
+    }
+  }
+
   initLucide() {
     if (window.lucide) {
       window.lucide.createIcons();
-      // Re-initialize icons when screen changes
       this.lucideReady = true;
     } else {
       setTimeout(() => this.initLucide(), 100);
@@ -44,13 +102,65 @@ class UIManager {
 
   showScreen(screenId) {
     Object.values(this.screens).forEach(s => {
-      if (s) s.classList.remove('active');
+      if (s) {
+        s.classList.remove('active', 'slide-out-left', 'slide-in-right');
+        s.style.display = '';
+      }
     });
     if (this.screens[screenId]) {
       this.screens[screenId].classList.add('active');
       this.currentScreen = screenId;
       this.refreshIcons();
     }
+  }
+
+  transitionToScreen(fromId, toId, delay = 500) {
+    return new Promise(resolve => {
+      const from = this.screens[fromId];
+      const to = this.screens[toId];
+
+      if (!from || !to) {
+        this.showScreen(toId);
+        resolve();
+        return;
+      }
+
+      to.style.display = 'flex';
+      to.classList.add('slide-in-right');
+      void to.offsetWidth;
+
+      from.classList.add('slide-out-left');
+      to.classList.add('active');
+      to.classList.remove('slide-in-right');
+
+      setTimeout(() => {
+        from.classList.remove('active', 'slide-out-left');
+        from.style.display = '';
+        to.style.display = '';
+        this.currentScreen = toId;
+        resolve();
+      }, delay);
+    });
+  }
+
+  async transitionToLoadingThenEmit(mode, difficulty) {
+    const loadingScreen = this.screens['loadingScreen'];
+    if (loadingScreen) {
+      let loadText = loadingScreen.querySelector('.loadingText');
+      if (!loadText) {
+        loadText = document.createElement('div');
+        loadText.className = 'loadingText';
+        loadText.textContent = 'Loading...';
+        loadingScreen.appendChild(loadText);
+      }
+      setTimeout(() => loadText.classList.add('visible'), 100);
+    }
+
+    await this.transitionToScreen('modeSelectScreen', 'loadingScreen', 600);
+
+    setTimeout(() => {
+      this.eventBus.emit('ui:modeSelected', { mode, difficulty });
+    }, 1200);
   }
 
   bindEvents() {
@@ -76,24 +186,61 @@ class UIManager {
       this.showScreen('titleScreen');
     });
 
-    // Mode select
+    // Mode select back
     document.getElementById('btnModeBack')?.addEventListener('click', () => {
       this.showScreen('dragonSelectScreen');
     });
 
     // Mode cards
-    ['btn1v1AI', 'btn2v2', 'btn4v4', 'btnFFA'].forEach(id => {
+    const modeCardMap = {
+      'btn1v1AI': '1v1AI',
+      'btn2v2': '2v2',
+      'btn4v4': '4v4',
+      'btnFFA': 'FFA'
+    };
+
+    Object.entries(modeCardMap).forEach(([id, mode]) => {
       const btn = document.getElementById(id);
       if (btn) {
         btn.addEventListener('click', () => {
-          this.selectedMode = btn.dataset.mode;
-          this.eventBus.emit('ui:modeSelected', { mode: this.selectedMode });
+          if (mode === '1v1AI') {
+            this.showScreen('difficultyModal');
+          } else {
+            this.selectedMode = mode;
+            this.transitionToLoadingThenEmit(mode);
+          }
         });
       }
     });
 
+    // Difficulty modal
+    document.querySelectorAll('#difficultyModal .diffBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedDifficulty = btn.dataset.diff;
+        this.selectedMode = '1v1AI';
+        this.transitionToLoadingThenEmit('1v1AI', this.selectedDifficulty);
+      });
+    });
+
+    document.getElementById('btnDiffBack')?.addEventListener('click', () => {
+      this.showScreen('modeSelectScreen');
+    });
+
+    // Multiplayer card
     document.getElementById('btnMpMultiplayer')?.addEventListener('click', () => {
-      this.showScreen('mpMenuScreen');
+      this.showScreen('mpModeSelect');
+    });
+
+    // MP Mode selection
+    document.querySelectorAll('#mpModeSelect .modeCard').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedMpMode = btn.dataset.mpmode;
+        this.showScreen('mpMenuScreen');
+      });
+    });
+
+    document.getElementById('btnMpModeBack')?.addEventListener('click', () => {
+      this.showScreen('modeSelectScreen');
     });
 
     // Multiplayer menu
@@ -102,7 +249,7 @@ class UIManager {
     });
     document.getElementById('btnMpCreate')?.addEventListener('click', () => {
       this.isHost = true;
-      this.eventBus.emit('mp:createRoom');
+      this.eventBus.emit('mp:createRoom', { mode: this.selectedMpMode });
     });
     document.getElementById('btnMpJoin')?.addEventListener('click', () => {
       const code = document.getElementById('mpRoomInput')?.value.trim();
