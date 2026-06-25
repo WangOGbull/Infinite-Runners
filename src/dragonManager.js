@@ -162,13 +162,14 @@ export class DragonManager {
       ctx.save();
       ctx.translate(seg.x, seg.y);
 
+      // FIXED: Tail now calculates angle from previous segment instead of using head angle
       let angle = dragon.angle;
       if (i < segCount - 1) {
         const next = dragon.segments[i + 1];
         angle = Math.atan2(next.y - seg.y, next.x - seg.x);
-      } else if (dragon.history.length > 5) {
-        const h = Math.min(5, dragon.history.length - 1);
-        angle = Math.atan2(dragon.history[h].y - seg.y, dragon.history[h].x - seg.x);
+      } else if (i > 0) {
+        const prev = dragon.segments[i - 1];
+        angle = Math.atan2(seg.y - prev.y, seg.x - prev.x);
       }
       ctx.rotate(angle);
 
