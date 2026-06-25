@@ -126,13 +126,14 @@ class Game {
   setupFirebase() {
     try {
       const firebaseConfig = {
-        apiKey: "AIzaSyCZExample",
-        authDomain: "infinite-runners.firebaseapp.com",
-        databaseURL: "https://infinite-runners-default-rtdb.firebaseio.com",
-        projectId: "infinite-runners",
-        storageBucket: "infinite-runners.appspot.com",
-        messagingSenderId: "123456789",
-        appId: "1:123456789:web:abcdef"
+        apiKey: "AIzaSyAI0oDj8ZyjQzvdAWS-3CxbHCbJHU5R62s",
+        authDomain: "infinite-runners-dragonsarena.firebaseapp.com",
+        databaseURL: "https://infinite-runners-dragonsarena-default-rtdb.firebaseio.com",
+        projectId: "infinite-runners-dragonsarena",
+        storageBucket: "infinite-runners-dragonsarena.firebasestorage.app",
+        messagingSenderId: "729310578893",
+        appId: "1:729310578893:web:5a369465bb831f3cd8c184",
+        measurementId: "G-K39Z0L2K2X"
       };
       if (typeof firebase !== 'undefined') {
         this.firebaseApp = firebase.initializeApp(firebaseConfig);
