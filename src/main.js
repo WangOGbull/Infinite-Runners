@@ -34,15 +34,26 @@ class EventBus {
 
 // ==================== AI CONTROLLER ====================
 class AIController {
-  constructor(arenaManager, foodSystem) {
+  constructor(arenaManager, foodSystem, difficulty = 'advanced') {
     this.arena = arenaManager;
     this.food = foodSystem;
+    this.difficulty = difficulty;
+
+    this.difficultySettings = {
+      beginner: { randomness: 0.8, targetFood: 0.6, wallMargin: 300 },
+      easy: { randomness: 0.5, targetFood: 0.8, wallMargin: 250 },
+      advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 200 },
+      master: { randomness: 0.15, targetFood: 1.0, wallMargin: 180 },
+      legendary: { randomness: 0.05, targetFood: 1.0, wallMargin: 150 }
+    };
   }
 
   getInputAngle(dragon) {
     const head = dragon.head;
+    const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
     let targetAngle = dragon.angle;
 
+    // Find nearest food
     const foods = this.food.getFoods();
     let nearest = null;
     let nearestDist = Infinity;
@@ -57,25 +68,22 @@ class AIController {
       }
     }
 
-    if (nearest) {
+    if (nearest && Math.random() < settings.targetFood) {
       targetAngle = Math.atan2(nearest.y - head.y, nearest.x - head.x);
     }
 
-    const bounds = this.arena.getBounds();
-    const margin = 150;
-    let avoidAngle = null;
+    // Wall avoidance (circular arena aware)
+    const radius = this.arena.getRadius();
+    const distFromCenter = Math.sqrt(head.x * head.x + head.y * head.y);
+    const margin = settings.wallMargin;
 
-    if (head.x < bounds.minX + margin) avoidAngle = 0;
-    else if (head.x > bounds.maxX - margin) avoidAngle = Math.PI;
-    else if (head.y < bounds.minY + margin) avoidAngle = Math.PI / 2;
-    else if (head.y > bounds.maxY - margin) avoidAngle = -Math.PI / 2;
-
-    if (avoidAngle !== null) {
+    if (distFromCenter > radius - margin) {
       const centerAngle = Math.atan2(-head.y, -head.x);
       targetAngle = centerAngle;
     }
 
-    targetAngle += (Math.random() - 0.5) * 0.3;
+    // Difficulty-based randomness
+    targetAngle += (Math.random() - 0.5) * settings.randomness;
 
     return targetAngle;
   }
@@ -109,6 +117,8 @@ class Game {
     this.db = null;
     this.roomRef = null;
     this.isMultiplayer = false;
+    this.aiDifficulty = 'advanced';
+    this.selectedMpMode = 'FFA';
 
     this.init();
   }
@@ -153,16 +163,19 @@ class Game {
       this.selectedDragon = name;
     });
 
-    this.eventBus.on('ui:modeSelected', ({ mode }) => {
+    this.eventBus.on('ui:modeSelected', ({ mode, difficulty }) => {
       this.selectedMode = mode;
-      if (mode === 'multiplayer') {
+      if (mode === '1v1AI') {
+        this.aiDifficulty = difficulty || 'advanced';
+        this.startLocalGame('1v1', this.aiDifficulty);
+      } else if (mode === 'multiplayer') {
         this.uiManager.showScreen('mpMenuScreen');
       } else {
         this.startLocalGame(mode);
       }
     });
 
-    this.eventBus.on('mp:createRoom', () => this.createRoom());
+    this.eventBus.on('mp:createRoom', ({ mode }) => this.createRoom(mode));
     this.eventBus.on('mp:joinRoom', ({ code }) => this.joinRoom(code));
     this.eventBus.on('mp:leaveRoom', () => this.leaveRoom());
     this.eventBus.on('mp:startGame', () => this.startMpGame());
@@ -181,7 +194,6 @@ class Game {
     });
 
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
-      // Shatter dead dragon into food collectibles
       for (const seg of dragon.segments) {
         this.foodSystem.spawnFoodAt(seg.x, seg.y);
       }
@@ -197,7 +209,7 @@ class Game {
     });
   }
 
-  startLocalGame(mode) {
+  startLocalGame(mode, difficulty) {
     this.isMultiplayer = false;
     this.gameModeManager.setMode(mode);
     this.arenaManager.setMode(mode);
@@ -207,7 +219,7 @@ class Game {
 
     this.dragonManager.clear();
     this.foodSystem.init(this.arenaManager.getBounds());
-    this.aiController = new AIController(this.arenaManager, this.foodSystem);
+    this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
     const localSpawn = spawnPositions[0];
     this.localDragon = this.dragonManager.createDragon(
@@ -227,7 +239,7 @@ class Game {
     this.startGameLoop();
   }
 
-  createRoom() {
+  createRoom(mpMode) {
     if (!this.db) {
       alert('Multiplayer not available. Running in local mode.');
       this.uiManager.showScreen('modeSelectScreen');
@@ -236,11 +248,12 @@ class Game {
 
     this.roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     this.isHost = true;
+    this.selectedMpMode = mpMode || 'FFA';
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
       host: 'local',
-      mode: 'FFA',
+      mode: this.selectedMpMode,
       status: 'waiting',
       players: {
         local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
@@ -279,13 +292,15 @@ class Game {
     this.roomRef.once('value').then(snapshot => {
       const data = snapshot.val();
       if (!data) {
-        document.getElementById('mpJoinError').textContent = 'Room not found';
+        const err = document.getElementById('mpJoinError');
+        if (err) err.textContent = 'Room not found';
         return;
       }
 
       const playerCount = Object.keys(data.players || {}).length;
       if (playerCount >= 4) {
-        document.getElementById('mpJoinError').textContent = 'Room is full';
+        const err = document.getElementById('mpJoinError');
+        if (err) err.textContent = 'Room is full';
         return;
       }
 
@@ -296,6 +311,25 @@ class Game {
       });
 
       this.uiManager.showScreen('lobbyScreen');
+
+      // Continuous listener for room updates + auto-start
+      this.roomRef.on('value', snap => {
+        const roomData = snap.val();
+        if (!roomData) return;
+
+        const players = Object.entries(roomData.players || {}).map(([id, p]) => ({
+          ...p,
+          isLocal: id === 'local'
+        }));
+        this.uiManager.updateLobby(players, 4, this.roomCode, this.isHost);
+
+        // Auto-start when host clicks Start Game
+        if (roomData.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
+          this.selectedMode = roomData.mode || 'FFA';
+          this.isMultiplayer = true;
+          this.startLocalGame(this.selectedMode);
+        }
+      });
     });
   }
 
@@ -312,11 +346,11 @@ class Game {
   }
 
   startMpGame() {
-    if (this.roomRef) {
+    if (this.roomRef && this.isHost) {
       this.roomRef.update({ status: 'playing' });
     }
     this.isMultiplayer = true;
-    this.startLocalGame('FFA');
+    this.startLocalGame(this.selectedMpMode || 'FFA');
   }
 
   startGameLoop() {
