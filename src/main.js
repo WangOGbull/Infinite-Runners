@@ -491,6 +491,7 @@ class Game {
 
   endGame() {
     this.state = 'GAME_OVER';
+    this.uiManager.showPauseOverlay(false);
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
@@ -517,7 +518,7 @@ class Game {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
     }
-
+    this.uiManager.showPauseOverlay(false);
     this.dragonManager.clear();
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
@@ -540,6 +541,7 @@ class Game {
     }
     this.dragonManager.clear();
     this.isPaused = false;
+    this.uiManager.showPauseOverlay(false);
 
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
