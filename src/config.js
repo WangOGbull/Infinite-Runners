@@ -12,6 +12,7 @@ const CONFIG = {
   // ==================== ARENA ====================
   ARENA: {
     '1v1': { width: 2200, height: 2200 },
+    '1v1AI': { width: 2200, height: 2200 },
     '2v2': { width: 2600, height: 2600 },
     '4v4': { width: 3200, height: 3200 },
     'FFA': { width: 3600, height: 3600 }
@@ -62,6 +63,7 @@ const CONFIG = {
   // ==================== PLAYERS ====================
   MAX_PLAYERS: {
     '1v1': 2,
+    '1v1AI': 2,
     '2v2': 4,
     '4v4': 8,
     'FFA': 8
@@ -71,10 +73,11 @@ const CONFIG = {
   PLAYER_SPAWN_MIN_DISTANCE: 450,
 
   // ==================== GAME MODES ====================
-  GAME_MODES: ['1v1', '2v2', '4v4', 'FFA'],
+  GAME_MODES: ['1v1', '1v1AI', '2v2', '4v4', 'FFA'],
 
   GAME_DURATION: {
     '1v1': 180000,
+    '1v1AI': 180000,
     '2v2': 240000,
     '4v4': 300000,
     'FFA': 300000
