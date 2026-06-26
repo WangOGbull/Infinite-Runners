@@ -1,10 +1,28 @@
 import CONFIG from './config.js';
 
+const ARENA_IMAGES = [
+  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png',
+  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png',
+  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png',
+  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png'
+];
+
 class ArenaManager {
   constructor() {
     this.mode = 'FFA';
     this.width = 4200;
     this.height = 4200;
+    this.bgImage = null;
+    this.pickRandomArena();
+  }
+
+  pickRandomArena() {
+    this.bgImage = null;
+    const url = ARENA_IMAGES[Math.floor(Math.random() * ARENA_IMAGES.length)];
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { this.bgImage = img; };
+    img.src = url;
   }
 
   setMode(mode) {
@@ -12,6 +30,7 @@ class ArenaManager {
     const size = CONFIG.ARENA[mode] || CONFIG.ARENA.FFA;
     this.width = size.width;
     this.height = size.height;
+    this.pickRandomArena();
   }
 
   getBounds() {
@@ -48,9 +67,15 @@ class ArenaManager {
   render(ctx, camera) {
     const bounds = this.getBounds();
 
-    ctx.fillStyle = '#071018';
-    ctx.fillRect(bounds.minX, bounds.minY, this.width, this.height);
+    // Draw arena background image or fallback color
+    if (this.bgImage && this.bgImage.complete && this.bgImage.naturalWidth > 0) {
+      ctx.drawImage(this.bgImage, bounds.minX, bounds.minY, this.width, this.height);
+    } else {
+      ctx.fillStyle = '#071018';
+      ctx.fillRect(bounds.minX, bounds.minY, this.width, this.height);
+    }
 
+    // Grid overlay
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 2;
@@ -70,6 +95,7 @@ class ArenaManager {
     ctx.lineWidth = CONFIG.ARENA_BOUNDARY_THICKNESS;
     ctx.strokeRect(bounds.minX, bounds.minY, this.width, this.height);
 
+    // Center safe zone
     ctx.beginPath();
     ctx.arc(0, 0, 150, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
