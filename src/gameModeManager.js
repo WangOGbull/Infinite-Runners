@@ -52,6 +52,7 @@ class GameModeManager {
     switch (this.mode) {
 
       case '1v1':
+      case '1v1AI':
         return playerIndex % 2;
 
       case '2v2':
