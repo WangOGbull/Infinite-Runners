@@ -3,104 +3,98 @@ import CONFIG from './config.js';
 class FoodSystem {
   constructor(eventBus) {
     this.eventBus = eventBus;
-    this.foods = [];
+    this.foods = new Map();
     this.nextId = 1;
-    this.bounds = null;
-    this.arenaRadius = 0;
+    this.arenaBounds = null;
+
+    this.colors = [
+      '#00e5ff',
+      '#ff6b35',
+      '#b967ff',
+      '#00ff9d'
+    ];
   }
 
-  init(bounds, arenaRadius) {
-    this.bounds = bounds;
-    this.arenaRadius = arenaRadius;
-    const area = Math.PI * arenaRadius * arenaRadius;
-    const count = Math.floor(area * CONFIG.FOOD_DENSITY);
-    for (let i = 0; i < count; i++) {
+  init(arenaBounds) {
+    this.arenaBounds = arenaBounds;
+    this.foods.clear();
+    this.nextId = 1;
+
+    const area = (arenaBounds.maxX - arenaBounds.minX) * (arenaBounds.maxY - arenaBounds.minY);
+    const foodCount = Math.floor(area * CONFIG.FOOD_DENSITY);
+
+    for (let i = 0; i < foodCount; i++) {
       this.spawnFood();
     }
   }
 
   spawnFood() {
-    const angle = Math.random() * Math.PI * 2;
-    const r = Math.sqrt(Math.random()) * (this.arenaRadius - 60);
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
-    const isBonus = Math.random() < CONFIG.FOOD_BONUS_CHANCE;
-    this.foods.push({
-      id: this.nextId++,
-      x, y,
-      value: isBonus ? CONFIG.FOOD_BONUS_POINTS : CONFIG.FOOD_NORMAL_POINTS,
-      type: CONFIG.FOOD_TYPES[Math.floor(Math.random() * CONFIG.FOOD_TYPES.length)],
-      isBonus,
-      scale: isBonus ? CONFIG.FOOD_BONUS_SCALE : 1,
-      spawnTime: Date.now()
-    });
+    if (!this.arenaBounds) return;
+
+    const id = `food_${this.nextId++}`;
+    const color = this.colors[Math.floor(Math.random() * this.colors.length)];
+    const bonus = Math.random() < CONFIG.FOOD_BONUS_CHANCE;
+
+    const food = {
+      id,
+      x: this.arenaBounds.minX + Math.random() * (this.arenaBounds.maxX - this.arenaBounds.minX),
+      y: this.arenaBounds.minY + Math.random() * (this.arenaBounds.maxY - this.arenaBounds.minY),
+      radius: bonus ? CONFIG.FOOD_BONUS_SCALE * CONFIG.FOOD_RADIUS : CONFIG.FOOD_RADIUS,
+      color,
+      value: bonus ? CONFIG.FOOD_BONUS_POINTS / 10 : CONFIG.FOOD_NORMAL_POINTS / 10,
+      bonus,
+      pulse: Math.random() * Math.PI * 2
+    };
+
+    this.foods.set(id, food);
+    return food;
   }
 
-  spawnFoodAt(x, y, isBonus = false) {
-    this.foods.push({
-      id: this.nextId++,
-      x, y,
-      value: isBonus ? CONFIG.FOOD_BONUS_POINTS : CONFIG.FOOD_NORMAL_POINTS,
-      type: CONFIG.FOOD_TYPES[Math.floor(Math.random() * CONFIG.FOOD_TYPES.length)],
-      isBonus,
-      scale: isBonus ? CONFIG.FOOD_BONUS_SCALE : 1,
-      spawnTime: Date.now()
-    });
+  removeFood(id) {
+    if (!this.foods.has(id)) return;
+    this.foods.delete(id);
+    this.spawnFood();
   }
 
   update(deltaTime) {
-    const area = Math.PI * this.arenaRadius * this.arenaRadius;
-    const targetCount = Math.floor(area * CONFIG.FOOD_DENSITY);
-    if (this.foods.length < targetCount) {
-      this.spawnFood();
+    for (const food of this.foods.values()) {
+      food.pulse += 0.05;
     }
-  }
-
-  getFoods() {
-    return this.foods;
   }
 
   getFoodInRadius(x, y, radius) {
     const result = [];
-    for (const food of this.foods) {
+    for (const food of this.foods.values()) {
       const dx = food.x - x;
       const dy = food.y - y;
-      if (Math.sqrt(dx * dx + dy * dy) < radius) {
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < radius + food.radius) {
         result.push(food);
       }
     }
     return result;
   }
 
-  removeFood(id) {
-    const idx = this.foods.findIndex(f => f.id === id);
-    if (idx > -1) this.foods.splice(idx, 1);
-  }
-
   render(ctx, camera) {
-    for (const food of this.foods) {
-      const screenPos = camera.worldToScreen(food.x, food.y);
-      const size = (CONFIG.FOOD_RADIUS * food.scale) / camera.zoom;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, Math.max(size, 2), 0, Math.PI * 2);
-      ctx.fillStyle = this.getFoodColor(food.type);
-      ctx.fill();
-      if (food.isBonus) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
+    for (const food of this.foods.values()) {
+      if (!camera.isInView(food.x, food.y, 50)) continue;
+
+      const size = food.radius * (1 + Math.sin(food.pulse) * 0.15);
+
+      ctx.save();
+      ctx.shadowColor = food.color;
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = food.color;
+      ctx.font = `bold ${size * 5}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('∞', food.x, food.y);
+      ctx.restore();
     }
   }
 
-  getFoodColor(type) {
-    const colors = {
-      blue: '#00b4d8',
-      red: '#ff4d4d',
-      purple: '#9b4dff',
-      orange: '#ff9500'
-    };
-    return colors[type] || '#fff';
+  getFoods() {
+    return Array.from(this.foods.values());
   }
 }
 
