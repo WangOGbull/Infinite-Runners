@@ -40,17 +40,6 @@ class ArenaManager {
     return Math.min(this.width, this.height) / 2;
   }
 
-  // Uniform random point inside the circle
-  getRandomPointInside() {
-    const radius = this.getRadius();
-    const angle = Math.random() * Math.PI * 2;
-    const r = Math.sqrt(Math.random()) * (radius - 60);
-    return {
-      x: Math.cos(angle) * r,
-      y: Math.sin(angle) * r
-    };
-  }
-
   isInside(x, y) {
     const radius = this.getRadius();
     return (x * x + y * y) <= (radius * radius);
