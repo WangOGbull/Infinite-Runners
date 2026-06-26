@@ -57,7 +57,7 @@ export class DragonManager {
     return this.dragons;
   }
 
-  update(deltaTime, inputMap) {
+  update(deltaTime, inputMap, bounds = null) {
     const dtFactor = deltaTime / 16;
 
     for (const dragon of this.dragons) {
@@ -81,6 +81,25 @@ export class DragonManager {
 
       dragon.head.x += vx;
       dragon.head.y += vy;
+
+      // Bounce off rectangular walls
+      if (bounds) {
+        const margin = 10;
+        if (dragon.head.x < bounds.minX + margin) {
+          dragon.head.x = bounds.minX + margin + (bounds.minX + margin - dragon.head.x);
+          dragon.angle = Math.PI - dragon.angle;
+        } else if (dragon.head.x > bounds.maxX - margin) {
+          dragon.head.x = bounds.maxX - margin - (dragon.head.x - (bounds.maxX - margin));
+          dragon.angle = Math.PI - dragon.angle;
+        }
+        if (dragon.head.y < bounds.minY + margin) {
+          dragon.head.y = bounds.minY + margin + (bounds.minY + margin - dragon.head.y);
+          dragon.angle = -dragon.angle;
+        } else if (dragon.head.y > bounds.maxY - margin) {
+          dragon.head.y = bounds.maxY - margin - (dragon.head.y - (bounds.maxY - margin));
+          dragon.angle = -dragon.angle;
+        }
+      }
 
       dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
 
@@ -162,7 +181,6 @@ export class DragonManager {
       ctx.save();
       ctx.translate(seg.x, seg.y);
 
-      // FIXED: Tail now calculates angle from previous segment instead of using head angle
       let angle = dragon.angle;
       if (i < segCount - 1) {
         const next = dragon.segments[i + 1];
