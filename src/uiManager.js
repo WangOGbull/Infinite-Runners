@@ -211,7 +211,7 @@ class UIManager {
       setTimeout(() => loadText.classList.add('visible'), 100);
     }
 
-    await this.transitionToScreen('arenaSelectModal', 'loadingScreen', 600);
+    await this.transitionToScreen('difficultyModal', 'loadingScreen', 600);
 
     setTimeout(() => {
       this.eventBus.emit('ui:arenaSelected', { mode, difficulty, arenaIndex });
@@ -240,11 +240,27 @@ class UIManager {
     });
 
     document.getElementById('btnModeBack')?.addEventListener('click', () => {
+      this.showScreen('arenaSelectModal');
+    });
+
+    // Dragon select → Arena select
+    // (Handled in buildDragonSelect - click on dragon card shows arena select)
+
+    // Arena select
+    document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedArena = parseInt(btn.dataset.arena);
+        this.showScreen('modeSelectScreen');
+      });
+    });
+
+    document.getElementById('btnArenaBack')?.addEventListener('click', () => {
       this.showScreen('dragonSelectScreen');
     });
 
-    // Only 2 mode cards now
+    // Mode select
     document.getElementById('btn1v1AI')?.addEventListener('click', () => {
+      this.selectedMode = '1v1AI';
       this.showScreen('difficultyModal');
     });
 
@@ -256,25 +272,12 @@ class UIManager {
     document.querySelectorAll('#difficultyModal .diffBtn').forEach(btn => {
       btn.addEventListener('click', () => {
         this.selectedDifficulty = btn.dataset.diff;
-        this.selectedMode = '1v1AI';
-        this.showScreen('arenaSelectModal');
+        this.transitionToLoadingThenEmit(this.selectedMode, this.selectedDifficulty, this.selectedArena);
       });
     });
 
     document.getElementById('btnDiffBack')?.addEventListener('click', () => {
       this.showScreen('modeSelectScreen');
-    });
-
-    // Arena selection
-    document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.selectedArena = parseInt(btn.dataset.arena);
-        this.transitionToLoadingThenEmit(this.selectedMode, this.selectedDifficulty, this.selectedArena);
-      });
-    });
-
-    document.getElementById('btnArenaBack')?.addEventListener('click', () => {
-      this.showScreen('difficultyModal');
     });
 
     // MP Mode selection
@@ -431,7 +434,7 @@ class UIManager {
       card.addEventListener('click', () => {
         this.selectedDragon = d.name;
         this.eventBus.emit('ui:dragonSelected', { name: d.name });
-        this.showScreen('modeSelectScreen');
+        this.showScreen('arenaSelectModal');
       });
       list.appendChild(card);
     });
