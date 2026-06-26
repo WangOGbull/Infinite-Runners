@@ -9,6 +9,7 @@ class UIManager {
     this.roomCode = '';
     this.selectedDifficulty = 'advanced';
     this.selectedMpMode = 'FFA';
+    this.selectedArena = 0;
 
     this.initScreens();
     this.createDynamicModals();
@@ -80,6 +81,38 @@ class UIManager {
       `;
       document.body.appendChild(mpMode);
       this.screens['mpModeSelect'] = mpMode;
+    }
+
+    if (!document.getElementById('arenaSelectModal')) {
+      const arenaModal = document.createElement('div');
+      arenaModal.id = 'arenaSelectModal';
+      arenaModal.className = 'screen';
+      arenaModal.innerHTML = `
+        <div class="arenaSelectBox">
+          <h2>Select Arena</h2>
+          <div class="arenaGrid">
+            <button class="arenaCard" data-arena="0">
+              <div class="arenaPreview" style="background:#8B9DC3"></div>
+              <div class="arenaName">Stone Castle</div>
+            </button>
+            <button class="arenaCard" data-arena="1">
+              <div class="arenaPreview" style="background:#4CAF50"></div>
+              <div class="arenaName">Grass Field</div>
+            </button>
+            <button class="arenaCard" data-arena="2">
+              <div class="arenaPreview" style="background:#9C27B0"></div>
+              <div class="arenaName">Purple Magic</div>
+            </button>
+            <button class="arenaCard" data-arena="3">
+              <div class="arenaPreview" style="background:#FF5722"></div>
+              <div class="arenaName">Fire Arena</div>
+            </button>
+          </div>
+          <button class="menuBtn" id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
+        </div>
+      `;
+      document.body.appendChild(arenaModal);
+      this.screens['arenaSelectModal'] = arenaModal;
     }
   }
 
@@ -164,7 +197,7 @@ class UIManager {
     });
   }
 
-  async transitionToLoadingThenEmit(mode, difficulty) {
+  async transitionToLoadingThenEmit(mode, difficulty, arenaIndex) {
     const loadingScreen = this.screens['loadingScreen'];
     if (loadingScreen) {
       let loadText = loadingScreen.querySelector('.loadingText');
@@ -177,10 +210,10 @@ class UIManager {
       setTimeout(() => loadText.classList.add('visible'), 100);
     }
 
-    await this.transitionToScreen('modeSelectScreen', 'loadingScreen', 600);
+    await this.transitionToScreen('arenaSelectModal', 'loadingScreen', 600);
 
     setTimeout(() => {
-      this.eventBus.emit('ui:modeSelected', { mode, difficulty });
+      this.eventBus.emit('ui:arenaSelected', { mode, difficulty, arenaIndex });
     }, 1200);
   }
 
@@ -223,12 +256,24 @@ class UIManager {
       btn.addEventListener('click', () => {
         this.selectedDifficulty = btn.dataset.diff;
         this.selectedMode = '1v1AI';
-        this.transitionToLoadingThenEmit('1v1AI', this.selectedDifficulty);
+        this.showScreen('arenaSelectModal');
       });
     });
 
     document.getElementById('btnDiffBack')?.addEventListener('click', () => {
       this.showScreen('modeSelectScreen');
+    });
+
+    // Arena selection
+    document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedArena = parseInt(btn.dataset.arena);
+        this.transitionToLoadingThenEmit(this.selectedMode, this.selectedDifficulty, this.selectedArena);
+      });
+    });
+
+    document.getElementById('btnArenaBack')?.addEventListener('click', () => {
+      this.showScreen('difficultyModal');
     });
 
     // MP Mode selection
