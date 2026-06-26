@@ -411,19 +411,6 @@ class Game {
     }
 
     this.dragonManager.update(deltaTime, inputMap);
-
-    // CLAMP DRAGONS INSIDE CIRCULAR ARENA
-    const arenaRadius = this.arenaManager.getRadius();
-    const margin = 25;
-    for (const dragon of this.dragonManager.getLivingDragons()) {
-      const dist = Math.sqrt(dragon.head.x * dragon.head.x + dragon.head.y * dragon.head.y);
-      if (dist > arenaRadius - margin) {
-        const angle = Math.atan2(dragon.head.y, dragon.head.x);
-        dragon.head.x = Math.cos(angle) * (arenaRadius - margin);
-        dragon.head.y = Math.sin(angle) * (arenaRadius - margin);
-      }
-    }
-
     this.cameraSystem.update(this.localDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
