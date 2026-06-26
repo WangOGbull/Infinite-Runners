@@ -119,6 +119,7 @@ class Game {
     this.isMultiplayer = false;
     this.aiDifficulty = 'advanced';
     this.selectedMpMode = 'FFA';
+    this.pendingArenaIndex = null;
 
     this.init();
   }
@@ -127,10 +128,20 @@ class Game {
     this.setupEventListeners();
     this.setupFirebase();
 
-    // Title screen shows FIRST — assets load in background
-    this.uiManager.showScreen('titleScreen');
+    this.uiManager.showScreen('loadingScreen');
+
+    const loadText = document.querySelector('.loadingText');
+    if (loadText) loadText.textContent = 'Loading Dragons...';
+
     await AssetLoader.loadDragons();
+
+    if (loadText) loadText.textContent = 'Loading Arenas...';
+    await this.arenaManager.preloadAll();
+
+    if (loadText) loadText.textContent = 'Ready!';
+
     this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
+    this.uiManager.showScreen('titleScreen');
   }
 
   setupFirebase() {
@@ -167,12 +178,18 @@ class Game {
       this.selectedMode = mode;
       if (mode === '1v1AI') {
         this.aiDifficulty = difficulty || 'advanced';
-        this.startLocalGame('1v1AI', this.aiDifficulty);
+        // Arena select screen is shown by UIManager after difficulty click
       } else if (mode === 'multiplayer') {
         this.uiManager.showScreen('mpMenuScreen');
       } else {
-        this.startLocalGame(mode);
+        // For other local modes, show arena select
+        this.uiManager.showScreen('arenaSelectModal');
       }
+    });
+
+    this.eventBus.on('ui:arenaSelected', ({ mode, difficulty, arenaIndex }) => {
+      this.pendingArenaIndex = arenaIndex;
+      this.startLocalGame(mode, difficulty, arenaIndex);
     });
 
     this.eventBus.on('mp:createRoom', ({ mode }) => this.createRoom(mode));
@@ -209,10 +226,10 @@ class Game {
     });
   }
 
-  startLocalGame(mode, difficulty) {
+  startLocalGame(mode, difficulty, arenaIndex) {
     this.isMultiplayer = false;
     this.gameModeManager.setMode(mode);
-    this.arenaManager.setMode(mode);
+    this.arenaManager.setMode(mode, arenaIndex);
 
     const maxPlayers = this.gameModeManager.getMaxPlayers();
     const spawnPositions = this.arenaManager.getSpawnPositions(maxPlayers);
@@ -234,7 +251,6 @@ class Game {
       const aiName = aiNames[i % aiNames.length];
       const teamId = this.gameModeManager.getTeamForPlayer(i);
       const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
-      // Apply difficulty speed multiplier to AI dragons
       aiDragon.speed *= this.aiController.getSpeedMult();
     }
 
@@ -509,7 +525,11 @@ class Game {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    this.startLocalGame(this.selectedMode || 'FFA', this.aiDifficulty || 'advanced');
+    this.startLocalGame(
+      this.selectedMode || 'FFA',
+      this.aiDifficulty || 'advanced',
+      this.pendingArenaIndex !== null ? this.pendingArenaIndex : Math.floor(Math.random() * 4)
+    );
   }
 
   quitGame() {
