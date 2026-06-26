@@ -41,13 +41,12 @@ class ArenaManager {
   }
 
   isInside(x, y) {
-    const radius = this.getRadius();
-    return (x * x + y * y) <= (radius * radius);
+    const bounds = this.getBounds();
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
   }
 
   render(ctx, camera) {
     const bounds = this.getBounds();
-    const radius = this.getRadius();
 
     ctx.fillStyle = '#071018';
     ctx.fillRect(bounds.minX, bounds.minY, this.width, this.height);
@@ -66,11 +65,10 @@ class ArenaManager {
     }
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    // Rectangular arena boundary
     ctx.strokeStyle = 'rgba(0,255,255,0.35)';
     ctx.lineWidth = CONFIG.ARENA_BOUNDARY_THICKNESS;
-    ctx.stroke();
+    ctx.strokeRect(bounds.minX, bounds.minY, this.width, this.height);
 
     ctx.beginPath();
     ctx.arc(0, 0, 150, 0, Math.PI * 2);
