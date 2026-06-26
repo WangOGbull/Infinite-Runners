@@ -87,28 +87,29 @@ class UIManager {
       const arenaModal = document.createElement('div');
       arenaModal.id = 'arenaSelectModal';
       arenaModal.className = 'screen';
+      arenaModal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(7,16,24,0.95);z-index:100;color:#fff;';
       arenaModal.innerHTML = `
-        <div class="arenaSelectBox">
-          <h2>Select Arena</h2>
-          <div class="arenaGrid">
-            <button class="arenaCard" data-arena="0">
-              <div class="arenaPreview" style="background:#8B9DC3"></div>
-              <div class="arenaName">Stone Castle</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:24px;max-width:600px;width:90%;">
+          <h2 style="margin:0;font-size:28px;text-transform:uppercase;letter-spacing:3px;text-shadow:0 0 20px rgba(0,180,216,0.5);">Select Arena</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;">
+            <button class="arenaCard" data-arena="0" style="background:rgba(255,255,255,0.05);border:1px solid rgba(0,180,216,0.3);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s;color:#fff;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='rgba(0,180,216,0.8)';this.style.background='rgba(0,180,216,0.1)';" onmouseout="this.style.borderColor='rgba(0,180,216,0.3)';this.style.background='rgba(255,255,255,0.05)';">
+              <div style="width:100%;aspect-ratio:1;background:#8B9DC3;border-radius:8px;background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png);background-size:cover;background-position:center;"></div>
+              <div style="font-weight:600;font-size:14px;">Stone Castle</div>
             </button>
-            <button class="arenaCard" data-arena="1">
-              <div class="arenaPreview" style="background:#4CAF50"></div>
-              <div class="arenaName">Grass Field</div>
+            <button class="arenaCard" data-arena="1" style="background:rgba(255,255,255,0.05);border:1px solid rgba(0,180,216,0.3);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s;color:#fff;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='rgba(0,180,216,0.8)';this.style.background='rgba(0,180,216,0.1)';" onmouseout="this.style.borderColor='rgba(0,180,216,0.3)';this.style.background='rgba(255,255,255,0.05)';">
+              <div style="width:100%;aspect-ratio:1;background:#4CAF50;border-radius:8px;background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png);background-size:cover;background-position:center;"></div>
+              <div style="font-weight:600;font-size:14px;">Grass Field</div>
             </button>
-            <button class="arenaCard" data-arena="2">
-              <div class="arenaPreview" style="background:#9C27B0"></div>
-              <div class="arenaName">Purple Magic</div>
+            <button class="arenaCard" data-arena="2" style="background:rgba(255,255,255,0.05);border:1px solid rgba(0,180,216,0.3);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s;color:#fff;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='rgba(0,180,216,0.8)';this.style.background='rgba(0,180,216,0.1)';" onmouseout="this.style.borderColor='rgba(0,180,216,0.3)';this.style.background='rgba(255,255,255,0.05)';">
+              <div style="width:100%;aspect-ratio:1;background:#9C27B0;border-radius:8px;background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png);background-size:cover;background-position:center;"></div>
+              <div style="font-weight:600;font-size:14px;">Purple Magic</div>
             </button>
-            <button class="arenaCard" data-arena="3">
-              <div class="arenaPreview" style="background:#FF5722"></div>
-              <div class="arenaName">Fire Arena</div>
+            <button class="arenaCard" data-arena="3" style="background:rgba(255,255,255,0.05);border:1px solid rgba(0,180,216,0.3);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s;color:#fff;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='rgba(0,180,216,0.8)';this.style.background='rgba(0,180,216,0.1)';" onmouseout="this.style.borderColor='rgba(0,180,216,0.3)';this.style.background='rgba(255,255,255,0.05)';">
+              <div style="width:100%;aspect-ratio:1;background:#FF5722;border-radius:8px;background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png);background-size:cover;background-position:center;"></div>
+              <div style="font-weight:600;font-size:14px;">Fire Arena</div>
             </button>
           </div>
-          <button class="menuBtn" id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
+          <button id="btnArenaBack" style="background:transparent;border:1px solid rgba(0,180,216,0.4);color:#00b4d8;padding:12px 32px;border-radius:8px;cursor:pointer;font-size:14px;text-transform:uppercase;letter-spacing:2px;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,180,216,0.1)';this.style.borderColor='rgba(0,180,216,0.8)';" onmouseout="this.style.background='transparent';this.style.borderColor='rgba(0,180,216,0.4)';"><i data-lucide="arrow-left"></i> Back</button>
         </div>
       `;
       document.body.appendChild(arenaModal);
