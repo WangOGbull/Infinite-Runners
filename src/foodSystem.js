@@ -6,6 +6,7 @@ class FoodSystem {
     this.foods = new Map();
     this.nextId = 1;
     this.arenaBounds = null;
+    this.innerBounds = null;
 
     this.colors = [
       '#00e5ff',
@@ -15,12 +16,13 @@ class FoodSystem {
     ];
   }
 
-  init(arenaBounds) {
+  init(arenaBounds, innerBounds) {
     this.arenaBounds = arenaBounds;
+    this.innerBounds = innerBounds || arenaBounds;
     this.foods.clear();
     this.nextId = 1;
 
-    const area = (arenaBounds.maxX - arenaBounds.minX) * (arenaBounds.maxY - arenaBounds.minY);
+    const area = (this.innerBounds.maxX - this.innerBounds.minX) * (this.innerBounds.maxY - this.innerBounds.minY);
     const foodCount = Math.floor(area * CONFIG.FOOD_DENSITY);
 
     for (let i = 0; i < foodCount; i++) {
@@ -29,7 +31,7 @@ class FoodSystem {
   }
 
   spawnFood() {
-    if (!this.arenaBounds) return;
+    if (!this.innerBounds) return;
 
     const id = `food_${this.nextId++}`;
     const color = this.colors[Math.floor(Math.random() * this.colors.length)];
@@ -37,8 +39,8 @@ class FoodSystem {
 
     const food = {
       id,
-      x: this.arenaBounds.minX + Math.random() * (this.arenaBounds.maxX - this.arenaBounds.minX),
-      y: this.arenaBounds.minY + Math.random() * (this.arenaBounds.maxY - this.arenaBounds.minY),
+      x: this.innerBounds.minX + Math.random() * (this.innerBounds.maxX - this.innerBounds.minX),
+      y: this.innerBounds.minY + Math.random() * (this.innerBounds.maxY - this.innerBounds.minY),
       radius: bonus ? CONFIG.FOOD_BONUS_SCALE * CONFIG.FOOD_RADIUS : CONFIG.FOOD_RADIUS,
       color,
       value: bonus ? CONFIG.FOOD_BONUS_POINTS / 10 : CONFIG.FOOD_NORMAL_POINTS / 10,
@@ -51,7 +53,7 @@ class FoodSystem {
   }
 
   spawnFoodAt(x, y, bonus = false) {
-    if (!this.arenaBounds) return;
+    if (!this.innerBounds) return;
 
     const id = `food_${this.nextId++}`;
     const color = this.colors[Math.floor(Math.random() * this.colors.length)];
@@ -98,18 +100,28 @@ class FoodSystem {
 
   render(ctx, camera) {
     for (const food of this.foods.values()) {
-      if (!camera.isInView(food.x, food.y, 50)) continue;
+      if (!camera.isInView(food.x, food.y, 60)) continue;
 
       const size = food.radius * (1 + Math.sin(food.pulse) * 0.15);
+      const drawSize = size * 8;
 
       ctx.save();
+
+      // Dark background circle for contrast
+      ctx.beginPath();
+      ctx.arc(food.x, food.y, drawSize * 0.7, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fill();
+
+      // Glow
       ctx.shadowColor = food.color;
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = 30;
       ctx.fillStyle = food.color;
-      ctx.font = `bold ${size * 5}px Arial`;
+      ctx.font = `bold ${drawSize}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('∞', food.x, food.y);
+
       ctx.restore();
     }
   }
