@@ -40,12 +40,16 @@ class AIController {
     this.difficulty = difficulty;
 
     this.difficultySettings = {
-      beginner: { randomness: 0.8, targetFood: 0.6, wallMargin: 300 },
-      easy: { randomness: 0.5, targetFood: 0.8, wallMargin: 250 },
-      advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 200 },
-      master: { randomness: 0.15, targetFood: 1.0, wallMargin: 180 },
-      legendary: { randomness: 0.05, targetFood: 1.0, wallMargin: 150 }
+      beginner: { randomness: 0.8, targetFood: 0.6, wallMargin: 300, speedMult: 0.7 },
+      easy: { randomness: 0.5, targetFood: 0.8, wallMargin: 250, speedMult: 0.85 },
+      advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 200, speedMult: 1.0 },
+      master: { randomness: 0.15, targetFood: 1.0, wallMargin: 180, speedMult: 1.15 },
+      legendary: { randomness: 0.05, targetFood: 1.0, wallMargin: 150, speedMult: 1.3 }
     };
+  }
+
+  getSpeedMult() {
+    return this.difficultySettings[this.difficulty]?.speedMult || 1.0;
   }
 
   getInputAngle(dragon) {
@@ -163,7 +167,7 @@ class Game {
       this.selectedMode = mode;
       if (mode === '1v1AI') {
         this.aiDifficulty = difficulty || 'advanced';
-        this.startLocalGame('1v1', this.aiDifficulty);
+        this.startLocalGame('1v1AI', this.aiDifficulty);
       } else if (mode === 'multiplayer') {
         this.uiManager.showScreen('mpMenuScreen');
       } else {
@@ -229,7 +233,9 @@ class Game {
       const spawn = spawnPositions[i];
       const aiName = aiNames[i % aiNames.length];
       const teamId = this.gameModeManager.getTeamForPlayer(i);
-      this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
+      const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
+      // Apply difficulty speed multiplier to AI dragons
+      aiDragon.speed *= this.aiController.getSpeedMult();
     }
 
     this.startGameLoop();
@@ -503,7 +509,7 @@ class Game {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    this.startLocalGame(this.selectedMode || 'FFA');
+    this.startLocalGame(this.selectedMode || 'FFA', this.aiDifficulty || 'advanced');
   }
 
   quitGame() {
