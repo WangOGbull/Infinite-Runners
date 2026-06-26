@@ -1,4 +1,3 @@
-// UI Manager - handles all DOM-based UI, screens, and user interactions
 class UIManager {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -13,6 +12,7 @@ class UIManager {
 
     this.initScreens();
     this.createDynamicModals();
+    this.buildModeSelect();
     this.initLucide();
     this.initParticles();
     this.bindEvents();
@@ -30,7 +30,6 @@ class UIManager {
   }
 
   createDynamicModals() {
-    // Difficulty Modal
     if (!document.getElementById('difficultyModal')) {
       const diffModal = document.createElement('div');
       diffModal.id = 'difficultyModal';
@@ -52,7 +51,6 @@ class UIManager {
       this.screens['difficultyModal'] = diffModal;
     }
 
-    // MP Mode Select
     if (!document.getElementById('mpModeSelect')) {
       const mpMode = document.createElement('div');
       mpMode.id = 'mpModeSelect';
@@ -83,6 +81,29 @@ class UIManager {
       document.body.appendChild(mpMode);
       this.screens['mpModeSelect'] = mpMode;
     }
+  }
+
+  buildModeSelect() {
+    const container = document.querySelector('.modeCards');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const cards = [
+      { id: 'btn1v1AI', icon: '⚔️', label: '1v1 VS AI', desc: 'Battle against AI dragon' },
+      { id: 'btnMpMultiplayer', icon: '🌐', label: 'Multiplayer', desc: 'Online battles' }
+    ];
+
+    cards.forEach(c => {
+      const card = document.createElement('button');
+      card.className = 'modeCard';
+      card.id = c.id;
+      card.innerHTML = `
+        <div class="mIcon">${c.icon}</div>
+        <div class="mLabel">${c.label}</div>
+        <div class="mDesc">${c.desc}</div>
+      `;
+      container.appendChild(card);
+    });
   }
 
   initLucide() {
@@ -164,7 +185,6 @@ class UIManager {
   }
 
   bindEvents() {
-    // Title screen
     document.getElementById('btnPlayNow')?.addEventListener('click', () => {
       this.eventBus.emit('ui:showDragonSelect');
     });
@@ -181,36 +201,21 @@ class UIManager {
       this.showScreen('walletModal');
     });
 
-    // Dragon select
     document.getElementById('btnDsBack')?.addEventListener('click', () => {
       this.showScreen('titleScreen');
     });
 
-    // Mode select back
     document.getElementById('btnModeBack')?.addEventListener('click', () => {
       this.showScreen('dragonSelectScreen');
     });
 
-    // Mode cards
-    const modeCardMap = {
-      'btn1v1AI': '1v1AI',
-      'btn2v2': '2v2',
-      'btn4v4': '4v4',
-      'btnFFA': 'FFA'
-    };
+    // Only 2 mode cards now
+    document.getElementById('btn1v1AI')?.addEventListener('click', () => {
+      this.showScreen('difficultyModal');
+    });
 
-    Object.entries(modeCardMap).forEach(([id, mode]) => {
-      const btn = document.getElementById(id);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          if (mode === '1v1AI') {
-            this.showScreen('difficultyModal');
-          } else {
-            this.selectedMode = mode;
-            this.transitionToLoadingThenEmit(mode);
-          }
-        });
-      }
+    document.getElementById('btnMpMultiplayer')?.addEventListener('click', () => {
+      this.showScreen('mpModeSelect');
     });
 
     // Difficulty modal
@@ -224,11 +229,6 @@ class UIManager {
 
     document.getElementById('btnDiffBack')?.addEventListener('click', () => {
       this.showScreen('modeSelectScreen');
-    });
-
-    // Multiplayer card
-    document.getElementById('btnMpMultiplayer')?.addEventListener('click', () => {
-      this.showScreen('mpModeSelect');
     });
 
     // MP Mode selection
@@ -541,11 +541,9 @@ class UIManager {
     const scaleX = w / arena.width;
     const scaleY = h / arena.height;
 
-    // Arena border
     ctx.strokeStyle = 'rgba(0,180,216,0.3)';
     ctx.strokeRect(0, 0, w, h);
 
-    // Food dots
     ctx.fillStyle = 'rgba(0,180,216,0.5)';
     for (const food of foods) {
       const mx = (food.x - bounds.minX) * scaleX;
@@ -553,7 +551,6 @@ class UIManager {
       ctx.fillRect(mx - 1, my - 1, 2, 2);
     }
 
-    // Dragon dots
     for (const dragon of dragons) {
       if (dragon.state !== 'alive') continue;
       const mx = (dragon.head.x - bounds.minX) * scaleX;
@@ -564,7 +561,6 @@ class UIManager {
       ctx.fill();
     }
 
-    // Camera viewport
     const viewW = w / camera.zoom;
     const viewH = h / camera.zoom;
     const vx = (camera.x - bounds.minX - (w / camera.zoom) / 2) * scaleX;
