@@ -75,7 +75,8 @@ class AIController {
       targetAngle = Math.atan2(nearest.y - head.y, nearest.x - head.x);
     }
 
-    const bounds = this.arena.getBounds();
+    // Use inner bounds (fence line) for wall avoidance
+    const bounds = this.arena.getInnerBounds();
     const margin = settings.wallMargin;
 
     if (head.x < bounds.minX + margin || head.x > bounds.maxX - margin ||
@@ -174,19 +175,6 @@ class Game {
       this.selectedDragon = name;
     });
 
-    this.eventBus.on('ui:modeSelected', ({ mode, difficulty }) => {
-      this.selectedMode = mode;
-      if (mode === '1v1AI') {
-        this.aiDifficulty = difficulty || 'advanced';
-        // Arena select screen is shown by UIManager after difficulty click
-      } else if (mode === 'multiplayer') {
-        this.uiManager.showScreen('mpMenuScreen');
-      } else {
-        // For other local modes, show arena select
-        this.uiManager.showScreen('arenaSelectModal');
-      }
-    });
-
     this.eventBus.on('ui:arenaSelected', ({ mode, difficulty, arenaIndex }) => {
       this.pendingArenaIndex = arenaIndex;
       this.startLocalGame(mode, difficulty, arenaIndex);
@@ -235,7 +223,8 @@ class Game {
     const spawnPositions = this.arenaManager.getSpawnPositions(maxPlayers);
 
     this.dragonManager.clear();
-    this.foodSystem.init(this.arenaManager.getBounds());
+    // Pass inner bounds so food spawns inside the fence
+    this.foodSystem.init(this.arenaManager.getBounds(), this.arenaManager.getInnerBounds());
     this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
     const localSpawn = spawnPositions[0];
@@ -435,7 +424,8 @@ class Game {
       inputMap.set(dragon.id, angle);
     }
 
-    this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getBounds());
+    // Pass inner bounds for dragon wall bounce
+    this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getInnerBounds());
     this.cameraSystem.update(this.localDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
@@ -535,13 +525,13 @@ class Game {
 
   quitGame() {
     this.state = 'MENU';
+    this.uiManager.showPauseOverlay(false);
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
     }
     this.dragonManager.clear();
     this.isPaused = false;
-    this.uiManager.showPauseOverlay(false);
 
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
