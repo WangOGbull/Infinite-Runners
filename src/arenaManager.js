@@ -68,6 +68,7 @@ class ArenaManager {
     }
   }
 
+  // Full bounds including the fence/walls
   getBounds() {
     return {
       minX: -this.width / 2,
@@ -77,9 +78,25 @@ class ArenaManager {
     };
   }
 
+  // Inner bounds - playable floor inside the fence
+  // Fence is roughly 9% horizontal and 13% vertical margin
+  getInnerBounds() {
+    const marginX = this.width * 0.09;
+    const marginY = this.height * 0.13;
+    return {
+      minX: -this.width / 2 + marginX,
+      minY: -this.height / 2 + marginY,
+      maxX: this.width / 2 - marginX,
+      maxY: this.height / 2 - marginY
+    };
+  }
+
   getSpawnPositions(count) {
     const positions = [];
-    const radius = Math.min(this.width, this.height) * 0.28;
+    const inner = this.getInnerBounds();
+    const innerWidth = inner.maxX - inner.minX;
+    const innerHeight = inner.maxY - inner.minY;
+    const radius = Math.min(innerWidth, innerHeight) * 0.35;
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 / count) * i;
       positions.push({
@@ -95,8 +112,8 @@ class ArenaManager {
   }
 
   isInside(x, y) {
-    const bounds = this.getBounds();
-    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+    const inner = this.getInnerBounds();
+    return x >= inner.minX && x <= inner.maxX && y >= inner.minY && y <= inner.maxY;
   }
 
   isReady() {
@@ -110,6 +127,7 @@ class ArenaManager {
       ctx.drawImage(this.selectedImage, bounds.minX, bounds.minY, this.width, this.height);
     }
 
+    // Grid overlay
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 2;
@@ -124,10 +142,13 @@ class ArenaManager {
     }
     ctx.stroke();
 
+    // Inner boundary line (the fence line)
+    const inner = this.getInnerBounds();
     ctx.strokeStyle = 'rgba(0,255,255,0.35)';
     ctx.lineWidth = CONFIG.ARENA_BOUNDARY_THICKNESS;
-    ctx.strokeRect(bounds.minX, bounds.minY, this.width, this.height);
+    ctx.strokeRect(inner.minX, inner.minY, inner.maxX - inner.minX, inner.maxY - inner.minY);
 
+    // Center safe zone
     ctx.beginPath();
     ctx.arc(0, 0, 150, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
