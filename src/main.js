@@ -10,7 +10,6 @@ import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js';
 
-// ==================== EVENT BUS ====================
 class EventBus {
   constructor() {
     this.listeners = new Map();
@@ -32,7 +31,6 @@ class EventBus {
   }
 }
 
-// ==================== AI CONTROLLER ====================
 class AIController {
   constructor(arenaManager, foodSystem, difficulty = 'advanced') {
     this.arena = arenaManager;
@@ -86,7 +84,6 @@ class AIController {
   }
 }
 
-// ==================== MAIN GAME ====================
 class Game {
   constructor() {
     this.eventBus = new EventBus();
@@ -124,7 +121,6 @@ class Game {
     this.setupEventListeners();
     this.setupFirebase();
 
-    // Title screen shows FIRST — assets load in background
     this.uiManager.showScreen('titleScreen');
     await AssetLoader.loadDragons();
     this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
@@ -215,7 +211,7 @@ class Game {
     const spawnPositions = this.arenaManager.getSpawnPositions(maxPlayers);
 
     this.dragonManager.clear();
-    this.foodSystem.init(this.arenaManager.getBounds());
+    this.foodSystem.init(this.arenaManager.getBounds(), this.arenaManager.getRadius());
     this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
     const localSpawn = spawnPositions[0];
@@ -415,6 +411,19 @@ class Game {
     }
 
     this.dragonManager.update(deltaTime, inputMap);
+
+    // CLAMP DRAGONS INSIDE CIRCULAR ARENA
+    const arenaRadius = this.arenaManager.getRadius();
+    const margin = 25;
+    for (const dragon of this.dragonManager.getLivingDragons()) {
+      const dist = Math.sqrt(dragon.head.x * dragon.head.x + dragon.head.y * dragon.head.y);
+      if (dist > arenaRadius - margin) {
+        const angle = Math.atan2(dragon.head.y, dragon.head.x);
+        dragon.head.x = Math.cos(angle) * (arenaRadius - margin);
+        dragon.head.y = Math.sin(angle) * (arenaRadius - margin);
+      }
+    }
+
     this.cameraSystem.update(this.localDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
