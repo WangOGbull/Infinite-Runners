@@ -71,13 +71,12 @@ class AIController {
       targetAngle = Math.atan2(nearest.y - head.y, nearest.x - head.x);
     }
 
-    const radius = this.arena.getRadius();
-    const distFromCenter = Math.sqrt(head.x * head.x + head.y * head.y);
+    const bounds = this.arena.getBounds();
     const margin = settings.wallMargin;
 
-    if (distFromCenter > radius - margin) {
-      const centerAngle = Math.atan2(-head.y, -head.x);
-      targetAngle = centerAngle;
+    if (head.x < bounds.minX + margin || head.x > bounds.maxX - margin ||
+        head.y < bounds.minY + margin || head.y > bounds.maxY - margin) {
+      targetAngle = Math.atan2(-head.y, -head.x);
     }
 
     targetAngle += (Math.random() - 0.5) * settings.randomness;
@@ -414,7 +413,7 @@ class Game {
       inputMap.set(dragon.id, angle);
     }
 
-    this.dragonManager.update(deltaTime, inputMap);
+    this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getBounds());
     this.cameraSystem.update(this.localDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
