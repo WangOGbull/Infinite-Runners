@@ -82,7 +82,7 @@ export class DragonManager {
       dragon.head.x += vx;
       dragon.head.y += vy;
 
-      // Bounce off rectangular walls
+      // Bounce off inner bounds (the fence line)
       if (bounds) {
         const margin = 10;
         if (dragon.head.x < bounds.minX + margin) {
