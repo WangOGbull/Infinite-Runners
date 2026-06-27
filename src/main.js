@@ -120,6 +120,7 @@ class Game {
     this.aiDifficulty = 'advanced';
     this.selectedMpMode = 'FFA';
     this.pendingArenaIndex = null;
+    this.lobbyArenaIndex = 0;
 
     // Multiplayer sync
     this.localPlayerId = null;
@@ -212,6 +213,14 @@ class Game {
     this.eventBus.on('wallet:connect', ({ wallet }) => {
       console.log('Wallet connect:', wallet);
     });
+
+    // Lobby arena selection from UI
+    this.eventBus.on('lobby:arenaSelected', ({ arenaIndex }) => {
+      if (this.isHost && this.roomRef) {
+        this.lobbyArenaIndex = arenaIndex;
+        this.roomRef.child('arenaIndex').set(arenaIndex);
+      }
+    });
   }
 
   startLocalGame(mode, difficulty, arenaIndex) {
@@ -229,7 +238,6 @@ class Game {
     }
 
     if (this.isMultiplayer && this.playerIds && this.playerIds.length > 0) {
-      // Multiplayer: create dragons for each real player
       const myIndex = this.playerIds.indexOf(this.localPlayerId);
       const localSpawn = spawnPositions[myIndex] || spawnPositions[0];
 
@@ -240,7 +248,6 @@ class Game {
       );
       this.localDragon.playerId = this.localPlayerId;
 
-      // Create remote dragons for other players
       for (let i = 0; i < this.playerIds.length; i++) {
         if (i === myIndex) continue;
         const pid = this.playerIds[i];
@@ -252,7 +259,6 @@ class Game {
         remoteDragon.isRemote = true;
       }
 
-      // Fill remaining slots with AI
       const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
       for (let i = this.playerIds.length; i < maxPlayers; i++) {
         const spawn = spawnPositions[i];
@@ -264,7 +270,6 @@ class Game {
         }
       }
     } else {
-      // Single player
       const localSpawn = spawnPositions[0];
       this.localDragon = this.dragonManager.createDragon(
         this.selectedDragon || 'ignis',
@@ -301,11 +306,13 @@ class Game {
     this.selectedMpMode = mpMode || 'FFA';
     this.localPlayerId = 'local';
     this.playerIds = ['local'];
+    this.lobbyArenaIndex = 0;
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
       host: 'local',
       mode: this.selectedMpMode,
+      arenaIndex: 0,
       status: 'waiting',
       players: {
         local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
@@ -320,6 +327,7 @@ class Game {
       this.roomCode,
       true
     );
+    this.uiManager.updateLobbyArena(0, true);
     this.uiManager.showScreen('lobbyScreen');
 
     this.roomRef.on('value', (snapshot) => {
@@ -328,6 +336,11 @@ class Game {
 
       this.roomPlayers = data.players || {};
       this.playerIds = Object.keys(this.roomPlayers);
+
+      if (data.arenaIndex !== undefined && data.arenaIndex !== this.lobbyArenaIndex) {
+        this.lobbyArenaIndex = data.arenaIndex;
+        this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
+      }
 
       const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
         ...p,
@@ -369,8 +382,10 @@ class Game {
       });
 
       this.localPlayerId = newPlayerRef.key;
+      this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
 
       this.uiManager.showScreen('lobbyScreen');
+      this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
 
       this.roomRef.on('value', snap => {
         const roomData = snap.val();
@@ -378,6 +393,11 @@ class Game {
 
         this.roomPlayers = roomData.players || {};
         this.playerIds = Object.keys(this.roomPlayers);
+
+        if (roomData.arenaIndex !== undefined && roomData.arenaIndex !== this.lobbyArenaIndex) {
+          this.lobbyArenaIndex = roomData.arenaIndex;
+          this.uiManager.updateLobbyArena(roomData.arenaIndex, false);
+        }
 
         const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
           ...p,
@@ -388,8 +408,9 @@ class Game {
         if (roomData.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
           const gameConfig = roomData.gameConfig || {};
           this.selectedMode = gameConfig.mode || roomData.mode || 'FFA';
+          this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (roomData.arenaIndex !== undefined ? roomData.arenaIndex : 0);
           this.isMultiplayer = true;
-          this.startLocalGame(this.selectedMode, 'advanced', gameConfig.arenaIndex);
+          this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
         }
       });
     });
@@ -412,6 +433,7 @@ class Game {
     this.playerIds = [];
     this.roomPlayers = {};
     this.isMultiplayer = false;
+    this.lobbyArenaIndex = 0;
   }
 
   startMpGame() {
@@ -420,14 +442,13 @@ class Game {
         status: 'playing',
         gameConfig: {
           mode: this.selectedMpMode || 'FFA',
-          arenaIndex: this.pendingArenaIndex !== null ? this.pendingArenaIndex : Math.floor(Math.random() * 4),
+          arenaIndex: this.lobbyArenaIndex,
           playerIds: this.playerIds
         }
       });
     }
     this.isMultiplayer = true;
-    this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced',
-      this.pendingArenaIndex !== null ? this.pendingArenaIndex : Math.floor(Math.random() * 4));
+    this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced', this.lobbyArenaIndex);
   }
 
   startNetworkSync() {
@@ -545,7 +566,6 @@ class Game {
           this.cameraSystem
         );
       } else if (dragon.isRemote) {
-        // Remote dragons: angle will be overridden by network sync after update
         angle = dragon.angle;
       } else {
         angle = this.aiController.getInputAngle(dragon);
@@ -555,7 +575,6 @@ class Game {
 
     this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getInnerBounds());
 
-    // Apply network positions after local movement update
     if (this.isMultiplayer) {
       this.applyRemotePositions();
       this.broadcastPosition();
