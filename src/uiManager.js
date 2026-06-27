@@ -125,7 +125,7 @@ class UIManager {
       card.style.setProperty('--dc', d.color);
       card.style.setProperty('--dim', d.color + '15');
 
-      const statsHtml = d.stats.map(s => `
+      const statsHtml = (d.stats || []).map(s => `
         <div class="dStat">
           <label>${s.name}</label>
           <div class="dBar"><div style="width:${s.value}%"></div></div>
