@@ -114,6 +114,20 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .modeSelectorHost button{padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:rgba(200,220,240,0.6);font-family:'Rajdhani',sans-serif;font-weight:600;font-size:11px;cursor:pointer;transition:all .2s}
 .modeSelectorHost button:hover{border-color:rgba(0,180,216,0.4);color:#fff}
 .modeSelectorHost button.active{border-color:#00b4d8;background:rgba(0,180,216,0.12);color:#48cae4}
+
+/* Lobby Arena Selector */
+.lobbyArenaSelector{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:14px;padding:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px}
+.lobbyArenaSelector label{font-size:11px;color:rgba(200,220,240,0.6)}
+.arenaThumbs{display:flex;gap:8px;justify-content:center;width:100%}
+.arenaThumb{width:64px;height:64px;border-radius:8px;border:2px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);cursor:pointer;transition:all .2s;position:relative;overflow:hidden;padding:0}
+.arenaThumb img{width:100%;height:100%;object-fit:cover;opacity:.7;transition:opacity .2s}
+.arenaThumb span{position:absolute;bottom:0;left:0;right:0;font-size:8px;letter-spacing:1px;color:#fff;background:rgba(0,0,0,0.6);padding:2px 0;text-align:center}
+.arenaThumb:hover{border-color:rgba(0,180,216,0.4)}
+.arenaThumb:hover img{opacity:1}
+.arenaThumb.active{border-color:#00b4d8;box-shadow:0 0 12px rgba(0,180,216,0.25)}
+.arenaThumb.active img{opacity:1}
+.arenaThumb:disabled{cursor:not-allowed;opacity:.5}
+
 .lobbySlots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;text-align:left}
 .lobbySlot{min-height:60px}
 .lobbyPlayerCard{display:flex;align-items:center;gap:10px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px}
@@ -127,6 +141,18 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .lobbyActions{display:flex;flex-direction:column;align-items:center;gap:10px}
 #lobbyStartBtn{display:none}
 #lobbyWaitingText{display:none;font-size:12px;color:rgba(200,220,240,0.5);font-family:'Cinzel Decorative',cursive}
+
+/* ==================== ARENA SELECT MODAL ==================== */
+#arenaSelectModal{background:rgba(7,16,24,0.95);z-index:100}
+#arenaSelectModal .arenaSelectInner{display:flex;flex-direction:column;align-items:center;gap:16px;max-width:500px;width:100%;padding:16px 0}
+#arenaSelectModal h2{margin:0;font-family:'Cinzel Decorative',cursive;font-size:clamp(18px,5vw,24px);text-transform:uppercase;letter-spacing:3px;text-shadow:0 0 20px rgba(0,180,216,0.5);text-align:center;color:#48cae4}
+.arenaGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.arenaCard{background:rgba(255,255,255,0.05);border:1px solid rgba(0,180,216,0.3);border-radius:10px;padding:8px;cursor:pointer;transition:all .2s;color:#fff;display:flex;flex-direction:column;align-items:center;gap:6px}
+.arenaCard:hover{border-color:rgba(0,180,216,0.8);background:rgba(0,180,216,0.1)}
+.arenaCard .arenaPreview{width:100%;aspect-ratio:1;border-radius:6px;background-size:cover;background-position:center}
+.arenaCard .arenaName{font-weight:600;font-size:clamp(10px,3vw,13px)}
+#btnArenaBack{background:transparent;border:1px solid rgba(0,180,216,0.4);color:#00b4d8;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:clamp(11px,3vw,13px);text-transform:uppercase;letter-spacing:2px;transition:all .2s;display:flex;align-items:center;gap:6px}
+#btnArenaBack:hover{background:rgba(0,180,216,0.1);border-color:rgba(0,180,216,0.8)}
 
 /* ==================== LOADING SCREEN ==================== */
 #loadingScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
@@ -255,6 +281,9 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
   .dragonCard{padding:10px}
   .dragonCard .dImg{width:70px;height:70px}
   #countdownText{font-size:5rem}
+
+  .arenaThumb{width:48px;height:48px}
+  .arenaThumb span{font-size:7px}
 }
 @media(min-width:768px){
   #mobileControls{display:none!important}
