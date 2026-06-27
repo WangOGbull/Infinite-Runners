@@ -138,12 +138,20 @@ class Game {
     this.setupEventListeners();
     this.setupFirebase();
 
-    this.uiManager.showScreen('titleScreen');
+    this.uiManager.showScreen('loadingScreen');
+
+    const loadText = document.querySelector('.loadingText');
+    if (loadText) loadText.textContent = 'Loading Dragons...';
 
     await AssetLoader.loadDragons();
+
+    if (loadText) loadText.textContent = 'Loading Arenas...';
     await this.arenaManager.preloadAll();
 
+    if (loadText) loadText.textContent = 'Ready!';
+
     this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
+    this.uiManager.showScreen('titleScreen');
   }
 
   setupFirebase() {
