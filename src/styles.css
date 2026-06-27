@@ -234,10 +234,24 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 /* ==================== RESPONSIVE ==================== */
 @media(max-width:480px){
-  #titleScreen h1{font-size:28px}
-  #titleScreen h2{font-size:18px;letter-spacing:4px}
-  #titleScreen h3{font-size:12px;letter-spacing:5px}
-  #titleScreen .playBtn{width:200px;height:46px;font-size:14px}
+  #titleScreen h1{font-size:22px;letter-spacing:2px}
+  #titleScreen h2{font-size:15px;letter-spacing:3px}
+  #titleScreen h3{font-size:10px;letter-spacing:3px}
+  #titleScreen .subtitle{font-size:9px;margin-top:2px}
+  #titleScreen .playBtn{width:170px;height:42px;font-size:12px;margin-top:6px}
+  #titleScreen .menuBtns{gap:6px;margin-top:2px}
+  #titleScreen .menuBtn{padding:6px 14px;font-size:10px}
+  #titleScreen .content{gap:6px;padding:10px}
+  #titleScreen .icon-btn{top:8px;right:8px;padding:5px 10px;font-size:10px}
+  #titleScreen .copyright{font-size:7px;bottom:8px}
+
+  #gameOverScreen h1{font-size:22px;letter-spacing:2px;margin-bottom:10px}
+  .goStats{gap:10px;margin-bottom:14px}
+  .goStat .num{font-size:16px}
+  .goStat .lbl{font-size:8px}
+  .goActions{gap:8px}
+  .goActions .pBtn{width:140px;height:36px;font-size:11px}
+
   .dragonCard{padding:10px}
   .dragonCard .dImg{width:70px;height:70px}
   #countdownText{font-size:5rem}
