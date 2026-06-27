@@ -15,7 +15,7 @@ class ArenaManager {
     this.mode = 'FFA';
     this.width = 4200;
     this.height = 4200;
-    this.loadedImages = [];
+    this.loadedImages = [null, null, null, null];
     this.selectedImage = null;
     this.allLoaded = false;
     this.preloadPromise = null;
@@ -25,12 +25,12 @@ class ArenaManager {
     if (this.preloadPromise) return this.preloadPromise;
 
     this.preloadPromise = Promise.all(
-      ARENA_URLS.map(url => {
+      ARENA_URLS.map((url, index) => {
         return new Promise((resolve, reject) => {
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = () => {
-            this.loadedImages.push(img);
+            this.loadedImages[index] = img;
             resolve(img);
           };
           img.onerror = () => reject(new Error('Failed to load arena: ' + url));
@@ -68,7 +68,6 @@ class ArenaManager {
     }
   }
 
-  // Full bounds including the fence/walls
   getBounds() {
     return {
       minX: -this.width / 2,
@@ -78,11 +77,10 @@ class ArenaManager {
     };
   }
 
-  // Inner bounds - playable floor inside the fence
-  // Fence is roughly 9% horizontal and 13% vertical margin
+  // Inner bounds — tight to the fence (6% horizontal, 9% vertical)
   getInnerBounds() {
-    const marginX = this.width * 0.09;
-    const marginY = this.height * 0.13;
+    const marginX = this.width * 0.06;
+    const marginY = this.height * 0.09;
     return {
       minX: -this.width / 2 + marginX,
       minY: -this.height / 2 + marginY,
@@ -142,11 +140,8 @@ class ArenaManager {
     }
     ctx.stroke();
 
-    // Inner boundary line (the fence line)
-    const inner = this.getInnerBounds();
-    ctx.strokeStyle = 'rgba(0,255,255,0.35)';
-    ctx.lineWidth = CONFIG.ARENA_BOUNDARY_THICKNESS;
-    ctx.strokeRect(inner.minX, inner.minY, inner.maxX - inner.minX, inner.maxY - inner.minY);
+    // NO visible boundary line — fence itself is the wall
+    // Inner bounds are invisible, dragons bounce off them naturally
 
     // Center safe zone
     ctx.beginPath();
