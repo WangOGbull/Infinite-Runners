@@ -122,9 +122,11 @@ class UIManager {
     dragons.forEach((d, i) => {
       const card = document.createElement('div');
       card.className = 'dragonCard';
-      card.style.setProperty('--dc', d.color);
-      card.style.setProperty('--dim', d.color + '15');
+      const dc = d.color || '#888888';
+      card.style.setProperty('--dc', dc);
+      card.style.setProperty('--dim', dc + '15');
 
+      const headUrl = typeof d.head === 'string' ? d.head : (d.head?.src || '');
       const statsHtml = (d.stats || []).map(s => `
         <div class="dStat">
           <label>${s.name}</label>
@@ -134,10 +136,10 @@ class UIManager {
       `).join('');
 
       card.innerHTML = `
-        <div class="dImg"><img src="${d.head}" alt="${d.name}" loading="lazy"></div>
+        <div class="dImg"><img src="${headUrl}" alt="${d.name}" loading="lazy"></div>
         <div class="dInfo">
           <div class="dName">${d.name}</div>
-          <div class="dSpecial">${d.special}</div>
+          <div class="dSpecial">${d.special || ''}</div>
           <div class="dStats">${statsHtml}</div>
         </div>
       `;
