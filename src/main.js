@@ -241,9 +241,8 @@ class Game {
     this.dragonManager.clear();
     this.foodSystem.init(this.arenaManager.getBounds(), this.arenaManager.getInnerBounds());
 
-    if (!this.isMultiplayer) {
-      this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
-    }
+    // Always create AI controller — multiplayer may still spawn AI dragons
+    this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
     if (this.isMultiplayer && this.playerIds && this.playerIds.length > 0) {
       const myIndex = this.playerIds.indexOf(this.localPlayerId);
@@ -575,8 +574,10 @@ class Game {
         );
       } else if (dragon.isRemote) {
         angle = dragon.angle;
-      } else {
+      } else if (this.aiController) {
         angle = this.aiController.getInputAngle(dragon);
+      } else {
+        angle = dragon.angle || 0;
       }
       inputMap.set(dragon.id, angle);
     }
