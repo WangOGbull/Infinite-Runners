@@ -75,7 +75,6 @@ class AIController {
       targetAngle = Math.atan2(nearest.y - head.y, nearest.x - head.x);
     }
 
-    // Use inner bounds (fence line) for wall avoidance
     const bounds = this.arena.getInnerBounds();
     const margin = settings.wallMargin;
 
@@ -122,6 +121,15 @@ class Game {
     this.selectedMpMode = 'FFA';
     this.pendingArenaIndex = null;
 
+    // Multiplayer sync
+    this.localPlayerId = null;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this.remotePositions = {};
+    this.positionsRef = null;
+    this.lastBroadcast = 0;
+    this.positionsListenerSet = false;
+
     this.init();
   }
 
@@ -129,10 +137,8 @@ class Game {
     this.setupEventListeners();
     this.setupFirebase();
 
-    // Show title screen immediately — no loading flash on boot
     this.uiManager.showScreen('titleScreen');
 
-    // Load assets in background while title screen is visible
     await AssetLoader.loadDragons();
     await this.arenaManager.preloadAll();
 
@@ -209,7 +215,6 @@ class Game {
   }
 
   startLocalGame(mode, difficulty, arenaIndex) {
-    this.isMultiplayer = false;
     this.gameModeManager.setMode(mode);
     this.arenaManager.setMode(mode, arenaIndex);
 
@@ -217,27 +222,71 @@ class Game {
     const spawnPositions = this.arenaManager.getSpawnPositions(maxPlayers);
 
     this.dragonManager.clear();
-    // Pass inner bounds so food spawns inside the fence
     this.foodSystem.init(this.arenaManager.getBounds(), this.arenaManager.getInnerBounds());
-    this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
-    const localSpawn = spawnPositions[0];
-    this.localDragon = this.dragonManager.createDragon(
-      this.selectedDragon || 'ignis',
-      localSpawn.x,
-      localSpawn.y
-    );
+    if (!this.isMultiplayer) {
+      this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
+    }
 
-    const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
-    for (let i = 1; i < maxPlayers; i++) {
-      const spawn = spawnPositions[i];
-      const aiName = aiNames[i % aiNames.length];
-      const teamId = this.gameModeManager.getTeamForPlayer(i);
-      const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
-      aiDragon.speed *= this.aiController.getSpeedMult();
+    if (this.isMultiplayer && this.playerIds && this.playerIds.length > 0) {
+      // Multiplayer: create dragons for each real player
+      const myIndex = this.playerIds.indexOf(this.localPlayerId);
+      const localSpawn = spawnPositions[myIndex] || spawnPositions[0];
+
+      this.localDragon = this.dragonManager.createDragon(
+        this.selectedDragon || 'ignis',
+        localSpawn.x,
+        localSpawn.y
+      );
+      this.localDragon.playerId = this.localPlayerId;
+
+      // Create remote dragons for other players
+      for (let i = 0; i < this.playerIds.length; i++) {
+        if (i === myIndex) continue;
+        const pid = this.playerIds[i];
+        const spawn = spawnPositions[i];
+        const playerData = this.roomPlayers[pid] || {};
+        const dragonName = playerData.dragon || 'ignis';
+        const remoteDragon = this.dragonManager.createDragon(dragonName, spawn.x, spawn.y);
+        remoteDragon.playerId = pid;
+        remoteDragon.isRemote = true;
+      }
+
+      // Fill remaining slots with AI
+      const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
+      for (let i = this.playerIds.length; i < maxPlayers; i++) {
+        const spawn = spawnPositions[i];
+        const aiName = aiNames[i % aiNames.length];
+        const teamId = this.gameModeManager.getTeamForPlayer(i);
+        const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
+        if (this.aiController) {
+          aiDragon.speed *= this.aiController.getSpeedMult();
+        }
+      }
+    } else {
+      // Single player
+      const localSpawn = spawnPositions[0];
+      this.localDragon = this.dragonManager.createDragon(
+        this.selectedDragon || 'ignis',
+        localSpawn.x,
+        localSpawn.y
+      );
+
+      const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
+      for (let i = 1; i < maxPlayers; i++) {
+        const spawn = spawnPositions[i];
+        const aiName = aiNames[i % aiNames.length];
+        const teamId = this.gameModeManager.getTeamForPlayer(i);
+        const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
+        aiDragon.speed *= this.aiController.getSpeedMult();
+      }
     }
 
     this.startGameLoop();
+
+    if (this.isMultiplayer) {
+      this.startNetworkSync();
+    }
   }
 
   createRoom(mpMode) {
@@ -250,6 +299,8 @@ class Game {
     this.roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     this.isHost = true;
     this.selectedMpMode = mpMode || 'FFA';
+    this.localPlayerId = 'local';
+    this.playerIds = ['local'];
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
@@ -260,6 +311,8 @@ class Game {
         local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
       }
     });
+
+    this.roomPlayers = { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
 
     this.uiManager.updateLobby(
       [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true }],
@@ -272,9 +325,13 @@ class Game {
     this.roomRef.on('value', (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
-      const players = Object.entries(data.players || {}).map(([id, p]) => ({
+
+      this.roomPlayers = data.players || {};
+      this.playerIds = Object.keys(this.roomPlayers);
+
+      const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
         ...p,
-        isLocal: id === 'local'
+        isLocal: id === this.localPlayerId
       }));
       this.uiManager.updateLobby(players, 4, this.roomCode, this.isHost);
     });
@@ -305,11 +362,13 @@ class Game {
         return;
       }
 
-      this.roomRef.child('players').push({
+      const newPlayerRef = this.roomRef.child('players').push({
         name: 'Player ' + (playerCount + 1),
         dragon: this.selectedDragon || 'ignis',
         ready: true
       });
+
+      this.localPlayerId = newPlayerRef.key;
 
       this.uiManager.showScreen('lobbyScreen');
 
@@ -317,39 +376,112 @@ class Game {
         const roomData = snap.val();
         if (!roomData) return;
 
-        const players = Object.entries(roomData.players || {}).map(([id, p]) => ({
+        this.roomPlayers = roomData.players || {};
+        this.playerIds = Object.keys(this.roomPlayers);
+
+        const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
           ...p,
-          isLocal: id === 'local'
+          isLocal: id === this.localPlayerId
         }));
         this.uiManager.updateLobby(players, 4, this.roomCode, this.isHost);
 
         if (roomData.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
-          this.selectedMode = roomData.mode || 'FFA';
+          const gameConfig = roomData.gameConfig || {};
+          this.selectedMode = gameConfig.mode || roomData.mode || 'FFA';
           this.isMultiplayer = true;
-          this.startLocalGame(this.selectedMode);
+          this.startLocalGame(this.selectedMode, 'advanced', gameConfig.arenaIndex);
         }
       });
     });
   }
 
   leaveRoom() {
+    this.stopNetworkSync();
     if (this.roomRef) {
       this.roomRef.off();
       if (this.isHost) {
         this.roomRef.remove();
+      } else if (this.localPlayerId) {
+        this.roomRef.child('players/' + this.localPlayerId).remove();
       }
       this.roomRef = null;
     }
     this.isHost = false;
     this.roomCode = '';
+    this.localPlayerId = null;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this.isMultiplayer = false;
   }
 
   startMpGame() {
     if (this.roomRef && this.isHost) {
-      this.roomRef.update({ status: 'playing' });
+      this.roomRef.update({
+        status: 'playing',
+        gameConfig: {
+          mode: this.selectedMpMode || 'FFA',
+          arenaIndex: this.pendingArenaIndex !== null ? this.pendingArenaIndex : Math.floor(Math.random() * 4),
+          playerIds: this.playerIds
+        }
+      });
     }
     this.isMultiplayer = true;
-    this.startLocalGame(this.selectedMpMode || 'FFA');
+    this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced',
+      this.pendingArenaIndex !== null ? this.pendingArenaIndex : Math.floor(Math.random() * 4));
+  }
+
+  startNetworkSync() {
+    if (!this.roomRef) return;
+    this.positionsRef = this.roomRef.child('positions');
+    this.positionsListenerSet = false;
+    this.lastBroadcast = 0;
+  }
+
+  stopNetworkSync() {
+    if (this.positionsRef) {
+      this.positionsRef.off();
+      this.positionsRef = null;
+    }
+    this.positionsListenerSet = false;
+    this.remotePositions = {};
+  }
+
+  broadcastPosition() {
+    if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
+    const now = Date.now();
+    if (this.lastBroadcast && now - this.lastBroadcast < 50) return;
+    this.lastBroadcast = now;
+
+    this.positionsRef.child(this.localPlayerId).set({
+      x: this.localDragon.head.x,
+      y: this.localDragon.head.y,
+      angle: this.localDragon.angle,
+      score: this.localDragon.score || 0,
+      t: now
+    });
+  }
+
+  applyRemotePositions() {
+    if (!this.positionsRef) return;
+
+    if (!this.positionsListenerSet) {
+      this.positionsListenerSet = true;
+      this.positionsRef.on('value', snap => {
+        this.remotePositions = snap.val() || {};
+      });
+    }
+
+    if (!this.remotePositions) return;
+
+    for (const dragon of this.dragonManager.getAllDragons()) {
+      if (dragon.isRemote && dragon.playerId && this.remotePositions[dragon.playerId]) {
+        const pos = this.remotePositions[dragon.playerId];
+        const lerpFactor = 0.25;
+        dragon.head.x += (pos.x - dragon.head.x) * lerpFactor;
+        dragon.head.y += (pos.y - dragon.head.y) * lerpFactor;
+        dragon.angle = pos.angle;
+      }
+    }
   }
 
   startGameLoop() {
@@ -412,14 +544,23 @@ class Game {
           dragon.head.y,
           this.cameraSystem
         );
+      } else if (dragon.isRemote) {
+        // Remote dragons: angle will be overridden by network sync after update
+        angle = dragon.angle;
       } else {
         angle = this.aiController.getInputAngle(dragon);
       }
       inputMap.set(dragon.id, angle);
     }
 
-    // Pass inner bounds for dragon wall bounce
     this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getInnerBounds());
+
+    // Apply network positions after local movement update
+    if (this.isMultiplayer) {
+      this.applyRemotePositions();
+      this.broadcastPosition();
+    }
+
     this.cameraSystem.update(this.localDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
@@ -481,6 +622,8 @@ class Game {
       this.animationFrame = null;
     }
 
+    this.stopNetworkSync();
+
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -504,6 +647,8 @@ class Game {
     }
     this.uiManager.showPauseOverlay(false);
     this.dragonManager.clear();
+    this.stopNetworkSync();
+
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -526,6 +671,7 @@ class Game {
     }
     this.dragonManager.clear();
     this.isPaused = false;
+    this.stopNetworkSync();
 
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
