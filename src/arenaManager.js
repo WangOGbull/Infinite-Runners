@@ -78,14 +78,16 @@ class ArenaManager {
   }
 
   // Inner bounds — tight to the fence (6% horizontal, 9% vertical)
+  // Bottom gets extra 5% margin because the bottom fence is thicker
   getInnerBounds() {
     const marginX = this.width * 0.06;
     const marginY = this.height * 0.09;
+    const bottomExtra = this.height * 0.05;
     return {
       minX: -this.width / 2 + marginX,
       minY: -this.height / 2 + marginY,
       maxX: this.width / 2 - marginX,
-      maxY: this.height / 2 - marginY
+      maxY: this.height / 2 - marginY - bottomExtra
     };
   }
 
