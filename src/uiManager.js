@@ -84,7 +84,7 @@ class UIManager {
     document.body.appendChild(arenaModal);
     this.screens['arenaSelectModal'] = arenaModal;
 
-    // MP mode select
+    // MP mode select — now with 1v1, 2v2, FFA
     const mpModeSelect = document.createElement('div');
     mpModeSelect.id = 'mpModeSelect';
     mpModeSelect.className = 'screen';
@@ -92,15 +92,20 @@ class UIManager {
       <div class="mpModeBox">
         <h2>Multiplayer Mode</h2>
         <div class="mpModeGrid">
-          <div class="modeCard" data-mpmode="FFA">
-            <div class="mIcon"><i data-lucide="globe"></i></div>
-            <div class="mLabel">Free For All</div>
-            <div class="mDesc">Every dragon for itself.</div>
+          <div class="modeCard" data-mpmode="1v1">
+            <div class="mIcon"><i data-lucide="swords"></i></div>
+            <div class="mLabel">1v1 Duel</div>
+            <div class="mDesc">One on one battle.</div>
           </div>
           <div class="modeCard" data-mpmode="2v2">
             <div class="mIcon"><i data-lucide="users"></i></div>
             <div class="mLabel">2v2 Teams</div>
             <div class="mDesc">Team up and fight together.</div>
+          </div>
+          <div class="modeCard" data-mpmode="FFA">
+            <div class="mIcon"><i data-lucide="globe"></i></div>
+            <div class="mLabel">Free For All</div>
+            <div class="mDesc">Every dragon for itself.</div>
           </div>
         </div>
         <button class="menuBtn" id="btnMpModeBack"><i data-lucide="arrow-left"></i> Back</button>
@@ -231,22 +236,7 @@ class UIManager {
     });
 
     document.getElementById('btn1v1AI')?.addEventListener('click', () => {
-      this.selectedMode = '1v1';
-      this.showScreen('difficultyModal');
-    });
-
-    document.getElementById('btn2v2')?.addEventListener('click', () => {
-      this.selectedMode = '2v2';
-      this.showScreen('difficultyModal');
-    });
-
-    document.getElementById('btn4v4')?.addEventListener('click', () => {
-      this.selectedMode = '4v4';
-      this.showScreen('difficultyModal');
-    });
-
-    document.getElementById('btnFFA')?.addEventListener('click', () => {
-      this.selectedMode = 'FFA';
+      this.selectedMode = '1v1AI';
       this.showScreen('difficultyModal');
     });
 
@@ -474,11 +464,7 @@ class UIManager {
   updateLobbyArena(arenaIndex, isHost) {
     document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach((btn, idx) => {
       btn.classList.toggle('active', idx === arenaIndex);
-      if (!isHost) {
-        btn.disabled = true;
-      } else {
-        btn.disabled = false;
-      }
+      btn.disabled = !isHost;
     });
   }
 
@@ -540,12 +526,10 @@ class UIManager {
     const scaleY = h / (bounds.maxY - bounds.minY);
     const scale = Math.min(scaleX, scaleY);
 
-    // Draw arena boundary
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, w, h);
 
-    // Draw dragons
     dragons.forEach(dragon => {
       const x = (dragon.head.x - bounds.minX) * scale;
       const y = (dragon.head.y - bounds.minY) * scale;
@@ -555,7 +539,6 @@ class UIManager {
       ctx.fill();
     });
 
-    // Draw foods
     ctx.fillStyle = 'rgba(200,200,200,0.5)';
     foods.forEach(food => {
       const x = (food.x - bounds.minX) * scale;
