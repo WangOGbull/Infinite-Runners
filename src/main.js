@@ -122,7 +122,6 @@ class Game {
     this.pendingArenaIndex = null;
     this.lobbyArenaIndex = 0;
 
-    // Multiplayer sync
     this.localPlayerId = null;
     this.playerIds = [];
     this.roomPlayers = {};
@@ -131,6 +130,8 @@ class Game {
     this.lastBroadcast = 0;
     this.positionsListenerSet = false;
 
+    this.assetsLoaded = false;
+
     this.init();
   }
 
@@ -138,20 +139,17 @@ class Game {
     this.setupEventListeners();
     this.setupFirebase();
 
-    this.uiManager.showScreen('loadingScreen');
-
-    const loadText = document.querySelector('.loadingText');
-    if (loadText) loadText.textContent = 'Loading Dragons...';
-
-    await AssetLoader.loadDragons();
-
-    if (loadText) loadText.textContent = 'Loading Arenas...';
-    await this.arenaManager.preloadAll();
-
-    if (loadText) loadText.textContent = 'Ready!';
-
-    this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
+    // FIX 1: Show title screen immediately, load assets in background
     this.uiManager.showScreen('titleScreen');
+
+    try {
+      await AssetLoader.loadDragons();
+      await this.arenaManager.preloadAll();
+      this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
+      this.assetsLoaded = true;
+    } catch (e) {
+      console.error('Asset load failed:', e);
+    }
   }
 
   setupFirebase() {
@@ -222,11 +220,12 @@ class Game {
       console.log('Wallet connect:', wallet);
     });
 
-    // Lobby arena selection from UI
+    // FIX 3: Lobby arena selection — update UI immediately so it doesn't get stuck
     this.eventBus.on('lobby:arenaSelected', ({ arenaIndex }) => {
       if (this.isHost && this.roomRef) {
         this.lobbyArenaIndex = arenaIndex;
         this.roomRef.child('arenaIndex').set(arenaIndex);
+        this.uiManager.updateLobbyArena(arenaIndex, true);
       }
     });
   }
@@ -241,7 +240,6 @@ class Game {
     this.dragonManager.clear();
     this.foodSystem.init(this.arenaManager.getBounds(), this.arenaManager.getInnerBounds());
 
-    // Always create AI controller — multiplayer may still spawn AI dragons
     this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
     if (this.isMultiplayer && this.playerIds && this.playerIds.length > 0) {
@@ -315,10 +313,13 @@ class Game {
     this.playerIds = ['local'];
     this.lobbyArenaIndex = 0;
 
+    const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
+
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
       host: 'local',
       mode: this.selectedMpMode,
+      maxPlayers: maxPlayers,
       arenaIndex: 0,
       status: 'waiting',
       players: {
@@ -330,7 +331,7 @@ class Game {
 
     this.uiManager.updateLobby(
       [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true }],
-      4,
+      maxPlayers,
       this.roomCode,
       true
     );
@@ -353,7 +354,8 @@ class Game {
         ...p,
         isLocal: id === this.localPlayerId
       }));
-      this.uiManager.updateLobby(players, 4, this.roomCode, this.isHost);
+      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
+      this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
     });
   }
 
@@ -375,8 +377,9 @@ class Game {
         return;
       }
 
+      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
       const playerCount = Object.keys(data.players || {}).length;
-      if (playerCount >= 4) {
+      if (playerCount >= roomMax) {
         const err = document.getElementById('mpJoinError');
         if (err) err.textContent = 'Room is full';
         return;
@@ -410,7 +413,8 @@ class Game {
           ...p,
           isLocal: id === this.localPlayerId
         }));
-        this.uiManager.updateLobby(players, 4, this.roomCode, this.isHost);
+        const rMax = roomData.maxPlayers || CONFIG.MAX_PLAYERS[roomData.mode] || 4;
+        this.uiManager.updateLobby(players, rMax, this.roomCode, this.isHost);
 
         if (roomData.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
           const gameConfig = roomData.gameConfig || {};
