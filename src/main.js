@@ -57,7 +57,6 @@ class AIController {
     const head = dragon.head;
     const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
 
-    // Find best food target
     const foods = this.food.getFoods();
     let bestFood = null;
     let bestScore = -Infinity;
@@ -67,17 +66,14 @@ class AIController {
       const dy = food.y - head.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      // Ignore food too close (inside body)
       if (dist < 15) continue;
 
-      // Ignore food behind dragon (forward 120° cone only)
       const foodAngle = Math.atan2(dy, dx);
       let angleDiff = foodAngle - dragon.angle;
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-      if (Math.abs(angleDiff) > Math.PI / 3) continue; // 60° each side = 120° cone
+      if (Math.abs(angleDiff) > Math.PI / 3) continue;
 
-      // Score: closer is better, forward is better
       const score = 1000 / (dist + 1) - Math.abs(angleDiff) * 50;
       if (score > bestScore) {
         bestScore = score;
@@ -91,7 +87,6 @@ class AIController {
       targetAngle = Math.atan2(bestFood.y - head.y, bestFood.x - head.x);
     }
 
-    // Wall avoidance
     const bounds = this.arena.getInnerBounds();
     const margin = settings.wallMargin;
     const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -106,7 +101,6 @@ class AIController {
       targetAngle = Math.atan2(centerY - head.y, centerX - head.x);
     }
 
-    // Angle inertia — smooth AI direction changes
     if (dragon.aiTargetAngle !== null && dragon.aiTargetAngle !== undefined) {
       let diff = targetAngle - dragon.aiTargetAngle;
       while (diff > Math.PI) diff -= Math.PI * 2;
@@ -115,7 +109,6 @@ class AIController {
     }
     dragon.aiTargetAngle = targetAngle;
 
-    // Add randomness
     targetAngle += (Math.random() - 0.5) * settings.randomness;
     return targetAngle;
   }
@@ -243,6 +236,10 @@ class Game {
     });
 
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
+      // CRITICAL FIX: Mark dead and remove from active list
+      dragon.alive = false;
+      this.dragonManager.removeDead();
+
       const isLocal = dragon === this.localDragon;
       const deathColor = isLocal ? '#ff2222' : '#ff6600';
       this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
@@ -562,7 +559,6 @@ class Game {
       const pos = this.remotePositions[dragon.playerId];
       if (!pos) continue;
 
-      // Set remote target — dragonManager.update() will lerp the head
       dragon.remoteTarget = { x: pos.x, y: pos.y };
       dragon.angle = pos.angle;
     }
