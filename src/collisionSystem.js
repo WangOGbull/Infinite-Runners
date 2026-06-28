@@ -11,6 +11,7 @@ class CollisionSystem {
 
     // Food collisions
     for (const dragon of dragons) {
+      if (!dragon.alive) continue;
       const head = dragon.head;
       for (let i = foods.length - 1; i >= 0; i--) {
         const food = foods[i];
@@ -27,7 +28,9 @@ class CollisionSystem {
 
     // Dragon collisions — HEAD vs HEAD only
     for (let i = 0; i < dragons.length; i++) {
+      if (!dragons[i].alive) continue;
       for (let j = i + 1; j < dragons.length; j++) {
+        if (!dragons[j].alive) continue;
         this.checkHeadCollision(dragons[i], dragons[j]);
       }
     }
@@ -57,7 +60,6 @@ class CollisionSystem {
         this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
       }
     }
-    // Head vs Body = intentionally ignored — no effect
   }
 }
 
