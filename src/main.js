@@ -9,6 +9,7 @@ import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js';
+import EffectsSystem from './effectsSystem.js';
 
 // ==================== EVENT BUS ====================
 class EventBus {
@@ -41,9 +42,9 @@ class AIController {
 
     this.difficultySettings = {
       beginner: { randomness: 1.0, targetFood: 0.4, wallMargin: 400, speedMult: 0.6 },
-      easy:     { randomness: 0.6, targetFood: 0.7, wallMargin: 300, speedMult: 0.8 },
+      easy: { randomness: 0.6, targetFood: 0.7, wallMargin: 300, speedMult: 0.8 },
       advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 220, speedMult: 1.0 },
-      master:   { randomness: 0.12, targetFood: 1.0, wallMargin: 170, speedMult: 1.2 },
+      master: { randomness: 0.12, targetFood: 1.0, wallMargin: 170, speedMult: 1.2 },
       legendary:{ randomness: 0.03, targetFood: 1.0, wallMargin: 120, speedMult: 1.4 }
     };
   }
@@ -80,9 +81,9 @@ class AIController {
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
 
-    const nearWall = head.x < bounds.minX + margin || 
+    const nearWall = head.x < bounds.minX + margin ||
                      head.x > bounds.maxX - margin ||
-                     head.y < bounds.minY + margin || 
+                     head.y < bounds.minY + margin ||
                      head.y > bounds.maxY - margin;
 
     if (nearWall) {
@@ -109,6 +110,7 @@ class Game {
     this.collisionSystem = new CollisionSystem(this.eventBus);
     this.gameModeManager = new GameModeManager();
     this.uiManager = new UIManager(this.eventBus);
+    this.effectsSystem = new EffectsSystem();
     this.aiController = null;
 
     this.localDragon = null;
@@ -143,6 +145,7 @@ class Game {
   async init() {
     this.setupEventListeners();
     this.setupFirebase();
+    this.effectsSystem.init();
 
     this.uiManager.showScreen('titleScreen');
 
@@ -203,13 +206,33 @@ class Game {
 
     this.eventBus.on('collision:eat', ({ dragon, food }) => {
       this.growthSystem.onEat(dragon, food);
+      this.effectsSystem.spawnEatParticles(food.x, food.y, food.color);
+      this.effectsSystem.playEatSound();
     });
 
-    this.eventBus.on('collision:tail-hit', ({ attacker, defender }) => {
-      this.growthSystem.onTailHit({ attacker, defender });
+    this.eventBus.on('collision:head-hit', ({ x, y }) => {
+      this.effectsSystem.spawnImpactSparks(x, y, '#ffffff');
+      this.effectsSystem.addShake(12, 250);
+      this.effectsSystem.playHeadCollisionSound();
     });
 
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
+      const isLocal = dragon === this.localDragon;
+      const deathColor = isLocal ? '#ff2222' : '#ff6600';
+      this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
+      this.effectsSystem.addShake(isLocal ? 20 : 8, isLocal ? 500 : 300);
+      this.effectsSystem.flashVignette(isLocal ? '#ff0000' : '#ff4400', isLocal ? 0.5 : 0.25, 400);
+      this.effectsSystem.playDeathSound(isLocal);
+
+      if (killer && killer !== dragon) {
+        const killerIsLocal = killer === this.localDragon;
+        if (killerIsLocal) {
+          this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, '#ffd700');
+          this.effectsSystem.flashVignette('#ffd700', 0.35, 300);
+          this.effectsSystem.playKillSound();
+        }
+      }
+
       for (const seg of dragon.segments) {
         this.foodSystem.spawnFoodAt(seg.x, seg.y);
       }
@@ -567,6 +590,7 @@ class Game {
 
     this.foodSystem.update(deltaTime);
     this.movementSystem.update(this.dragonManager, this.cameraSystem, deltaTime);
+    this.effectsSystem.update(deltaTime);
 
     const inputMap = new Map();
 
@@ -631,11 +655,17 @@ class Game {
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    this.cameraSystem.apply(ctx);
+
+    const shake = this.effectsSystem.getShake();
+    this.cameraSystem.apply(ctx, shake.x, shake.y);
+
     this.arenaManager.render(ctx, this.cameraSystem);
     this.foodSystem.render(ctx, this.cameraSystem);
+    this.effectsSystem.renderParticles(ctx, this.cameraSystem);
     this.dragonManager.render(ctx, this.cameraSystem);
     this.cameraSystem.reset(ctx);
+
+    this.effectsSystem.renderVignette(ctx, canvas);
   }
 
   pauseGame() {
