@@ -27,7 +27,11 @@ export class DragonManager {
       boostActive: false,
       segments: [],
       history: [],
-      invulnerable: 0
+      invulnerable: 0,
+      isRemote: false,
+      playerId: null,
+      remoteTarget: null,
+      aiTargetAngle: null
     };
 
     const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
@@ -63,6 +67,23 @@ export class DragonManager {
     for (const dragon of this.dragons) {
       if (!dragon.alive) continue;
 
+      // ==================== REMOTE DRAGON ====================
+      if (dragon.isRemote) {
+        // Lerp head toward remote target
+        if (dragon.remoteTarget) {
+          const lerp = 0.25;
+          dragon.head.x += (dragon.remoteTarget.x - dragon.head.x) * lerp;
+          dragon.head.y += (dragon.remoteTarget.y - dragon.head.y) * lerp;
+        }
+
+        // Record history and place segments
+        dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
+        this.placeSegments(dragon);
+        this.trimHistory(dragon);
+        continue;
+      }
+
+      // ==================== LOCAL / AI DRAGON ====================
       const inputAngle = inputMap.get(dragon.id);
       if (inputAngle !== undefined) {
         let diff = inputAngle - dragon.angle;
@@ -82,7 +103,7 @@ export class DragonManager {
       dragon.head.x += vx;
       dragon.head.y += vy;
 
-      // Bounce off inner bounds (the fence line)
+      // Bounce off inner bounds
       if (bounds) {
         const margin = 10;
         if (dragon.head.x < bounds.minX + margin) {
@@ -102,51 +123,60 @@ export class DragonManager {
       }
 
       dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
+      this.placeSegments(dragon);
+      this.trimHistory(dragon);
+    }
+  }
 
-      const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
+  placeSegments(dragon) {
+    const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
 
-      for (let i = 0; i < dragon.segments.length; i++) {
-        const targetDist = (i + 1) * spacing;
-        let accumulated = 0;
-        let placed = false;
+    for (let i = 0; i < dragon.segments.length; i++) {
+      const targetDist = (i + 1) * spacing;
+      let accumulated = 0;
+      let placed = false;
 
-        for (let h = 0; h < dragon.history.length - 1; h++) {
-          const p1 = dragon.history[h];
-          const p2 = dragon.history[h + 1];
-          const segDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-
-          if (accumulated + segDist >= targetDist) {
-            const t = (targetDist - accumulated) / segDist;
-            dragon.segments[i].x = p1.x + (p2.x - p1.x) * t;
-            dragon.segments[i].y = p1.y + (p2.y - p1.y) * t;
-            placed = true;
-            break;
-          }
-          accumulated += segDist;
-        }
-
-        if (!placed && dragon.history.length > 0) {
-          const last = dragon.history[dragon.history.length - 1];
-          dragon.segments[i].x = last.x;
-          dragon.segments[i].y = last.y;
-        }
-      }
-
-      const maxNeeded = dragon.segments.length * spacing * 3;
-      let totalDist = 0;
-      let trimIdx = dragon.history.length;
       for (let h = 0; h < dragon.history.length - 1; h++) {
         const p1 = dragon.history[h];
         const p2 = dragon.history[h + 1];
-        totalDist += Math.hypot(p1.x - p2.x, p1.y - p2.y);
-        if (totalDist > maxNeeded) {
-          trimIdx = h + 1;
+        const segDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+
+        if (accumulated + segDist >= targetDist) {
+          const t = (targetDist - accumulated) / segDist;
+          dragon.segments[i].x = p1.x + (p2.x - p1.x) * t;
+          dragon.segments[i].y = p1.y + (p2.y - p1.y) * t;
+          placed = true;
           break;
         }
+        accumulated += segDist;
       }
-      if (trimIdx < dragon.history.length) {
-        dragon.history.length = trimIdx;
+
+      if (!placed && dragon.history.length > 0) {
+        const last = dragon.history[dragon.history.length - 1];
+        dragon.segments[i].x = last.x;
+        dragon.segments[i].y = last.y;
       }
+    }
+  }
+
+  trimHistory(dragon) {
+    const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
+    const maxNeeded = dragon.segments.length * spacing * 3;
+    let totalDist = 0;
+    let trimIdx = dragon.history.length;
+
+    for (let h = 0; h < dragon.history.length - 1; h++) {
+      const p1 = dragon.history[h];
+      const p2 = dragon.history[h + 1];
+      totalDist += Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      if (totalDist > maxNeeded) {
+        trimIdx = h + 1;
+        break;
+      }
+    }
+
+    if (trimIdx < dragon.history.length) {
+      dragon.history.length = trimIdx;
     }
   }
 
