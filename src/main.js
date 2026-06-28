@@ -40,11 +40,11 @@ class AIController {
     this.difficulty = difficulty;
 
     this.difficultySettings = {
-      beginner: { randomness: 0.8, targetFood: 0.6, wallMargin: 300, speedMult: 0.7 },
-      easy: { randomness: 0.5, targetFood: 0.8, wallMargin: 250, speedMult: 0.85 },
-      advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 200, speedMult: 1.0 },
-      master: { randomness: 0.15, targetFood: 1.0, wallMargin: 180, speedMult: 1.15 },
-      legendary: { randomness: 0.05, targetFood: 1.0, wallMargin: 150, speedMult: 1.3 }
+      beginner: { randomness: 1.0, targetFood: 0.4, wallMargin: 400, speedMult: 0.6 },
+      easy:     { randomness: 0.6, targetFood: 0.7, wallMargin: 300, speedMult: 0.8 },
+      advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 220, speedMult: 1.0 },
+      master:   { randomness: 0.12, targetFood: 1.0, wallMargin: 170, speedMult: 1.2 },
+      legendary:{ randomness: 0.03, targetFood: 1.0, wallMargin: 120, speedMult: 1.4 }
     };
   }
 
@@ -55,7 +55,7 @@ class AIController {
   getInputAngle(dragon) {
     const head = dragon.head;
     const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
-    let targetAngle = dragon.angle;
+    let targetAngle = dragon.angle || 0;
 
     const foods = this.food.getFoods();
     let nearest = null;
@@ -77,14 +77,19 @@ class AIController {
 
     const bounds = this.arena.getInnerBounds();
     const margin = settings.wallMargin;
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
 
-    if (head.x < bounds.minX + margin || head.x > bounds.maxX - margin ||
-        head.y < bounds.minY + margin || head.y > bounds.maxY - margin) {
-      targetAngle = Math.atan2(-head.y, -head.x);
+    const nearWall = head.x < bounds.minX + margin || 
+                     head.x > bounds.maxX - margin ||
+                     head.y < bounds.minY + margin || 
+                     head.y > bounds.maxY - margin;
+
+    if (nearWall) {
+      targetAngle = Math.atan2(centerY - head.y, centerX - head.x);
     }
 
     targetAngle += (Math.random() - 0.5) * settings.randomness;
-
     return targetAngle;
   }
 }
@@ -139,7 +144,6 @@ class Game {
     this.setupEventListeners();
     this.setupFirebase();
 
-    // FIX 1: Show title screen immediately, load assets in background
     this.uiManager.showScreen('titleScreen');
 
     try {
@@ -220,7 +224,6 @@ class Game {
       console.log('Wallet connect:', wallet);
     });
 
-    // FIX 3: Lobby arena selection — update UI immediately so it doesn't get stuck
     this.eventBus.on('lobby:arenaSelected', ({ arenaIndex }) => {
       if (this.isHost && this.roomRef) {
         this.lobbyArenaIndex = arenaIndex;
