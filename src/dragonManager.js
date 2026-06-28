@@ -61,6 +61,10 @@ export class DragonManager {
     return this.dragons;
   }
 
+  removeDead() {
+    this.dragons = this.dragons.filter(d => d.alive);
+  }
+
   update(deltaTime, inputMap, bounds = null) {
     const dtFactor = deltaTime / 16;
 
@@ -69,14 +73,11 @@ export class DragonManager {
 
       // ==================== REMOTE DRAGON ====================
       if (dragon.isRemote) {
-        // Lerp head toward remote target
         if (dragon.remoteTarget) {
           const lerp = 0.25;
           dragon.head.x += (dragon.remoteTarget.x - dragon.head.x) * lerp;
           dragon.head.y += (dragon.remoteTarget.y - dragon.head.y) * lerp;
         }
-
-        // Record history and place segments
         dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
         this.placeSegments(dragon);
         this.trimHistory(dragon);
@@ -103,7 +104,6 @@ export class DragonManager {
       dragon.head.x += vx;
       dragon.head.y += vy;
 
-      // Bounce off inner bounds
       if (bounds) {
         const margin = 10;
         if (dragon.head.x < bounds.minX + margin) {
