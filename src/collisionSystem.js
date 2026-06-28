@@ -19,7 +19,7 @@ class CollisionSystem {
         const dist = Math.sqrt(dx * dx + dy * dy);
         const hitDist = (dragon.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS) + (food.radius || CONFIG.FOOD_RADIUS);
         if (dist < hitDist) {
-          foodSystem.removeFood(i);
+          foodSystem.removeFood(food.id);
           this.eventBus.emit('collision:eat', { dragon, food });
         }
       }
@@ -37,10 +37,14 @@ class CollisionSystem {
     const dx = d1.head.x - d2.head.x;
     const dy = d1.head.y - d2.head.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const hitDist = (d1.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS) + 
+    const hitDist = (d1.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS) +
                     (d2.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS);
 
     if (dist < hitDist) {
+      const mx = (d1.head.x + d2.head.x) / 2;
+      const my = (d1.head.y + d2.head.y) / 2;
+      this.eventBus.emit('collision:head-hit', { d1, d2, x: mx, y: my });
+
       const len1 = d1.segments ? d1.segments.length : 0;
       const len2 = d2.segments ? d2.segments.length : 0;
 
