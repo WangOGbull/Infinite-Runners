@@ -47,10 +47,10 @@ export default class CameraSystem {
     }
   }
 
-  apply(ctx) {
+  apply(ctx, shakeX = 0, shakeY = 0) {
     ctx.save();
-    const cx = this.canvas.width / 2;
-    const cy = this.canvas.height / 2;
+    const cx = this.canvas.width / 2 + shakeX;
+    const cy = this.canvas.height / 2 + shakeY;
     ctx.translate(cx, cy);
     ctx.scale(this.zoom, this.zoom);
     ctx.translate(-this.x, -this.y);
