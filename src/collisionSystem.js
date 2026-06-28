@@ -7,74 +7,53 @@ class CollisionSystem {
 
   checkAll(dragonManager, foodSystem, arenaManager) {
     const dragons = dragonManager.getLivingDragons();
+    const foods = foodSystem.getFoods();
 
+    // Food collisions
     for (const dragon of dragons) {
-      if (!dragon.alive) continue;
       const head = dragon.head;
-
-      // 1. Head vs Food
-      const eaten = foodSystem.getFoodInRadius(head.x, head.y, CONFIG.DRAGON_HEAD_HITBOX_RADIUS);
-      for (const food of eaten) {
-        dragon.collected = (dragon.collected || 0) + 1;
-        dragon.score = (dragon.score || 0) + (food.value || 1) * 10;
-        this.eventBus.emit('collision:eat', { dragon, food });
-        foodSystem.removeFood(food.id);
-      }
-
-      // 2. Head vs Other Dragons
-      for (const other of dragons) {
-        if (other === dragon || !other.alive) continue;
-
-        // Head-to-head collision
-        const hdx = head.x - other.head.x;
-        const hdy = head.y - other.head.y;
-        const hdist = Math.sqrt(hdx * hdx + hdy * hdy);
-
-        if (hdist < CONFIG.DRAGON_HEAD_HITBOX_RADIUS * 1.8) {
-          const myLen = dragon.segments.length;
-          const otherLen = other.segments.length;
-
-          if (myLen > otherLen) {
-            other.alive = false;
-            this.eventBus.emit('dragon:death', { dragon: other, killer: dragon });
-            dragon.kills = (dragon.kills || 0) + 1;
-          } else if (myLen < otherLen) {
-            dragon.alive = false;
-            this.eventBus.emit('dragon:death', { dragon, killer: other });
-            other.kills = (other.kills || 0) + 1;
-          } else {
-            dragon.alive = false;
-            other.alive = false;
-            this.eventBus.emit('dragon:death', { dragon, killer: null });
-            this.eventBus.emit('dragon:death', { dragon: other, killer: null });
-          }
-          break;
+      for (let i = foods.length - 1; i >= 0; i--) {
+        const food = foods[i];
+        const dx = head.x - food.x;
+        const dy = head.y - food.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const hitDist = (dragon.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS) + (food.radius || CONFIG.FOOD_RADIUS);
+        if (dist < hitDist) {
+          foodSystem.removeFood(i);
+          this.eventBus.emit('collision:eat', { dragon, food });
         }
-
-        // Head vs other dragon's body/tail segments
-        for (let i = 0; i < other.segments.length; i++) {
-          const seg = other.segments[i];
-          const dx = head.x - seg.x;
-          const dy = head.y - seg.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < CONFIG.DRAGON_COLLISION_RADIUS) {
-            if (i === other.segments.length - 1) {
-              this.eventBus.emit('collision:tail-hit', { attacker: dragon, defender: other });
-            } else {
-              dragon.alive = false;
-              this.eventBus.emit('dragon:death', { dragon, killer: other });
-              other.kills = (other.kills || 0) + 1;
-            }
-            break;
-          }
-        }
-
-        if (!dragon.alive) break;
       }
-
-      // Arena boundary is SAFE — no death rule
     }
+
+    // Dragon collisions — HEAD vs HEAD only
+    for (let i = 0; i < dragons.length; i++) {
+      for (let j = i + 1; j < dragons.length; j++) {
+        this.checkHeadCollision(dragons[i], dragons[j]);
+      }
+    }
+  }
+
+  checkHeadCollision(d1, d2) {
+    const dx = d1.head.x - d2.head.x;
+    const dy = d1.head.y - d2.head.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const hitDist = (d1.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS) + 
+                    (d2.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS);
+
+    if (dist < hitDist) {
+      const len1 = d1.segments ? d1.segments.length : 0;
+      const len2 = d2.segments ? d2.segments.length : 0;
+
+      if (len1 < len2) {
+        this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+      } else if (len2 < len1) {
+        this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+      } else {
+        this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+        this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+      }
+    }
+    // Head vs Body = intentionally ignored — no effect
   }
 }
 
