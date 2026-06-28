@@ -83,6 +83,24 @@ const CONFIG = {
     'FFA': 300000
   },
 
+  // ==================== EFFECTS ====================
+  EFFECTS: {
+    EAT_PARTICLES: 8,
+    EAT_PARTICLE_SPEED: 3,
+    EAT_PARTICLE_LIFE: 400,
+    DEATH_PARTICLES: 30,
+    DEATH_PARTICLE_SPEED: 6,
+    DEATH_PARTICLE_LIFE: 800,
+    KILL_SPARKLES: 12,
+    KILL_SPARKLE_SPEED: 4,
+    KILL_SPARKLE_LIFE: 600,
+    IMPACT_SPARKS: 10,
+    IMPACT_SPARK_SPEED: 5,
+    IMPACT_SPARK_LIFE: 300,
+    SHAKE_DECAY: 0.9,
+    VIGNETTE_DECAY: 0.92
+  },
+
   // ==================== NETWORK ====================
   NETWORK_UPDATE_RATE: 20,
   NETWORK_INTERPOLATION_DELAY: 100,
@@ -103,5 +121,6 @@ Object.freeze(CONFIG);
 Object.freeze(CONFIG.ARENA);
 Object.freeze(CONFIG.MAX_PLAYERS);
 Object.freeze(CONFIG.GAME_DURATION);
+Object.freeze(CONFIG.EFFECTS);
 
 export default CONFIG;
