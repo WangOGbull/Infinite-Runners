@@ -16,12 +16,28 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="./src/styles.css">
-<base target="_blank">
-<base target="_blank">
+
+<style>
+  /* Mobile dragon select scroll fix */
+  #dragonSelectScreen {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #dragonSelectScreen .dsInner {
+    padding-bottom: 80px;
+    min-height: 100vh;
+  }
+  #dragonList {
+    padding-bottom: 40px;
+  }
+  .dragonCard {
+    flex-shrink: 0;
+  }
+</style>
 </head>
 <body>
 
-<!-- ===== PARTICLE BACKGROUND CANVAS (Layer 1) ===== -->
+<!-- ===== PARTICLE BACKGROUND CANVAS ===== -->
 <canvas id="pCanvas"></canvas>
 
 <!-- ===== TITLE SCREEN ===== -->
@@ -52,7 +68,7 @@
   </div>
 </div>
 
-<!-- ===== MODE SELECT ===== -->
+<!-- ===== MODE SELECT (1v1 AI + Multiplayer only) ===== -->
 <div id="modeSelectScreen" class="screen">
   <div class="modeBox">
     <h2>Choose Battle Mode</h2>
@@ -114,7 +130,6 @@
       <button id="lobbyModeFfa" class="active">FFA</button>
       <button id="lobbyMode2v2">2v2</button>
     </div>
-    <!-- LOBBY ARENA SELECTOR -->
     <div class="lobbyArenaSelector" id="lobbyArenaSelector">
       <label>Arena:</label>
       <div class="arenaThumbs" id="lobbyArenaThumbs">
@@ -260,7 +275,6 @@
   <div class="loadText">Loading...</div>
 </div>
 
-<!-- ===== MAIN SCRIPT ===== -->
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
