@@ -45,7 +45,7 @@ class AIController {
       easy: { randomness: 0.6, targetFood: 0.7, wallMargin: 300, speedMult: 0.8 },
       advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 220, speedMult: 1.0 },
       master: { randomness: 0.12, targetFood: 1.0, wallMargin: 170, speedMult: 1.2 },
-      legendary:{ randomness: 0.03, targetFood: 1.0, wallMargin: 120, speedMult: 1.4 }
+      legendary: { randomness: 0.03, targetFood: 1.0, wallMargin: 120, speedMult: 1.4 }
     };
   }
 
@@ -56,26 +56,42 @@ class AIController {
   getInputAngle(dragon) {
     const head = dragon.head;
     const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
-    let targetAngle = dragon.angle || 0;
 
+    // Find best food target
     const foods = this.food.getFoods();
-    let nearest = null;
-    let nearestDist = Infinity;
+    let bestFood = null;
+    let bestScore = -Infinity;
 
     for (const food of foods) {
       const dx = food.x - head.x;
       const dy = food.y - head.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearest = food;
+
+      // Ignore food too close (inside body)
+      if (dist < 15) continue;
+
+      // Ignore food behind dragon (forward 120° cone only)
+      const foodAngle = Math.atan2(dy, dx);
+      let angleDiff = foodAngle - dragon.angle;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      if (Math.abs(angleDiff) > Math.PI / 3) continue; // 60° each side = 120° cone
+
+      // Score: closer is better, forward is better
+      const score = 1000 / (dist + 1) - Math.abs(angleDiff) * 50;
+      if (score > bestScore) {
+        bestScore = score;
+        bestFood = food;
       }
     }
 
-    if (nearest && Math.random() < settings.targetFood) {
-      targetAngle = Math.atan2(nearest.y - head.y, nearest.x - head.x);
+    let targetAngle = dragon.angle;
+
+    if (bestFood && Math.random() < settings.targetFood) {
+      targetAngle = Math.atan2(bestFood.y - head.y, bestFood.x - head.x);
     }
 
+    // Wall avoidance
     const bounds = this.arena.getInnerBounds();
     const margin = settings.wallMargin;
     const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -90,6 +106,16 @@ class AIController {
       targetAngle = Math.atan2(centerY - head.y, centerX - head.x);
     }
 
+    // Angle inertia — smooth AI direction changes
+    if (dragon.aiTargetAngle !== null && dragon.aiTargetAngle !== undefined) {
+      let diff = targetAngle - dragon.aiTargetAngle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      targetAngle = dragon.aiTargetAngle + diff * 0.3;
+    }
+    dragon.aiTargetAngle = targetAngle;
+
+    // Add randomness
     targetAngle += (Math.random() - 0.5) * settings.randomness;
     return targetAngle;
   }
@@ -532,13 +558,13 @@ class Game {
     if (!this.remotePositions) return;
 
     for (const dragon of this.dragonManager.getAllDragons()) {
-      if (dragon.isRemote && dragon.playerId && this.remotePositions[dragon.playerId]) {
-        const pos = this.remotePositions[dragon.playerId];
-        const lerpFactor = 0.25;
-        dragon.head.x += (pos.x - dragon.head.x) * lerpFactor;
-        dragon.head.y += (pos.y - dragon.head.y) * lerpFactor;
-        dragon.angle = pos.angle;
-      }
+      if (!dragon.isRemote || !dragon.playerId) continue;
+      const pos = this.remotePositions[dragon.playerId];
+      if (!pos) continue;
+
+      // Set remote target — dragonManager.update() will lerp the head
+      dragon.remoteTarget = { x: pos.x, y: pos.y };
+      dragon.angle = pos.angle;
     }
   }
 
