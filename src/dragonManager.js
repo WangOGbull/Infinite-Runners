@@ -233,10 +233,10 @@ export class DragonManager {
     ctx.save();
     ctx.translate(dragon.head.x, dragon.head.y);
     
-    // FIX 1: Removed the + Math.PI / 2 so it faces the movement direction (Top-down view)
-    ctx.rotate(dragon.angle);
+    // FIX: Added + Math.PI / 2 back so the head faces the direction of movement (Top-down)
+    ctx.rotate(dragon.angle + Math.PI / 2);
 
-    // FIX 2: Reduced head scale multiplier from 1.8 to 1.5
+    // FIX: Scale changed to 1.5 as requested
     const headScale = (baseScale * (assets.display?.head?.scale || 1)) * 1.5;
     const w = assets.head.naturalWidth * headScale;
     const h = assets.head.naturalHeight * headScale;
