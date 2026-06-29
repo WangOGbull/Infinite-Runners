@@ -234,7 +234,7 @@ export class DragonManager {
     ctx.translate(dragon.head.x, dragon.head.y);
     ctx.rotate(dragon.angle + Math.PI / 2);
 
-    const headScale = baseScale * (assets.display?.head?.scale || 1);
+    const headScale = (baseScale * (assets.display?.head?.scale || 1)) * 1.8;
     const w = assets.head.naturalWidth * headScale;
     const h = assets.head.naturalHeight * headScale;
     ctx.drawImage(assets.head, -w / 2, -h / 2, w, h);
