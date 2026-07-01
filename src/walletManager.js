@@ -22,6 +22,11 @@ class WalletManager {
 
     this._initConnection();
     this._bindProviderEvents();
+    
+    // LISTEN FOR THE NEW SCAN EVENT FROM THE UI
+    this.eventBus.on('wallet:scanRequest', () => {
+      this.scanBalances();
+    });
   }
 
   _initConnection() {
@@ -158,6 +163,56 @@ class WalletManager {
     return this.balance;
   }
 
+  // HELPER TO FETCH SPECIFIC TOKEN BALANCE (InfiniteCoin)
+  async _scanTokenBalance(mintAddress) {
+    if (!this.connection || !this.publicKey) return 0;
+    try {
+      const mintPubkey = new solanaWeb3.PublicKey(mintAddress);
+      const tokenAccounts = await this.connection.getTokenAccountsByOwner(
+        this.publicKey, 
+        { mint: mintPubkey }
+      );
+      
+      if (tokenAccounts.value.length > 0) {
+        const accountInfo = await this.connection.getTokenAccountBalance(tokenAccounts.value[0].pubkey);
+        return accountInfo.value.uiAmount || 0;
+      }
+      return 0; // User does not hold this token
+    } catch (err) {
+      console.warn('[WalletManager] Token fetch failed (probably wrong mint address):', err);
+      return 0;
+    }
+  }
+
+  // THE NEW SCAN FUNCTION TRIGGERED BY THE BUTTON
+  async scanBalances() {
+    if (!this.connected || !this.publicKey) {
+      this.eventBus.emit('wallet:error', { message: 'Wallet not connected.' });
+      return;
+    }
+
+    // 1. Update UI to show scanning state
+    this.eventBus.emit('wallet:balanceUpdated', { balance: 'Scanning...' });
+
+    // 2. Fetch SOL
+    const solBalance = await this._refreshBalance();
+
+    // 3. Fetch InfiniteCoin (REPLACE WITH YOUR REAL TOKEN MINT ADDRESS LATER)
+    // If you don't have the address yet, it will safely return 0.
+    const INFINITE_COIN_MINT = 'YOUR_INFINITE_COIN_MINT_ADDRESS_HERE'; 
+    const infiniteBalance = await this._scanTokenBalance(INFINITE_COIN_MINT);
+
+    // 4. Emit the combined result to the UI
+    this.eventBus.emit('wallet:scanResult', { 
+      sol: solBalance || 0, 
+      infinite: infiniteBalance 
+    });
+    
+    return { sol: solBalance, infinite: infiniteBalance };
+  }
+
+  // NOTE: refreshBalance() is deprecated in favor of scanBalances(), 
+  // but kept here in case other parts of your code call it directly.
   async refreshBalance() {
     const balance = await this._refreshBalance();
     this.eventBus.emit('wallet:balanceUpdated', { balance });
