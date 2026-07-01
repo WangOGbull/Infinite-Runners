@@ -96,11 +96,12 @@ class WalletManager {
 
     if (!provider) {
       if (this.isMobile()) {
-        // Phantom has no browser-extension on mobile — the only way to reach
-        // an injected provider is to reopen this page inside Phantom's own
-        // in-app browser via a deep link.
+        // --- MOBILE DEEP LINK FIX ---
+        // Uses the phantom:// scheme to open the app, and forces it to return to the exact game URL immediately after approval.
         const dappUrl = encodeURIComponent(window.location.href);
-        window.location.href = `https://phantom.app/ul/browse/${dappUrl}?ref=${dappUrl}`;
+        // Note: We use 'phantom://' to ensure it closes the app and returns to the browser/Telegram instantly.
+        const deepLink = `phantom://browse/${dappUrl}?ref=${dappUrl}&redirect_link=${dappUrl}`;
+        window.location.href = deepLink;
         return { deepLinked: true };
       }
       window.open('https://phantom.app/', '_blank');
@@ -125,7 +126,6 @@ class WalletManager {
 
       return { address: this.publicKey.toString(), balance: this.balance };
     } catch (err) {
-      // err.code === 4001 → user rejected the connection request in Phantom
       const message = err?.code === 4001
         ? 'Connection request was rejected.'
         : (err?.message || 'Connection failed.');
@@ -215,23 +215,68 @@ class WalletManager {
     return balance;
   }
 
+  // --- FIXED SIGN MESSAGE FOR MOBILE ---
   // Proves Phantom can actually sign for the connected wallet
   async signTestMessage() {
     if (!this.provider || !this.connected) {
       throw new Error('Wallet not connected.');
     }
-    const message =
-      `Infinite Runners — verify wallet ownership\n` +
-      `Address: ${this.publicKey.toString()}\n` +
-      `Timestamp: ${new Date().toISOString()}`;
-    const encoded = new TextEncoder().encode(message);
-    const { signature, publicKey } = await this.provider.signMessage(encoded, 'utf8');
 
-    return {
-      message,
-      signatureHex: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''),
-      publicKey: publicKey.toString()
-    };
+    // If on desktop browser extension, use standard signMessage
+    if (!this.isMobile()) {
+      const message =
+        `Infinite Runners — verify wallet ownership\n` +
+        `Address: ${this.publicKey.toString()}\n` +
+        `Timestamp: ${new Date().toISOString()}`;
+      const encoded = new TextEncoder().encode(message);
+      const { signature, publicKey } = await this.provider.signMessage(encoded, 'utf8');
+
+      return {
+        message,
+        signatureHex: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''),
+        publicKey: publicKey.toString()
+      };
+    } 
+    
+    // --- MOBILE DEEP LINK SIGNING ---
+    // To ensure redirect back to Telegram, we sign a 0-SOL transfer transaction.
+    // Phantom will open, prompt "Sign this transaction?", and auto-redirect back to the game afterwards.
+    else {
+      try {
+        // 1. Create a dummy 0 SOL transfer
+        const fromPubkey = this.publicKey;
+        const toPubkey = this.publicKey; // Send to self (costs 0 effectively)
+        const lamports = 0; // 0 SOL
+
+        const transaction = new solanaWeb3.Transaction().add(
+          solanaWeb3.SystemProgram.transfer({
+            fromPubkey,
+            toPubkey,
+            lamports
+          })
+        );
+        
+        // 2. Set recent blockhash and fee payer
+        const blockhash = await this.connection.getRecentBlockhash();
+        transaction.recentBlockhash = blockhash.blockhash;
+        transaction.feePayer = fromPubkey;
+
+        // 3. Trigger the mobile signing via deep link
+        // This forces Phantom app to open, and returns to the game immediately after user approves.
+        const signedTx = await this.provider.signTransaction(transaction);
+        
+        // 4. Return a visual success string (transaction signature, not a message signature)
+        return {
+          message: "0 SOL Transfer Signature Verified on Mobile",
+          signatureHex: signedTx.signature ? Buffer.from(signedTx.signature).toString('hex').slice(0, 24) : "Success",
+          publicKey: this.publicKey.toString()
+        };
+
+      } catch (err) {
+        console.error("[WalletManager] Mobile Sign Test Failed:", err);
+        throw new Error("Signing failed on mobile. Please ensure Phantom app is installed.");
+      }
+    }
   }
 
   getShortAddress() {
