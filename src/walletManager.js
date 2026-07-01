@@ -199,7 +199,7 @@ class WalletManager {
 
     // 3. Fetch InfiniteCoin (REPLACE WITH YOUR REAL TOKEN MINT ADDRESS LATER)
     // If you don't have the address yet, it will safely return 0.
-    const INFINITE_COIN_MINT = 'YOUR_INFINITE_COIN_MINT_ADDRESS_HERE'; 
+    const INFINITE_COIN_MINT = 'C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump';
     const infiniteBalance = await this._scanTokenBalance(INFINITE_COIN_MINT);
 
     // 4. Emit the combined result to the UI
