@@ -85,16 +85,6 @@
     color: #00b4d8;
     margin-top: 2px;
   }
-  .wRefreshBtn {
-    background: none;
-    border: none;
-    color: #8b93a6;
-    cursor: pointer;
-    padding: 6px;
-    display: flex;
-    align-items: center;
-  }
-  .wRefreshBtn:hover { color: #00b4d8; }
   .wTestBtn, .wDisconnectBtn {
     width: 100%;
     display: flex;
@@ -348,7 +338,9 @@
 
     <div id="walletDisconnectedView">
       <div class="wOpt" data-w="phantom" id="wOptPhantom">
-        <div class="wIcon" style="background:#ab9ff2">P</div>
+        <div class="wIcon" style="background:transparent; padding:0;">
+          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:32px; height:32px; display:block;">
+        </div>
         <span>Phantom</span>
       </div>
       <p class="wHint">Solana wallet required to earn in-game rewards.</p>
@@ -361,12 +353,13 @@
 
     <div id="walletConnectedView" style="display:none">
       <div class="wAccountRow">
-        <div class="wIcon" style="background:#ab9ff2">P</div>
+        <div class="wIcon" style="background:transparent; padding:0;">
+          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;">
+        </div>
         <div class="wAccountInfo">
           <div class="wAddress" id="wAddressDisplay">-</div>
-          <div class="wBalance" id="wBalanceDisplay">-- SOL</div>
+          <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
         </div>
-        <button class="wRefreshBtn" id="btnWalletRefresh" title="Refresh balance"><i data-lucide="refresh-cw"></i></button>
       </div>
       <button class="wTestBtn" id="btnWalletSignTest"><i data-lucide="pen-line"></i> Sign Test Message</button>
       <div class="wSignResult" id="wSignResult"></div>
