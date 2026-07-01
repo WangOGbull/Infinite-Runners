@@ -96,11 +96,11 @@ class WalletManager {
 
     if (!provider) {
       if (this.isMobile()) {
-        // --- MOBILE DEEP LINK FIX ---
-        // Uses the phantom:// scheme to open the app, and forces it to return to the exact game URL immediately after approval.
+        // --- FIX: UNIVERSAL LINK FOR MOBILE TELEGRAM ---
+        // Using the official https:// universal link ensures Android/iOS recognize it
+        // and correctly open the Phantom app without crashing or opening blank Chrome tabs.
         const dappUrl = encodeURIComponent(window.location.href);
-        // Note: We use 'phantom://' to ensure it closes the app and returns to the browser/Telegram instantly.
-        const deepLink = `phantom://browse/${dappUrl}?ref=${dappUrl}&redirect_link=${dappUrl}`;
+        const deepLink = `https://phantom.app/ul/browse/${dappUrl}?ref=${dappUrl}&redirect_link=${dappUrl}`;
         window.location.href = deepLink;
         return { deepLinked: true };
       }
@@ -240,7 +240,6 @@ class WalletManager {
     
     // --- MOBILE DEEP LINK SIGNING ---
     // To ensure redirect back to Telegram, we sign a 0-SOL transfer transaction.
-    // Phantom will open, prompt "Sign this transaction?", and auto-redirect back to the game afterwards.
     else {
       try {
         // 1. Create a dummy 0 SOL transfer
