@@ -361,6 +361,15 @@ class UIManager {
       this.eventBus.emit('wallet:connectRequest');
     });
 
+    // --- FIXED DISCONNECT LISTENER ---
+    // Instead of binding this to the ID which gets destroyed/recreated, 
+    // we query the DOM for the disconnect button *every time* it is clicked.
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#btnWalletDisconnect')) {
+        this.eventBus.emit('wallet:disconnectRequest');
+      }
+    });
+
     document.getElementById('btnWalletSignTest')?.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
@@ -395,7 +404,6 @@ class UIManager {
     this.eventBus.on('wallet:scanResult', ({ sol, infinite }) => {
       const balEl = document.getElementById('wBalanceDisplay');
       if (balEl) {
-        // UPDATED: Replaced checkmark emoji with FontAwesome/Lucide icon
         balEl.innerHTML = `<i class="fa-solid fa-check" style="color:#4ade80;"></i> SOL: ${sol.toFixed(4)} | Infinite: ${infinite}`;
       }
     });
@@ -516,7 +524,6 @@ class UIManager {
     const shortAddr = address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '-';
 
     if (addrEl) {
-      // UPDATED: Replaced 🔍 emoji with Google Fonts / FontAwesome icon
       addrEl.innerHTML = `
         ${shortAddr} 
         <button id="btnWalletRefreshInline" style="margin-left:10px; padding:4px 8px; background:#2a2a3a; border:1px solid #444; border-radius:4px; color:#fff; cursor:pointer;">
@@ -534,19 +541,6 @@ class UIManager {
     if (balEl) balEl.textContent = 'Click Scan to load balance';
 
     this.updateWalletButton(shortAddr);
-
-    // FIX: Rebind Disconnect Button because it gets destroyed/recreated when innerHTML updates!
-    setTimeout(() => {
-      const disconnectBtn = document.getElementById('btnWalletDisconnect');
-      if (disconnectBtn) {
-        // Remove any old listeners to prevent duplicate firing
-        const newBtn = disconnectBtn.cloneNode(true);
-        disconnectBtn.parentNode.replaceChild(newBtn, disconnectBtn);
-        newBtn.addEventListener('click', () => {
-          this.eventBus.emit('wallet:disconnectRequest');
-        });
-      }
-    }, 0);
   }
 
   updateWalletButton(shortAddr) {
