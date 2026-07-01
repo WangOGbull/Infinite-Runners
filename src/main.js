@@ -10,6 +10,7 @@ import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js';
 import EffectsSystem from './effectsSystem.js';
+import WalletManager from './walletManager.js';
 
 // ==================== EVENT BUS ====================
 class EventBus {
@@ -130,6 +131,7 @@ class Game {
     this.gameModeManager = new GameModeManager();
     this.uiManager = new UIManager(this.eventBus);
     this.effectsSystem = new EffectsSystem();
+    this.walletManager = new WalletManager(this.eventBus);
     this.aiController = null;
 
     this.localDragon = null;
@@ -266,8 +268,26 @@ class Game {
       }
     });
 
-    this.eventBus.on('wallet:connect', ({ wallet }) => {
-      console.log('Wallet connect:', wallet);
+    this.eventBus.on('wallet:connectRequest', () => {
+      this.walletManager.connect().catch(() => {
+        // Error already surfaced to the UI via the 'wallet:error' event.
+      });
+    });
+
+    this.eventBus.on('wallet:disconnectRequest', () => {
+      this.walletManager.disconnect();
+    });
+
+    this.eventBus.on('wallet:refreshRequest', () => {
+      this.walletManager.refreshBalance();
+    });
+
+    this.eventBus.on('wallet:signTestRequest', () => {
+      this.walletManager.signTestMessage()
+        .then(result => this.eventBus.emit('wallet:signTestResult', result))
+        .catch(err => this.eventBus.emit('wallet:signTestError', {
+          message: err?.message || 'Signing failed.'
+        }));
     });
 
     this.eventBus.on('lobby:arenaSelected', ({ arenaIndex }) => {
