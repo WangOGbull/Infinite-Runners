@@ -12,6 +12,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
+<!-- Solana web3.js (exposes window.solanaWeb3) -->
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+
 <!-- Google Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -32,6 +35,103 @@
   }
   .dragonCard {
     flex-shrink: 0;
+  }
+
+  /* Wallet integration */
+  #walletBtn.connected {
+    background: rgba(0,180,216,0.15);
+    border: 1px solid rgba(0,180,216,0.5);
+  }
+  .wHint {
+    color: #8b93a6;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 12px;
+  }
+  .wSpinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(171,159,242,0.2);
+    border-top-color: #ab9ff2;
+    border-radius: 50%;
+    margin: 20px auto;
+    animation: wSpin 0.8s linear infinite;
+  }
+  @keyframes wSpin { to { transform: rotate(360deg); } }
+  #walletConnectingView p {
+    text-align: center;
+    color: #c8ccd8;
+    font-size: 13px;
+  }
+  .wAccountRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .wAccountInfo { flex: 1; min-width: 0; }
+  .wAddress {
+    font-family: monospace;
+    font-size: 14px;
+    color: #e8d5a3;
+    letter-spacing: 0.5px;
+  }
+  .wBalance {
+    font-size: 12px;
+    color: #00b4d8;
+    margin-top: 2px;
+  }
+  .wRefreshBtn {
+    background: none;
+    border: none;
+    color: #8b93a6;
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+  }
+  .wRefreshBtn:hover { color: #00b4d8; }
+  .wTestBtn, .wDisconnectBtn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    color: #e0e0e0;
+  }
+  .wTestBtn:hover { border-color: #00b4d8; color: #00b4d8; }
+  .wDisconnectBtn:hover { border-color: #ff4444; color: #ff4444; }
+  .wSignResult {
+    font-size: 11px;
+    text-align: center;
+    margin-top: 8px;
+    min-height: 14px;
+    word-break: break-all;
+    color: #8b93a6;
+  }
+  .wSignOk { color: #4dff88; font-size: 12px; }
+  .wSignFail { color: #ff4444; font-size: 12px; }
+  .wSignHash { font-family: monospace; margin-top: 4px; }
+  .wError {
+    color: #ff4444;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 12px;
+    background: rgba(255,68,68,0.08);
+    border: 1px solid rgba(255,68,68,0.2);
+    border-radius: 6px;
+    padding: 8px;
   }
 </style>
 </head>
@@ -245,10 +345,35 @@
   <div class="walletBox">
     <button class="wClose" id="btnWalletClose"><i data-lucide="x"></i></button>
     <h3>Connect Wallet</h3>
-    <div class="wOpt" data-w="metamask"><div class="wIcon" style="background:#e17726">M</div><span>MetaMask</span></div>
-    <div class="wOpt" data-w="walletconnect"><div class="wIcon" style="background:#3b99fc">W</div><span>WalletConnect</span></div>
-    <div class="wOpt" data-w="coinbase"><div class="wIcon" style="background:#1652f0">C</div><span>Coinbase Wallet</span></div>
-    <div class="wOpt" data-w="phantom"><div class="wIcon" style="background:#ab9ff2">P</div><span>Phantom</span></div>
+
+    <div id="walletDisconnectedView">
+      <div class="wOpt" data-w="phantom" id="wOptPhantom">
+        <div class="wIcon" style="background:#ab9ff2">P</div>
+        <span>Phantom</span>
+      </div>
+      <p class="wHint">Solana wallet required to earn in-game rewards.</p>
+    </div>
+
+    <div id="walletConnectingView" style="display:none">
+      <div class="wSpinner"></div>
+      <p>Approve the connection in Phantom...</p>
+    </div>
+
+    <div id="walletConnectedView" style="display:none">
+      <div class="wAccountRow">
+        <div class="wIcon" style="background:#ab9ff2">P</div>
+        <div class="wAccountInfo">
+          <div class="wAddress" id="wAddressDisplay">-</div>
+          <div class="wBalance" id="wBalanceDisplay">-- SOL</div>
+        </div>
+        <button class="wRefreshBtn" id="btnWalletRefresh" title="Refresh balance"><i data-lucide="refresh-cw"></i></button>
+      </div>
+      <button class="wTestBtn" id="btnWalletSignTest"><i data-lucide="pen-line"></i> Sign Test Message</button>
+      <div class="wSignResult" id="wSignResult"></div>
+      <button class="wDisconnectBtn" id="btnWalletDisconnect"><i data-lucide="log-out"></i> Disconnect</button>
+    </div>
+
+    <div class="wError" id="walletError" style="display:none"></div>
   </div>
 </div>
 
