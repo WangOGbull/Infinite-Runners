@@ -366,7 +366,8 @@ class UIManager {
     });
 
     document.getElementById('btnWalletRefresh')?.addEventListener('click', () => {
-      this.eventBus.emit('wallet:refreshRequest');
+      // NEW: Refresh button triggers the scan logic in WalletManager
+      this.eventBus.emit('wallet:scanRequest');
     });
 
     document.getElementById('btnWalletSignTest')?.addEventListener('click', () => {
@@ -387,6 +388,8 @@ class UIManager {
       this.updateWalletButton(null);
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = '';
+      const balEl = document.getElementById('wBalanceDisplay');
+      if (balEl) balEl.innerHTML = ''; // Clear on disconnect
     });
 
     this.eventBus.on('wallet:error', ({ message }) => {
@@ -398,12 +401,15 @@ class UIManager {
       }
     });
 
-    this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
+    // NEW EVENT: Handles the updated scan result
+    this.eventBus.on('wallet:scanResult', ({ sol, infinite }) => {
       const balEl = document.getElementById('wBalanceDisplay');
-      if (balEl) balEl.textContent = balance !== null && balance !== undefined
-        ? `${balance.toFixed(4)} SOL`
-        : 'Unable to load';
+      if (balEl) {
+        balEl.innerHTML = `<span style="color:#4ade80;">✓</span> SOL: ${sol.toFixed(4)} | Infinite: ${infinite}`;
+      }
     });
+
+    // OLD EVENT REMOVED/REPLACED - wallet:balanceUpdated is deprecated in favor of scanResult
 
     this.eventBus.on('wallet:signTestResult', (result) => {
       const resultEl = document.getElementById('wSignResult');
@@ -520,10 +526,25 @@ class UIManager {
     const balEl = document.getElementById('wBalanceDisplay');
     const shortAddr = address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '-';
 
-    if (addrEl) addrEl.textContent = shortAddr;
-    if (balEl) balEl.textContent = (balance !== null && balance !== undefined)
-      ? `${balance.toFixed(4)} SOL`
-      : 'Loading...';
+    if (addrEl) {
+      // UPDATED: Added a Refresh/Scan button next to the address
+      addrEl.innerHTML = `
+        ${shortAddr} 
+        <button id="btnWalletRefreshInline" class="btn-scan" style="margin-left:10px; font-size:12px; padding:4px 8px; background:#2a2a3a; border:1px solid #444; border-radius:4px; color:#fff; cursor:pointer;">
+          🔍 Scan
+        </button>
+      `;
+      
+      // Automatically bind the click for the new inline button
+      setTimeout(() => {
+        document.getElementById('btnWalletRefreshInline')?.addEventListener('click', () => {
+          this.eventBus.emit('wallet:scanRequest');
+        });
+      }, 0);
+    }
+
+    // Show initial placeholder balance until they click scan
+    if (balEl) balEl.textContent = 'Click Scan to load balance';
 
     this.updateWalletButton(shortAddr);
   }
