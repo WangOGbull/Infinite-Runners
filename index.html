@@ -18,6 +18,9 @@
 <!-- Google Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+<!-- FontAwesome for your icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
 <link rel="stylesheet" href="./src/styles.css">
 
 <style>
@@ -83,7 +86,7 @@
   .wBalance {
     font-size: 12px;
     color: #00b4d8;
-    margin-top: 2px;
+    margin-top: 6px;
   }
   .wTestBtn, .wDisconnectBtn {
     width: 100%;
@@ -122,6 +125,26 @@
     border: 1px solid rgba(255,68,68,0.2);
     border-radius: 6px;
     padding: 8px;
+  }
+  
+  /* Scan Button Styling */
+  #btnWalletRefreshInline {
+    margin-left: 10px;
+    padding: 4px 10px;
+    background: #2a2a3a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #btnWalletRefreshInline:hover {
+    background: #3a3a4a;
+    border-color: #00b4d8;
   }
 </style>
 </head>
@@ -357,6 +380,7 @@
           <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;">
         </div>
         <div class="wAccountInfo">
+          <!-- The UI Manager will dynamically inject the 'Scan' button directly next to this address ID -->
           <div class="wAddress" id="wAddressDisplay">-</div>
           <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
         </div>
