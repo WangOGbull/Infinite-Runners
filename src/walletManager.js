@@ -5,10 +5,8 @@
 // Requires the Solana web3.js UMD bundle to be loaded on the page before
 // this module runs (see index.html) — it exposes the global `solanaWeb3`.
 
-// Swap this for a paid RPC endpoint (Helius / QuickNode / Alchemy) before
-// relying on this in front of real users — the public endpoint is rate
-// limited and can be slow or flaky under load.
-const RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
+// ----------------- QUICKNODE RPC ENDPOINT -----------------
+const RPC_ENDPOINT = 'https://broken-dimensional-bridge.solana-mainnet.quiknode.pro/71331ad63dbca61e4f46856dbe393fad7465aa4a/';
 
 class WalletManager {
   constructor(eventBus) {
@@ -23,7 +21,7 @@ class WalletManager {
     this._initConnection();
     this._bindProviderEvents();
     
-    // LISTEN FOR THE NEW SCAN EVENT FROM THE UI
+    // LISTEN FOR THE SCAN EVENT FROM THE UI
     this.eventBus.on('wallet:scanRequest', () => {
       this.scanBalances();
     });
@@ -179,12 +177,12 @@ class WalletManager {
       }
       return 0; // User does not hold this token
     } catch (err) {
-      console.warn('[WalletManager] Token fetch failed (probably wrong mint address):', err);
+      console.warn('[WalletManager] Token fetch failed:', err);
       return 0;
     }
   }
 
-  // THE NEW SCAN FUNCTION TRIGGERED BY THE BUTTON
+  // THE SCAN FUNCTION TRIGGERED BY THE UI BUTTON
   async scanBalances() {
     if (!this.connected || !this.publicKey) {
       this.eventBus.emit('wallet:error', { message: 'Wallet not connected.' });
@@ -197,8 +195,7 @@ class WalletManager {
     // 2. Fetch SOL
     const solBalance = await this._refreshBalance();
 
-    // 3. Fetch InfiniteCoin (REPLACE WITH YOUR REAL TOKEN MINT ADDRESS LATER)
-    // If you don't have the address yet, it will safely return 0.
+    // 3. Fetch InfiniteCoin (Your live token address)
     const INFINITE_COIN_MINT = 'C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump';
     const infiniteBalance = await this._scanTokenBalance(INFINITE_COIN_MINT);
 
@@ -211,17 +208,14 @@ class WalletManager {
     return { sol: solBalance, infinite: infiniteBalance };
   }
 
-  // NOTE: refreshBalance() is deprecated in favor of scanBalances(), 
-  // but kept here in case other parts of your code call it directly.
+  // Legacy balance refresh (kept for compatibility with other parts of code)
   async refreshBalance() {
     const balance = await this._refreshBalance();
     this.eventBus.emit('wallet:balanceUpdated', { balance });
     return balance;
   }
 
-  // Proves Phantom can actually sign for the connected wallet, with zero
-  // funds at risk — nothing is transferred or spent. This is the standard
-  // "verify wallet ownership" pattern real dApps use for wallet-based login.
+  // Proves Phantom can actually sign for the connected wallet
   async signTestMessage() {
     if (!this.provider || !this.connected) {
       throw new Error('Wallet not connected.');
