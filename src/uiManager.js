@@ -356,11 +356,65 @@ class UIManager {
     document.getElementById('btnWalletClose')?.addEventListener('click', () => {
       this.showScreen('titleScreen');
     });
-    document.querySelectorAll('.wOpt').forEach(opt => {
-      opt.addEventListener('click', () => {
-        this.eventBus.emit('wallet:connect', { wallet: opt.dataset.w });
-        this.showScreen('titleScreen');
-      });
+
+    document.getElementById('wOptPhantom')?.addEventListener('click', () => {
+      this.eventBus.emit('wallet:connectRequest');
+    });
+
+    document.getElementById('btnWalletDisconnect')?.addEventListener('click', () => {
+      this.eventBus.emit('wallet:disconnectRequest');
+    });
+
+    document.getElementById('btnWalletRefresh')?.addEventListener('click', () => {
+      this.eventBus.emit('wallet:refreshRequest');
+    });
+
+    document.getElementById('btnWalletSignTest')?.addEventListener('click', () => {
+      const resultEl = document.getElementById('wSignResult');
+      if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
+      this.eventBus.emit('wallet:signTestRequest');
+    });
+
+    this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
+
+    this.eventBus.on('wallet:connected', ({ address, balance }) => {
+      this.setWalletModalState('connected');
+      this.updateWalletDisplay(address, balance);
+    });
+
+    this.eventBus.on('wallet:disconnected', () => {
+      this.setWalletModalState('disconnected');
+      this.updateWalletButton(null);
+      const resultEl = document.getElementById('wSignResult');
+      if (resultEl) resultEl.innerHTML = '';
+    });
+
+    this.eventBus.on('wallet:error', ({ message }) => {
+      this.setWalletModalState('disconnected');
+      const errEl = document.getElementById('walletError');
+      if (errEl) {
+        errEl.textContent = message;
+        errEl.style.display = 'block';
+      }
+    });
+
+    this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
+      const balEl = document.getElementById('wBalanceDisplay');
+      if (balEl) balEl.textContent = balance !== null && balance !== undefined
+        ? `${balance.toFixed(4)} SOL`
+        : 'Unable to load';
+    });
+
+    this.eventBus.on('wallet:signTestResult', (result) => {
+      const resultEl = document.getElementById('wSignResult');
+      if (resultEl) {
+        resultEl.innerHTML = `<span class="wSignOk">&#10003; Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0, 24)}...</div>`;
+      }
+    });
+
+    this.eventBus.on('wallet:signTestError', ({ message }) => {
+      const resultEl = document.getElementById('wSignResult');
+      if (resultEl) resultEl.innerHTML = `<span class="wSignFail">&#10007; ${message}</span>`;
     });
 
     document.addEventListener('keydown', (e) => {
@@ -441,6 +495,49 @@ class UIManager {
       if (waitingText) waitingText.style.display = 'block';
       if (modeSelector) modeSelector.style.display = 'none';
       if (arenaSelector) arenaSelector.style.display = 'flex';
+    }
+  }
+
+  // ==================== WALLET UI ====================
+  setWalletModalState(state) {
+    const disconnected = document.getElementById('walletDisconnectedView');
+    const connecting = document.getElementById('walletConnectingView');
+    const connected = document.getElementById('walletConnectedView');
+    const errEl = document.getElementById('walletError');
+    if (errEl) errEl.style.display = 'none';
+
+    if (disconnected) disconnected.style.display = state === 'disconnected' ? 'block' : 'none';
+    if (connecting) connecting.style.display = state === 'connecting' ? 'block' : 'none';
+    if (connected) connected.style.display = state === 'connected' ? 'block' : 'none';
+
+    if (typeof lucide !== 'undefined') {
+      setTimeout(() => lucide.createIcons(), 0);
+    }
+  }
+
+  updateWalletDisplay(address, balance) {
+    const addrEl = document.getElementById('wAddressDisplay');
+    const balEl = document.getElementById('wBalanceDisplay');
+    const shortAddr = address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '-';
+
+    if (addrEl) addrEl.textContent = shortAddr;
+    if (balEl) balEl.textContent = (balance !== null && balance !== undefined)
+      ? `${balance.toFixed(4)} SOL`
+      : 'Loading...';
+
+    this.updateWalletButton(shortAddr);
+  }
+
+  updateWalletButton(shortAddr) {
+    const btn = document.getElementById('walletBtn');
+    if (!btn) return;
+    const span = btn.querySelector('span');
+    if (shortAddr) {
+      btn.classList.add('connected');
+      if (span) span.textContent = shortAddr;
+    } else {
+      btn.classList.remove('connected');
+      if (span) span.textContent = 'Connect Wallet';
     }
   }
 
