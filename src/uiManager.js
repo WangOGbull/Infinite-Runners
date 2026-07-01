@@ -361,15 +361,6 @@ class UIManager {
       this.eventBus.emit('wallet:connectRequest');
     });
 
-    document.getElementById('btnWalletDisconnect')?.addEventListener('click', () => {
-      this.eventBus.emit('wallet:disconnectRequest');
-    });
-
-    document.getElementById('btnWalletRefresh')?.addEventListener('click', () => {
-      // NEW: Refresh button triggers the scan logic in WalletManager
-      this.eventBus.emit('wallet:scanRequest');
-    });
-
     document.getElementById('btnWalletSignTest')?.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
@@ -389,7 +380,7 @@ class UIManager {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = '';
       const balEl = document.getElementById('wBalanceDisplay');
-      if (balEl) balEl.innerHTML = ''; // Clear on disconnect
+      if (balEl) balEl.innerHTML = ''; 
     });
 
     this.eventBus.on('wallet:error', ({ message }) => {
@@ -401,26 +392,24 @@ class UIManager {
       }
     });
 
-    // NEW EVENT: Handles the updated scan result
     this.eventBus.on('wallet:scanResult', ({ sol, infinite }) => {
       const balEl = document.getElementById('wBalanceDisplay');
       if (balEl) {
-        balEl.innerHTML = `<span style="color:#4ade80;">✓</span> SOL: ${sol.toFixed(4)} | Infinite: ${infinite}`;
+        // UPDATED: Replaced checkmark emoji with FontAwesome/Lucide icon
+        balEl.innerHTML = `<i class="fa-solid fa-check" style="color:#4ade80;"></i> SOL: ${sol.toFixed(4)} | Infinite: ${infinite}`;
       }
     });
-
-    // OLD EVENT REMOVED/REPLACED - wallet:balanceUpdated is deprecated in favor of scanResult
 
     this.eventBus.on('wallet:signTestResult', (result) => {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) {
-        resultEl.innerHTML = `<span class="wSignOk">&#10003; Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0, 24)}...</div>`;
+        resultEl.innerHTML = `<span class="wSignOk"><i class="fa-solid fa-check-circle"></i> Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0, 24)}...</div>`;
       }
     });
 
     this.eventBus.on('wallet:signTestError', ({ message }) => {
       const resultEl = document.getElementById('wSignResult');
-      if (resultEl) resultEl.innerHTML = `<span class="wSignFail">&#10007; ${message}</span>`;
+      if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
     });
 
     document.addEventListener('keydown', (e) => {
@@ -527,15 +516,14 @@ class UIManager {
     const shortAddr = address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '-';
 
     if (addrEl) {
-      // UPDATED: Added a Refresh/Scan button next to the address
+      // UPDATED: Replaced 🔍 emoji with Google Fonts / FontAwesome icon
       addrEl.innerHTML = `
         ${shortAddr} 
-        <button id="btnWalletRefreshInline" class="btn-scan" style="margin-left:10px; font-size:12px; padding:4px 8px; background:#2a2a3a; border:1px solid #444; border-radius:4px; color:#fff; cursor:pointer;">
-          🔍 Scan
+        <button id="btnWalletRefreshInline" style="margin-left:10px; padding:4px 8px; background:#2a2a3a; border:1px solid #444; border-radius:4px; color:#fff; cursor:pointer;">
+          <i class="fa-solid fa-magnifying-glass"></i> Scan
         </button>
       `;
       
-      // Automatically bind the click for the new inline button
       setTimeout(() => {
         document.getElementById('btnWalletRefreshInline')?.addEventListener('click', () => {
           this.eventBus.emit('wallet:scanRequest');
@@ -543,10 +531,22 @@ class UIManager {
       }, 0);
     }
 
-    // Show initial placeholder balance until they click scan
     if (balEl) balEl.textContent = 'Click Scan to load balance';
 
     this.updateWalletButton(shortAddr);
+
+    // FIX: Rebind Disconnect Button because it gets destroyed/recreated when innerHTML updates!
+    setTimeout(() => {
+      const disconnectBtn = document.getElementById('btnWalletDisconnect');
+      if (disconnectBtn) {
+        // Remove any old listeners to prevent duplicate firing
+        const newBtn = disconnectBtn.cloneNode(true);
+        disconnectBtn.parentNode.replaceChild(newBtn, disconnectBtn);
+        newBtn.addEventListener('click', () => {
+          this.eventBus.emit('wallet:disconnectRequest');
+        });
+      }
+    }, 0);
   }
 
   updateWalletButton(shortAddr) {
@@ -732,7 +732,6 @@ class UIManager {
   updateHUD(score, time) {
     const timerDisplay = document.getElementById('timerDisplay');
     if (timerDisplay) timerDisplay.textContent = time;
-    // Food/collectible counter removed — no longer updated
   }
 
   updateGameOver(stats) {
