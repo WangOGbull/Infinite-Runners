@@ -1,22 +1,8 @@
 // walletManager.js
 // Handles Phantom (Solana) wallet connect/disconnect, live on-chain balance,
-// and a message-signing test that proves the connection actually works.
-//
-// Requires the Solana web3.js UMD bundle to be loaded on the page before
-// this module runs (see index.html) — it exposes the global `solanaWeb3`.
+// and a message-signing test.
 
-// ----------------- QUICKNODE RPC ENDPOINT -----------------
 const RPC_ENDPOINT = 'https://broken-dimensional-bridge.solana-mainnet.quiknode.pro/71331ad63dbca61e4f46856dbe393fad7465aa4a/';
-
-// ==================== APP STORE CONFIG ====================
-// When wrapping for iOS/Android, change this to your app's custom URL scheme.
-// Example: 'infinitecoin://wallet/callback'
-// For mobile web, leave as-is — it uses the current page URL.
-// ==========================================================
-const PHANTOM_REDIRECT_URL = (() => {
-  const base = window.location.origin + window.location.pathname;
-  return base + '?phantomReconnect=1';
-})();
 
 class WalletManager {
   constructor(eventBus) {
@@ -27,10 +13,8 @@ class WalletManager {
     this.connecting = false;
     this.balance = null;
     this.connection = null;
-    this._deepLinkPending = false;
 
     this._initConnection();
-    this._checkDeepLinkReturn();
     this._bindProviderEvents();
 
     this.eventBus.on('wallet:scanRequest', () => {
@@ -40,24 +24,12 @@ class WalletManager {
 
   _initConnection() {
     if (typeof solanaWeb3 === 'undefined') {
-      console.error('[WalletManager] solana web3.js not loaded — check the script tag in index.html');
+      console.error('[WalletManager] solana web3.js not loaded');
       return;
     }
     this.connection = new solanaWeb3.Connection(RPC_ENDPOINT, 'confirmed');
   }
 
-  // Check if we just returned from a Phantom deep-link redirect
-  _checkDeepLinkReturn() {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('phantomReconnect') === '1') {
-      // Clean the URL so refresh doesn't re-trigger
-      const cleanUrl = window.location.href.split('?')[0];
-      window.history.replaceState({}, document.title, cleanUrl);
-      this._deepLinkPending = true;
-    }
-  }
-
-  // Phantom injects window.phantom.solana (current API) or window.solana (legacy).
   getProvider() {
     if (window?.phantom?.solana?.isPhantom) return window.phantom.solana;
     if (window?.solana?.isPhantom) return window.solana;
@@ -112,15 +84,6 @@ class WalletManager {
     });
   }
 
-  // Called by UIManager after redirect when provider is detected
-  async connectIfPending() {
-    if (!this._deepLinkPending || this.connected) return false;
-    const provider = this.getProvider();
-    if (!provider) return false;
-    this._deepLinkPending = false;
-    return this._connectProvider(provider);
-  }
-
   async connect() {
     const provider = this.getProvider();
 
@@ -129,12 +92,11 @@ class WalletManager {
       return this._connectProvider(provider);
     }
 
-    // Mobile external browser — deep link into Phantom
+    // Mobile external browser — open game inside Phantom's browser where provider injects
     if (this.isMobile()) {
-      const returnUrl = encodeURIComponent(PHANTOM_REDIRECT_URL);
-      const deepLink = `https://phantom.app/ul/browse/${returnUrl}`;
-      window.location.href = deepLink;
-      return { deepLinked: true, message: 'Opening Phantom...' };
+      const gameUrl = encodeURIComponent(window.location.href.split('?')[0]);
+      window.location.href = `https://phantom.app/ul/browse/${gameUrl}`;
+      return { deepLinked: true, message: 'Opening in Phantom browser...' };
     }
 
     // Desktop, no Phantom installed
@@ -178,7 +140,6 @@ class WalletManager {
     this.connected = false;
     this.publicKey = null;
     this.balance = null;
-    this._deepLinkPending = false;
     this.eventBus.emit('wallet:disconnected');
   }
 
