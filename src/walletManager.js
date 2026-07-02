@@ -96,11 +96,13 @@ class WalletManager {
 
     if (!provider) {
       if (this.isMobile()) {
-        // --- FIX: UNIVERSAL LINK FOR MOBILE TELEGRAM ---
-        // Using the official https:// universal link ensures Android/iOS recognize it
-        // and correctly open the Phantom app without crashing or opening blank Chrome tabs.
+        // MOBILE DEEP LINK: Use Phantom's official Universal Link
         const dappUrl = encodeURIComponent(window.location.href);
-        const deepLink = `https://phantom.app/ul/browse/${dappUrl}?ref=${dappUrl}&redirect_link=${dappUrl}`;
+        const deepLink = `https://phantom.app/ul/browse/${dappUrl}?ref=${dappUrl}`;
+        
+        // IMPORTANT: We need to set a flag so the app knows to reconnect once the user returns
+        localStorage.setItem('pendingPhantomConnect', 'true');
+        
         window.location.href = deepLink;
         return { deepLinked: true };
       }
@@ -143,6 +145,7 @@ class WalletManager {
     this.connected = false;
     this.publicKey = null;
     this.balance = null;
+    localStorage.removeItem('pendingPhantomConnect'); // Clean up flag
     this.eventBus.emit('wallet:disconnected');
   }
 
@@ -215,67 +218,34 @@ class WalletManager {
     return balance;
   }
 
-  // --- FIXED SIGN MESSAGE FOR MOBILE ---
-  // Proves Phantom can actually sign for the connected wallet
+  // --- FIXED SIGN MESSAGE ---
   async signTestMessage() {
     if (!this.provider || !this.connected) {
       throw new Error('Wallet not connected.');
     }
 
-    // If on desktop browser extension, use standard signMessage
-    if (!this.isMobile()) {
-      const message =
-        `Infinite Runners — verify wallet ownership\n` +
-        `Address: ${this.publicKey.toString()}\n` +
-        `Timestamp: ${new Date().toISOString()}`;
-      const encoded = new TextEncoder().encode(message);
-      const { signature, publicKey } = await this.provider.signMessage(encoded, 'utf8');
-
-      return {
-        message,
-        signatureHex: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''),
-        publicKey: publicKey.toString()
-      };
-    } 
-    
-    // --- MOBILE DEEP LINK SIGNING ---
-    // To ensure redirect back to Telegram, we sign a 0-SOL transfer transaction.
-    else {
-      try {
-        // 1. Create a dummy 0 SOL transfer
-        const fromPubkey = this.publicKey;
-        const toPubkey = this.publicKey; // Send to self (costs 0 effectively)
-        const lamports = 0; // 0 SOL
-
-        const transaction = new solanaWeb3.Transaction().add(
-          solanaWeb3.SystemProgram.transfer({
-            fromPubkey,
-            toPubkey,
-            lamports
-          })
-        );
-        
-        // 2. Set recent blockhash and fee payer
-        const blockhash = await this.connection.getRecentBlockhash();
-        transaction.recentBlockhash = blockhash.blockhash;
-        transaction.feePayer = fromPubkey;
-
-        // 3. Trigger the mobile signing via deep link
-        // This forces Phantom app to open, and returns to the game immediately after user approves.
-        const signedTx = await this.provider.signTransaction(transaction);
-        
-        // 4. Return a visual success string (transaction signature, not a message signature)
-        return {
-          message: "0 SOL Transfer Signature Verified on Mobile",
-          signatureHex: signedTx.signature ? Buffer.from(signedTx.signature).toString('hex').slice(0, 24) : "Success",
-          publicKey: this.publicKey.toString()
-        };
-
-      } catch (err) {
-        console.error("[WalletManager] Mobile Sign Test Failed:", err);
-        throw new Error("Signing failed on mobile. Please ensure Phantom app is installed.");
-      }
+    // SECURITY: Mobile browsers cannot sign messages directly via app redirects
+    // We block it on mobile to prevent infinite redirect loops.
+    if (this.isMobile()) {
+        this.eventBus.emit('wallet:signTestError', { 
+            message: 'Message signing is not supported on mobile. Please use a Desktop browser.' 
+        });
+        throw new Error('Signing not supported on mobile.');
     }
+
+    // Desktop extension standard signing
+    const message =
+      `Infinite Runners — verify wallet ownership\n` +
+      `Address: ${this.publicKey.toString()}\n` +
+      `Timestamp: ${new Date().toISOString()}`;
+    const encoded = new TextEncoder().encode(message);
+    const { signature, publicKey } = await this.provider.signMessage(encoded, 'utf8');
+
+    return {
+      message,
+      signatureHex: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''),
+      publicKey: publicKey.toString()
+    };
   }
 
   getShortAddress() {
