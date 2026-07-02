@@ -209,6 +209,18 @@ class UIManager {
   }
 
   bindEvents() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('walletReturn') === '1') {
+      const cleanUrl = window.location.href.split('?')[0];
+      window.history.replaceState({}, document.title, cleanUrl);
+      setTimeout(() => {
+        const provider = window?.phantom?.solana || window?.solana;
+        if (provider?.isPhantom) {
+          this.eventBus.emit('wallet:connectRequest');
+        }
+      }, 500);
+    }
+
     document.getElementById('btnPlayNow')?.addEventListener('click', () => {
       this.showScreen('dragonSelectScreen');
     });
