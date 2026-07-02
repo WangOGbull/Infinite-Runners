@@ -19,6 +19,11 @@ class UIManager {
     this.bindEvents();
   }
 
+  // Helper to detect mobile browsers
+  isMobile() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }
+
   initScreens() {
     const screenIds = [
       'titleScreen', 'dragonSelectScreen', 'modeSelectScreen',
@@ -361,9 +366,7 @@ class UIManager {
       this.eventBus.emit('wallet:connectRequest');
     });
 
-    // --- FIXED DISCONNECT LISTENER ---
-    // Instead of binding this to the ID which gets destroyed/recreated, 
-    // we query the DOM for the disconnect button *every time* it is clicked.
+    // FIXED DISCONNECT LISTENER
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btnWalletDisconnect')) {
         this.eventBus.emit('wallet:disconnectRequest');
@@ -427,6 +430,17 @@ class UIManager {
         }
       }
     });
+
+    // ==========================================
+    // MOBILE DEEP LINK RETURN HANDLER (NEW FIX)
+    // ==========================================
+    if (this.isMobile() && localStorage.getItem('pendingPhantomConnect') === 'true') {
+        localStorage.removeItem('pendingPhantomConnect');
+        // Wait 800ms for the wallet provider to inject back into the page
+        setTimeout(() => {
+            this.eventBus.emit('wallet:connectRequest');
+        }, 800);
+    }
   }
 
   showScreen(screenId) {
