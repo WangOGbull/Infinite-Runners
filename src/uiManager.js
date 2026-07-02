@@ -19,7 +19,6 @@ class UIManager {
     this.bindEvents();
   }
 
-  // Helper to detect mobile browsers
   isMobile() {
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   }
@@ -38,7 +37,6 @@ class UIManager {
   }
 
   createDynamicModals() {
-    // Difficulty modal
     const diffModal = document.createElement('div');
     diffModal.id = 'difficultyModal';
     diffModal.className = 'screen';
@@ -58,7 +56,6 @@ class UIManager {
     document.body.appendChild(diffModal);
     this.screens['difficultyModal'] = diffModal;
 
-    // Arena select modal
     const arenaModal = document.createElement('div');
     arenaModal.id = 'arenaSelectModal';
     arenaModal.className = 'screen';
@@ -89,7 +86,6 @@ class UIManager {
     document.body.appendChild(arenaModal);
     this.screens['arenaSelectModal'] = arenaModal;
 
-    // MP mode select
     const mpModeSelect = document.createElement('div');
     mpModeSelect.id = 'mpModeSelect';
     mpModeSelect.className = 'screen';
@@ -366,7 +362,6 @@ class UIManager {
       this.eventBus.emit('wallet:connectRequest');
     });
 
-    // FIXED DISCONNECT LISTENER
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btnWalletDisconnect')) {
         this.eventBus.emit('wallet:disconnectRequest');
@@ -392,7 +387,7 @@ class UIManager {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = '';
       const balEl = document.getElementById('wBalanceDisplay');
-      if (balEl) balEl.innerHTML = ''; 
+      if (balEl) balEl.innerHTML = '';
     });
 
     this.eventBus.on('wallet:error', ({ message }) => {
@@ -432,14 +427,27 @@ class UIManager {
     });
 
     // ==========================================
-    // MOBILE DEEP LINK RETURN HANDLER (NEW FIX)
+    // MOBILE PHANTOM RETURN HANDLER (FIXED)
     // ==========================================
-    if (this.isMobile() && localStorage.getItem('pendingPhantomConnect') === 'true') {
-        localStorage.removeItem('pendingPhantomConnect');
-        // Wait 800ms for the wallet provider to inject back into the page
-        setTimeout(() => {
-            this.eventBus.emit('wallet:connectRequest');
-        }, 800);
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('phantomReconnect') === '1') {
+      const cleanUrl = window.location.href.split('?')[0];
+      window.history.replaceState({}, document.title, cleanUrl);
+
+      // Poll for Phantom provider injection (up to 6 seconds)
+      let attempts = 0;
+      const maxAttempts = 20;
+      const checkProvider = setInterval(() => {
+        attempts++;
+        const provider = window?.phantom?.solana || window?.solana;
+        if (provider?.isPhantom) {
+          clearInterval(checkProvider);
+          this.eventBus.emit('wallet:connectIfPending');
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkProvider);
+          console.warn('[UIManager] Phantom provider not detected after redirect');
+        }
+      }, 300);
     }
   }
 
@@ -515,7 +523,6 @@ class UIManager {
     }
   }
 
-  // ==================== WALLET UI ====================
   setWalletModalState(state) {
     const disconnected = document.getElementById('walletDisconnectedView');
     const connecting = document.getElementById('walletConnectingView');
@@ -539,12 +546,12 @@ class UIManager {
 
     if (addrEl) {
       addrEl.innerHTML = `
-        ${shortAddr} 
+        ${shortAddr}
         <button id="btnWalletRefreshInline" style="margin-left:10px; padding:4px 8px; background:#2a2a3a; border:1px solid #444; border-radius:4px; color:#fff; cursor:pointer;">
           <i class="fa-solid fa-magnifying-glass"></i> Scan
         </button>
       `;
-      
+
       setTimeout(() => {
         document.getElementById('btnWalletRefreshInline')?.addEventListener('click', () => {
           this.eventBus.emit('wallet:scanRequest');
@@ -577,7 +584,6 @@ class UIManager {
     });
   }
 
-  // ==================== DRAGON AGE COUNTDOWN ====================
   showCountdown(seconds, callback) {
     const gameCanvas = document.getElementById('gameCanvas');
     const hud = document.getElementById('gameHud');
