@@ -1,7 +1,4 @@
 // walletManager.js
-// Handles Phantom (Solana) wallet connect/disconnect, live on-chain balance,
-// and a message-signing test.
-
 const RPC_ENDPOINT = 'https://broken-dimensional-bridge.solana-mainnet.quiknode.pro/71331ad63dbca61e4f46856dbe393fad7465aa4a/';
 
 class WalletManager {
@@ -87,19 +84,17 @@ class WalletManager {
   async connect() {
     const provider = this.getProvider();
 
-    // Provider available = desktop extension OR already inside Phantom browser
     if (provider) {
       return this._connectProvider(provider);
     }
 
-    // Mobile external browser — open game inside Phantom's browser where provider injects
     if (this.isMobile()) {
-      const gameUrl = encodeURIComponent(window.location.href.split('?')[0]);
-      window.location.href = `https://phantom.app/ul/browse/${gameUrl}`;
-      return { deepLinked: true, message: 'Opening in Phantom browser...' };
+      const appUrl = encodeURIComponent(window.location.href.split('?')[0]);
+      const redirectUrl = encodeURIComponent(window.location.href.split('?')[0] + '?walletReturn=1');
+      window.location.href = `https://phantom.app/ul/v1/connect?app_url=${appUrl}&redirect_link=${redirectUrl}&cluster=mainnet-beta`;
+      return { deepLinked: true };
     }
 
-    // Desktop, no Phantom installed
     window.open('https://phantom.app/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Phantom is not installed.' });
     throw new Error('Phantom not installed');
@@ -135,7 +130,7 @@ class WalletManager {
 
   async disconnect() {
     if (this.provider) {
-      try { await this.provider.disconnect(); } catch (_) { /* ignore */ }
+      try { await this.provider.disconnect(); } catch (_) { }
     }
     this.connected = false;
     this.publicKey = null;
