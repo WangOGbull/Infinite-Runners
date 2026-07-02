@@ -8,6 +8,16 @@
 // ----------------- QUICKNODE RPC ENDPOINT -----------------
 const RPC_ENDPOINT = 'https://broken-dimensional-bridge.solana-mainnet.quiknode.pro/71331ad63dbca61e4f46856dbe393fad7465aa4a/';
 
+// ==================== APP STORE CONFIG ====================
+// When wrapping for iOS/Android, change this to your app's custom URL scheme.
+// Example: 'infinitecoin://wallet/callback'
+// For mobile web, leave as-is — it uses the current page URL.
+// ==========================================================
+const PHANTOM_REDIRECT_URL = (() => {
+  const base = window.location.origin + window.location.pathname;
+  return base + '?phantomReconnect=1';
+})();
+
 class WalletManager {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -17,11 +27,12 @@ class WalletManager {
     this.connecting = false;
     this.balance = null;
     this.connection = null;
+    this._deepLinkPending = false;
 
     this._initConnection();
+    this._checkDeepLinkReturn();
     this._bindProviderEvents();
-    
-    // LISTEN FOR THE SCAN EVENT FROM THE UI
+
     this.eventBus.on('wallet:scanRequest', () => {
       this.scanBalances();
     });
@@ -33,6 +44,17 @@ class WalletManager {
       return;
     }
     this.connection = new solanaWeb3.Connection(RPC_ENDPOINT, 'confirmed');
+  }
+
+  // Check if we just returned from a Phantom deep-link redirect
+  _checkDeepLinkReturn() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('phantomReconnect') === '1') {
+      // Clean the URL so refresh doesn't re-trigger
+      const cleanUrl = window.location.href.split('?')[0];
+      window.history.replaceState({}, document.title, cleanUrl);
+      this._deepLinkPending = true;
+    }
   }
 
   // Phantom injects window.phantom.solana (current API) or window.solana (legacy).
@@ -73,7 +95,6 @@ class WalletManager {
       this.eventBus.emit('wallet:disconnected');
     });
 
-    // Fires if the user switches accounts inside Phantom without disconnecting.
     provider.on('accountChanged', (publicKey) => {
       if (publicKey) {
         this.publicKey = publicKey;
@@ -91,26 +112,38 @@ class WalletManager {
     });
   }
 
+  // Called by UIManager after redirect when provider is detected
+  async connectIfPending() {
+    if (!this._deepLinkPending || this.connected) return false;
+    const provider = this.getProvider();
+    if (!provider) return false;
+    this._deepLinkPending = false;
+    return this._connectProvider(provider);
+  }
+
   async connect() {
     const provider = this.getProvider();
 
-    if (!provider) {
-      if (this.isMobile()) {
-        // MOBILE DEEP LINK: Use Phantom's official Universal Link
-        const dappUrl = encodeURIComponent(window.location.href);
-        const deepLink = `https://phantom.app/ul/browse/${dappUrl}?ref=${dappUrl}`;
-        
-        // IMPORTANT: We need to set a flag so the app knows to reconnect once the user returns
-        localStorage.setItem('pendingPhantomConnect', 'true');
-        
-        window.location.href = deepLink;
-        return { deepLinked: true };
-      }
-      window.open('https://phantom.app/', '_blank');
-      this.eventBus.emit('wallet:error', { message: 'Phantom is not installed.' });
-      throw new Error('Phantom not installed');
+    // Provider available = desktop extension OR already inside Phantom browser
+    if (provider) {
+      return this._connectProvider(provider);
     }
 
+    // Mobile external browser — deep link into Phantom
+    if (this.isMobile()) {
+      const returnUrl = encodeURIComponent(PHANTOM_REDIRECT_URL);
+      const deepLink = `https://phantom.app/ul/browse/${returnUrl}`;
+      window.location.href = deepLink;
+      return { deepLinked: true, message: 'Opening Phantom...' };
+    }
+
+    // Desktop, no Phantom installed
+    window.open('https://phantom.app/', '_blank');
+    this.eventBus.emit('wallet:error', { message: 'Phantom is not installed.' });
+    throw new Error('Phantom not installed');
+  }
+
+  async _connectProvider(provider) {
     this.connecting = true;
     this.eventBus.emit('wallet:connecting');
 
@@ -145,7 +178,7 @@ class WalletManager {
     this.connected = false;
     this.publicKey = null;
     this.balance = null;
-    localStorage.removeItem('pendingPhantomConnect'); // Clean up flag
+    this._deepLinkPending = false;
     this.eventBus.emit('wallet:disconnected');
   }
 
@@ -164,76 +197,64 @@ class WalletManager {
     return this.balance;
   }
 
-  // HELPER TO FETCH SPECIFIC TOKEN BALANCE (InfiniteCoin)
   async _scanTokenBalance(mintAddress) {
     if (!this.connection || !this.publicKey) return 0;
     try {
       const mintPubkey = new solanaWeb3.PublicKey(mintAddress);
       const tokenAccounts = await this.connection.getTokenAccountsByOwner(
-        this.publicKey, 
+        this.publicKey,
         { mint: mintPubkey }
       );
-      
+
       if (tokenAccounts.value.length > 0) {
         const accountInfo = await this.connection.getTokenAccountBalance(tokenAccounts.value[0].pubkey);
         return accountInfo.value.uiAmount || 0;
       }
-      return 0; // User does not hold this token
+      return 0;
     } catch (err) {
       console.warn('[WalletManager] Token fetch failed:', err);
       return 0;
     }
   }
 
-  // THE SCAN FUNCTION TRIGGERED BY THE UI BUTTON
   async scanBalances() {
     if (!this.connected || !this.publicKey) {
       this.eventBus.emit('wallet:error', { message: 'Wallet not connected.' });
       return;
     }
 
-    // 1. Update UI to show scanning state
     this.eventBus.emit('wallet:balanceUpdated', { balance: 'Scanning...' });
 
-    // 2. Fetch SOL
     const solBalance = await this._refreshBalance();
-
-    // 3. Fetch InfiniteCoin (Your live token address)
     const INFINITE_COIN_MINT = 'C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump';
     const infiniteBalance = await this._scanTokenBalance(INFINITE_COIN_MINT);
 
-    // 4. Emit the combined result to the UI
-    this.eventBus.emit('wallet:scanResult', { 
-      sol: solBalance || 0, 
-      infinite: infiniteBalance 
+    this.eventBus.emit('wallet:scanResult', {
+      sol: solBalance || 0,
+      infinite: infiniteBalance
     });
-    
+
     return { sol: solBalance, infinite: infiniteBalance };
   }
 
-  // Legacy balance refresh (kept for compatibility with other parts of code)
   async refreshBalance() {
     const balance = await this._refreshBalance();
     this.eventBus.emit('wallet:balanceUpdated', { balance });
     return balance;
   }
 
-  // --- FIXED SIGN MESSAGE ---
   async signTestMessage() {
     if (!this.provider || !this.connected) {
       throw new Error('Wallet not connected.');
     }
 
-    // SECURITY: Mobile browsers cannot sign messages directly via app redirects
-    // We block it on mobile to prevent infinite redirect loops.
     if (this.isMobile()) {
-        this.eventBus.emit('wallet:signTestError', { 
-            message: 'Message signing is not supported on mobile. Please use a Desktop browser.' 
-        });
-        throw new Error('Signing not supported on mobile.');
+      this.eventBus.emit('wallet:signTestError', {
+        message: 'Message signing is not supported on mobile. Please use a Desktop browser.'
+      });
+      throw new Error('Signing not supported on mobile.');
     }
 
-    // Desktop extension standard signing
     const message =
       `Infinite Runners — verify wallet ownership\n` +
       `Address: ${this.publicKey.toString()}\n` +
