@@ -425,30 +425,6 @@ class UIManager {
         }
       }
     });
-
-    // ==========================================
-    // MOBILE PHANTOM RETURN HANDLER (FIXED)
-    // ==========================================
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('phantomReconnect') === '1') {
-      const cleanUrl = window.location.href.split('?')[0];
-      window.history.replaceState({}, document.title, cleanUrl);
-
-      // Poll for Phantom provider injection (up to 6 seconds)
-      let attempts = 0;
-      const maxAttempts = 20;
-      const checkProvider = setInterval(() => {
-        attempts++;
-        const provider = window?.phantom?.solana || window?.solana;
-        if (provider?.isPhantom) {
-          clearInterval(checkProvider);
-          this.eventBus.emit('wallet:connectIfPending');
-        } else if (attempts >= maxAttempts) {
-          clearInterval(checkProvider);
-          console.warn('[UIManager] Phantom provider not detected after redirect');
-        }
-      }, 300);
-    }
   }
 
   showScreen(screenId) {
