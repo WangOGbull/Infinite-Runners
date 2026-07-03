@@ -209,17 +209,11 @@ class UIManager {
   }
 
   bindEvents() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('walletReturn') === '1') {
-      const cleanUrl = window.location.href.split('?')[0];
-      window.history.replaceState({}, document.title, cleanUrl);
-      setTimeout(() => {
-        const provider = window?.phantom?.solana || window?.solana;
-        if (provider?.isPhantom) {
-          this.eventBus.emit('wallet:connectRequest');
-        }
-      }, 500);
-    }
+    // NOTE: The old code here re-triggered wallet:connectRequest on
+    // ?walletReturn=1 by checking window.solana, which doesn't exist on
+    // mobile browsers and caused an infinite Phantom deep-link loop.
+    // WalletManager now handles the Phantom redirect itself (decrypting
+    // the response), so nothing needs to happen here anymore.
 
     document.getElementById('btnPlayNow')?.addEventListener('click', () => {
       this.showScreen('dragonSelectScreen');
