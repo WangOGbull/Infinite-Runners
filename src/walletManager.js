@@ -1,6 +1,48 @@
 // walletManager.js
 const RPC_ENDPOINT = 'https://broken-dimensional-bridge.solana-mainnet.quiknode.pro/71331ad63dbca61e4f46856dbe393fad7465aa4a/';
 
+// ---- minimal base58 helpers (avoids pulling in a separate bs58 package) ----
+const B58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58encode(bytes) {
+  let digits = [0];
+  for (let i = 0; i < bytes.length; i++) {
+    let carry = bytes[i];
+    for (let j = 0; j < digits.length; j++) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
+  for (let k = 0; bytes[k] === 0 && k < bytes.length - 1; k++) digits.push(0);
+  return digits.reverse().map(d => B58_ALPHABET[d]).join('');
+}
+function b58decode(str) {
+  let bytes = [0];
+  for (let i = 0; i < str.length; i++) {
+    const value = B58_ALPHABET.indexOf(str[i]);
+    if (value === -1) throw new Error('Invalid base58 character');
+    let carry = value;
+    for (let j = 0; j < bytes.length; j++) {
+      carry += bytes[j] * 58;
+      bytes[j] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (let k = 0; str[k] === '1' && k < str.length - 1; k++) bytes.push(0);
+  return new Uint8Array(bytes.reverse());
+}
+
+const PHANTOM_SESSION_KEY = 'phantomDappSession';
+const PHANTOM_KEYPAIR_KEY = 'phantomDappKeyPair';
+
 class WalletManager {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -11,12 +53,21 @@ class WalletManager {
     this.balance = null;
     this.connection = null;
 
+    // mobile deep-link session state
+    this.mobileSession = null;
+    this.dappKeyPair = null;
+    this.phantomWalletPublicKey = null;
+
     this._initConnection();
     this._bindProviderEvents();
+    this._restoreMobileKeyPair();
 
     this.eventBus.on('wallet:scanRequest', () => {
       this.scanBalances();
     });
+
+    // Handle the redirect Phantom sends us back to on mobile
+    this._handleMobileRedirect();
   }
 
   _initConnection() {
@@ -81,6 +132,136 @@ class WalletManager {
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Mobile deep-link (Phantom Connect API) handling
+  // ---------------------------------------------------------------------
+
+  _restoreMobileKeyPair() {
+    // We need the SAME keypair before and after the redirect round-trip,
+    // so persist it across the navigation.
+    try {
+      const saved = sessionStorage.getItem(PHANTOM_KEYPAIR_KEY);
+      if (saved) {
+        const { publicKey, secretKey } = JSON.parse(saved);
+        this.dappKeyPair = {
+          publicKey: new Uint8Array(publicKey),
+          secretKey: new Uint8Array(secretKey)
+        };
+      }
+      const savedSession = sessionStorage.getItem(PHANTOM_SESSION_KEY);
+      if (savedSession) this.mobileSession = savedSession;
+    } catch (_) { /* ignore */ }
+  }
+
+  _getOrCreateDappKeyPair() {
+    if (this.dappKeyPair) return this.dappKeyPair;
+    if (typeof nacl === 'undefined') {
+      throw new Error('tweetnacl is not loaded. Add tweetnacl-js to index.html.');
+    }
+    this.dappKeyPair = nacl.box.keyPair();
+    sessionStorage.setItem(PHANTOM_KEYPAIR_KEY, JSON.stringify({
+      publicKey: Array.from(this.dappKeyPair.publicKey),
+      secretKey: Array.from(this.dappKeyPair.secretKey)
+    }));
+    return this.dappKeyPair;
+  }
+
+  _buildMobileConnectUrl() {
+    const keyPair = this._getOrCreateDappKeyPair();
+    const appUrl = encodeURIComponent(window.location.href.split('?')[0]);
+    const redirectUrl = encodeURIComponent(
+      window.location.href.split('?')[0] + '?walletReturn=connect'
+    );
+    const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
+
+    return `https://phantom.app/ul/v1/connect?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrl}&cluster=mainnet-beta`;
+  }
+
+  _buildMobileSignMessageUrl(message) {
+    if (!this.mobileSession) throw new Error('No active mobile session.');
+    const keyPair = this._getOrCreateDappKeyPair();
+    const sharedSecret = nacl.box.before(this.phantomWalletPublicKey, keyPair.secretKey);
+
+    const payload = { session: this.mobileSession, message: b58encode(message), display: 'utf8' };
+    const nonce = nacl.randomBytes(24);
+    const encryptedPayload = nacl.box.after(
+      new TextEncoder().encode(JSON.stringify(payload)),
+      nonce,
+      sharedSecret
+    );
+
+    const redirectUrl = encodeURIComponent(
+      window.location.href.split('?')[0] + '?walletReturn=signMessage'
+    );
+    const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
+    const nonceParam = encodeURIComponent(b58encode(nonce));
+    const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
+
+    return `https://phantom.app/ul/v1/signMessage?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
+  }
+
+  _handleMobileRedirect() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const returnType = urlParams.get('walletReturn');
+    if (!returnType) return;
+
+    // Clean the URL so a page refresh doesn't try to re-process this
+    const cleanUrl = window.location.href.split('?')[0];
+    window.history.replaceState({}, document.title, cleanUrl);
+
+    if (urlParams.get('errorCode')) {
+      const message = urlParams.get('errorMessage') || 'Phantom request was rejected.';
+      if (returnType === 'signMessage') {
+        this.eventBus.emit('wallet:signTestError', { message });
+      } else {
+        this.eventBus.emit('wallet:error', { message });
+      }
+      return;
+    }
+
+    const phantomPubKeyParam = urlParams.get('phantom_encryption_public_key');
+    const nonceParam = urlParams.get('nonce');
+    const dataParam = urlParams.get('data');
+    if (!phantomPubKeyParam || !nonceParam || !dataParam) return;
+
+    try {
+      const keyPair = this._getOrCreateDappKeyPair();
+      const phantomPubKey = b58decode(phantomPubKeyParam);
+      const sharedSecret = nacl.box.before(phantomPubKey, keyPair.secretKey);
+      const decrypted = nacl.box.open.after(b58decode(dataParam), b58decode(nonceParam), sharedSecret);
+
+      if (!decrypted) throw new Error('Failed to decrypt Phantom response.');
+      const result = JSON.parse(new TextDecoder().decode(decrypted));
+
+      if (returnType === 'connect') {
+        this.phantomWalletPublicKey = phantomPubKey;
+        this.mobileSession = result.session;
+        sessionStorage.setItem(PHANTOM_SESSION_KEY, this.mobileSession);
+
+        this.publicKey = new solanaWeb3.PublicKey(result.public_key);
+        this.connected = true;
+
+        this._refreshBalance().then(() => {
+          this.eventBus.emit('wallet:connected', {
+            address: this.publicKey.toString(),
+            balance: this.balance
+          });
+        });
+      } else if (returnType === 'signMessage') {
+        this.eventBus.emit('wallet:signTestResult', {
+          signatureHex: Array.from(b58decode(result.signature))
+            .map(b => b.toString(16).padStart(2, '0')).join(''),
+          publicKey: this.publicKey ? this.publicKey.toString() : ''
+        });
+      }
+    } catch (err) {
+      console.error('[WalletManager] Failed to process Phantom redirect:', err);
+      this.eventBus.emit('wallet:error', { message: 'Could not complete Phantom connection.' });
+    }
+  }
+
+  // ---------------------------------------------------------------------
+
   async connect() {
     const provider = this.getProvider();
 
@@ -89,9 +270,8 @@ class WalletManager {
     }
 
     if (this.isMobile()) {
-      const appUrl = encodeURIComponent(window.location.href.split('?')[0]);
-      const redirectUrl = encodeURIComponent(window.location.href.split('?')[0] + '?walletReturn=1');
-      window.location.href = `https://phantom.app/ul/v1/connect?app_url=${appUrl}&redirect_link=${redirectUrl}&cluster=mainnet-beta`;
+      this.eventBus.emit('wallet:connecting');
+      window.location.href = this._buildMobileConnectUrl();
       return { deepLinked: true };
     }
 
@@ -135,6 +315,9 @@ class WalletManager {
     this.connected = false;
     this.publicKey = null;
     this.balance = null;
+    this.mobileSession = null;
+    this.phantomWalletPublicKey = null;
+    sessionStorage.removeItem(PHANTOM_SESSION_KEY);
     this.eventBus.emit('wallet:disconnected');
   }
 
@@ -200,15 +383,8 @@ class WalletManager {
   }
 
   async signTestMessage() {
-    if (!this.provider || !this.connected) {
+    if (!this.connected) {
       throw new Error('Wallet not connected.');
-    }
-
-    if (this.isMobile()) {
-      this.eventBus.emit('wallet:signTestError', {
-        message: 'Message signing is not supported on mobile. Please use a Desktop browser.'
-      });
-      throw new Error('Signing not supported on mobile.');
     }
 
     const message =
@@ -216,6 +392,17 @@ class WalletManager {
       `Address: ${this.publicKey.toString()}\n` +
       `Timestamp: ${new Date().toISOString()}`;
     const encoded = new TextEncoder().encode(message);
+
+    // Mobile: no injected provider, must use the deep-link sign flow.
+    if (this.isMobile() && !this.provider) {
+      window.location.href = this._buildMobileSignMessageUrl(encoded);
+      return { deepLinked: true };
+    }
+
+    if (!this.provider) {
+      throw new Error('Wallet not connected.');
+    }
+
     const { signature, publicKey } = await this.provider.signMessage(encoded, 'utf8');
 
     return {
