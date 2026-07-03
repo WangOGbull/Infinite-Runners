@@ -159,18 +159,33 @@ class WalletManager {
       throw new Error('tweetnacl is not loaded. Add tweetnacl-js to index.html.');
     }
     this.dappKeyPair = nacl.box.keyPair();
-    sessionStorage.setItem(PHANTOM_KEYPAIR_KEY, JSON.stringify({
-      publicKey: Array.from(this.dappKeyPair.publicKey),
-      secretKey: Array.from(this.dappKeyPair.secretKey)
-    }));
+    this._persistDappKeyPair(this.dappKeyPair);
     return this.dappKeyPair;
   }
 
+  _persistDappKeyPair(keyPair) {
+    try {
+      sessionStorage.setItem(PHANTOM_KEYPAIR_KEY, JSON.stringify({
+        publicKey: Array.from(keyPair.publicKey),
+        secretKey: Array.from(keyPair.secretKey)
+      }));
+    } catch (_) { /* storage may be unavailable, ignore */ }
+  }
+
+  // Opening the link from Telegram/Instagram/etc. means the page first loads
+  // in that app's in-app browser. Phantom's redirect back, however, lands in
+  // the device's default browser (e.g. Chrome) -- a completely different
+  // storage context. sessionStorage set in the in-app browser is invisible
+  // there. To survive that hop, we embed the dapp secret key directly in the
+  // redirect_link so whatever browser opens it can rebuild the same keypair.
   _buildMobileConnectUrl() {
     const keyPair = this._getOrCreateDappKeyPair();
-    const appUrl = encodeURIComponent(window.location.href.split('?')[0]);
+    const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
+
+    const redirectBase = window.location.href.split('?')[0].split('#')[0];
+    const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
     const redirectUrl = encodeURIComponent(
-      window.location.href.split('?')[0] + '?walletReturn=connect'
+      `${redirectBase}?walletReturn=connect&dsk=${dsk}`
     );
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
 
@@ -190,8 +205,10 @@ class WalletManager {
       sharedSecret
     );
 
+    const redirectBase = window.location.href.split('?')[0].split('#')[0];
+    const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
     const redirectUrl = encodeURIComponent(
-      window.location.href.split('?')[0] + '?walletReturn=signMessage'
+      `${redirectBase}?walletReturn=signMessage&dsk=${dsk}`
     );
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const nonceParam = encodeURIComponent(b58encode(nonce));
@@ -225,7 +242,19 @@ class WalletManager {
     if (!phantomPubKeyParam || !nonceParam || !dataParam) return;
 
     try {
-      const keyPair = this._getOrCreateDappKeyPair();
+      // Prefer the keypair embedded in the URL (dsk) -- it's guaranteed to
+      // match what we used to build the original request, even if Phantom's
+      // redirect opened in a different browser than the one that sent it.
+      const dskParam = urlParams.get('dsk');
+      let keyPair;
+      if (dskParam) {
+        const secretKey = b58decode(dskParam);
+        keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+        this.dappKeyPair = keyPair;
+        this._persistDappKeyPair(keyPair); // keep this browser usable going forward
+      } else {
+        keyPair = this._getOrCreateDappKeyPair();
+      }
       const phantomPubKey = b58decode(phantomPubKeyParam);
       const sharedSecret = nacl.box.before(phantomPubKey, keyPair.secretKey);
       const decrypted = nacl.box.open.after(b58decode(dataParam), b58decode(nonceParam), sharedSecret);
