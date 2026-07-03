@@ -292,6 +292,7 @@ class WalletManager {
   // ---------------------------------------------------------------------
 
   async connect() {
+    if (this.connecting) return; // prevent spamming multiple deep-link tabs
     const provider = this.getProvider();
 
     if (provider) {
@@ -299,8 +300,11 @@ class WalletManager {
     }
 
     if (this.isMobile()) {
+      this.connecting = true;
       this.eventBus.emit('wallet:connecting');
-      window.location.href = this._buildMobileConnectUrl();
+      // location.replace (not href) avoids stacking extra history entries
+      // in this tab while we wait for Phantom to redirect back.
+      window.location.replace(this._buildMobileConnectUrl());
       return { deepLinked: true };
     }
 
