@@ -246,6 +246,24 @@
       <button id="lobbyModeFfa" class="active">FFA</button>
       <button id="lobbyMode2v2">2v2</button>
     </div>
+
+    <!-- ===== STAKING: tier selector (1v1 rooms only) ===== -->
+    <div class="lobbyTierSelector" id="lobbyTierSelector" style="display:none;">
+      <label>Stake Tier:</label>
+      <div class="tierBtns" id="tierBtns">
+        <button class="tierBtn" data-tier="Small" id="tierSmall">
+          <span class="tierDot small">🟢</span> Small<br><span class="tierAmt">-- INFINITE</span>
+        </button>
+        <button class="tierBtn" data-tier="Medium" id="tierMedium">
+          <span class="tierDot medium">🟡</span> Medium<br><span class="tierAmt">-- INFINITE</span>
+        </button>
+        <button class="tierBtn" data-tier="High" id="tierHigh">
+          <span class="tierDot high">🔴</span> High<br><span class="tierAmt">-- INFINITE</span>
+        </button>
+      </div>
+      <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
+    </div>
+
     <div class="lobbyArenaSelector" id="lobbyArenaSelector">
       <label>Arena:</label>
       <div class="arenaThumbs" id="lobbyArenaThumbs">
@@ -268,6 +286,13 @@
       </div>
     </div>
     <div class="lobbySlots" id="lobbySlots"></div>
+
+    <!-- ===== STAKING: deposit action + status ===== -->
+    <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;">
+      <i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span>
+    </button>
+    <p id="depositStatusText" class="depositStatusText"></p>
+
     <div class="lobbyActions">
       <button class="pBtn pBtnRes" id="lobbyStartBtn"><i data-lucide="play"></i> Start Game</button>
       <div id="lobbyWaitingText">Waiting for host...</div>
