@@ -290,3 +290,34 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
   #titleScreen h1{font-size:52px}
   #titleScreen h2{font-size:28px}
 }
+
+/* ==================== STAKING: TIER SELECTOR ==================== */
+.lobbyTierSelector{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:14px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px}
+.lobbyTierSelector label{font-size:11px;color:rgba(200,220,240,0.6);letter-spacing:.5px}
+.tierBtns{display:flex;gap:8px;justify-content:center;width:100%}
+.tierBtn{flex:1;padding:10px 6px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:#fff;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;letter-spacing:.5px;cursor:pointer;transition:all .2s;text-align:center;line-height:1.6}
+.tierBtn .tierAmt{display:block;font-size:10px;color:rgba(200,220,240,0.55);font-weight:500;margin-top:2px}
+.tierBtn:hover:not(:disabled){border-color:rgba(0,180,216,0.4);background:rgba(0,180,216,0.06)}
+.tierBtn.active{border-color:#00b4d8;background:rgba(0,180,216,0.14);box-shadow:0 0 12px rgba(0,180,216,0.2)}
+.tierBtn.active .tierAmt{color:#48cae4}
+.tierBtn:disabled{cursor:not-allowed;opacity:.55}
+.feeDisclosure{font-size:10px;color:rgba(200,220,240,0.4);letter-spacing:.3px;text-align:center;margin:0}
+
+/* ==================== STAKING: DEPOSIT BUTTON + STATUS ==================== */
+#lobbyDepositBtn{width:100%;margin-bottom:8px}
+#lobbyDepositBtn:disabled{opacity:.5;cursor:not-allowed}
+.depositStatusText{font-size:11px;text-align:center;min-height:14px;margin:0 0 10px;letter-spacing:.3px}
+.depositStatusText.pending{color:#ffd166}
+.depositStatusText.confirmed{color:#4ade80}
+.depositStatusText.error{color:#ff6b6b}
+
+/* ==================== STAKING: PER-PLAYER DEPOSIT BADGE ==================== */
+.depositBadge{display:inline-flex;align-items:center;gap:4px;font-size:9px;letter-spacing:.5px;margin-top:4px;padding:2px 8px;border-radius:20px;width:fit-content}
+.depositBadge i{width:10px;height:10px}
+.depositBadge.pending{color:#ffd166;background:rgba(255,209,102,0.1);border:1px solid rgba(255,209,102,0.25)}
+.depositBadge.confirmed{color:#4ade80;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25)}
+
+@media(max-width:480px){
+  .tierBtn{font-size:10px;padding:8px 4px}
+  .tierBtn .tierAmt{font-size:9px}
+}
