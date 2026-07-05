@@ -1,450 +1,145 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Infinite Runners - Dragons Arena</title>
+// index.js — Firebase Cloud Functions
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const { settleMatch } = require('./src/solanaClient');
 
-<!-- Lucide Icons -->
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+admin.initializeApp();
+const db = admin.database();
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+const FORFEIT_GRACE_SECONDS = 30;
 
-<!-- Solana web3.js (exposes window.solanaWeb3) -->
-<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
-
-<!-- tweetnacl (needed for Phantom's mobile deep-link encryption handshake) -->
-<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
-
-<!-- Google Fonts -->
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-<!-- FontAwesome for your icons -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-<link rel="stylesheet" href="./src/styles.css">
-
-<style>
-  /* Mobile dragon select scroll fix */
-  #dragonSelectScreen {
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
+/**
+ * Callable from the client after a match ends. Each player calls this once
+ * with their own claimed result. Payout only fires once BOTH players' claims
+ * exist and agree - a single client can never trigger a payout alone.
+ */
+exports.submitMatchResult = functions.https.onCall(async (data, context) => {
+  const { roomCode, winner, matchLogHash } = data;
+  if (!roomCode || !winner || !matchLogHash) {
+    throw new functions.https.HttpsError('invalid-argument', 'roomCode, winner, and matchLogHash are required.');
   }
-  #dragonSelectScreen .dsInner {
-    padding-bottom: 80px;
-    min-height: 100vh;
-  }
-  #dragonList {
-    padding-bottom: 40px;
-  }
-  .dragonCard {
-    flex-shrink: 0;
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be signed in (see Firebase Auth note below).');
   }
 
-  /* Wallet integration */
-  #walletBtn.connected {
-    background: rgba(0,180,216,0.15);
-    border: 1px solid rgba(0,180,216,0.5);
+  const claimRef = db.ref(`rooms/${roomCode}/resultClaims/${context.auth.uid}`);
+  await claimRef.set({ winner, matchLogHash, submittedAt: admin.database.ServerValue.TIMESTAMP });
+
+  return reconcileClaims(roomCode);
+});
+
+async function reconcileClaims(roomCode) {
+  const roomSnap = await db.ref(`rooms/${roomCode}`).once('value');
+  const room = roomSnap.val();
+  if (!room) throw new functions.https.HttpsError('not-found', 'Room not found.');
+  if (room.settlement?.status === 'settled') return { status: 'already_settled' };
+
+  const claims = room.resultClaims || {};
+  const claimValues = Object.values(claims);
+
+  if (claimValues.length < 2) {
+    return { status: 'waiting_for_opponent_claim' };
   }
-  .wHint {
-    color: #8b93a6;
-    font-size: 12px;
-    text-align: center;
-    margin-top: 12px;
+
+  const [a, b] = claimValues;
+  const agree = a.winner === b.winner && a.matchLogHash === b.matchLogHash;
+
+  if (!agree) {
+    await db.ref(`rooms/${roomCode}/settlement`).set({
+      status: 'disputed',
+      reason: 'Client result claims disagree - needs multisig resolve_dispute.',
+      flaggedAt: admin.database.ServerValue.TIMESTAMP,
+    });
+    return { status: 'disputed' };
   }
-  .wSpinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid rgba(171,159,242,0.2);
-    border-top-color: #ab9ff2;
-    border-radius: 50%;
-    margin: 20px auto;
-    animation: wSpin 0.8s linear infinite;
+
+  const stakeRoomId = room.stakeRoomId || parseInt(roomCode, 10);
+  const hostPubkey = room.hostPubkey; // stashed at deposit time - see client note below
+  const winnerPubkey = a.winner === 'host' ? hostPubkey : room.opponentPubkey;
+
+  try {
+    const signature = await settleMatch({
+      roomId: stakeRoomId,
+      winnerPubkeyStr: winnerPubkey,
+      hostPubkeyStr: hostPubkey,
+    });
+    await db.ref(`rooms/${roomCode}/settlement`).set({
+      status: 'settled',
+      winner: a.winner,
+      signature,
+      settledAt: admin.database.ServerValue.TIMESTAMP,
+    });
+    return { status: 'settled', signature };
+  } catch (err) {
+    console.error(`[settleMatch] room ${roomCode} failed:`, err);
+    await db.ref(`rooms/${roomCode}/settlement`).set({
+      status: 'settlement_failed',
+      error: err.message,
+      failedAt: admin.database.ServerValue.TIMESTAMP,
+    });
+    throw new functions.https.HttpsError('internal', 'On-chain settlement failed - flagged for manual review.');
   }
-  @keyframes wSpin { to { transform: rotate(360deg); } }
-  #walletConnectingView p {
-    text-align: center;
-    color: #c8ccd8;
-    font-size: 13px;
+}
+
+/**
+ * Presence-based forfeit: the client should write to
+ * `rooms/{code}/presence/{uid}` with an `.onDisconnect()` handler that sets
+ * `disconnectedAt`. This function watches for that write, waits out the grace
+ * period, and if the player hasn't come back, submits a forfeit claim on
+ * their behalf declaring the other player the winner. This is NOT the same
+ * as an automatic refund - a disconnect during an active match is a forfeit
+ * (opponent wins), matching your "reconnect/forfeit, not refund" requirement.
+ */
+exports.handleDisconnect = functions.database
+  .ref('/rooms/{roomCode}/presence/{uid}/disconnectedAt')
+  .onCreate(async (snapshot, context) => {
+    const { roomCode, uid } = context.params;
+
+    await new Promise((resolve) => setTimeout(resolve, FORFEIT_GRACE_SECONDS * 1000));
+
+    const presenceSnap = await db.ref(`rooms/${roomCode}/presence/${uid}`).once('value');
+    const presence = presenceSnap.val();
+    if (!presence || presence.reconnectedAt) return null; // they came back in time
+
+    const roomSnap = await db.ref(`rooms/${roomCode}`).once('value');
+    const room = roomSnap.val();
+    if (!room || room.settlement?.status === 'settled') return null;
+
+    const disconnectedIsHost = uid === room.hostUid;
+    const forfeitWinner = disconnectedIsHost ? 'opponent' : 'host';
+
+    // A forfeit is written as if BOTH players agreed, since the disconnect
+    // itself (plus the expired grace period) is the evidence - there's no one
+    // left to co-sign a claim from the disconnected side.
+    await db.ref(`rooms/${roomCode}/resultClaims`).set({
+      forfeit_system: { winner: forfeitWinner, matchLogHash: 'forfeit', submittedAt: admin.database.ServerValue.TIMESTAMP },
+      forfeit_confirm: { winner: forfeitWinner, matchLogHash: 'forfeit', submittedAt: admin.database.ServerValue.TIMESTAMP },
+    });
+
+    return reconcileClaims(roomCode);
+  });
+
+/**
+ * Scheduled sweeper (every minute) - calls the permissionless on-chain
+ * timeout instructions for any room past its deadline. This is a convenience,
+ * not a dependency: players can always trigger these themselves too, since
+ * claim_deposit_timeout / claim_settle_timeout require no special permission.
+ * Implement the actual on-chain calls the same way stakingManager.js does -
+ * this function only needs to iterate rooms and skip ones that aren't stale.
+ */
+exports.sweepTimeouts = functions.pubsub.schedule('every 1 minutes').onRun(async () => {
+  const roomsSnap = await db.ref('rooms').once('value');
+  const rooms = roomsSnap.val() || {};
+  const now = Date.now() / 1000;
+
+  for (const [roomCode, room] of Object.entries(rooms)) {
+    if (!room.staking || room.settlement?.status === 'settled') continue;
+    // TODO: read the on-chain Room account's deposit_deadline / settle_deadline
+    // (via solanaClient.getConnection() + roomPda) and call the matching
+    // claim_deposit_timeout / claim_settle_timeout instruction here, using
+    // the same instruction-building approach as settleMatch() above.
+    // Left as a direct extension point since it's mechanical, not risky -
+    // happy to fill this in once the rest of the pipeline is confirmed working.
   }
-  .wAccountRow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 12px;
-    margin-bottom: 12px;
-  }
-  .wAccountInfo { flex: 1; min-width: 0; }
-  .wAddress {
-    font-family: monospace;
-    font-size: 14px;
-    color: #e8d5a3;
-    letter-spacing: 0.5px;
-  }
-  .wBalance {
-    font-size: 12px;
-    color: #00b4d8;
-    margin-top: 6px;
-  }
-  .wTestBtn, .wDisconnectBtn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    cursor: pointer;
-    margin-top: 8px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(255,255,255,0.03);
-    color: #e0e0e0;
-  }
-  .wTestBtn:hover { border-color: #00b4d8; color: #00b4d8; }
-  .wDisconnectBtn:hover { border-color: #ff4444; color: #ff4444; }
-  .wSignResult {
-    font-size: 11px;
-    text-align: center;
-    margin-top: 8px;
-    min-height: 14px;
-    word-break: break-all;
-    color: #8b93a6;
-  }
-  .wSignOk { color: #4dff88; font-size: 12px; }
-  .wSignFail { color: #ff4444; font-size: 12px; }
-  .wSignHash { font-family: monospace; margin-top: 4px; }
-  .wError {
-    color: #ff4444;
-    font-size: 12px;
-    text-align: center;
-    margin-top: 12px;
-    background: rgba(255,68,68,0.08);
-    border: 1px solid rgba(255,68,68,0.2);
-    border-radius: 6px;
-    padding: 8px;
-  }
-  
-  /* Scan Button Styling */
-  #btnWalletRefreshInline {
-    margin-left: 10px;
-    padding: 4px 10px;
-    background: #2a2a3a;
-    border: 1px solid #444;
-    border-radius: 4px;
-    color: #fff;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  #btnWalletRefreshInline:hover {
-    background: #3a3a4a;
-    border-color: #00b4d8;
-  }
-</style>
-</head>
-<body>
-
-<!-- ===== PARTICLE BACKGROUND CANVAS ===== -->
-<canvas id="pCanvas"></canvas>
-
-<!-- ===== TITLE SCREEN ===== -->
-<div id="titleScreen" class="screen active" style="background-image:url('./shadow-drake-bg.png');background-size:cover;background-position:center;background-repeat:no-repeat;">
-  <div class="darken"></div>
-  <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button>
-  <div class="content">
-    <h1>Infinite Runners</h1>
-    <h2>^Dragons Arena^</h2>
-    <h3>Chronicles of the Void</h3>
-    <p class="subtitle">^ Free to Play ^</p>
-    <button class="playBtn" id="btnPlayNow"><i data-lucide="play"></i> PLAY NOW</button>
-    <div class="menuBtns">
-      <button class="menuBtn" id="btnStartGame"><i data-lucide="gamepad-2"></i> Start Game</button>
-      <button class="menuBtn" id="btnLeaderboard"><i data-lucide="trophy"></i> Leaderboard</button>
-      <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button>
-    </div>
-  </div>
-  <span class="copyright">2025 Infinite Runners Dragons Arena. All rights reserved.</span>
-</div>
-
-<!-- ===== DRAGON SELECT ===== -->
-<div id="dragonSelectScreen" class="screen">
-  <div class="dsInner">
-    <button class="backBtn" id="btnDsBack"><i data-lucide="arrow-left"></i> Back</button>
-    <h2>Choose Your Dragon</h2>
-    <div id="dragonList"></div>
-  </div>
-</div>
-
-<!-- ===== MODE SELECT (1v1 AI + Multiplayer only) ===== -->
-<div id="modeSelectScreen" class="screen">
-  <div class="modeBox">
-    <h2>Choose Battle Mode</h2>
-    <p class="sub">Select how you want to play</p>
-    <div class="modeCards">
-      <div class="modeCard" id="btn1v1AI" data-mode="1v1AI">
-        <div class="mIcon"><i data-lucide="swords"></i></div>
-        <div class="mLabel">1v1 vs AI</div>
-        <div class="mDesc">Battle solo against AI bots. Perfect for practice.</div>
-      </div>
-      <div class="modeCard" id="btnMpMultiplayer" data-mode="multiplayer">
-        <div class="mIcon"><i data-lucide="wifi"></i></div>
-        <div class="mLabel">Multiplayer</div>
-        <div class="mDesc">Play online with friends via room code.</div>
-      </div>
-    </div>
-    <button class="menuBtn" id="btnModeBack"><i data-lucide="arrow-left"></i> Back to Dragons</button>
-  </div>
-</div>
-
-<!-- ===== MULTIPLAYER MENU ===== -->
-<div id="mpMenuScreen" class="screen">
-  <div class="mpBox">
-    <h2>Multiplayer</h2>
-    <p class="sub">Create or join a battle room</p>
-    <div class="modeCards">
-      <div class="modeCard" id="btnMpCreate">
-        <div class="mIcon"><i data-lucide="plus-circle"></i></div>
-        <div class="mLabel">Create Room</div>
-        <div class="mDesc">Start a new room and invite friends.</div>
-      </div>
-    </div>
-    <div class="mpJoinSection">
-      <div class="joinTitle">Join Room</div>
-      <p class="joinSub">Enter a 6-digit room code</p>
-      <div class="mpJoinRow">
-        <input type="text" id="mpRoomInput" class="mpRoomInput" placeholder="000000" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
-        <button class="mpJoinBtn" id="btnMpJoin"><i data-lucide="log-in"></i> Join</button>
-      </div>
-      <p class="mpJoinError" id="mpJoinError"></p>
-    </div>
-    <button class="menuBtn" id="btnMpBack"><i data-lucide="arrow-left"></i> Back to Mode</button>
-  </div>
-</div>
-
-<!-- ===== LOBBY ===== -->
-<div id="lobbyScreen" class="screen">
-  <div class="lobbyBox">
-    <h2>Game Lobby</h2>
-    <div class="roomCodeRow">
-      <span class="roomLabel">Room Code:</span>
-      <span id="roomCodeDisplay">------</span>
-    </div>
-    <div class="lobbyMeta">
-      <span id="lobbyGameMode">Free For All</span> | <span id="lobbyPlayerCount">1 / 4</span>
-    </div>
-    <div class="modeSelectorHost" id="modeSelectorHost">
-      <label>Mode:</label>
-      <button id="lobbyModeFfa" class="active">FFA</button>
-      <button id="lobbyMode2v2">2v2</button>
-    </div>
-
-    <!-- ===== STAKING: tier selector (1v1 rooms only) ===== -->
-    <div class="lobbyTierSelector" id="lobbyTierSelector" style="display:none;">
-      <label>Stake Tier:</label>
-      <div class="tierBtns" id="tierBtns">
-        <button class="tierBtn" data-tier="Small" id="tierSmall">
-          <span class="tierDot small">🟢</span> Small<br><span class="tierAmt">-- INFINITE</span>
-        </button>
-        <button class="tierBtn" data-tier="Medium" id="tierMedium">
-          <span class="tierDot medium">🟡</span> Medium<br><span class="tierAmt">-- INFINITE</span>
-        </button>
-        <button class="tierBtn" data-tier="High" id="tierHigh">
-          <span class="tierDot high">🔴</span> High<br><span class="tierAmt">-- INFINITE</span>
-        </button>
-      </div>
-      <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
-    </div>
-
-    <div class="lobbyArenaSelector" id="lobbyArenaSelector">
-      <label>Arena:</label>
-      <div class="arenaThumbs" id="lobbyArenaThumbs">
-        <button data-arena="0" class="arenaThumb active" id="lobbyArena0">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png" alt="Stone">
-          <span>Stone</span>
-        </button>
-        <button data-arena="1" class="arenaThumb" id="lobbyArena1">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png" alt="Grass">
-          <span>Grass</span>
-        </button>
-        <button data-arena="2" class="arenaThumb" id="lobbyArena2">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png" alt="Purple">
-          <span>Purple</span>
-        </button>
-        <button data-arena="3" class="arenaThumb" id="lobbyArena3">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png" alt="Fire">
-          <span>Fire</span>
-        </button>
-      </div>
-    </div>
-    <div class="lobbySlots" id="lobbySlots"></div>
-
-    <!-- ===== STAKING: deposit action + status ===== -->
-    <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;">
-      <i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span>
-    </button>
-    <p id="depositStatusText" class="depositStatusText"></p>
-
-    <div class="lobbyActions">
-      <button class="pBtn pBtnRes" id="lobbyStartBtn"><i data-lucide="play"></i> Start Game</button>
-      <div id="lobbyWaitingText">Waiting for host...</div>
-      <button class="pBtn pBtnOut" id="btnLeaveRoom"><i data-lucide="log-out"></i> Leave Room</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== LOADING ===== -->
-<div id="loadingScreen" class="screen">
-  <div class="loadBox">
-    <div class="infsym">&#8734;</div>
-    <div class="orbit1"></div>
-    <div class="orbit2"></div>
-  </div>
-  <h2>Entering the Arena...</h2>
-  <div class="progbar"><div></div></div>
-</div>
-
-<!-- ===== GAME ===== -->
-<div id="gameScreen" class="screen">
-  <canvas id="gameCanvas"></canvas>
-  <div id="gameHud">
-    <div class="hudLeft">
-      <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button>
-      <div id="timerDisplay">0:00</div>
-      <div id="scoreDisplay"><i data-lucide="infinity"></i> <span id="scoreVal">0</span></div>
-    </div>
-    <canvas id="minimapCanvas"></canvas>
-  </div>
-  <div id="mobileControls">
-    <div id="joyArea"><div id="joyKnob"></div></div>
-    <div id="boostBtn"><i data-lucide="zap"></i><span>BOOST</span></div>
-  </div>
-  <div id="pauseOverlay" class="overlay">
-    <h2>PAUSED</h2>
-    <button class="pBtn pBtnRes" id="btnResume"><i data-lucide="play"></i> RESUME</button>
-    <button class="pBtn pBtnOut" id="btnChangeDragon"><i data-lucide="refresh-cw"></i> CHANGE DRAGON</button>
-    <button class="pBtn pBtnOut" id="btnQuit"><i data-lucide="log-out"></i> QUIT TO MENU</button>
-  </div>
-</div>
-
-<!-- ===== GAME OVER ===== -->
-<div id="gameOverScreen" class="screen">
-  <h1>DEFEATED</h1>
-  <div class="goStats">
-    <div class="goStat"><div class="num" id="goTime">0:00</div><div class="lbl">SURVIVED</div></div>
-    <div class="goStat"><div class="num" id="goCollect">0</div><div class="lbl">COLLECTED</div></div>
-    <div class="goStat"><div class="num" id="goKills">0</div><div class="lbl">KILLS</div></div>
-  </div>
-  <div class="goActions">
-    <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
-    <button class="pBtn pBtnOut" id="btnMainMenu"><i data-lucide="home"></i> MAIN MENU</button>
-  </div>
-</div>
-
-<!-- ===== HOW TO PLAY ===== -->
-<div id="howToPlayScreen" class="screen">
-  <button class="htpClose" id="btnHtpClose"><i data-lucide="x"></i></button>
-  <div class="htpInner">
-    <h2>HOW TO PLAY</h2>
-    <div class="htpTabs">
-      <button class="htpTab active" data-tab="controls">CONTROLS</button>
-      <button class="htpTab" data-tab="mechanics">MECHANICS</button>
-      <button class="htpTab" data-tab="tips">TIPS</button>
-    </div>
-    <div id="htpControls" class="htpPanel active">
-      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div>
-      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Boost</h4><p>Tap and hold the BOOST button for speed burst.</p></div>
-      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move=Mouse, Boost=Click/Space, Pause=ESC</p></div>
-    </div>
-    <div id="htpMechanics" class="htpPanel">
-      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter shatters into collectibles.</p></div>
-      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>Hitting tail cuts 20% from tail. Victim drops collectibles, slowed 0.7s.</p></div>
-      <div class="htpCard"><h4><i data-lucide="shield"></i> Tail vs Tail</h4><p>Nothing happens.</p></div>
-      <div class="htpCard"><h4><i data-lucide="infinity"></i> Collect &infin;</h4><p>Eat infinity symbols to grow. Start small, grow to max size.</p></div>
-      <div class="htpCard"><h4><i data-lucide="ban"></i> Arena</h4><p>Circular arena with hard boundary. Bounce off the edge.</p></div>
-    </div>
-    <div id="htpTips" class="htpPanel">
-      <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div>
-      <div class="htpCard"><h4 style="color:#ff4d4d">Ignis</h4><p>Fast and aggressive. Rush opponents.</p></div>
-      <div class="htpCard"><h4 style="color:#00b4d8">Infinite</h4><p>Longest body. Trap and block enemies.</p></div>
-      <div class="htpCard"><h4 style="color:#ff00aa">Magnetron</h4><p>Tanky. Hard to kill.</p></div>
-    </div>
-    <button class="gotItBtn" id="btnGotIt">GOT IT</button>
-  </div>
-</div>
-
-<!-- ===== WALLET MODAL ===== -->
-<div id="walletModal" class="screen">
-  <div class="walletBox">
-    <button class="wClose" id="btnWalletClose"><i data-lucide="x"></i></button>
-    <h3>Connect Wallet</h3>
-
-    <div id="walletDisconnectedView">
-      <div class="wOpt" data-w="phantom" id="wOptPhantom">
-        <div class="wIcon" style="background:transparent; padding:0;">
-          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:32px; height:32px; display:block;">
-        </div>
-        <span>Phantom</span>
-      </div>
-      <p class="wHint">Solana wallet required to earn in-game rewards.</p>
-    </div>
-
-    <div id="walletConnectingView" style="display:none">
-      <div class="wSpinner"></div>
-      <p>Approve the connection in Phantom...</p>
-    </div>
-
-    <div id="walletConnectedView" style="display:none">
-      <div class="wAccountRow">
-        <div class="wIcon" style="background:transparent; padding:0;">
-          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;">
-        </div>
-        <div class="wAccountInfo">
-          <!-- The UI Manager will dynamically inject the 'Scan' button directly next to this address ID -->
-          <div class="wAddress" id="wAddressDisplay">-</div>
-          <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
-        </div>
-      </div>
-      <button class="wTestBtn" id="btnWalletSignTest"><i data-lucide="pen-line"></i> Sign Test Message</button>
-      <div class="wSignResult" id="wSignResult"></div>
-      <button class="wDisconnectBtn" id="btnWalletDisconnect"><i data-lucide="log-out"></i> Disconnect</button>
-    </div>
-
-    <div class="wError" id="walletError" style="display:none"></div>
-  </div>
-</div>
-
-<!-- ===== COUNTDOWN OVERLAY ===== -->
-<div id="countdownOverlay">
-  <div id="countdownText">3</div>
-</div>
-
-<!-- ===== MP GAME OVER ===== -->
-<div id="mpGameOver" class="screen">
-  <div class="mpGoPanel">
-    <h2 id="mpGameOverTitle">Victory!</h2>
-    <div id="mpGameOverStats"></div>
-    <div class="mpGoActions">
-      <button class="pBtn pBtnRes" id="btnReturnLobby"><i data-lucide="corner-up-left"></i> Return to Lobby</button>
-      <button class="pBtn pBtnOut" id="btnMpMainMenu"><i data-lucide="home"></i> Main Menu</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== LOADING OVERLAY ===== -->
-<div id="loadingOverlay">
-  <div class="loadSpin"></div>
-  <div class="loadText">Loading...</div>
-</div>
-
-<script type="module" src="./src/main.js"></script>
-</body>
-</html>
+  return null;
+});
