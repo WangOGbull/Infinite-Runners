@@ -42,6 +42,7 @@ function b58decode(str) {
 
 const PHANTOM_SESSION_KEY = 'phantomDappSession';
 const PHANTOM_KEYPAIR_KEY = 'phantomDappKeyPair';
+const PHANTOM_PENDING_ACTION_KEY = 'phantomPendingAction';
 
 class WalletManager {
   constructor(eventBus) {
@@ -217,6 +218,43 @@ class WalletManager {
     return `https://phantom.app/ul/v1/signMessage?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
   }
 
+  // Same encrypted-payload pattern as signMessage, but for signAndSendTransaction.
+  // `pendingAction` is an arbitrary small JSON object (e.g. { type: 'createRoom',
+  // roomId, tier }) describing what this transaction was for - it's stashed in
+  // sessionStorage and handed back via 'wallet:txConfirmed' once Phantom redirects
+  // back, since the page fully reloads in between and loses all JS memory state.
+  _buildMobileSignAndSendUrl(serializedTransaction, pendingAction) {
+    if (!this.mobileSession) throw new Error('No active mobile session.');
+    const keyPair = this._getOrCreateDappKeyPair();
+    const sharedSecret = nacl.box.before(this.phantomWalletPublicKey, keyPair.secretKey);
+
+    const payload = {
+      session: this.mobileSession,
+      transaction: b58encode(serializedTransaction),
+    };
+    const nonce = nacl.randomBytes(24);
+    const encryptedPayload = nacl.box.after(
+      new TextEncoder().encode(JSON.stringify(payload)),
+      nonce,
+      sharedSecret
+    );
+
+    try {
+      sessionStorage.setItem(PHANTOM_PENDING_ACTION_KEY, JSON.stringify(pendingAction || null));
+    } catch (_) { /* ignore */ }
+
+    const redirectBase = window.location.href.split('?')[0].split('#')[0];
+    const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
+    const redirectUrl = encodeURIComponent(
+      `${redirectBase}?walletReturn=signAndSendTransaction&dsk=${dsk}`
+    );
+    const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
+    const nonceParam = encodeURIComponent(b58encode(nonce));
+    const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
+
+    return `https://phantom.app/ul/v1/signAndSendTransaction?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
+  }
+
   _handleMobileRedirect() {
     const urlParams = new URLSearchParams(window.location.search);
     const returnType = urlParams.get('walletReturn');
@@ -230,6 +268,9 @@ class WalletManager {
       const message = urlParams.get('errorMessage') || 'Phantom request was rejected.';
       if (returnType === 'signMessage') {
         this.eventBus.emit('wallet:signTestError', { message });
+      } else if (returnType === 'signAndSendTransaction') {
+        const pendingAction = this._consumePendingAction();
+        this.eventBus.emit('wallet:txError', { message, pendingAction });
       } else {
         this.eventBus.emit('wallet:error', { message });
       }
@@ -282,10 +323,34 @@ class WalletManager {
             .map(b => b.toString(16).padStart(2, '0')).join(''),
           publicKey: this.publicKey ? this.publicKey.toString() : ''
         });
+      } else if (returnType === 'signAndSendTransaction') {
+        const pendingAction = this._consumePendingAction();
+        this.eventBus.emit('wallet:txConfirmed', {
+          signature: result.signature,
+          pendingAction,
+        });
       }
     } catch (err) {
       console.error('[WalletManager] Failed to process Phantom redirect:', err);
-      this.eventBus.emit('wallet:error', { message: 'Could not complete Phantom connection.' });
+      if (returnType === 'signAndSendTransaction') {
+        const pendingAction = this._consumePendingAction();
+        this.eventBus.emit('wallet:txError', {
+          message: 'Could not complete the staking transaction.',
+          pendingAction,
+        });
+      } else {
+        this.eventBus.emit('wallet:error', { message: 'Could not complete Phantom connection.' });
+      }
+    }
+  }
+
+  _consumePendingAction() {
+    try {
+      const raw = sessionStorage.getItem(PHANTOM_PENDING_ACTION_KEY);
+      sessionStorage.removeItem(PHANTOM_PENDING_ACTION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -443,6 +508,32 @@ class WalletManager {
       signatureHex: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''),
       publicKey: publicKey.toString()
     };
+  }
+
+  /**
+   * Signs and sends a Transaction that already has feePayer/blockhash set.
+   * Desktop (extension present): signs+sends immediately and resolves with
+   * { signature }. Mobile (no extension): redirects to Phantom and resolves
+   * with { deepLinked: true } - the actual result arrives later via the
+   * 'wallet:txConfirmed' / 'wallet:txError' events after Phantom redirects back.
+   */
+  async sendTransaction(transaction, pendingAction) {
+    if (!this.connected) {
+      throw new Error('Wallet not connected.');
+    }
+
+    if (this.provider && this.provider.signAndSendTransaction) {
+      const { signature } = await this.provider.signAndSendTransaction(transaction);
+      return { signature };
+    }
+
+    if (this.isMobile()) {
+      const serialized = transaction.serialize({ requireAllSignatures: false });
+      window.location.href = this._buildMobileSignAndSendUrl(serialized, pendingAction);
+      return { deepLinked: true };
+    }
+
+    throw new Error('No wallet provider available to sign this transaction.');
   }
 
   getShortAddress() {
