@@ -11,6 +11,9 @@ import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js';
 import EffectsSystem from './effectsSystem.js';
 import WalletManager from './walletManager.js';
+import StakingManager from './stakingManager.js';
+
+const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
 
 // ==================== EVENT BUS ====================
 class EventBus {
@@ -132,6 +135,7 @@ class Game {
     this.uiManager = new UIManager(this.eventBus);
     this.effectsSystem = new EffectsSystem();
     this.walletManager = new WalletManager(this.eventBus);
+    this.stakingManager = new StakingManager(this.eventBus, this.walletManager);
     this.aiController = null;
 
     this.localDragon = null;
@@ -149,6 +153,13 @@ class Game {
     this.selectedMpMode = 'FFA';
     this.pendingArenaIndex = null;
     this.lobbyArenaIndex = 0;
+
+    // ---- Staking state ----
+    // NOTE: the on-chain escrow (infinite_arena program) is a strictly 2-party
+    // design (host vs opponent) - staking only applies to 1v1 rooms. 2v2/FFA
+    // rooms still work exactly as before, with no stake tier shown.
+    this.lobbyTier = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
 
     this.localPlayerId = null;
     this.playerIds = [];
@@ -169,6 +180,13 @@ class Game {
     this.effectsSystem.init();
 
     this.uiManager.showScreen('titleScreen');
+
+    // Best-effort: populate the tier buttons with real on-chain amounts. If the
+    // program isn't deployed/configured yet this just fails quietly and the
+    // buttons keep showing "--" until it is.
+    this.stakingManager.getDisplayTiers()
+      .then(tiers => this.uiManager.updateTierAmounts(tiers))
+      .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
 
     try {
       await AssetLoader.loadDragons();
@@ -297,7 +315,172 @@ class Game {
         this.uiManager.updateLobbyArena(arenaIndex, true);
       }
     });
+
+    // ---- Staking ----
+    this.eventBus.on('lobby:tierSelected', ({ tier }) => {
+      if (this.isHost && this.roomRef && !this.stakingState.hostDeposited) {
+        this.lobbyTier = tier;
+        this.roomRef.child('tier').set(tier);
+        this._refreshStakingUI();
+      }
+    });
+
+    this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
+
+    // Fired once Phantom redirects back on mobile after a signAndSendTransaction.
+    // The page has fully reloaded by this point, so we rebuild lobby state from
+    // sessionStorage before applying the result.
+    this.eventBus.on('wallet:txConfirmed', ({ signature, pendingAction }) => {
+      this._resumeStakingAction(pendingAction, signature);
+    });
+    this.eventBus.on('wallet:txError', ({ message, pendingAction }) => {
+      this._restoreLobbyContextIfPresent();
+      this.eventBus.emit('staking:error', { message: message || 'Staking transaction failed.' });
+    });
   }
+
+  // ---------------------------------------------------------------------
+  // Staking / escrow integration
+  // ---------------------------------------------------------------------
+
+  _persistLobbyContext() {
+    try {
+      sessionStorage.setItem(LOBBY_CONTEXT_KEY, JSON.stringify({
+        roomCode: this.roomCode,
+        isHost: this.isHost,
+        localPlayerId: this.localPlayerId,
+        selectedDragon: this.selectedDragon,
+        selectedMpMode: this.selectedMpMode,
+        lobbyTier: this.lobbyTier,
+      }));
+    } catch (_) { /* ignore */ }
+  }
+
+  _consumeLobbyContext() {
+    try {
+      const raw = sessionStorage.getItem(LOBBY_CONTEXT_KEY);
+      sessionStorage.removeItem(LOBBY_CONTEXT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Used on 'wallet:txError' so we can show the failure inside the lobby
+  // instead of leaving the player stranded on the title screen after a
+  // failed mobile round-trip.
+  _restoreLobbyContextIfPresent() {
+    if (this.roomRef) return; // already in a room, nothing to restore
+    const ctx = this._consumeLobbyContext();
+    if (ctx && this.db) this._rejoinRoom(ctx);
+  }
+
+  _rejoinRoom(ctx) {
+    this.roomCode = ctx.roomCode;
+    this.isHost = ctx.isHost;
+    this.localPlayerId = ctx.localPlayerId;
+    this.selectedDragon = ctx.selectedDragon;
+    this.selectedMpMode = ctx.selectedMpMode || this.selectedMpMode;
+    this.lobbyTier = ctx.lobbyTier;
+    this.roomRef = this.db.ref('rooms/' + this.roomCode);
+    this.uiManager.showScreen('lobbyScreen');
+    this._attachRoomListener();
+  }
+
+  async _resumeStakingAction(pendingAction, signature) {
+    if (!pendingAction) return;
+
+    if (!this.roomRef) {
+      const ctx = this._consumeLobbyContext();
+      if (ctx && this.db) this._rejoinRoom(ctx);
+    }
+
+    if (pendingAction.type === 'createRoom') {
+      await this._markDeposited('host', pendingAction.tier, signature);
+    } else if (pendingAction.type === 'joinRoom') {
+      await this._markDeposited('opponent', this.lobbyTier, signature);
+    } else if (['mutualCancel', 'claimDepositTimeout', 'claimSettleTimeout'].includes(pendingAction.type)) {
+      this.eventBus.emit('staking:confirmed', { label: 'Refund transaction confirmed on-chain.' });
+    }
+  }
+
+  async handleDeposit() {
+    if (!this.walletManager.connected) {
+      this.eventBus.emit('staking:error', { message: 'Connect your wallet first.' });
+      this.uiManager.showScreen('walletModal');
+      return;
+    }
+
+    const roomIdNum = parseInt(this.roomCode, 10);
+    if (!roomIdNum) {
+      this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
+      return;
+    }
+
+    this.eventBus.emit('staking:pending', { label: 'Waiting for wallet approval…' });
+
+    try {
+      if (this.isHost) {
+        if (!this.lobbyTier) {
+          this.eventBus.emit('staking:error', { message: 'Pick a stake tier first.' });
+          return;
+        }
+        this._persistLobbyContext(); // survives the redirect if this goes to mobile Phantom
+        const result = await this.stakingManager.createStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
+        if (result?.deepLinked) return; // finishes later via 'wallet:txConfirmed'
+        await this._markDeposited('host', this.lobbyTier, result.signature);
+      } else {
+        if (!this.lobbyTier) {
+          this.eventBus.emit('staking:error', { message: 'Waiting for the host to lock in a tier.' });
+          return;
+        }
+        this._persistLobbyContext();
+        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum });
+        if (result?.deepLinked) return;
+        await this._markDeposited('opponent', this.lobbyTier, result.signature);
+      }
+    } catch (err) {
+      console.error('[Staking] deposit failed:', err);
+      this.eventBus.emit('staking:error', { message: err?.message || 'Deposit failed. Your funds were not moved.' });
+    }
+  }
+
+  async _markDeposited(role, tier, signature) {
+    if (!this.roomRef) return;
+    const updates = {};
+    if (role === 'host') {
+      updates.tier = tier;
+      updates['staking/hostDeposited'] = true;
+      updates['staking/hostTx'] = signature;
+    } else {
+      updates['staking/opponentDeposited'] = true;
+      updates['staking/opponentTx'] = signature;
+    }
+    await this.roomRef.update(updates);
+    this._consumeLobbyContext();
+    this.eventBus.emit('staking:confirmed', { label: `Deposit confirmed on-chain (tx ${String(signature).slice(0, 8)}…).` });
+  }
+
+  /** Recomputes the staking UI from whatever the last Firebase snapshot told us. */
+  _refreshStakingUI() {
+    const stakingApplies = this.selectedMpMode === '1v1';
+    const tierSelector = document.getElementById('lobbyTierSelector');
+    if (tierSelector) tierSelector.style.display = stakingApplies ? 'flex' : 'none';
+    if (!stakingApplies) return;
+
+    this.uiManager.updateStakingUI({
+      isHost: this.isHost,
+      tier: this.lobbyTier,
+      locked: this.stakingState.hostDeposited || !!this.lobbyTier && this.isHost === false,
+      hostDeposited: this.stakingState.hostDeposited,
+      opponentDeposited: this.stakingState.opponentDeposited,
+      canDeposit: this.walletManager.connected,
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Lobby / room management (Firebase)
+  // ---------------------------------------------------------------------
 
   startLocalGame(mode, difficulty, arenaIndex) {
     this.gameModeManager.setMode(mode);
@@ -381,6 +564,8 @@ class Game {
     this.localPlayerId = 'local';
     this.playerIds = ['local'];
     this.lobbyArenaIndex = 0;
+    this.lobbyTier = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
 
     const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
 
@@ -391,6 +576,8 @@ class Game {
       maxPlayers: maxPlayers,
       arenaIndex: 0,
       status: 'waiting',
+      tier: null,
+      staking: { hostDeposited: false, opponentDeposited: false },
       players: {
         local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
       }
@@ -399,33 +586,16 @@ class Game {
     this.roomPlayers = { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
 
     this.uiManager.updateLobby(
-      [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true }],
+      [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, deposited: false }],
       maxPlayers,
       this.roomCode,
       true
     );
     this.uiManager.updateLobbyArena(0, true);
     this.uiManager.showScreen('lobbyScreen');
+    this._refreshStakingUI();
 
-    this.roomRef.on('value', (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-
-      this.roomPlayers = data.players || {};
-      this.playerIds = Object.keys(this.roomPlayers);
-
-      if (data.arenaIndex !== undefined && data.arenaIndex !== this.lobbyArenaIndex) {
-        this.lobbyArenaIndex = data.arenaIndex;
-        this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
-      }
-
-      const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
-        ...p,
-        isLocal: id === this.localPlayerId
-      }));
-      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
-      this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
-    });
+    this._attachRoomListener();
   }
 
   joinRoom(code) {
@@ -443,6 +613,7 @@ class Game {
       if (!data) {
         const err = document.getElementById('mpJoinError');
         if (err) err.textContent = 'Room not found';
+        this.roomRef = null;
         return;
       }
 
@@ -451,6 +622,7 @@ class Game {
       if (playerCount >= roomMax) {
         const err = document.getElementById('mpJoinError');
         if (err) err.textContent = 'Room is full';
+        this.roomRef = null;
         return;
       }
 
@@ -462,41 +634,72 @@ class Game {
 
       this.localPlayerId = newPlayerRef.key;
       this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
+      this.selectedMpMode = data.mode || this.selectedMpMode;
+      this.lobbyTier = data.tier || null;
 
       this.uiManager.showScreen('lobbyScreen');
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
 
-      this.roomRef.on('value', snap => {
-        const roomData = snap.val();
-        if (!roomData) return;
+      this._attachRoomListener();
+    });
+  }
 
-        this.roomPlayers = roomData.players || {};
-        this.playerIds = Object.keys(this.roomPlayers);
+  /**
+   * Shared Firebase 'value' listener for both the host and joining-player paths,
+   * and for resuming a room after a mobile Phantom redirect reloaded the page.
+   */
+  _attachRoomListener() {
+    if (!this.roomRef) return;
 
-        if (roomData.arenaIndex !== undefined && roomData.arenaIndex !== this.lobbyArenaIndex) {
-          this.lobbyArenaIndex = roomData.arenaIndex;
-          this.uiManager.updateLobbyArena(roomData.arenaIndex, false);
-        }
+    this.roomRef.on('value', snap => {
+      const data = snap.val();
+      if (!data) return;
 
-        const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
-          ...p,
-          isLocal: id === this.localPlayerId
-        }));
-        const rMax = roomData.maxPlayers || CONFIG.MAX_PLAYERS[roomData.mode] || 4;
-        this.uiManager.updateLobby(players, rMax, this.roomCode, this.isHost);
+      this.roomPlayers = data.players || {};
+      this.playerIds = Object.keys(this.roomPlayers);
+      this.lobbyTier = data.tier || null;
+      this.stakingState = {
+        hostDeposited: !!(data.staking && data.staking.hostDeposited),
+        opponentDeposited: !!(data.staking && data.staking.opponentDeposited),
+      };
 
-        if (roomData.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
-          const gameConfig = roomData.gameConfig || {};
-          this.selectedMode = gameConfig.mode || roomData.mode || 'FFA';
-          this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (roomData.arenaIndex !== undefined ? roomData.arenaIndex : 0);
-          this.isMultiplayer = true;
-          this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
-        }
-      });
+      if (data.arenaIndex !== undefined && data.arenaIndex !== this.lobbyArenaIndex) {
+        this.lobbyArenaIndex = data.arenaIndex;
+        this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
+      }
+
+      const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
+        ...p,
+        isLocal: id === this.localPlayerId,
+        deposited: id === 'local' ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited,
+      }));
+      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
+      this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
+      this._refreshStakingUI();
+
+      if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
+        const gameConfig = data.gameConfig || {};
+        this.selectedMode = gameConfig.mode || data.mode || 'FFA';
+        this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
+        this.isMultiplayer = true;
+        this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
+      }
     });
   }
 
   leaveRoom() {
+    // If both players have already deposited into escrow, leaving here does NOT
+    // refund anyone - the on-chain funds stay locked until either both players
+    // co-sign a mutual_cancel_room transaction, or the settle_timeout window
+    // passes and either player calls claimSettleTimeout(). Surface that clearly
+    // rather than letting someone assume "Leave Room" gets their stake back.
+    if (this.stakingState.hostDeposited && this.stakingState.opponentDeposited) {
+      this.eventBus.emit('staking:error', {
+        message: 'Both stakes are locked in escrow. Leaving now will NOT refund you automatically — ' +
+          'ask your opponent to mutually cancel, or wait for the settle-timeout refund window.'
+      });
+    }
+
     this.stopNetworkSync();
     if (this.roomRef) {
       this.roomRef.off();
@@ -514,9 +717,18 @@ class Game {
     this.roomPlayers = {};
     this.isMultiplayer = false;
     this.lobbyArenaIndex = 0;
+    this.lobbyTier = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this._consumeLobbyContext();
   }
 
   startMpGame() {
+    const stakingApplies = this.selectedMpMode === '1v1';
+    if (stakingApplies && !(this.stakingState.hostDeposited && this.stakingState.opponentDeposited)) {
+      this.eventBus.emit('staking:error', { message: 'Both players must deposit their stake before the match can start.' });
+      return;
+    }
+
     if (this.roomRef && this.isHost) {
       this.roomRef.update({
         status: 'playing',
@@ -745,6 +957,11 @@ class Game {
 
     this.uiManager.updateGameOver(stats);
     this.uiManager.showScreen('gameOverScreen');
+
+    // NOTE: this is exactly the gap flagged in the staking integration notes -
+    // nothing here reports a match result anywhere. Wiring settle_match requires
+    // a trusted backend (Firebase Cloud Function holding server_authority) fed
+    // by a server-verified result, not a value read out of `stats` on this client.
   }
 
   restartGame() {
