@@ -10,12 +10,39 @@
 // `anchor keys sync` + `initialize_config` on your deployed program. Nothing
 // here will work against placeholder values.
 
-const PROGRAM_ID = new solanaWeb3.PublicKey('REPLACE_WITH_DEPLOYED_PROGRAM_ID');
-const TREASURY_TOKEN_ACCOUNT = new solanaWeb3.PublicKey('REPLACE_WITH_TREASURY_ATA');
+const PROGRAM_ID_STR = 'REPLACE_WITH_DEPLOYED_PROGRAM_ID';
+const TREASURY_TOKEN_ACCOUNT_STR = 'REPLACE_WITH_TREASURY_ATA';
 const INFINITE_MINT = new solanaWeb3.PublicKey('C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump');
 const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const SYSVAR_RENT_PUBKEY = new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111');
+
+// PROGRAM_ID and the treasury account are only parsed the first time they're
+// actually needed (not at module load) - so the rest of the page keeps working
+// normally even before you've deployed the program and filled these in. Trying
+// to use any staking feature before then throws a clear error instead of a
+// cryptic "Non-base58 character" crash on page load.
+let _programId = null;
+function PROGRAM_ID() {
+  if (!_programId) {
+    if (PROGRAM_ID_STR.startsWith('REPLACE_')) {
+      throw new Error('Staking is not configured yet: set PROGRAM_ID_STR in stakingManager.js to your deployed program address.');
+    }
+    _programId = new solanaWeb3.PublicKey(PROGRAM_ID_STR);
+  }
+  return _programId;
+}
+
+let _treasuryAccount = null;
+function TREASURY_TOKEN_ACCOUNT() {
+  if (!_treasuryAccount) {
+    if (TREASURY_TOKEN_ACCOUNT_STR.startsWith('REPLACE_')) {
+      throw new Error('Staking is not configured yet: set TREASURY_TOKEN_ACCOUNT_STR in stakingManager.js to your treasury ATA.');
+    }
+    _treasuryAccount = new solanaWeb3.PublicKey(TREASURY_TOKEN_ACCOUNT_STR);
+  }
+  return _treasuryAccount;
+}
 
 export const TIER = { Small: 0, Medium: 1, High: 2 };
 export const TIER_NAMES = ['Small', 'Medium', 'High'];
@@ -59,7 +86,7 @@ async function discriminator(instructionName) {
 }
 
 function findPda(seeds) {
-  return solanaWeb3.PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)[0];
+  return solanaWeb3.PublicKey.findProgramAddressSync(seeds, PROGRAM_ID())[0];
 }
 
 function configPda() {
@@ -152,12 +179,12 @@ async function buildCreateRoomIx({ hostPubkey, hostAta, roomId, tier, depositTim
     { pubkey: vaultPda(roomId), isSigner: false, isWritable: true },
     { pubkey: INFINITE_MINT, isSigner: false, isWritable: false },
     { pubkey: hostAta, isSigner: false, isWritable: true },
-    { pubkey: TREASURY_TOKEN_ACCOUNT, isSigner: false, isWritable: true },
+    { pubkey: TREASURY_TOKEN_ACCOUNT(), isSigner: false, isWritable: true },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
     { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
   ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID, data });
+  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
 }
 
 async function buildJoinRoomIx({ opponentPubkey, opponentAta, roomId }) {
@@ -168,10 +195,10 @@ async function buildJoinRoomIx({ opponentPubkey, opponentAta, roomId }) {
     { pubkey: roomPda(roomId), isSigner: false, isWritable: true },
     { pubkey: vaultPda(roomId), isSigner: false, isWritable: true },
     { pubkey: opponentAta, isSigner: false, isWritable: true },
-    { pubkey: TREASURY_TOKEN_ACCOUNT, isSigner: false, isWritable: true },
+    { pubkey: TREASURY_TOKEN_ACCOUNT(), isSigner: false, isWritable: true },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
   ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID, data });
+  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
 }
 
 async function buildMutualCancelIx({ hostPubkey, opponentPubkey, hostAta, opponentAta, roomId }) {
@@ -185,7 +212,7 @@ async function buildMutualCancelIx({ hostPubkey, opponentPubkey, hostAta, oppone
     { pubkey: opponentAta, isSigner: false, isWritable: true },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
   ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID, data });
+  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
 }
 
 async function buildClaimDepositTimeoutIx({ hostPubkey, hostAta, roomId }) {
@@ -197,7 +224,7 @@ async function buildClaimDepositTimeoutIx({ hostPubkey, hostAta, roomId }) {
     { pubkey: hostPubkey, isSigner: false, isWritable: true },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
   ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID, data });
+  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
 }
 
 async function buildClaimSettleTimeoutIx({ hostPubkey, hostAta, opponentAta, roomId }) {
@@ -210,7 +237,7 @@ async function buildClaimSettleTimeoutIx({ hostPubkey, hostAta, opponentAta, roo
     { pubkey: hostPubkey, isSigner: false, isWritable: true },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
   ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID, data });
+  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
 }
 
 // ---- high-level actions used by main.js ----
