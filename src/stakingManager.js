@@ -11,7 +11,7 @@
 // here will work against placeholder values.
 
 const PROGRAM_ID_STR = 'REPLACE_WITH_DEPLOYED_PROGRAM_ID';
-const TREASURY_TOKEN_ACCOUNT_STR = 'REPLACE_WITH_TREASURY_ATA';
+const TREASURY_TOKEN_ACCOUNT_STR = '4QP35RwE2JHdDfiDgnUtTWw17XFGY5ufYaHyBH9o35CgZbbBDMabC4qU7BcUyCzYMnzQbMHiJ99F2ceDHpjwNozF';
 const INFINITE_MINT = new solanaWeb3.PublicKey('C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump');
 const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
