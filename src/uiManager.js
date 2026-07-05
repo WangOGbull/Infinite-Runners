@@ -10,6 +10,8 @@ class UIManager {
     this.selectedDifficulty = 'advanced';
     this.selectedMpMode = 'FFA';
     this.selectedArena = 0;
+    this.selectedTier = null;
+    this.tierAmounts = null; // filled in once via updateTierAmounts()
 
     this.initScreens();
     this.createDynamicModals();
@@ -318,6 +320,19 @@ class UIManager {
       });
     });
 
+    // ---- Staking: tier selection + deposit button ----
+    document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        this.selectedTier = btn.dataset.tier;
+        this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier });
+      });
+    });
+
+    document.getElementById('lobbyDepositBtn')?.addEventListener('click', () => {
+      this.eventBus.emit('lobby:depositRequested');
+    });
+
     document.getElementById('pauseBtn')?.addEventListener('click', () => {
       this.eventBus.emit('game:pause');
     });
@@ -424,6 +439,17 @@ class UIManager {
       if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
     });
 
+    // ---- Staking status feedback ----
+    this.eventBus.on('staking:pending', ({ label }) => {
+      this.setDepositStatus(label || 'Waiting for wallet approval…', 'pending');
+    });
+    this.eventBus.on('staking:error', ({ message }) => {
+      this.setDepositStatus(message || 'Staking transaction failed.', 'error');
+    });
+    this.eventBus.on('staking:confirmed', ({ label }) => {
+      this.setDepositStatus(label || 'Deposit confirmed.', 'confirmed');
+    });
+
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (this.currentScreen === 'gameScreen') {
@@ -467,12 +493,16 @@ class UIManager {
         const slot = document.createElement('div');
         slot.className = 'lobbySlot';
         if (player) {
+          const badge = player.deposited
+            ? '<span class="depositBadge confirmed"><i data-lucide="check-circle"></i> Deposited</span>'
+            : '<span class="depositBadge pending"><i data-lucide="clock"></i> Waiting for deposit</span>';
           slot.innerHTML = `
             <div class="lobbyPlayerCard ${player.isLocal ? 'local' : ''}">
               <div class="lobbyPlayerIcon">🐉</div>
               <div class="lobbyPlayerInfo">
                 <div class="lobbyPlayerName">${player.name || 'Player'}</div>
                 <div class="lobbyPlayerDragon">${player.dragon || 'Unknown'}</div>
+                ${badge}
               </div>
             </div>
           `;
@@ -503,6 +533,71 @@ class UIManager {
       if (modeSelector) modeSelector.style.display = 'none';
       if (arenaSelector) arenaSelector.style.display = 'flex';
     }
+
+    if (typeof lucide !== 'undefined') {
+      setTimeout(() => lucide.createIcons(), 0);
+    }
+  }
+
+  /** Called once after StakingManager reads on-chain tier amounts, so the buttons never show stale numbers. */
+  updateTierAmounts(tiers) {
+    this.tierAmounts = tiers;
+    ['Small', 'Medium', 'High'].forEach(tier => {
+      const amtEl = document.querySelector(`#tier${tier} .tierAmt`);
+      if (amtEl && tiers[tier] !== undefined) {
+        amtEl.textContent = `${tiers[tier]} INFINITE`;
+      }
+    });
+    const feeEl = document.getElementById('feeDisclosureText');
+    if (feeEl && tiers.feePercent !== undefined) {
+      feeEl.textContent = `${tiers.feePercent}% platform fee applies to each player's stake.`;
+    }
+  }
+
+  /**
+   * Drives the tier-selector + deposit button. `locked` = true once a tier has
+   * been deposited on-chain (host after create_room, or once the room already
+   * has a tier set for a joining opponent) - the tier can no longer be changed.
+   */
+  updateStakingUI({ isHost, tier, locked, hostDeposited, opponentDeposited, canDeposit }) {
+    document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tier === tier);
+      // Only the host can pick a tier, and only before it's locked in.
+      btn.disabled = !isHost || locked;
+    });
+
+    const selectorLabel = document.querySelector('#lobbyTierSelector label');
+    if (selectorLabel) {
+      selectorLabel.textContent = locked ? `Stake Tier (locked): ${tier || ''}` : 'Stake Tier:';
+    }
+
+    const depositBtn = document.getElementById('lobbyDepositBtn');
+    const depositLabel = document.getElementById('depositBtnLabel');
+    if (depositBtn) {
+      const alreadyDeposited = isHost ? hostDeposited : opponentDeposited;
+      const showBtn = isHost ? (!hostDeposited && !!tier) : (!!tier && !opponentDeposited);
+      depositBtn.style.display = showBtn ? 'flex' : 'none';
+      depositBtn.disabled = !canDeposit;
+      if (depositLabel) {
+        depositLabel.textContent = isHost ? 'Lock Stake & Open Room' : `Deposit ${tier || ''} to Join`;
+      }
+      if (alreadyDeposited) depositBtn.style.display = 'none';
+    }
+
+    const startBtn = document.getElementById('lobbyStartBtn');
+    if (startBtn && isHost) {
+      const bothIn = hostDeposited && opponentDeposited;
+      startBtn.disabled = !bothIn;
+      startBtn.style.opacity = bothIn ? '1' : '0.5';
+      startBtn.title = bothIn ? '' : 'Waiting for both players to deposit their stake';
+    }
+  }
+
+  setDepositStatus(text, kind) {
+    const el = document.getElementById('depositStatusText');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'depositStatusText ' + (kind || '');
   }
 
   setWalletModalState(state) {
