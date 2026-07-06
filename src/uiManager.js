@@ -11,7 +11,7 @@ class UIManager {
     this.selectedMpMode = 'FFA';
     this.selectedArena = 0;
     this.selectedTier = null;
-    this.tierAmounts = null; // filled in once via updateTierAmounts()
+    this.tierAmounts = null;
 
     this.initScreens();
     this.createDynamicModals();
@@ -116,6 +116,78 @@ class UIManager {
     `;
     document.body.appendChild(mpModeSelect);
     this.screens['mpModeSelect'] = mpModeSelect;
+
+    // Create lives HUD overlay
+    const livesHud = document.createElement('div');
+    livesHud.id = 'livesHud';
+    livesHud.style.cssText = `
+      position: fixed;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 6px;
+      z-index: 100;
+      background: rgba(0,0,0,0.5);
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    `;
+    document.body.appendChild(livesHud);
+
+    // Create scoreboard overlay
+    const scoreboardOverlay = document.createElement('div');
+    scoreboardOverlay.id = 'scoreboardOverlay';
+    scoreboardOverlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      flex-direction: column;
+      background: rgba(7,16,24,0.95);
+      border: 1px solid rgba(0,180,216,0.3);
+      border-radius: 12px;
+      padding: 20px;
+      min-width: 300px;
+      max-width: 90vw;
+      z-index: 200;
+      color: #fff;
+      font-family: 'Rajdhani', sans-serif;
+    `;
+    scoreboardOverlay.innerHTML = `
+      <h3 style="margin:0 0 12px 0;text-align:center;color:#00b4d8;font-size:18px;letter-spacing:2px;">SCOREBOARD</h3>
+      <div id="scoreboardContent"></div>
+      <div style="text-align:center;margin-top:12px;font-size:11px;color:#8b93a6;">Press TAB to toggle</div>
+    `;
+    document.body.appendChild(scoreboardOverlay);
+
+    // Create match stats overlay for game over
+    const matchStatsOverlay = document.createElement('div');
+    matchStatsOverlay.id = 'matchStatsOverlay';
+    matchStatsOverlay.style.cssText = `
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.92);
+      z-index: 300;
+      color: #fff;
+      font-family: 'Rajdhani', sans-serif;
+    `;
+    matchStatsOverlay.innerHTML = `
+      <div id="winnerCelebration" style="display:none;text-align:center;margin-bottom:30px;">
+        <div style="font-family:'Cinzel Decorative',serif;font-size:36px;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.5);">🏆 WINNER 🏆</div>
+        <div id="winnerName" style="font-size:24px;color:#00b4d8;margin-top:10px;"></div>
+        <div style="font-size:14px;color:#8b93a6;margin-top:5px;">Prize Pool: <span style="color:#ffd700;">-- INFINITE</span></div>
+      </div>
+      <div id="matchStatsTable" style="width:90%;max-width:600px;"></div>
+      <button id="btnCloseMatchStats" style="margin-top:30px;padding:12px 40px;background:transparent;border:1px solid rgba(0,180,216,0.5);color:#00b4d8;border-radius:8px;cursor:pointer;font-size:14px;text-transform:uppercase;letter-spacing:2px;">Continue</button>
+    `;
+    document.body.appendChild(matchStatsOverlay);
   }
 
   buildModeSelect() {}
@@ -211,12 +283,6 @@ class UIManager {
   }
 
   bindEvents() {
-    // NOTE: The old code here re-triggered wallet:connectRequest on
-    // ?walletReturn=1 by checking window.solana, which doesn't exist on
-    // mobile browsers and caused an infinite Phantom deep-link loop.
-    // WalletManager now handles the Phantom redirect itself (decrypting
-    // the response), so nothing needs to happen here anymore.
-
     document.getElementById('btnPlayNow')?.addEventListener('click', () => {
       this.showScreen('dragonSelectScreen');
     });
@@ -320,7 +386,6 @@ class UIManager {
       });
     });
 
-    // ---- Staking: tier selection + deposit button ----
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
@@ -439,7 +504,6 @@ class UIManager {
       if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
     });
 
-    // ---- Staking status feedback ----
     this.eventBus.on('staking:pending', ({ label }) => {
       this.setDepositStatus(label || 'Waiting for wallet approval…', 'pending');
     });
@@ -450,12 +514,23 @@ class UIManager {
       this.setDepositStatus(label || 'Deposit confirmed.', 'confirmed');
     });
 
+    // Scoreboard toggle with TAB key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (this.currentScreen === 'gameScreen') {
           this.eventBus.emit('game:pause');
         }
       }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        this.toggleScoreboard();
+      }
+    });
+
+    // Close match stats
+    document.getElementById('btnCloseMatchStats')?.addEventListener('click', () => {
+      const overlay = document.getElementById('matchStatsOverlay');
+      if (overlay) overlay.style.display = 'none';
     });
   }
 
@@ -470,6 +545,75 @@ class UIManager {
     if (typeof lucide !== 'undefined') {
       setTimeout(() => lucide.createIcons(), 50);
     }
+
+    // Show/hide lives HUD
+    const livesHud = document.getElementById('livesHud');
+    if (livesHud) {
+      livesHud.style.display = screenId === 'gameScreen' ? 'flex' : 'none';
+    }
+  }
+
+  // Lives HUD update
+  updateLivesHUD(dragon) {
+    const livesHud = document.getElementById('livesHud');
+    if (!livesHud || !dragon) return;
+
+    livesHud.innerHTML = '';
+    const lives = dragon.lives || 0;
+    const maxLives = 3;
+
+    for (let i = 0; i < maxLives; i++) {
+      const heart = document.createElement('span');
+      heart.style.cssText = 'font-size:20px;';
+      heart.textContent = i < lives ? '❤️' : '🖤';
+      livesHud.appendChild(heart);
+    }
+
+    const label = document.createElement('span');
+    label.style.cssText = 'font-size:12px;color:#8b93a6;margin-left:4px;font-family:"Rajdhani",sans-serif;';
+    label.textContent = `LIVES`;
+    livesHud.appendChild(label);
+  }
+
+  // Scoreboard toggle
+  toggleScoreboard() {
+    const overlay = document.getElementById('scoreboardOverlay');
+    if (!overlay) return;
+    const isVisible = overlay.style.display === 'flex';
+    overlay.style.display = isVisible ? 'none' : 'flex';
+  }
+
+  // Update scoreboard content
+  updateScoreboard(dragons) {
+    const content = document.getElementById('scoreboardContent');
+    if (!content) return;
+
+    let html = `
+      <div style="display:grid;grid-template-columns:1.5fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.1);font-size:11px;color:#8b93a6;text-transform:uppercase;letter-spacing:1px;">
+        <div>Dragon</div>
+        <div style="text-align:center;">Kills</div>
+        <div style="text-align:center;">Deaths</div>
+        <div style="text-align:center;">Lives</div>
+        <div style="text-align:center;">Size</div>
+      </div>
+    `;
+
+    dragons.forEach(d => {
+      const isLocal = d === window.game?.localDragon;
+      const status = d.alive ? (d.immunityTimer > 0 ? '⚡' : '') : '💀';
+      const lives = '❤️'.repeat(d.lives) + '🖤'.repeat(3 - d.lives);
+      html += `
+        <div style="display:grid;grid-template-columns:1.5fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;${isLocal ? 'color:#00b4d8;font-weight:600;' : 'color:#c8ccd8;'}">
+          <div>${status} ${d.type.toUpperCase()} ${isLocal ? '(YOU)' : ''}</div>
+          <div style="text-align:center;">${d.kills || 0}</div>
+          <div style="text-align:center;">${d.deaths || 0}</div>
+          <div style="text-align:center;font-size:11px;">${lives}</div>
+          <div style="text-align:center;">${d.segments?.length || 0}</div>
+        </div>
+      `;
+    });
+
+    content.innerHTML = html;
   }
 
   updateLobby(players, maxPlayers, roomCode, isHost) {
@@ -539,7 +683,6 @@ class UIManager {
     }
   }
 
-  /** Called once after StakingManager reads on-chain tier amounts, so the buttons never show stale numbers. */
   updateTierAmounts(tiers) {
     this.tierAmounts = tiers;
     ['Small', 'Medium', 'High'].forEach(tier => {
@@ -554,15 +697,9 @@ class UIManager {
     }
   }
 
-  /**
-   * Drives the tier-selector + deposit button. `locked` = true once a tier has
-   * been deposited on-chain (host after create_room, or once the room already
-   * has a tier set for a joining opponent) - the tier can no longer be changed.
-   */
   updateStakingUI({ isHost, tier, locked, hostDeposited, opponentDeposited, canDeposit }) {
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tier === tier);
-      // Only the host can pick a tier, and only before it's locked in.
       btn.disabled = !isHost || locked;
     });
 
@@ -820,9 +957,21 @@ class UIManager {
     }
   }
 
-  updateHUD(score, time) {
+  // Updated HUD with lives
+  updateHUD(score, time, dragon) {
     const timerDisplay = document.getElementById('timerDisplay');
     if (timerDisplay) timerDisplay.textContent = time;
+
+    // Update lives HUD
+    this.updateLivesHUD(dragon);
+
+    // Update scoreboard if visible
+    const scoreboardOverlay = document.getElementById('scoreboardOverlay');
+    if (scoreboardOverlay && scoreboardOverlay.style.display === 'flex') {
+      if (window.game && window.game.dragonManager) {
+        this.updateScoreboard(window.game.dragonManager.getAllDragons());
+      }
+    }
   }
 
   updateGameOver(stats) {
@@ -832,6 +981,63 @@ class UIManager {
     if (goTime) goTime.textContent = stats.time;
     if (goCollect) goCollect.textContent = stats.collected;
     if (goKills) goKills.textContent = stats.kills;
+  }
+
+  // Show match stats with winner celebration
+  showMatchStats(allStats, winner) {
+    const overlay = document.getElementById('matchStatsOverlay');
+    const winnerDiv = document.getElementById('winnerCelebration');
+    const winnerName = document.getElementById('winnerName');
+    const tableDiv = document.getElementById('matchStatsTable');
+
+    if (!overlay) return;
+
+    // Show winner celebration
+    if (winnerDiv) {
+      if (winner) {
+        winnerDiv.style.display = 'block';
+        if (winnerName) winnerName.textContent = winner.type.toUpperCase();
+      } else {
+        winnerDiv.style.display = 'none';
+      }
+    }
+
+    // Build stats table
+    if (tableDiv) {
+      let html = `
+        <div style="display:grid;grid-template-columns:1.5fr 0.7fr 0.7fr 1fr 1fr;gap:10px;padding:10px 0;border-bottom:2px solid rgba(0,180,216,0.3);font-size:12px;color:#8b93a6;text-transform:uppercase;letter-spacing:1px;font-weight:600;">
+          <div>Dragon</div>
+          <div style="text-align:center;">Kills</div>
+          <div style="text-align:center;">Deaths</div>
+          <div style="text-align:center;">Time Survived</div>
+          <div style="text-align:center;">InfiniteCoin</div>
+        </div>
+      `;
+
+      allStats.forEach(s => {
+        const isWinner = winner && s.id === winner.id;
+        const timeStr = this.formatTime(s.timeSurvived);
+        html += `
+          <div style="display:grid;grid-template-columns:1.5fr 0.7fr 0.7fr 1fr 1fr;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:14px;${isWinner ? 'background:rgba(255,215,0,0.08);color:#ffd700;font-weight:600;' : 'color:#c8ccd8;'}">
+            <div>${isWinner ? '👑 ' : ''}${s.name.toUpperCase()} ${s.isLocal ? '(YOU)' : ''}</div>
+            <div style="text-align:center;">${s.kills}</div>
+            <div style="text-align:center;">${s.deaths}</div>
+            <div style="text-align:center;">${timeStr}</div>
+            <div style="text-align:center;color:#ffd700;">${s.infiniteCoin} IFC</div>
+          </div>
+        `;
+      });
+
+      tableDiv.innerHTML = html;
+    }
+
+    overlay.style.display = 'flex';
+  }
+
+  formatTime(ms) {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return minutes + ':' + seconds.toString().padStart(2, '0');
   }
 
   renderMinimap(canvas, camera, arena, dragons, foods) {
