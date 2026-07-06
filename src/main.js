@@ -37,7 +37,7 @@ class EventBus {
   }
 }
 
-// ==================== AI CONTROLLER ====================
+// ==================== AI CONTROLLER (Aggressive per difficulty) ====================
 class AIController {
   constructor(arenaManager, foodSystem, difficulty = 'advanced') {
     this.arena = arenaManager;
@@ -45,11 +45,11 @@ class AIController {
     this.difficulty = difficulty;
 
     this.difficultySettings = {
-      beginner: { randomness: 1.0, targetFood: 0.4, wallMargin: 400, speedMult: 0.6 },
-      easy: { randomness: 0.6, targetFood: 0.7, wallMargin: 300, speedMult: 0.8 },
-      advanced: { randomness: 0.3, targetFood: 0.95, wallMargin: 220, speedMult: 1.0 },
-      master: { randomness: 0.12, targetFood: 1.0, wallMargin: 170, speedMult: 1.2 },
-      legendary: { randomness: 0.03, targetFood: 1.0, wallMargin: 120, speedMult: 1.4 }
+      beginner: { randomness: 1.0, targetFood: 0.9, wallMargin: 400, speedMult: 0.6, aggression: 0.0, huntRange: 300, fleeRange: 200 },
+      easy: { randomness: 0.6, targetFood: 0.8, wallMargin: 300, speedMult: 0.8, aggression: 0.15, huntRange: 400, fleeRange: 250 },
+      advanced: { randomness: 0.3, targetFood: 0.6, wallMargin: 220, speedMult: 1.0, aggression: 0.4, huntRange: 500, fleeRange: 300 },
+      master: { randomness: 0.12, targetFood: 0.4, wallMargin: 170, speedMult: 1.2, aggression: 0.7, huntRange: 600, fleeRange: 350 },
+      legendary: { randomness: 0.03, targetFood: 0.2, wallMargin: 120, speedMult: 1.4, aggression: 0.95, huntRange: 800, fleeRange: 400 }
     };
   }
 
@@ -57,40 +57,98 @@ class AIController {
     return this.difficultySettings[this.difficulty]?.speedMult || 1.0;
   }
 
-  getInputAngle(dragon) {
+  getInputAngle(dragon, allDragons) {
     const head = dragon.head;
     const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
 
-    const foods = this.food.getFoods();
-    let bestFood = null;
-    let bestScore = -Infinity;
+    let targetAngle = dragon.angle;
 
-    for (const food of foods) {
-      const dx = food.x - head.x;
-      const dy = food.y - head.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+    // 1. AGGRESSION: Hunt smaller dragons
+    if (Math.random() < settings.aggression && allDragons) {
+      let bestTarget = null;
+      let bestScore = -Infinity;
 
-      if (dist < 15) continue;
+      for (const other of allDragons) {
+        if (other === dragon || !other.alive) continue;
+        const dx = other.head.x - head.x;
+        const dy = other.head.y - head.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-      const foodAngle = Math.atan2(dy, dx);
-      let angleDiff = foodAngle - dragon.angle;
-      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-      if (Math.abs(angleDiff) > Math.PI / 3) continue;
+        if (dist > settings.huntRange) continue;
 
-      const score = 1000 / (dist + 1) - Math.abs(angleDiff) * 50;
-      if (score > bestScore) {
-        bestScore = score;
-        bestFood = food;
+        // Prefer smaller/weaker targets
+        const sizeDiff = other.segments.length - dragon.segments.length;
+        if (sizeDiff >= 0) continue; // Only hunt smaller dragons
+
+        const angleToTarget = Math.atan2(dy, dx);
+        let angleDiff = angleToTarget - dragon.angle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        const score = (1000 / (dist + 1)) - Math.abs(angleDiff) * 100 - sizeDiff * 50;
+        if (score > bestScore) {
+          bestScore = score;
+          bestTarget = other;
+        }
+      }
+
+      if (bestTarget) {
+        // Aim for their tail to cut it
+        const tailIdx = Math.max(0, bestTarget.segments.length - 3);
+        const tail = bestTarget.segments[tailIdx];
+        targetAngle = Math.atan2(tail.y - head.y, tail.x - head.x);
       }
     }
 
-    let targetAngle = dragon.angle;
+    // 2. FLEE: Run from bigger dragons
+    if (!bestTarget) {
+      for (const other of allDragons) {
+        if (other === dragon || !other.alive) continue;
+        const dx = other.head.x - head.x;
+        const dy = other.head.y - head.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (bestFood && Math.random() < settings.targetFood) {
-      targetAngle = Math.atan2(bestFood.y - head.y, bestFood.x - head.x);
+        if (dist > settings.fleeRange) continue;
+
+        if (other.segments.length > dragon.segments.length * 1.2) {
+          // Bigger dragon nearby - flee!
+          targetAngle = Math.atan2(-dy, -dx);
+          break;
+        }
+      }
     }
 
+    // 3. FOOD: Seek food if not hunting/fleeing
+    if (targetAngle === dragon.angle) {
+      const foods = this.food.getFoods();
+      let bestFood = null;
+      let bestScore = -Infinity;
+
+      for (const food of foods) {
+        const dx = food.x - head.x;
+        const dy = food.y - head.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 15) continue;
+
+        const foodAngle = Math.atan2(dy, dx);
+        let angleDiff = foodAngle - dragon.angle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        if (Math.abs(angleDiff) > Math.PI / 2) continue;
+
+        const score = 800 / (dist + 1) - Math.abs(angleDiff) * 30;
+        if (score > bestScore) {
+          bestScore = score;
+          bestFood = food;
+        }
+      }
+
+      if (bestFood && Math.random() < settings.targetFood) {
+        targetAngle = Math.atan2(bestFood.y - head.y, bestFood.x - head.x);
+      }
+    }
+
+    // 4. WALL AVOIDANCE
     const bounds = this.arena.getInnerBounds();
     const margin = settings.wallMargin;
     const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -105,6 +163,7 @@ class AIController {
       targetAngle = Math.atan2(centerY - head.y, centerX - head.x);
     }
 
+    // 5. SMOOTH TURNING + RANDOMNESS
     if (dragon.aiTargetAngle !== null && dragon.aiTargetAngle !== undefined) {
       let diff = targetAngle - dragon.aiTargetAngle;
       while (diff > Math.PI) diff -= Math.PI * 2;
@@ -154,10 +213,6 @@ class Game {
     this.pendingArenaIndex = null;
     this.lobbyArenaIndex = 0;
 
-    // ---- Staking state ----
-    // NOTE: the on-chain escrow (infinite_arena program) is a strictly 2-party
-    // design (host vs opponent) - staking only applies to 1v1 rooms. 2v2/FFA
-    // rooms still work exactly as before, with no stake tier shown.
     this.lobbyTier = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
 
@@ -171,6 +226,10 @@ class Game {
 
     this.assetsLoaded = false;
 
+    // Match statistics
+    this.matchStats = {};
+    this.winner = null;
+
     this.init();
   }
 
@@ -181,9 +240,6 @@ class Game {
 
     this.uiManager.showScreen('titleScreen');
 
-    // Best-effort: populate the tier buttons with real on-chain amounts. If the
-    // program isn't deployed/configured yet this just fails quietly and the
-    // buttons keep showing "--" until it is.
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
@@ -255,10 +311,18 @@ class Game {
       this.effectsSystem.playHeadCollisionSound();
     });
 
+    // NEW: Dragon shrink event (head-to-body collision, equal head collision)
+    this.eventBus.on('dragon:shrink', ({ dragon, reason, other }) => {
+      this.dragonManager.shrinkDragon(dragon);
+      this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#ffaa00', CONFIG.EFFECTS.SHRINK_PARTICLES, CONFIG.EFFECTS.SHRINK_PARTICLE_SPEED, CONFIG.EFFECTS.SHRINK_PARTICLE_LIFE);
+      this.effectsSystem.addShake(8, 200);
+      this.effectsSystem.playTone(200, 'sawtooth', 0.3, 0.15);
+    });
+
+    // UPDATED: Dragon death with lives/respawn system
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
-      // CRITICAL FIX: Mark dead and remove from active list
-      dragon.alive = false;
-      this.dragonManager.removeDead();
+      dragon.deaths++;
+      dragon.lives--;
 
       const isLocal = dragon === this.localDragon;
       const deathColor = isLocal ? '#ff2222' : '#ff6600';
@@ -267,7 +331,9 @@ class Game {
       this.effectsSystem.flashVignette(isLocal ? '#ff0000' : '#ff4400', isLocal ? 0.5 : 0.25, 400);
       this.effectsSystem.playDeathSound(isLocal);
 
+      // Track killer stats
       if (killer && killer !== dragon) {
+        killer.kills++;
         const killerIsLocal = killer === this.localDragon;
         if (killerIsLocal) {
           this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, '#ffd700');
@@ -276,20 +342,31 @@ class Game {
         }
       }
 
+      // Drop food from dead dragon
       for (const seg of dragon.segments) {
         this.foodSystem.spawnFoodAt(seg.x, seg.y);
       }
       this.foodSystem.spawnFoodAt(dragon.head.x, dragon.head.y, true);
 
-      if (dragon === this.localDragon) {
-        this.endGame();
+      // Check if dragon has lives remaining
+      if (dragon.lives > 0) {
+        // Respawn after delay
+        dragon.alive = false;
+        setTimeout(() => {
+          if (this.state === 'PLAYING') {
+            this.dragonManager.respawnDragon(dragon, this.arenaManager);
+            this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
+          }
+        }, CONFIG.RESPAWN_DELAY_MS);
+      } else {
+        // Eliminated - no lives left
+        dragon.alive = false;
+        this.checkMatchEnd();
       }
     });
 
     this.eventBus.on('wallet:connectRequest', () => {
-      this.walletManager.connect().catch(() => {
-        // Error already surfaced to the UI via the 'wallet:error' event.
-      });
+      this.walletManager.connect().catch(() => {});
     });
 
     this.eventBus.on('wallet:disconnectRequest', () => {
@@ -316,7 +393,6 @@ class Game {
       }
     });
 
-    // ---- Staking ----
     this.eventBus.on('lobby:tierSelected', ({ tier }) => {
       if (this.isHost && this.roomRef && !this.stakingState.hostDeposited) {
         this.lobbyTier = tier;
@@ -327,9 +403,6 @@ class Game {
 
     this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
 
-    // Fired once Phantom redirects back on mobile after a signAndSendTransaction.
-    // The page has fully reloaded by this point, so we rebuild lobby state from
-    // sessionStorage before applying the result.
     this.eventBus.on('wallet:txConfirmed', ({ signature, pendingAction }) => {
       this._resumeStakingAction(pendingAction, signature);
     });
@@ -339,9 +412,36 @@ class Game {
     });
   }
 
-  // ---------------------------------------------------------------------
-  // Staking / escrow integration
-  // ---------------------------------------------------------------------
+  checkMatchEnd() {
+    const living = this.dragonManager.getLivingDragons();
+    const allDragons = this.dragonManager.getAllDragons();
+
+    // Count dragons with lives remaining
+    const withLives = allDragons.filter(d => d.lives > 0);
+
+    // If only one dragon has lives left, they win
+    if (withLives.length === 1 && allDragons.length > 1) {
+      this.winner = withLives[0];
+      this.endGame(true);
+      return;
+    }
+
+    // If no one has lives left, it's a draw
+    if (withLives.length === 0 && allDragons.length > 0) {
+      this.winner = null;
+      this.endGame(true);
+      return;
+    }
+
+    // If local dragon is eliminated, show spectate or end
+    if (this.localDragon && this.localDragon.lives <= 0 && !this.localDragon.alive) {
+      // Check if match is still ongoing (other players alive with lives)
+      const othersAlive = living.filter(d => d !== this.localDragon);
+      if (othersAlive.length === 0) {
+        this.endGame(true);
+      }
+    }
+  }
 
   _persistLobbyContext() {
     try {
@@ -353,7 +453,7 @@ class Game {
         selectedMpMode: this.selectedMpMode,
         lobbyTier: this.lobbyTier,
       }));
-    } catch (_) { /* ignore */ }
+    } catch (_) {}
   }
 
   _consumeLobbyContext() {
@@ -366,11 +466,8 @@ class Game {
     }
   }
 
-  // Used on 'wallet:txError' so we can show the failure inside the lobby
-  // instead of leaving the player stranded on the title screen after a
-  // failed mobile round-trip.
   _restoreLobbyContextIfPresent() {
-    if (this.roomRef) return; // already in a room, nothing to restore
+    if (this.roomRef) return;
     const ctx = this._consumeLobbyContext();
     if (ctx && this.db) this._rejoinRoom(ctx);
   }
@@ -389,12 +486,10 @@ class Game {
 
   async _resumeStakingAction(pendingAction, signature) {
     if (!pendingAction) return;
-
     if (!this.roomRef) {
       const ctx = this._consumeLobbyContext();
       if (ctx && this.db) this._rejoinRoom(ctx);
     }
-
     if (pendingAction.type === 'createRoom') {
       await this._markDeposited('host', pendingAction.tier, signature);
     } else if (pendingAction.type === 'joinRoom') {
@@ -410,24 +505,21 @@ class Game {
       this.uiManager.showScreen('walletModal');
       return;
     }
-
     const roomIdNum = parseInt(this.roomCode, 10);
     if (!roomIdNum) {
       this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
       return;
     }
-
     this.eventBus.emit('staking:pending', { label: 'Waiting for wallet approval…' });
-
     try {
       if (this.isHost) {
         if (!this.lobbyTier) {
           this.eventBus.emit('staking:error', { message: 'Pick a stake tier first.' });
           return;
         }
-        this._persistLobbyContext(); // survives the redirect if this goes to mobile Phantom
+        this._persistLobbyContext();
         const result = await this.stakingManager.createStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
-        if (result?.deepLinked) return; // finishes later via 'wallet:txConfirmed'
+        if (result?.deepLinked) return;
         await this._markDeposited('host', this.lobbyTier, result.signature);
       } else {
         if (!this.lobbyTier) {
@@ -461,13 +553,11 @@ class Game {
     this.eventBus.emit('staking:confirmed', { label: `Deposit confirmed on-chain (tx ${String(signature).slice(0, 8)}…).` });
   }
 
-  /** Recomputes the staking UI from whatever the last Firebase snapshot told us. */
   _refreshStakingUI() {
     const stakingApplies = this.selectedMpMode === '1v1';
     const tierSelector = document.getElementById('lobbyTierSelector');
     if (tierSelector) tierSelector.style.display = stakingApplies ? 'flex' : 'none';
     if (!stakingApplies) return;
-
     this.uiManager.updateStakingUI({
       isHost: this.isHost,
       tier: this.lobbyTier,
@@ -477,10 +567,6 @@ class Game {
       canDeposit: this.walletManager.connected,
     });
   }
-
-  // ---------------------------------------------------------------------
-  // Lobby / room management (Firebase)
-  // ---------------------------------------------------------------------
 
   startLocalGame(mode, difficulty, arenaIndex) {
     this.gameModeManager.setMode(mode);
@@ -494,6 +580,10 @@ class Game {
 
     this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
+    // Reset match stats
+    this.matchStats = {};
+    this.winner = null;
+
     if (this.isMultiplayer && this.playerIds && this.playerIds.length > 0) {
       const myIndex = this.playerIds.indexOf(this.localPlayerId);
       const localSpawn = spawnPositions[myIndex] || spawnPositions[0];
@@ -504,6 +594,7 @@ class Game {
         localSpawn.y
       );
       this.localDragon.playerId = this.localPlayerId;
+      this.initMatchStats(this.localDragon);
 
       for (let i = 0; i < this.playerIds.length; i++) {
         if (i === myIndex) continue;
@@ -514,6 +605,7 @@ class Game {
         const remoteDragon = this.dragonManager.createDragon(dragonName, spawn.x, spawn.y);
         remoteDragon.playerId = pid;
         remoteDragon.isRemote = true;
+        this.initMatchStats(remoteDragon);
       }
 
       const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
@@ -525,6 +617,7 @@ class Game {
         if (this.aiController) {
           aiDragon.speed *= this.aiController.getSpeedMult();
         }
+        this.initMatchStats(aiDragon);
       }
     } else {
       const localSpawn = spawnPositions[0];
@@ -533,6 +626,7 @@ class Game {
         localSpawn.x,
         localSpawn.y
       );
+      this.initMatchStats(this.localDragon);
 
       const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
       for (let i = 1; i < maxPlayers; i++) {
@@ -541,6 +635,7 @@ class Game {
         const teamId = this.gameModeManager.getTeamForPlayer(i);
         const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
         aiDragon.speed *= this.aiController.getSpeedMult();
+        this.initMatchStats(aiDragon);
       }
     }
 
@@ -551,13 +646,22 @@ class Game {
     }
   }
 
+  initMatchStats(dragon) {
+    this.matchStats[dragon.id] = {
+      kills: 0,
+      deaths: 0,
+      timeSurvived: 0,
+      infiniteCoin: 0,
+      startTime: Date.now()
+    };
+  }
+
   createRoom(mpMode) {
     if (!this.db) {
       alert('Multiplayer not available. Running in local mode.');
       this.uiManager.showScreen('modeSelectScreen');
       return;
     }
-
     this.roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     this.isHost = true;
     this.selectedMpMode = mpMode || 'FFA';
@@ -566,7 +670,6 @@ class Game {
     this.lobbyArenaIndex = 0;
     this.lobbyTier = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
-
     const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
@@ -594,7 +697,6 @@ class Game {
     this.uiManager.updateLobbyArena(0, true);
     this.uiManager.showScreen('lobbyScreen');
     this._refreshStakingUI();
-
     this._attachRoomListener();
   }
 
@@ -603,7 +705,6 @@ class Game {
       alert('Multiplayer not available.');
       return;
     }
-
     this.roomCode = code;
     this.isHost = false;
     this.roomRef = this.db.ref('rooms/' + code);
@@ -616,7 +717,6 @@ class Game {
         this.roomRef = null;
         return;
       }
-
       const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
       const playerCount = Object.keys(data.players || {}).length;
       if (playerCount >= roomMax) {
@@ -625,36 +725,26 @@ class Game {
         this.roomRef = null;
         return;
       }
-
       const newPlayerRef = this.roomRef.child('players').push({
         name: 'Player ' + (playerCount + 1),
         dragon: this.selectedDragon || 'ignis',
         ready: true
       });
-
       this.localPlayerId = newPlayerRef.key;
       this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
       this.selectedMpMode = data.mode || this.selectedMpMode;
       this.lobbyTier = data.tier || null;
-
       this.uiManager.showScreen('lobbyScreen');
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
-
       this._attachRoomListener();
     });
   }
 
-  /**
-   * Shared Firebase 'value' listener for both the host and joining-player paths,
-   * and for resuming a room after a mobile Phantom redirect reloaded the page.
-   */
   _attachRoomListener() {
     if (!this.roomRef) return;
-
     this.roomRef.on('value', snap => {
       const data = snap.val();
       if (!data) return;
-
       this.roomPlayers = data.players || {};
       this.playerIds = Object.keys(this.roomPlayers);
       this.lobbyTier = data.tier || null;
@@ -662,12 +752,10 @@ class Game {
         hostDeposited: !!(data.staking && data.staking.hostDeposited),
         opponentDeposited: !!(data.staking && data.staking.opponentDeposited),
       };
-
       if (data.arenaIndex !== undefined && data.arenaIndex !== this.lobbyArenaIndex) {
         this.lobbyArenaIndex = data.arenaIndex;
         this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
       }
-
       const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
         ...p,
         isLocal: id === this.localPlayerId,
@@ -676,7 +764,6 @@ class Game {
       const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
       this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
       this._refreshStakingUI();
-
       if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
         const gameConfig = data.gameConfig || {};
         this.selectedMode = gameConfig.mode || data.mode || 'FFA';
@@ -688,18 +775,11 @@ class Game {
   }
 
   leaveRoom() {
-    // If both players have already deposited into escrow, leaving here does NOT
-    // refund anyone - the on-chain funds stay locked until either both players
-    // co-sign a mutual_cancel_room transaction, or the settle_timeout window
-    // passes and either player calls claimSettleTimeout(). Surface that clearly
-    // rather than letting someone assume "Leave Room" gets their stake back.
     if (this.stakingState.hostDeposited && this.stakingState.opponentDeposited) {
       this.eventBus.emit('staking:error', {
-        message: 'Both stakes are locked in escrow. Leaving now will NOT refund you automatically — ' +
-          'ask your opponent to mutually cancel, or wait for the settle-timeout refund window.'
+        message: 'Both stakes are locked in escrow. Leaving now will NOT refund you automatically — ask your opponent to mutually cancel, or wait for the settle-timeout refund window.'
       });
     }
-
     this.stopNetworkSync();
     if (this.roomRef) {
       this.roomRef.off();
@@ -728,7 +808,6 @@ class Game {
       this.eventBus.emit('staking:error', { message: 'Both players must deposit their stake before the match can start.' });
       return;
     }
-
     if (this.roomRef && this.isHost) {
       this.roomRef.update({
         status: 'playing',
@@ -764,7 +843,6 @@ class Game {
     const now = Date.now();
     if (this.lastBroadcast && now - this.lastBroadcast < 50) return;
     this.lastBroadcast = now;
-
     this.positionsRef.child(this.localPlayerId).set({
       x: this.localDragon.head.x,
       y: this.localDragon.head.y,
@@ -776,21 +854,17 @@ class Game {
 
   applyRemotePositions() {
     if (!this.positionsRef) return;
-
     if (!this.positionsListenerSet) {
       this.positionsListenerSet = true;
       this.positionsRef.on('value', snap => {
         this.remotePositions = snap.val() || {};
       });
     }
-
     if (!this.remotePositions) return;
-
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.playerId) continue;
       const pos = this.remotePositions[dragon.playerId];
       if (!pos) continue;
-
       dragon.remoteTarget = { x: pos.x, y: pos.y };
       dragon.angle = pos.angle;
     }
@@ -821,18 +895,14 @@ class Game {
 
   loop() {
     if (this.state !== 'PLAYING') return;
-
     const now = performance.now();
     let deltaTime = now - this.lastTime;
     this.lastTime = now;
-
     if (deltaTime > CONFIG.MAX_DELTA_TIME) deltaTime = CONFIG.MAX_DELTA_TIME;
-
     if (!this.isPaused) {
       this.update(deltaTime);
       this.render();
     }
-
     this.animationFrame = requestAnimationFrame(() => this.loop());
   }
 
@@ -847,6 +917,7 @@ class Game {
     this.effectsSystem.update(deltaTime);
 
     const inputMap = new Map();
+    const allDragons = this.dragonManager.getAllDragons();
 
     for (const dragon of this.dragonManager.getLivingDragons()) {
       let angle;
@@ -860,7 +931,7 @@ class Game {
       } else if (dragon.isRemote) {
         angle = dragon.angle;
       } else if (this.aiController) {
-        angle = this.aiController.getInputAngle(dragon);
+        angle = this.aiController.getInputAngle(dragon, allDragons);
       } else {
         angle = dragon.angle || 0;
       }
@@ -877,14 +948,25 @@ class Game {
     this.cameraSystem.update(this.localDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
-    const result = this.gameModeManager.checkWinCondition(this.dragonManager.getAllDragons());
-    if (result && result.winner) {
-      this.endGame();
+    // Update time survived for all living dragons
+    for (const dragon of this.dragonManager.getLivingDragons()) {
+      if (this.matchStats[dragon.id]) {
+        this.matchStats[dragon.id].timeSurvived = Date.now() - this.matchStats[dragon.id].startTime;
+      }
+    }
+
+    // Check win condition (last standing with lives)
+    const livingWithLives = allDragons.filter(d => d.alive && d.lives > 0);
+    const totalWithLives = allDragons.filter(d => d.lives > 0);
+
+    if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
+      this.winner = livingWithLives[0];
+      this.endGame(true);
       return;
     }
 
     const score = this.localDragon ? this.localDragon.score : 0;
-    this.uiManager.updateHUD(score, timeStr);
+    this.uiManager.updateHUD(score, timeStr, this.localDragon);
 
     const minimap = document.getElementById('minimapCanvas');
     if (minimap) {
@@ -901,24 +983,19 @@ class Game {
   render() {
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-
     if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       this.cameraSystem.canvas = canvas;
     }
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     const shake = this.effectsSystem.getShake();
     this.cameraSystem.apply(ctx, shake.x, shake.y);
-
     this.arenaManager.render(ctx, this.cameraSystem);
     this.foodSystem.render(ctx, this.cameraSystem);
     this.effectsSystem.renderParticles(ctx, this.cameraSystem);
     this.dragonManager.render(ctx, this.cameraSystem);
     this.cameraSystem.reset(ctx);
-
     this.effectsSystem.renderVignette(ctx, canvas);
   }
 
@@ -933,14 +1010,13 @@ class Game {
     this.lastTime = performance.now();
   }
 
-  endGame() {
+  endGame(hasWinner = false) {
     this.state = 'GAME_OVER';
     this.uiManager.showPauseOverlay(false);
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
     }
-
     this.stopNetworkSync();
 
     const canvas = document.getElementById('gameCanvas');
@@ -949,19 +1025,31 @@ class Game {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    const stats = {
+    // Build stats for all dragons
+    const allDragons = this.dragonManager.getAllDragons();
+    const stats = allDragons.map(d => ({
+      id: d.id,
+      name: d.type,
+      isLocal: d === this.localDragon,
+      kills: d.kills || 0,
+      deaths: d.deaths || 0,
+      timeSurvived: this.matchStats[d.id] ? this.matchStats[d.id].timeSurvived : 0,
+      infiniteCoin: 0, // Placeholder for betting system
+      lives: d.lives,
+      collected: d.collected || 0
+    }));
+
+    const localStats = {
       time: document.getElementById('timerDisplay').textContent,
       collected: this.localDragon ? this.localDragon.collected : 0,
-      kills: this.localDragon ? this.localDragon.kills : 0
+      kills: this.localDragon ? this.localDragon.kills : 0,
+      deaths: this.localDragon ? this.localDragon.deaths : 0,
+      lives: this.localDragon ? this.localDragon.lives : 0
     };
 
-    this.uiManager.updateGameOver(stats);
+    this.uiManager.updateGameOver(localStats);
+    this.uiManager.showMatchStats(stats, this.winner);
     this.uiManager.showScreen('gameOverScreen');
-
-    // NOTE: this is exactly the gap flagged in the staking integration notes -
-    // nothing here reports a match result anywhere. Wiring settle_match requires
-    // a trusted backend (Firebase Cloud Function holding server_authority) fed
-    // by a server-verified result, not a value read out of `stats` on this client.
   }
 
   restartGame() {
