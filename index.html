@@ -129,7 +129,7 @@
     border-radius: 6px;
     padding: 8px;
   }
-  
+
   /* Scan Button Styling */
   #btnWalletRefreshInline {
     margin-left: 10px;
@@ -149,7 +149,105 @@
     background: #3a3a4a;
     border-color: #00b4d8;
   }
+
+  /* Lives HUD */
+  #livesHud {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 6px;
+    z-index: 100;
+    background: rgba(0,0,0,0.5);
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* Scoreboard Overlay */
+  #scoreboardOverlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    flex-direction: column;
+    background: rgba(7,16,24,0.95);
+    border: 1px solid rgba(0,180,216,0.3);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 90vw;
+    z-index: 200;
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* Match Stats Overlay */
+  #matchStatsOverlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.92);
+    z-index: 300;
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  #winnerCelebration {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  #winnerCelebration .winnerTitle {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 36px;
+    color: #ffd700;
+    text-shadow: 0 0 30px rgba(255,215,0,0.5);
+  }
+  #winnerName {
+    font-size: 24px;
+    color: #00b4d8;
+    margin-top: 10px;
+  }
+  .prizePool {
+    font-size: 14px;
+    color: #8b93a6;
+    margin-top: 5px;
+  }
+  .prizePool span {
+    color: #ffd700;
+  }
+
+  #matchStatsTable {
+    width: 90%;
+    max-width: 600px;
+  }
+
+  #btnCloseMatchStats {
+    margin-top: 30px;
+    padding: 12px 40px;
+    background: transparent;
+    border: 1px solid rgba(0,180,216,0.5);
+    color: #00b4d8;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+  }
+  #btnCloseMatchStats:hover {
+    background: rgba(0,180,216,0.1);
+    border-color: #00b4d8;
+  }
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -342,6 +440,8 @@
     <div class="goStat"><div class="num" id="goTime">0:00</div><div class="lbl">SURVIVED</div></div>
     <div class="goStat"><div class="num" id="goCollect">0</div><div class="lbl">COLLECTED</div></div>
     <div class="goStat"><div class="num" id="goKills">0</div><div class="lbl">KILLS</div></div>
+    <div class="goStat"><div class="num" id="goDeaths">0</div><div class="lbl">DEATHS</div></div>
+    <div class="goStat"><div class="num" id="goLives">0</div><div class="lbl">LIVES LEFT</div></div>
   </div>
   <div class="goActions">
     <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
@@ -365,11 +465,11 @@
       <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move=Mouse, Boost=Click/Space, Pause=ESC</p></div>
     </div>
     <div id="htpMechanics" class="htpPanel">
-      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter shatters into collectibles.</p></div>
-      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>Hitting tail cuts 20% from tail. Victim drops collectibles, slowed 0.7s.</p></div>
+      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter dies. Equal size = both shrink to start size.</p></div>
+      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Body</h4><p>Smaller dragon shrinks to start size. Larger unaffected. Equal = both shrink.</p></div>
       <div class="htpCard"><h4><i data-lucide="shield"></i> Tail vs Tail</h4><p>Nothing happens.</p></div>
       <div class="htpCard"><h4><i data-lucide="infinity"></i> Collect &infin;</h4><p>Eat infinity symbols to grow. Start small, grow to max size.</p></div>
-      <div class="htpCard"><h4><i data-lucide="ban"></i> Arena</h4><p>Circular arena with hard boundary. Bounce off the edge.</p></div>
+      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated. Last standing wins!</p></div>
     </div>
     <div id="htpTips" class="htpPanel">
       <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div>
@@ -408,7 +508,6 @@
           <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;">
         </div>
         <div class="wAccountInfo">
-          <!-- The UI Manager will dynamically inject the 'Scan' button directly next to this address ID -->
           <div class="wAddress" id="wAddressDisplay">-</div>
           <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
         </div>
