@@ -36,7 +36,7 @@ const CONFIG = {
 
   // ==================== DRAGON GROWTH ====================
   DRAGON_START_SEGMENTS: 5,
-  DRAGON_MAX_SEGMENTS: 35, // <--- CHANGED FROM 28 TO 35
+  DRAGON_MAX_SEGMENTS: 35,
   DRAGON_SEGMENTS_PER_FOOD: 1,
   DRAGON_SEGMENT_SPACING: 0.65,
 
@@ -83,6 +83,11 @@ const CONFIG = {
     'FFA': 300000
   },
 
+  // ==================== LIVES & RESPAWN ====================
+  LIVES_PER_ROUND: 3,
+  RESPAWN_DELAY_MS: 2000,
+  SPAWN_IMMUNITY_MS: 2000,
+
   // ==================== EFFECTS ====================
   EFFECTS: {
     EAT_PARTICLES: 8,
@@ -97,6 +102,9 @@ const CONFIG = {
     IMPACT_SPARKS: 10,
     IMPACT_SPARK_SPEED: 5,
     IMPACT_SPARK_LIFE: 300,
+    SHRINK_PARTICLES: 15,
+    SHRINK_PARTICLE_SPEED: 4,
+    SHRINK_PARTICLE_LIFE: 500,
     SHAKE_DECAY: 0.9,
     VIGNETTE_DECAY: 0.92
   },
