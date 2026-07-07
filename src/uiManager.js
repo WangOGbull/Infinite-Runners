@@ -40,7 +40,8 @@ class UIManager {
       'titleScreen', 'dragonSelectScreen', 'modeSelectScreen',
       'mpMenuScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
       'gameOverScreen', 'howToPlayScreen', 'walletModal',
-      'mpGameOver', 'loadingOverlay', 'dragonDetailModal'
+      'mpGameOver', 'loadingOverlay', 'dragonDetailModal',
+      'difficultyModal', 'arenaSelectModal', 'mpModeSelect'
     ];
     screenIds.forEach(id => {
       const el = document.getElementById(id);
@@ -49,159 +50,50 @@ class UIManager {
   }
 
   createDynamicModals() {
-    const diffModal = document.createElement('div');
-    diffModal.id = 'difficultyModal';
-    diffModal.className = 'screen';
-    diffModal.innerHTML = `
-      <div class="difficultyBox">
-        <h2>Select Difficulty</h2>
-        <div class="difficultyGrid">
-          <button class="diffBtn" data-diff="beginner">Beginner</button>
-          <button class="diffBtn" data-diff="easy">Easy</button>
-          <button class="diffBtn" data-diff="advanced">Advanced</button>
-          <button class="diffBtn" data-diff="master">Master</button>
-          <button class="diffBtn" data-diff="legendary">Legendary</button>
+    // Lives HUD is already in HTML, just ensuring it works
+    const livesHud = document.getElementById('livesHud');
+    if (!livesHud) {
+      const h = document.createElement('div');
+      h.id = 'livesHud';
+      h.style.cssText = `position:fixed;top:70px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:6px;z-index:100;background:rgba(0,0,0,0.5);padding:6px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);`;
+      document.body.appendChild(h);
+    }
+
+    // Scoreboard Overlay
+    const sb = document.getElementById('scoreboardOverlay');
+    if (!sb) {
+      const s = document.createElement('div');
+      s.id = 'scoreboardOverlay';
+      s.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);display:none;flex-direction:column;background:rgba(7,16,24,0.95);border:1px solid rgba(0,180,216,0.3);border-radius:12px;padding:20px;min-width:300px;max-width:90vw;z-index:200;color:#fff;font-family:'Rajdhani',sans-serif;`;
+      s.innerHTML = `
+        <h3 style="margin:0 0 12px 0;text-align:center;color:#00b4d8;font-size:18px;letter-spacing:2px;">SCOREBOARD</h3>
+        <div id="scoreboardContent"></div>
+        <div style="text-align:center;margin-top:12px;font-size:11px;color:#8b93a6;">Press TAB to toggle</div>
+      `;
+      document.body.appendChild(s);
+    }
+
+    // Match Stats Overlay
+    const ms = document.getElementById('matchStatsOverlay');
+    if (!ms) {
+      const m = document.createElement('div');
+      m.id = 'matchStatsOverlay';
+      m.style.cssText = `position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.92);z-index:300;color:#fff;font-family:'Rajdhani',sans-serif;`;
+      m.innerHTML = `
+        <div id="winnerCelebration" style="display:none;text-align:center;margin-bottom:30px;">
+          <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:8px;">
+            <i data-lucide="trophy" style="width:36px;height:36px;color:#ffd700;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6));"></i>
+            <div class="victoryTitle" style="font-family:'Cinzel Decorative',serif;font-size:42px;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.5),0 0 60px rgba(201,168,76,0.3);letter-spacing:4px;">VICTORY</div>
+            <i data-lucide="trophy" style="width:36px;height:36px;color:#ffd700;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6));"></i>
+          </div>
+          <div id="winnerName" style="font-size:22px;color:#00b4d8;margin-top:8px;font-family:'Rajdhani',sans-serif;letter-spacing:2px;text-transform:uppercase;font-weight:600;"></div>
+          <div style="font-size:13px;color:#8b93a6;margin-top:6px;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">Prize Pool: <span style="color:#ffd700;font-weight:600;">-- INFINITE</span></div>
         </div>
-        <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>
-    `;
-    document.body.appendChild(diffModal);
-    this.screens['difficultyModal'] = diffModal;
-
-    const arenaModal = document.createElement('div');
-    arenaModal.id = 'arenaSelectModal';
-    arenaModal.className = 'screen';
-    arenaModal.innerHTML = `
-      <div class="arenaSelectInner">
-        <h2>Select Arena</h2>
-        <div class="arenaGrid">
-          <div class="arenaCard" data-arena="0">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png)"></div>
-            <div class="arenaName">Stone Castle</div>
-          </div>
-          <div class="arenaCard" data-arena="1">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png)"></div>
-            <div class="arenaName">Grass Field</div>
-          </div>
-          <div class="arenaCard" data-arena="2">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png)"></div>
-            <div class="arenaName">Purple Magic</div>
-          </div>
-          <div class="arenaCard" data-arena="3">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png)"></div>
-            <div class="arenaName">Fire Arena</div>
-          </div>
-        </div>
-        <button id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>
-    `;
-    document.body.appendChild(arenaModal);
-    this.screens['arenaSelectModal'] = arenaModal;
-
-    const mpModeSelect = document.createElement('div');
-    mpModeSelect.id = 'mpModeSelect';
-    mpModeSelect.className = 'screen';
-    mpModeSelect.innerHTML = `
-      <div class="mpModeBox">
-        <h2>Multiplayer Mode</h2>
-        <div class="mpModeGrid">
-          <div class="modeCard" data-mpmode="1v1">
-            <div class="mIcon"><i data-lucide="swords"></i></div>
-            <div class="mLabel">1v1 Duel</div>
-            <div class="mDesc">One on one battle.</div>
-          </div>
-          <div class="modeCard" data-mpmode="2v2">
-            <div class="mIcon"><i data-lucide="users"></i></div>
-            <div class="mLabel">2v2 Teams</div>
-            <div class="mDesc">Team up and fight together.</div>
-          </div>
-          <div class="modeCard" data-mpmode="FFA">
-            <div class="mIcon"><i data-lucide="globe"></i></div>
-            <div class="mLabel">Free For All</div>
-            <div class="mDesc">Every dragon for itself.</div>
-          </div>
-        </div>
-        <button class="menuBtn" id="btnMpModeBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>
-    `;
-    document.body.appendChild(mpModeSelect);
-    this.screens['mpModeSelect'] = mpModeSelect;
-
-    // Create lives HUD overlay
-    const livesHud = document.createElement('div');
-    livesHud.id = 'livesHud';
-    livesHud.style.cssText = `
-      position: fixed;
-      top: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: none;
-      align-items: center;
-      gap: 6px;
-      z-index: 100;
-      background: rgba(0,0,0,0.5);
-      padding: 6px 16px;
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-    `;
-    document.body.appendChild(livesHud);
-
-    // Create scoreboard overlay
-    const scoreboardOverlay = document.createElement('div');
-    scoreboardOverlay.id = 'scoreboardOverlay';
-    scoreboardOverlay.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      display: none;
-      flex-direction: column;
-      background: rgba(7,16,24,0.95);
-      border: 1px solid rgba(0,180,216,0.3);
-      border-radius: 12px;
-      padding: 20px;
-      min-width: 300px;
-      max-width: 90vw;
-      z-index: 200;
-      color: #fff;
-      font-family: 'Rajdhani', sans-serif;
-    `;
-    scoreboardOverlay.innerHTML = `
-      <h3 style="margin:0 0 12px 0;text-align:center;color:#00b4d8;font-size:18px;letter-spacing:2px;">SCOREBOARD</h3>
-      <div id="scoreboardContent"></div>
-      <div style="text-align:center;margin-top:12px;font-size:11px;color:#8b93a6;">Press TAB to toggle</div>
-    `;
-    document.body.appendChild(scoreboardOverlay);
-
-    // Create match stats overlay for game over
-    const matchStatsOverlay = document.createElement('div');
-    matchStatsOverlay.id = 'matchStatsOverlay';
-    matchStatsOverlay.style.cssText = `
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.92);
-      z-index: 300;
-      color: #fff;
-      font-family: 'Rajdhani', sans-serif;
-    `;
-    matchStatsOverlay.innerHTML = `
-      <div id="winnerCelebration" style="display:none;text-align:center;margin-bottom:30px;">
-        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:8px;">
-          <i data-lucide="trophy" style="width:36px;height:36px;color:#ffd700;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6));"></i>
-          <div class="victoryTitle" style="font-family:'Cinzel Decorative',serif;font-size:42px;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.5),0 0 60px rgba(201,168,76,0.3);letter-spacing:4px;">VICTORY</div>
-          <i data-lucide="trophy" style="width:36px;height:36px;color:#ffd700;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6));"></i>
-        </div>
-        <div id="winnerName" style="font-size:22px;color:#00b4d8;margin-top:8px;font-family:'Rajdhani',sans-serif;letter-spacing:2px;text-transform:uppercase;font-weight:600;"></div>
-        <div style="font-size:13px;color:#8b93a6;margin-top:6px;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">Prize Pool: <span style="color:#ffd700;font-weight:600;">-- INFINITE</span></div>
-      </div>
-      <div id="matchStatsTable" style="width:90%;max-width:600px;"></div>
-      <button id="btnCloseMatchStats" style="margin-top:30px;padding:12px 40px;background:transparent;border:1px solid rgba(0,180,216,0.5);color:#00b4d8;border-radius:8px;cursor:pointer;font-size:14px;text-transform:uppercase;letter-spacing:2px;transition:all 0.2s;">Continue</button>
-    `;
-    document.body.appendChild(matchStatsOverlay);
+        <div id="matchStatsTable" style="width:90%;max-width:600px;"></div>
+        <button id="btnCloseMatchStats" style="margin-top:30px;padding:12px 40px;background:transparent;border:1px solid rgba(0,180,216,0.5);color:#00b4d8;border-radius:8px;cursor:pointer;font-size:14px;text-transform:uppercase;letter-spacing:2px;transition:all 0.2s;">Continue</button>
+      `;
+      document.body.appendChild(m);
+    }
   }
 
   buildModeSelect() {}
@@ -210,17 +102,14 @@ class UIManager {
   initDragonCarousel(dragons) {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
-
     try {
       const saved = localStorage.getItem('dragonPowers');
       if (saved) this.dragonPowers = JSON.parse(saved);
     } catch (e) { this.dragonPowers = {}; }
-
     try {
       const savedCoins = localStorage.getItem('playerCoins');
       if (savedCoins) this.playerCoins = parseInt(savedCoins);
     } catch (e) {}
-
     this.renderCarousel();
     this.updateCoinDisplay();
   }
@@ -233,7 +122,7 @@ class UIManager {
     const key = name.toLowerCase();
     const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
 
-    // Dragon image — use uploaded assets
+    // Dragon image
     const imgEl = document.getElementById('dsDragonImg');
     const newHeadUrl = DRAGON_IMAGES[key];
     if (imgEl) {
@@ -241,7 +130,6 @@ class UIManager {
       imgEl.style.filter = `drop-shadow(0 0 30px ${color}25)`;
     }
 
-    // Make dragon image clickable to open modal
     const imgWrap = document.getElementById('dsDragonImgWrap');
     if (imgWrap) {
       imgWrap.style.cursor = 'pointer';
@@ -282,7 +170,7 @@ class UIManager {
     // Powers grid
     this.renderPowersGrid(key, color);
 
-    // Select badge & button
+    // Select badge
     const badge = document.getElementById('dsSelectBadge');
     const isSelected = this.selectedDragonName === name;
     if (badge) {
@@ -290,20 +178,30 @@ class UIManager {
       badge.classList.toggle('selected', isSelected);
     }
 
-    // Update main SELECT button — becomes BATTLE MODE if this dragon is selected
+    // --- NEW LOGIC: Hide Arrows & Select, Show/Hide Dragon Age Button ---
+    const leftArrow = document.getElementById('dsArrowLeft');
+    const rightArrow = document.getElementById('dsArrowRight');
+    const ageBtn = document.getElementById('dsDragonAgeBtn');
     const selectBtn = document.getElementById('dsSelectBtn');
+
+    if (isSelected) {
+      if (selectBtn) selectBtn.style.display = 'none';
+      if (leftArrow) leftArrow.style.display = 'none';
+      if (rightArrow) rightArrow.style.display = 'none';
+      if (ageBtn) ageBtn.style.display = 'flex';
+    } else {
+      if (selectBtn) selectBtn.style.display = 'flex';
+      if (leftArrow) leftArrow.style.display = 'flex';
+      if (rightArrow) rightArrow.style.display = 'flex';
+      if (ageBtn) ageBtn.style.display = 'none';
+    }
+    // ----------------------------------------------------------
+
     if (selectBtn) {
-      if (isSelected) {
-        selectBtn.textContent = 'BATTLE MODE';
-        selectBtn.style.background = 'linear-gradient(135deg, #c9a84c, #a08030)';
-        selectBtn.style.boxShadow = '0 4px 20px rgba(201,168,76,0.3)';
-        selectBtn.style.color = '#fff';
-      } else {
-        selectBtn.textContent = 'SELECT';
-        selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
-        selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
-        selectBtn.style.color = '#fff';
-      }
+      selectBtn.textContent = 'SELECT';
+      selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+      selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
+      selectBtn.style.color = '#fff';
     }
 
     // Nav dots
@@ -314,31 +212,9 @@ class UIManager {
     }
   }
 
-  // Explicitly update the SELECT/BATTLE MODE button
   updateSelectButton() {
-    const d = this.dragonsData[this.carouselIndex];
-    if (!d) return;
-    const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
-    const isSelected = this.selectedDragonName === name;
-
-    const badge = document.getElementById('dsSelectBadge');
-    if (badge) {
-      badge.textContent = isSelected ? 'SELECTED' : 'NOT SELECTED';
-      badge.classList.toggle('selected', isSelected);
-    }
-
-    const selectBtn = document.getElementById('dsSelectBtn');
-    if (selectBtn) {
-      if (isSelected) {
-        selectBtn.textContent = 'BATTLE MODE';
-        selectBtn.style.background = 'linear-gradient(135deg, #c9a84c, #a08030)';
-        selectBtn.style.boxShadow = '0 4px 20px rgba(201,168,76,0.3)';
-      } else {
-        selectBtn.textContent = 'SELECT';
-        selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
-        selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
-      }
-    }
+    // Deprecated but kept for compatibility
+    this.renderCarousel();
   }
 
   // ===== DRAGON DETAIL MODAL =====
@@ -352,14 +228,12 @@ class UIManager {
     const powers = this.getDragonPowers(key);
     const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
 
-    // Image
     const img = document.getElementById('ddmImg');
     if (img) {
       img.src = DRAGON_IMAGES[key] || dragon.head || '';
       img.style.filter = `drop-shadow(0 0 40px ${color}40)`;
     }
 
-    // Name
     const nameEl = document.getElementById('ddmName');
     if (nameEl) {
       nameEl.textContent = name.toUpperCase();
@@ -367,20 +241,17 @@ class UIManager {
       nameEl.style.textShadow = `0 0 20px ${color}40`;
     }
 
-    // Tier & Level
     const tierEl = document.getElementById('ddmTierNum');
     const levelEl = document.getElementById('ddmDragonLevel');
     if (tierEl) tierEl.textContent = avgLevel;
     if (levelEl) levelEl.textContent = avgLevel;
 
-    // Box border color theme
     const box = document.getElementById('ddmBox');
     if (box) {
       box.style.borderColor = color + '60';
       box.style.boxShadow = `0 0 60px ${color}15, inset 0 0 40px ${color}08`;
     }
 
-    // Stats
     const statsContainer = document.getElementById('ddmStats');
     if (statsContainer) {
       const stats = [
@@ -400,26 +271,13 @@ class UIManager {
       `).join('');
     }
 
-    // Special Powers — update with dragon-specific names and unlock levels
     const powersContainer = document.getElementById('ddmPowers');
     if (powersContainer) {
       const specialPowers = {
-        aegis: [
-          { name: 'Aegis Shield', desc: 'Unlock at Dragon Level 5', unlock: 5 },
-          { name: 'Iron Fortress', desc: 'Unlock at Dragon Level 10', unlock: 10 }
-        ],
-        ignis: [
-          { name: 'Inferno Breath', desc: 'Unlock at Dragon Level 5', unlock: 5 },
-          { name: 'Phoenix Rebirth', desc: 'Unlock at Dragon Level 10', unlock: 10 }
-        ],
-        infinite: [
-          { name: 'Time Warp', desc: 'Unlock at Dragon Level 5', unlock: 5 },
-          { name: 'Eternal Loop', desc: 'Unlock at Dragon Level 10', unlock: 10 }
-        ],
-        magnetron: [
-          { name: 'Magnetic Pull', desc: 'Unlock at Dragon Level 5', unlock: 5 },
-          { name: 'Gravity Crush', desc: 'Unlock at Dragon Level 10', unlock: 10 }
-        ]
+        aegis: [{ name: 'Aegis Shield', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Iron Fortress', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
+        ignis: [{ name: 'Inferno Breath', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Phoenix Rebirth', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
+        infinite: [{ name: 'Time Warp', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Eternal Loop', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
+        magnetron: [{ name: 'Magnetic Pull', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Gravity Crush', desc: 'Unlock at Dragon Level 10', unlock: 10 }]
       };
       const dragonPowers = specialPowers[key] || specialPowers.aegis;
       powersContainer.innerHTML = dragonPowers.map(p => `
@@ -433,9 +291,7 @@ class UIManager {
       `).join('');
     }
 
-    // Store reference for select button
     this._modalDragon = dragon;
-
     modal.classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   }
@@ -509,7 +365,6 @@ class UIManager {
 
   upgradePower(dragonKey, stat, cost) {
     if (this.playerCoins < cost) return;
-
     const powers = this.getDragonPowers(dragonKey);
     if (powers[stat] >= 10) return;
 
@@ -529,7 +384,6 @@ class UIManager {
 
     this.updateCoinDisplay();
     this.renderCarousel();
-
     this.eventBus.emit('ui:powerUpgraded', { dragon: dragonKey, stat, level: powers[stat] });
   }
 
@@ -567,7 +421,6 @@ class UIManager {
     const d = this._modalDragon || this.dragonsData[this.carouselIndex];
     if (!d) return;
 
-    // Get the dragon name consistently
     const dragonName = typeof d === 'string' ? d : (d.name || d.type);
     this.selectedDragon = dragonName;
     this.selectedDragonName = dragonName;
@@ -576,16 +429,13 @@ class UIManager {
 
     this.hideDragonModal();
 
-    // Sync carousel index to the selected dragon
     this.carouselIndex = this.dragonsData.findIndex(dr => {
       const drName = typeof dr === 'string' ? dr : (dr.name || dr.type);
       return drName === dragonName;
     });
     if (this.carouselIndex < 0) this.carouselIndex = 0;
 
-    // Re-render to show BATTLE MODE button
     this.renderCarousel();
-
     this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
   }
 
@@ -598,9 +448,7 @@ class UIManager {
   }
 
   initLucide() {
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
   }
 
   initParticles() {
@@ -648,68 +496,46 @@ class UIManager {
   }
 
   bindEvents() {
-    document.getElementById('btnPlayNow')?.addEventListener('click', () => {
-      this.showScreen('dragonSelectScreen');
-    });
-    document.getElementById('btnStartGame')?.addEventListener('click', () => {
-      this.showScreen('dragonSelectScreen');
-    });
+    document.getElementById('btnPlayNow')?.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
+    document.getElementById('btnStartGame')?.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
     document.getElementById('btnLeaderboard')?.addEventListener('click', () => {
       this.showScreen('loadingScreen');
       setTimeout(() => this.showScreen('titleScreen'), 1000);
     });
-    document.getElementById('btnHowToPlay')?.addEventListener('click', () => {
-      this.showScreen('howToPlayScreen');
-    });
+    document.getElementById('btnHowToPlay')?.addEventListener('click', () => this.showScreen('howToPlayScreen'));
 
-    // Dragon select carousel events
-    document.getElementById('btnDsBack')?.addEventListener('click', () => {
-      this.showScreen('titleScreen');
-    });
+    // === DRAGON SELECT EVENTS ===
+    document.getElementById('btnDsBack')?.addEventListener('click', () => this.showScreen('titleScreen'));
+    
+    // Top Right Next button
+    document.getElementById('dsNextBtn')?.addEventListener('click', () => this.goToBattleMode());
+
+    // Dragon Age Button
+    document.getElementById('dsDragonAgeBtn')?.addEventListener('click', () => this.goToBattleMode());
+
+    // Arrows
     document.getElementById('dsArrowLeft')?.addEventListener('click', () => this.carouselPrev());
     document.getElementById('dsArrowRight')?.addEventListener('click', () => this.carouselNext());
 
-    // SELECT button — opens modal if no dragon selected, else goes to battle mode
+    // Select Button
     document.getElementById('dsSelectBtn')?.addEventListener('click', () => {
       const d = this.dragonsData[this.carouselIndex];
-      const dName = typeof d === 'string' ? d : (d?.name || d?.type);
-      if (this.selectedDragonName && this.selectedDragonName === dName) {
-        this.goToBattleMode();
-      } else {
-        if (d) this.showDragonModal(d);
-      }
+      if (d) this.showDragonModal(d);
     });
 
     // Modal events
     document.getElementById('btnDdmSelect')?.addEventListener('click', () => this.selectCurrentDragon());
     document.getElementById('btnDdmClose')?.addEventListener('click', () => this.hideDragonModal());
 
-    // Bottom nav
-    document.querySelectorAll('.dsBottomNavBtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.dsBottomNavBtn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const tab = btn.dataset.tab;
-        if (tab === 'dragons') {
-          // already on dragons
-        } else {
-          this.eventBus.emit('ui:bottomNav', { tab });
-        }
-      });
-    });
-
-    document.getElementById('btnModeBack')?.addEventListener('click', () => {
-      this.showScreen('dragonSelectScreen');
-    });
+    // === MODE SCREEN EVENTS ===
+    document.getElementById('btnModeBack')?.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
 
     document.getElementById('btn1v1AI')?.addEventListener('click', () => {
       this.selectedMode = '1v1AI';
       this.showScreen('difficultyModal');
     });
 
-    document.getElementById('btnMpMultiplayer')?.addEventListener('click', () => {
-      this.showScreen('mpMenuScreen');
-    });
+    document.getElementById('btnMpMultiplayer')?.addEventListener('click', () => this.showScreen('mpMenuScreen'));
 
     document.querySelectorAll('#difficultyModal .diffBtn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -717,10 +543,7 @@ class UIManager {
         this.showScreen('arenaSelectModal');
       });
     });
-
-    document.getElementById('btnDiffBack')?.addEventListener('click', () => {
-      this.showScreen('modeSelectScreen');
-    });
+    document.getElementById('btnDiffBack')?.addEventListener('click', () => this.showScreen('modeSelectScreen'));
 
     document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -732,15 +555,10 @@ class UIManager {
         });
       });
     });
+    document.getElementById('btnArenaBack')?.addEventListener('click', () => this.showScreen('difficultyModal'));
 
-    document.getElementById('btnArenaBack')?.addEventListener('click', () => {
-      this.showScreen('difficultyModal');
-    });
-
-    document.getElementById('btnMpCreate')?.addEventListener('click', () => {
-      this.showScreen('mpModeSelect');
-    });
-
+    // === MULTIPLAYER EVENTS ===
+    document.getElementById('btnMpCreate')?.addEventListener('click', () => this.showScreen('mpModeSelect'));
     document.getElementById('btnMpJoin')?.addEventListener('click', () => {
       const input = document.getElementById('mpRoomInput');
       const code = input?.value.trim();
@@ -751,10 +569,7 @@ class UIManager {
         if (err) err.textContent = 'Enter a valid 6-digit code';
       }
     });
-
-    document.getElementById('btnMpBack')?.addEventListener('click', () => {
-      this.showScreen('modeSelectScreen');
-    });
+    document.getElementById('btnMpBack')?.addEventListener('click', () => this.showScreen('modeSelectScreen'));
 
     document.querySelectorAll('#mpModeSelect .modeCard').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -762,15 +577,9 @@ class UIManager {
         this.eventBus.emit('mp:createRoom', { mode: this.selectedMpMode });
       });
     });
+    document.getElementById('btnMpModeBack')?.addEventListener('click', () => this.showScreen('mpMenuScreen'));
 
-    document.getElementById('btnMpModeBack')?.addEventListener('click', () => {
-      this.showScreen('mpMenuScreen');
-    });
-
-    document.getElementById('lobbyStartBtn')?.addEventListener('click', () => {
-      this.eventBus.emit('mp:startGame');
-    });
-
+    document.getElementById('lobbyStartBtn')?.addEventListener('click', () => this.eventBus.emit('mp:startGame'));
     document.getElementById('btnLeaveRoom')?.addEventListener('click', () => {
       this.eventBus.emit('mp:leaveRoom');
       this.showScreen('titleScreen');
@@ -791,16 +600,11 @@ class UIManager {
       });
     });
 
-    document.getElementById('lobbyDepositBtn')?.addEventListener('click', () => {
-      this.eventBus.emit('lobby:depositRequested');
-    });
+    document.getElementById('lobbyDepositBtn')?.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
 
-    document.getElementById('pauseBtn')?.addEventListener('click', () => {
-      this.eventBus.emit('game:pause');
-    });
-    document.getElementById('btnResume')?.addEventListener('click', () => {
-      this.eventBus.emit('game:resume');
-    });
+    // === GAME EVENTS ===
+    document.getElementById('pauseBtn')?.addEventListener('click', () => this.eventBus.emit('game:pause'));
+    document.getElementById('btnResume')?.addEventListener('click', () => this.eventBus.emit('game:resume'));
     document.getElementById('btnQuit')?.addEventListener('click', () => {
       this.eventBus.emit('game:quit');
       this.showScreen('titleScreen');
@@ -810,60 +614,31 @@ class UIManager {
       this.showScreen('dragonSelectScreen');
     });
 
-    document.getElementById('btnPlayAgain')?.addEventListener('click', () => {
-      this.eventBus.emit('game:restart');
-    });
+    document.getElementById('btnPlayAgain')?.addEventListener('click', () => this.eventBus.emit('game:restart'));
     document.getElementById('btnMainMenu')?.addEventListener('click', () => {
       this.eventBus.emit('game:quit');
       this.showScreen('titleScreen');
     });
 
-    document.getElementById('btnHtpClose')?.addEventListener('click', () => {
-      this.showScreen('titleScreen');
-    });
-    document.getElementById('btnGotIt')?.addEventListener('click', () => {
-      this.showScreen('titleScreen');
-    });
-
-    document.querySelectorAll('.htpTab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.htpTab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        document.querySelectorAll('.htpPanel').forEach(p => p.classList.remove('active'));
-        document.getElementById('htp' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1))?.classList.add('active');
-      });
-    });
-
-    document.getElementById('walletBtn')?.addEventListener('click', () => {
-      this.showScreen('walletModal');
-    });
-    document.getElementById('btnWalletClose')?.addEventListener('click', () => {
-      this.showScreen('titleScreen');
-    });
-
-    document.getElementById('wOptPhantom')?.addEventListener('click', () => {
-      this.eventBus.emit('wallet:connectRequest');
-    });
-
+    // === WALLET EVENTS ===
+    document.getElementById('walletBtn')?.addEventListener('click', () => this.showScreen('walletModal'));
+    document.getElementById('btnWalletClose')?.addEventListener('click', () => this.showScreen('titleScreen'));
+    document.getElementById('wOptPhantom')?.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
     document.addEventListener('click', (e) => {
-      if (e.target.closest('#btnWalletDisconnect')) {
-        this.eventBus.emit('wallet:disconnectRequest');
-      }
+      if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest');
     });
-
     document.getElementById('btnWalletSignTest')?.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
       this.eventBus.emit('wallet:signTestRequest');
     });
 
+    // === EVENT BUS WALLET LISTENERS ===
     this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
-
     this.eventBus.on('wallet:connected', ({ address, balance }) => {
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance);
     });
-
     this.eventBus.on('wallet:disconnected', () => {
       this.setWalletModalState('disconnected');
       this.updateWalletButton(null);
@@ -872,45 +647,31 @@ class UIManager {
       const balEl = document.getElementById('wBalanceDisplay');
       if (balEl) balEl.innerHTML = '';
     });
-
     this.eventBus.on('wallet:error', ({ message }) => {
       this.setWalletModalState('disconnected');
       const errEl = document.getElementById('walletError');
-      if (errEl) {
-        errEl.textContent = message;
-        errEl.style.display = 'block';
-      }
+      if (errEl) { errEl.textContent = message; errEl.style.display = 'block'; }
     });
-
     this.eventBus.on('wallet:scanResult', ({ sol, infinite }) => {
       const balEl = document.getElementById('wBalanceDisplay');
-      if (balEl) {
-        balEl.innerHTML = `<i class="fa-solid fa-check" style="color:#4ade80;"></i> SOL: ${sol.toFixed(4)} | Infinite: ${infinite}`;
-      }
+      if (balEl) balEl.innerHTML = `<i class="fa-solid fa-check" style="color:#4ade80;"></i> SOL: ${sol.toFixed(4)} | Infinite: ${infinite}`;
     });
-
     this.eventBus.on('wallet:signTestResult', (result) => {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) {
         resultEl.innerHTML = `<span class="wSignOk"><i class="fa-solid fa-check-circle"></i> Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0, 24)}...</div>`;
       }
     });
-
     this.eventBus.on('wallet:signTestError', ({ message }) => {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
     });
 
-    this.eventBus.on('staking:pending', ({ label }) => {
-      this.setDepositStatus(label || 'Waiting for wallet approval…', 'pending');
-    });
-    this.eventBus.on('staking:error', ({ message }) => {
-      this.setDepositStatus(message || 'Staking transaction failed.', 'error');
-    });
-    this.eventBus.on('staking:confirmed', ({ label }) => {
-      this.setDepositStatus(label || 'Deposit confirmed.', 'confirmed');
-    });
+    this.eventBus.on('staking:pending', ({ label }) => this.setDepositStatus(label || 'Waiting for wallet approval…', 'pending'));
+    this.eventBus.on('staking:error', ({ message }) => this.setDepositStatus(message || 'Staking transaction failed.', 'error'));
+    this.eventBus.on('staking:confirmed', ({ label }) => this.setDepositStatus(label || 'Deposit confirmed.', 'confirmed'));
 
+    // === KEYBOARD EVENTS ===
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (this.currentScreen === 'gameScreen') {
@@ -928,10 +689,21 @@ class UIManager {
     document.getElementById('btnCloseMatchStats')?.addEventListener('click', () => {
       const overlay = document.getElementById('matchStatsOverlay');
       if (overlay) overlay.style.display = 'none';
-      if (this.screens['gameOverScreen']) {
-        this.screens['gameOverScreen'].classList.remove('active');
-      }
+      if (this.screens['gameOverScreen']) this.screens['gameOverScreen'].classList.remove('active');
       this.showScreen('modeSelectScreen');
+    });
+
+    // === OTHER ===
+    document.getElementById('btnHtpClose')?.addEventListener('click', () => this.showScreen('titleScreen'));
+    document.getElementById('btnGotIt')?.addEventListener('click', () => this.showScreen('titleScreen'));
+
+    document.querySelectorAll('.htpTab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.htpTab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.htpPanel').forEach(p => p.classList.remove('active'));
+        document.getElementById('htp' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1))?.classList.add('active');
+      });
     });
   }
 
@@ -948,21 +720,15 @@ class UIManager {
     }
 
     const livesHud = document.getElementById('livesHud');
-    if (livesHud) {
-      livesHud.style.display = screenId === 'gameScreen' ? 'flex' : 'none';
-    }
+    if (livesHud) livesHud.style.display = screenId === 'gameScreen' ? 'flex' : 'none';
   }
 
   renderLifeOrbs(lives, maxLives = 3, size = 16) {
     let html = '';
     for (let i = 0; i < maxLives; i++) {
       const alive = i < lives;
-      const gradient = alive
-        ? 'radial-gradient(circle at 30% 30%, #ff6b35, #c41e3a)'
-        : 'radial-gradient(circle at 30% 30%, #2a2a2a, #111)';
-      const glow = alive
-        ? `0 0 ${size * 0.5}px rgba(255,107,53,0.5), inset 0 0 ${size * 0.25}px rgba(255,200,100,0.2)`
-        : 'inset 0 0 2px rgba(255,255,255,0.05)';
+      const gradient = alive ? 'radial-gradient(circle at 30% 30%, #ff6b35, #c41e3a)' : 'radial-gradient(circle at 30% 30%, #2a2a2a, #111)';
+      const glow = alive ? `0 0 ${size * 0.5}px rgba(255,107,53,0.5), inset 0 0 ${size * 0.25}px rgba(255,200,100,0.2)` : 'inset 0 0 2px rgba(255,255,255,0.05)';
       const border = alive ? 'rgba(255,150,100,0.4)' : 'rgba(255,255,255,0.08)';
       html += `<div style="display:inline-block;width:${size}px;height:${size}px;border-radius:50%;background:${gradient};box-shadow:${glow};border:1px solid ${border};vertical-align:middle;margin:0 2px;"></div>`;
     }
@@ -972,23 +738,17 @@ class UIManager {
   updateLivesHUD(dragon) {
     const livesHud = document.getElementById('livesHud');
     if (!livesHud || !dragon) return;
-
     livesHud.innerHTML = '';
-    const lives = dragon.lives || 0;
-
     const container = document.createElement('div');
     container.style.cssText = 'display:flex;align-items:center;gap:10px;';
-
     const orbsDiv = document.createElement('div');
     orbsDiv.style.cssText = 'display:flex;align-items:center;gap:4px;';
-    orbsDiv.innerHTML = this.renderLifeOrbs(lives, 3, 16);
+    orbsDiv.innerHTML = this.renderLifeOrbs(dragon.lives || 0, 3, 16);
     container.appendChild(orbsDiv);
-
     const label = document.createElement('span');
     label.style.cssText = 'font-size:12px;color:#8b93a6;font-family:"Rajdhani",sans-serif;letter-spacing:2px;text-transform:uppercase;';
     label.textContent = 'LIVES';
     container.appendChild(label);
-
     livesHud.appendChild(container);
   }
 
@@ -1002,17 +762,11 @@ class UIManager {
   updateScoreboard(dragons) {
     const content = document.getElementById('scoreboardContent');
     if (!content) return;
-
     let html = `
       <div style="display:grid;grid-template-columns:1.5fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.1);font-size:11px;color:#8b93a6;text-transform:uppercase;letter-spacing:1px;">
-        <div>Dragon</div>
-        <div style="text-align:center;">Kills</div>
-        <div style="text-align:center;">Deaths</div>
-        <div style="text-align:center;">Lives</div>
-        <div style="text-align:center;">Size</div>
+        <div>Dragon</div><div style="text-align:center;">Kills</div><div style="text-align:center;">Deaths</div><div style="text-align:center;">Lives</div><div style="text-align:center;">Size</div>
       </div>
     `;
-
     dragons.forEach(d => {
       const isLocal = d === window.game?.localDragon;
       const status = d.alive ? (d.immunityTimer > 0 ? '<span style="color:#ffd700;">⚡</span>' : '') : '<span style="color:#ff4444;">✕</span>';
@@ -1027,23 +781,18 @@ class UIManager {
         </div>
       `;
     });
-
     content.innerHTML = html;
   }
 
   updateLobby(players, maxPlayers, roomCode, isHost) {
     this.isHost = isHost;
     this.roomCode = roomCode;
-
     const codeDisplay = document.getElementById('roomCodeDisplay');
     if (codeDisplay) codeDisplay.textContent = roomCode;
-
     const modeDisplay = document.getElementById('lobbyGameMode');
     if (modeDisplay) modeDisplay.textContent = this.selectedMpMode || 'FFA';
-
     const countDisplay = document.getElementById('lobbyPlayerCount');
     if (countDisplay) countDisplay.textContent = players.length + ' / ' + maxPlayers;
-
     const slots = document.getElementById('lobbySlots');
     if (slots) {
       slots.innerHTML = '';
@@ -1066,16 +815,11 @@ class UIManager {
             </div>
           `;
         } else {
-          slot.innerHTML = `
-            <div class="lobbyPlayerCard empty">
-              <span>Waiting...</span>
-            </div>
-          `;
+          slot.innerHTML = `<div class="lobbyPlayerCard empty"><span>Waiting...</span></div>`;
         }
         slots.appendChild(slot);
       }
     }
-
     const startBtn = document.getElementById('lobbyStartBtn');
     const waitingText = document.getElementById('lobbyWaitingText');
     const modeSelector = document.getElementById('modeSelectorHost');
@@ -1092,24 +836,17 @@ class UIManager {
       if (modeSelector) modeSelector.style.display = 'none';
       if (arenaSelector) arenaSelector.style.display = 'flex';
     }
-
-    if (typeof lucide !== 'undefined') {
-      setTimeout(() => lucide.createIcons(), 0);
-    }
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
   }
 
   updateTierAmounts(tiers) {
     this.tierAmounts = tiers;
     ['Small', 'Medium', 'High'].forEach(tier => {
       const amtEl = document.querySelector(`#tier${tier} .tierAmt`);
-      if (amtEl && tiers[tier] !== undefined) {
-        amtEl.textContent = `${tiers[tier]} INFINITE`;
-      }
+      if (amtEl && tiers[tier] !== undefined) amtEl.textContent = `${tiers[tier]} INFINITE`;
     });
     const feeEl = document.getElementById('feeDisclosureText');
-    if (feeEl && tiers.feePercent !== undefined) {
-      feeEl.textContent = `${tiers.feePercent}% platform fee applies to each player's stake.`;
-    }
+    if (feeEl && tiers.feePercent !== undefined) feeEl.textContent = `${tiers.feePercent}% platform fee applies to each player's stake.`;
   }
 
   updateStakingUI({ isHost, tier, locked, hostDeposited, opponentDeposited, canDeposit }) {
@@ -1117,12 +854,8 @@ class UIManager {
       btn.classList.toggle('active', btn.dataset.tier === tier);
       btn.disabled = !isHost || locked;
     });
-
     const selectorLabel = document.querySelector('#lobbyTierSelector label');
-    if (selectorLabel) {
-      selectorLabel.textContent = locked ? `Stake Tier (locked): ${tier || ''}` : 'Stake Tier:';
-    }
-
+    if (selectorLabel) selectorLabel.textContent = locked ? `Stake Tier (locked): ${tier || ''}` : 'Stake Tier:';
     const depositBtn = document.getElementById('lobbyDepositBtn');
     const depositLabel = document.getElementById('depositBtnLabel');
     if (depositBtn) {
@@ -1130,12 +863,9 @@ class UIManager {
       const showBtn = isHost ? (!hostDeposited && !!tier) : (!!tier && !opponentDeposited);
       depositBtn.style.display = showBtn ? 'flex' : 'none';
       depositBtn.disabled = !canDeposit;
-      if (depositLabel) {
-        depositLabel.textContent = isHost ? 'Lock Stake & Open Room' : `Deposit ${tier || ''} to Join`;
-      }
+      if (depositLabel) depositLabel.textContent = isHost ? 'Lock Stake & Open Room' : `Deposit ${tier || ''} to Join`;
       if (alreadyDeposited) depositBtn.style.display = 'none';
     }
-
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn && isHost) {
       const bothIn = hostDeposited && opponentDeposited;
@@ -1158,21 +888,16 @@ class UIManager {
     const connected = document.getElementById('walletConnectedView');
     const errEl = document.getElementById('walletError');
     if (errEl) errEl.style.display = 'none';
-
     if (disconnected) disconnected.style.display = state === 'disconnected' ? 'block' : 'none';
     if (connecting) connecting.style.display = state === 'connecting' ? 'block' : 'none';
     if (connected) connected.style.display = state === 'connected' ? 'block' : 'none';
-
-    if (typeof lucide !== 'undefined') {
-      setTimeout(() => lucide.createIcons(), 0);
-    }
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
   }
 
   updateWalletDisplay(address, balance) {
     const addrEl = document.getElementById('wAddressDisplay');
     const balEl = document.getElementById('wBalanceDisplay');
     const shortAddr = address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '-';
-
     if (addrEl) {
       addrEl.innerHTML = `
         ${shortAddr}
@@ -1180,16 +905,11 @@ class UIManager {
           <i class="fa-solid fa-magnifying-glass"></i> Scan
         </button>
       `;
-
       setTimeout(() => {
-        document.getElementById('btnWalletRefreshInline')?.addEventListener('click', () => {
-          this.eventBus.emit('wallet:scanRequest');
-        });
+        document.getElementById('btnWalletRefreshInline')?.addEventListener('click', () => this.eventBus.emit('wallet:scanRequest'));
       }, 0);
     }
-
     if (balEl) balEl.textContent = 'Click Scan to load balance';
-
     this.updateWalletButton(shortAddr);
   }
 
@@ -1217,7 +937,6 @@ class UIManager {
     const gameCanvas = document.getElementById('gameCanvas');
     const hud = document.getElementById('gameHud');
     const minimap = document.getElementById('minimapCanvas');
-
     if (gameCanvas) gameCanvas.style.visibility = 'hidden';
     if (hud) hud.style.visibility = 'hidden';
     if (minimap) minimap.style.visibility = 'hidden';
@@ -1228,134 +947,64 @@ class UIManager {
       overlay.id = 'countdownOverlay';
       document.body.appendChild(overlay);
     }
-
     overlay.style.cssText = `
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background: radial-gradient(ellipse at center, rgba(20,10,5,0.95) 0%, rgba(0,0,0,0.98) 100%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      pointer-events: none;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; pointer-events: none;
     `;
     overlay.innerHTML = '';
-
     const title = document.createElement('div');
     title.textContent = 'DRAGONS ARENA';
-    title.style.cssText = `
-      font-family: 'Cinzel Decorative', 'Georgia', serif;
-      font-size: 18px;
-      color: #c9a84c;
-      letter-spacing: 8px;
-      text-transform: uppercase;
-      margin-bottom: 40px;
-      text-shadow: 0 0 20px rgba(201,168,76,0.4);
-      opacity: 0;
-      animation: fadeInUp 0.8s ease forwards;
-    `;
+    title.style.cssText = `font-family: 'Cinzel Decorative', 'Georgia', serif; font-size: 18px; color: #c9a84c; letter-spacing: 8px; text-transform: uppercase; margin-bottom: 40px; text-shadow: 0 0 20px rgba(201,168,76,0.4); opacity: 0; animation: fadeInUp 0.8s ease forwards;`;
     overlay.appendChild(title);
-
     const numberContainer = document.createElement('div');
     numberContainer.id = 'countdownNumber';
-    numberContainer.style.cssText = `
-      font-family: 'Cinzel Decorative', 'Georgia', serif;
-      font-size: 140px;
-      font-weight: 700;
-      color: #e8d5a3;
-      text-shadow: 0 0 30px rgba(232,213,163,0.6), 0 0 60px rgba(201,168,76,0.3), 0 0 100px rgba(139,69,19,0.2);
-      line-height: 1;
-      min-height: 160px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    `;
+    numberContainer.style.cssText = `font-family: 'Cinzel Decorative', 'Georgia', serif; font-size: 140px; font-weight: 700; color: #e8d5a3; text-shadow: 0 0 30px rgba(232,213,163,0.6), 0 0 60px rgba(201,168,76,0.3), 0 0 100px rgba(139,69,19,0.2); line-height: 1; min-height: 160px; display: flex; align-items: center; justify-content: center;`;
     overlay.appendChild(numberContainer);
-
     const subtitle = document.createElement('div');
     subtitle.id = 'countdownSubtitle';
-    subtitle.style.cssText = `
-      font-family: 'Cinzel Decorative', 'Georgia', serif;
-      font-size: 14px;
-      color: #8b7355;
-      letter-spacing: 6px;
-      text-transform: uppercase;
-      margin-top: 30px;
-      opacity: 0;
-    `;
+    subtitle.style.cssText = `font-family: 'Cinzel Decorative', 'Georgia', serif; font-size: 14px; color: #8b7355; letter-spacing: 6px; text-transform: uppercase; margin-top: 30px; opacity: 0;`;
     overlay.appendChild(subtitle);
 
     if (!document.getElementById('countdownStyles')) {
       const style = document.createElement('style');
       style.id = 'countdownStyles';
       style.textContent = `
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes countdownPulse {
-          0% { transform: scale(0.5); opacity: 0; }
-          20% { transform: scale(1.1); opacity: 1; }
-          40% { transform: scale(0.95); }
-          60% { transform: scale(1.02); }
-          80% { transform: scale(1); opacity: 1; }
-          100% { transform: scale(1.5); opacity: 0; }
-        }
-        @keyframes countdownGo {
-          0% { transform: scale(0.3); opacity: 0; }
-          30% { transform: scale(1.2); opacity: 1; }
-          50% { transform: scale(1); }
-          80% { transform: scale(1.1); opacity: 1; }
-          100% { transform: scale(2); opacity: 0; }
-        }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes countdownPulse { 0% { transform: scale(0.5); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 40% { transform: scale(0.95); } 60% { transform: scale(1.02); } 80% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+        @keyframes countdownGo { 0% { transform: scale(0.3); opacity: 0; } 30% { transform: scale(1.2); opacity: 1; } 50% { transform: scale(1); } 80% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
       `;
       document.head.appendChild(style);
     }
 
     let count = seconds;
-
     const updateNumber = () => {
       const numEl = document.getElementById('countdownNumber');
       const subEl = document.getElementById('countdownSubtitle');
       if (!numEl) return;
-
       if (count > 0) {
         numEl.textContent = count;
-        numEl.style.animation = 'none';
-        numEl.offsetHeight;
-        numEl.style.animation = 'countdownPulse 1s ease forwards';
-        if (subEl) {
-          subEl.textContent = 'PREPARE FOR BATTLE';
-          subEl.style.animation = 'none';
-          subEl.offsetHeight;
-          subEl.style.animation = 'fadeInUp 0.5s ease forwards';
-        }
+        numEl.style.animation = 'none'; numEl.offsetHeight; numEl.style.animation = 'countdownPulse 1s ease forwards';
+        if (subEl) { subEl.textContent = 'PREPARE FOR BATTLE'; subEl.style.animation = 'none'; subEl.offsetHeight; subEl.style.animation = 'fadeInUp 0.5s ease forwards'; }
       } else {
         numEl.textContent = 'FIGHT!';
         numEl.style.color = '#ff4444';
         numEl.style.textShadow = '0 0 40px rgba(255,68,68,0.8), 0 0 80px rgba(139,0,0,0.4)';
-        numEl.style.animation = 'none';
-        numEl.offsetHeight;
-        numEl.style.animation = 'countdownGo 0.8s ease forwards';
+        numEl.style.animation = 'none'; numEl.offsetHeight; numEl.style.animation = 'countdownGo 0.8s ease forwards';
         if (subEl) subEl.textContent = '';
       }
     };
-
     updateNumber();
-
     const interval = setInterval(() => {
       count--;
-      if (count >= 0) {
-        updateNumber();
-      }
+      if (count >= 0) updateNumber();
       if (count < 0) {
         clearInterval(interval);
         overlay.style.transition = 'opacity 0.5s ease';
         overlay.style.opacity = '0';
         setTimeout(() => {
-          overlay.style.display = 'none';
-          overlay.style.opacity = '1';
+          overlay.style.display = 'none'; overlay.style.opacity = '1';
           if (gameCanvas) gameCanvas.style.visibility = 'visible';
           if (hud) hud.style.visibility = 'visible';
           if (minimap) minimap.style.visibility = 'visible';
@@ -1367,22 +1016,16 @@ class UIManager {
 
   showPauseOverlay(show) {
     const overlay = document.getElementById('pauseOverlay');
-    if (overlay) {
-      overlay.classList.toggle('active', show);
-    }
+    if (overlay) overlay.classList.toggle('active', show);
   }
 
   updateHUD(score, time, dragon) {
     const timerDisplay = document.getElementById('timerDisplay');
     if (timerDisplay) timerDisplay.textContent = time;
-
     this.updateLivesHUD(dragon);
-
     const scoreboardOverlay = document.getElementById('scoreboardOverlay');
     if (scoreboardOverlay && scoreboardOverlay.style.display === 'flex') {
-      if (window.game && window.game.dragonManager) {
-        this.updateScoreboard(window.game.dragonManager.getAllDragons());
-      }
+      if (window.game && window.game.dragonManager) this.updateScoreboard(window.game.dragonManager.getAllDragons());
     }
   }
 
@@ -1391,11 +1034,8 @@ class UIManager {
     if (title) {
       title.textContent = isWinner ? 'VICTORY' : 'DEFEATED';
       title.style.color = isWinner ? '#ffd700' : '#ff4444';
-      title.style.textShadow = isWinner
-        ? '0 0 30px rgba(255,215,0,0.5), 0 0 60px rgba(201,168,76,0.3)'
-        : '0 0 20px rgba(255,68,68,0.4)';
+      title.style.textShadow = isWinner ? '0 0 30px rgba(255,215,0,0.5), 0 0 60px rgba(201,168,76,0.3)' : '0 0 20px rgba(255,68,68,0.4)';
     }
-
     const goTime = document.getElementById('goTime');
     const goCollect = document.getElementById('goCollect');
     const goKills = document.getElementById('goKills');
@@ -1413,58 +1053,32 @@ class UIManager {
     const winnerDiv = document.getElementById('winnerCelebration');
     const winnerName = document.getElementById('winnerName');
     const tableDiv = document.getElementById('matchStatsTable');
-
     if (!overlay) return;
-
-    if (this.screens['gameOverScreen']) {
-      this.screens['gameOverScreen'].classList.remove('active');
-    }
-
+    if (this.screens['gameOverScreen']) this.screens['gameOverScreen'].classList.remove('active');
     if (winnerDiv) {
-      if (winner) {
-        winnerDiv.style.display = 'block';
-        if (winnerName) winnerName.textContent = winner.type ? winner.type.toUpperCase() : 'WINNER';
-      } else {
-        winnerDiv.style.display = 'none';
-      }
+      if (winner) { winnerDiv.style.display = 'block'; if (winnerName) winnerName.textContent = winner.type ? winner.type.toUpperCase() : 'WINNER'; }
+      else { winnerDiv.style.display = 'none'; }
     }
-
     if (tableDiv) {
       let html = `
         <div style="display:grid;grid-template-columns:1.5fr 0.7fr 0.7fr 1fr 1fr;gap:10px;padding:10px 0;border-bottom:2px solid rgba(0,180,216,0.3);font-size:12px;color:#8b93a6;text-transform:uppercase;letter-spacing:1px;font-weight:600;">
-          <div>Dragon</div>
-          <div style="text-align:center;">Kills</div>
-          <div style="text-align:center;">Deaths</div>
-          <div style="text-align:center;">Time Survived</div>
-          <div style="text-align:center;">InfiniteCoin</div>
+          <div>Dragon</div><div style="text-align:center;">Kills</div><div style="text-align:center;">Deaths</div><div style="text-align:center;">Time Survived</div><div style="text-align:center;">InfiniteCoin</div>
         </div>
       `;
-
       allStats.forEach(s => {
         const isWinner = winner && s.id === winner.id;
         const timeStr = this.formatTime(s.timeSurvived);
         html += `
           <div style="display:grid;grid-template-columns:1.5fr 0.7fr 0.7fr 1fr 1fr;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:14px;${isWinner ? 'background:rgba(255,215,0,0.08);color:#ffd700;font-weight:600;' : 'color:#c8ccd8;'}">
-            <div style="display:flex;align-items:center;gap:6px;">
-              ${isWinner ? '<i data-lucide="crown" style="width:14px;height:14px;color:#ffd700;filter:drop-shadow(0 0 4px rgba(255,215,0,0.6));"></i>' : ''}
-              <span>${s.name.toUpperCase()} ${s.isLocal ? '(YOU)' : ''}</span>
-            </div>
-            <div style="text-align:center;">${s.kills}</div>
-            <div style="text-align:center;">${s.deaths}</div>
-            <div style="text-align:center;">${timeStr}</div>
-            <div style="text-align:center;color:#ffd700;">${s.infiniteCoin} IFC</div>
+            <div style="display:flex;align-items:center;gap:6px;">${isWinner ? '<i data-lucide="crown" style="width:14px;height:14px;color:#ffd700;filter:drop-shadow(0 0 4px rgba(255,215,0,0.6));"></i>' : ''}<span>${s.name.toUpperCase()} ${s.isLocal ? '(YOU)' : ''}</span></div>
+            <div style="text-align:center;">${s.kills}</div><div style="text-align:center;">${s.deaths}</div><div style="text-align:center;">${timeStr}</div><div style="text-align:center;color:#ffd700;">${s.infiniteCoin} IFC</div>
           </div>
         `;
       });
-
       tableDiv.innerHTML = html;
     }
-
     overlay.style.display = 'flex';
-
-    if (typeof lucide !== 'undefined') {
-      setTimeout(() => lucide.createIcons(), 0);
-    }
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
   }
 
   formatTime(ms) {
@@ -1475,29 +1089,21 @@ class UIManager {
 
   renderMinimap(canvas, camera, arena, dragons, foods) {
     const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.width; const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
-
     const bounds = arena.getBounds();
     const scaleX = w / (bounds.maxX - bounds.minX);
     const scaleY = h / (bounds.maxY - bounds.minY);
     const scale = Math.min(scaleX, scaleY);
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, w, h);
-
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; ctx.strokeRect(0, 0, w, h);
     dragons.forEach(dragon => {
       if (!dragon.alive) return;
       const x = (dragon.head.x - bounds.minX) * scale;
       const y = (dragon.head.y - bounds.minY) * scale;
-      ctx.beginPath();
-      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2);
       ctx.fillStyle = dragon === window.game?.localDragon ? '#00b4d8' : '#ff4d4d';
       ctx.fill();
     });
-
     ctx.fillStyle = 'rgba(200,200,200,0.5)';
     foods.forEach(food => {
       const x = (food.x - bounds.minX) * scale;
