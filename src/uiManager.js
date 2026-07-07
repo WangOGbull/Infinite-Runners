@@ -229,7 +229,7 @@ class UIManager {
     const d = this.dragonsData[this.carouselIndex];
     if (!d) return;
 
-    const name = d.name || d.type || 'Unknown';
+    const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
     const key = name.toLowerCase();
     const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
 
@@ -247,7 +247,8 @@ class UIManager {
       imgWrap.style.cursor = 'pointer';
       imgWrap.onclick = (e) => {
         e.stopPropagation();
-        this.showDragonModal(d);
+        const currentD = this.dragonsData[this.carouselIndex];
+        if (currentD) this.showDragonModal(currentD);
       };
     }
 
@@ -316,7 +317,7 @@ class UIManager {
     const modal = document.getElementById('dragonDetailModal');
     if (!modal) return;
 
-    const name = dragon.name || dragon.type || 'Unknown';
+    const name = (typeof dragon === 'string' ? dragon : (dragon.name || dragon.type)) || 'Unknown';
     const key = name.toLowerCase();
     const color = dragon.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
     const powers = this.getDragonPowers(key);
@@ -536,11 +537,14 @@ class UIManager {
   selectCurrentDragon() {
     const d = this._modalDragon || this.dragonsData[this.carouselIndex];
     if (!d) return;
-    this.selectedDragon = d.name || d.type;
+    this.selectedDragon = typeof d === 'string' ? d : (d.name || d.type);
     this.selectedDragonName = this.selectedDragon;
     this.hideDragonModal();
     // Re-render carousel to show BATTLE MODE button
-    this.carouselIndex = this.dragonsData.findIndex(dr => (dr.name || dr.type) === this.selectedDragon);
+    this.carouselIndex = this.dragonsData.findIndex(dr => {
+      const drName = typeof dr === 'string' ? dr : (dr.name || dr.type);
+      return drName === this.selectedDragon;
+    });
     if (this.carouselIndex < 0) this.carouselIndex = 0;
     this.renderCarousel();
     this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
@@ -629,7 +633,8 @@ class UIManager {
     // SELECT button — opens modal if no dragon selected, else goes to battle mode
     document.getElementById('dsSelectBtn')?.addEventListener('click', () => {
       const d = this.dragonsData[this.carouselIndex];
-      if (this.selectedDragonName && this.selectedDragonName === (d?.name || d?.type)) {
+      const dName = typeof d === 'string' ? d : (d?.name || d?.type);
+      if (this.selectedDragonName && this.selectedDragonName === dName) {
         this.goToBattleMode();
       } else {
         if (d) this.showDragonModal(d);
