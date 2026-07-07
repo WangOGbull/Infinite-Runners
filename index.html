@@ -36,12 +36,6 @@
     padding-bottom: 80px;
     min-height: 100vh;
   }
-  #dragonList {
-    padding-bottom: 40px;
-  }
-  .dragonCard {
-    flex-shrink: 0;
-  }
 
   /* Wallet integration */
   #walletBtn.connected {
@@ -255,7 +249,428 @@
     margin-bottom: 20px;
     transition: all 0.3s ease;
   }
+
+  /* ===== DRAGON SELECT CAROUSEL STYLES ===== */
+  #dragonSelectScreen {
+    background: linear-gradient(180deg, #030814 0%, #0a1628 50%, #06122e 100%);
+  }
+
+  .dsCarouselWrap {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 20px;
+    overflow: hidden;
+  }
+
+  .dsTopBar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    margin-bottom: 10px;
+  }
+
+  .dsBackBtn {
+    padding: 6px 14px;
+    border-radius: 50px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.5);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dsBackBtn:hover { color: #fff; border-color: rgba(255,255,255,0.2); }
+
+  .dsCoinDisplay {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 50px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(0,180,216,0.2);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #00b4d8;
+  }
+  .dsCoinDisplay i { color: #ffd700; }
+
+  .dsDragonStage {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    height: 45vh;
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dsArrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,180,216,0.25);
+    background: rgba(0,0,0,0.4);
+    color: #00b4d8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .2s;
+    z-index: 10;
+    font-size: 18px;
+  }
+  .dsArrow:hover {
+    border-color: rgba(0,180,216,0.6);
+    background: rgba(0,180,216,0.1);
+    box-shadow: 0 0 16px rgba(0,180,216,0.2);
+  }
+  .dsArrowLeft { left: 12px; }
+  .dsArrowRight { right: 12px; }
+
+  .dsDragonImgWrap {
+    width: 70%;
+    max-width: 320px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .dsDragonImgWrap img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 0 30px rgba(0,180,216,0.15));
+    transition: all 0.4s ease;
+  }
+
+  .dsDragonInfo {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .dsDragonName {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 24px;
+    letter-spacing: 3px;
+    color: #c77dff;
+    text-shadow: 0 0 20px rgba(155,77,255,0.3);
+  }
+
+  .dsDragonTier {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 4px;
+  }
+
+  .dsDragonTier span {
+    color: #00b4d8;
+    font-weight: 600;
+  }
+
+  .dsXpBarWrap {
+    width: 80%;
+    max-width: 320px;
+    margin: 0 auto 16px;
+  }
+
+  .dsXpBarTop {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .dsXpBarTop .dsLevelNum {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: #00b4d8;
+  }
+
+  .dsXpBarTop .dsXpText {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .dsXpBar {
+    width: 100%;
+    height: 6px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .dsXpBarFill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #00b4d8, #48cae4);
+    transition: width 0.6s ease;
+    box-shadow: 0 0 8px rgba(0,180,216,0.3);
+  }
+
+  .dsPowersGrid {
+    width: 90%;
+    max-width: 420px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .dsPowerCard {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+
+  .dsPowerCard:hover {
+    border-color: rgba(0,180,216,0.15);
+    background: rgba(255,255,255,0.04);
+  }
+
+  .dsPowerName {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+  }
+
+  .dsPowerLevelRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .dsPowerLevel {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 18px;
+    color: #fff;
+  }
+
+  .dsPowerBar {
+    flex: 1;
+    height: 4px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    margin: 0 8px;
+    overflow: hidden;
+  }
+
+  .dsPowerBarFill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #9b4dff, #00b4d8);
+    transition: width 0.4s ease;
+  }
+
+  .dsUpgradeBtn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(0,180,216,0.3);
+    background: rgba(0,180,216,0.08);
+    color: #00b4d8;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .dsUpgradeBtn:hover {
+    background: rgba(0,180,216,0.15);
+    border-color: rgba(0,180,216,0.5);
+    box-shadow: 0 0 10px rgba(0,180,216,0.15);
+  }
+
+  .dsUpgradeBtn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .dsUpgradeBtn.maxed {
+    border-color: rgba(74,222,128,0.3);
+    background: rgba(74,222,128,0.08);
+    color: #4ade80;
+  }
+
+  .dsSelectRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .dsSelectBadge {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(255,68,68,0.1);
+    border: 1px solid rgba(255,68,68,0.3);
+    color: #ff6b6b;
+  }
+
+  .dsSelectBadge.selected {
+    background: rgba(74,222,128,0.1);
+    border-color: rgba(74,222,128,0.3);
+    color: #4ade80;
+  }
+
+  .dsSelectBtn {
+    padding: 12px 48px;
+    border-radius: 50px;
+    border: none;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+    font-family: 'Cinzel Decorative', cursive;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(34,197,94,0.3);
+  }
+
+  .dsSelectBtn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 28px rgba(34,197,94,0.4);
+  }
+
+  .dsSelectBtn:active {
+    transform: scale(0.97);
+  }
+
+  .dsNavDots {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+
+  .dsNavDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .dsNavDot.active {
+    background: #00b4d8;
+    box-shadow: 0 0 8px rgba(0,180,216,0.4);
+    width: 20px;
+    border-radius: 4px;
+  }
+
+  .dsBottomNav {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    padding: 8px 0;
+    background: rgba(0,0,0,0.4);
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .dsBottomNavBtn {
+    flex: 1;
+    max-width: 100px;
+    padding: 8px 4px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: rgba(255,255,255,0.35);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .dsBottomNavBtn i {
+    width: 18px;
+    height: 18px;
+    opacity: 0.5;
+  }
+
+  .dsBottomNavBtn:hover {
+    color: rgba(255,255,255,0.6);
+  }
+
+  .dsBottomNavBtn.active {
+    color: #00b4d8;
+    border-bottom-color: #00b4d8;
+  }
+  .dsBottomNavBtn.active i {
+    opacity: 1;
+    color: #00b4d8;
+  }
+
+  /* Power upgrade flash animation */
+  @keyframes powerFlash {
+    0% { box-shadow: 0 0 0 rgba(0,180,216,0); }
+    50% { box-shadow: 0 0 20px rgba(0,180,216,0.4); border-color: rgba(0,180,216,0.5); }
+    100% { box-shadow: 0 0 0 rgba(0,180,216,0); }
+  }
+  .dsPowerCard.flash {
+    animation: powerFlash 0.5s ease;
+  }
+
+  @media(max-width: 480px) {
+    .dsDragonName { font-size: 18px; }
+    .dsPowersGrid { grid-template-columns: 1fr; gap: 8px; }
+    .dsDragonStage { height: 35vh; min-height: 200px; }
+    .dsArrow { width: 36px; height: 36px; font-size: 14px; }
+    .dsSelectBtn { padding: 10px 36px; font-size: 12px; }
+  }
 </style>
+<base target="_blank">
 <base target="_blank">
 </head>
 <body>
@@ -282,12 +697,62 @@
   <span class="copyright">2025 Infinite Runners Dragons Arena. All rights reserved.</span>
 </div>
 
-<!-- ===== DRAGON SELECT ===== -->
+<!-- ===== DRAGON SELECT (CAROUSEL) ===== -->
 <div id="dragonSelectScreen" class="screen">
-  <div class="dsInner">
-    <button class="backBtn" id="btnDsBack"><i data-lucide="arrow-left"></i> Back</button>
-    <h2>Choose Your Dragon</h2>
-    <div id="dragonList"></div>
+  <div class="dsInner" style="width:100%;height:100%;display:flex;flex-direction:column;">
+    <div class="dsTopBar">
+      <button class="dsBackBtn" id="btnDsBack"><i data-lucide="arrow-left"></i> Back</button>
+      <div class="dsCoinDisplay" id="dsCoinDisplay">
+        <i data-lucide="coins"></i>
+        <span id="dsCoinAmount">1,000,000</span>
+      </div>
+    </div>
+
+    <div class="dsCarouselWrap">
+      <div class="dsDragonStage">
+        <button class="dsArrow dsArrowLeft" id="dsArrowLeft"><i data-lucide="chevron-left"></i></button>
+        <div class="dsDragonImgWrap" id="dsDragonImgWrap">
+          <img id="dsDragonImg" src="" alt="Dragon">
+        </div>
+        <button class="dsArrow dsArrowRight" id="dsArrowRight"><i data-lucide="chevron-right"></i></button>
+      </div>
+
+      <div class="dsDragonInfo">
+        <div class="dsDragonName" id="dsDragonName">AEGIS</div>
+        <div class="dsDragonTier">TIER <span id="dsDragonTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="dsDragonLevel">1</span></div>
+      </div>
+
+      <div class="dsXpBarWrap">
+        <div class="dsXpBarTop">
+          <span class="dsLevelNum" id="dsXpLevelStart">1</span>
+          <span class="dsXpText" id="dsXpText">0 / 5,200</span>
+          <span class="dsLevelNum" id="dsXpLevelEnd">2</span>
+        </div>
+        <div class="dsXpBar">
+          <div class="dsXpBarFill" id="dsXpBarFill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <div class="dsPowersGrid" id="dsPowersGrid">
+        <!-- Powers injected by JS -->
+      </div>
+
+      <div class="dsSelectRow">
+        <span class="dsSelectBadge" id="dsSelectBadge">NOT SELECTED</span>
+        <button class="dsSelectBtn" id="dsSelectBtn">SELECT</button>
+      </div>
+
+      <div class="dsNavDots" id="dsNavDots">
+        <!-- Dots injected by JS -->
+      </div>
+    </div>
+
+    <div class="dsBottomNav">
+      <button class="dsBottomNavBtn active" data-tab="dragons"><i data-lucide="flame"></i>Dragons</button>
+      <button class="dsBottomNavBtn" data-tab="campaign"><i data-lucide="map"></i>Campaign</button>
+      <button class="dsBottomNavBtn" data-tab="quests"><i data-lucide="scroll-text"></i>Quests</button>
+      <button class="dsBottomNavBtn" data-tab="shop"><i data-lucide="shopping-bag"></i>Shop</button>
+    </div>
   </div>
 </div>
 
@@ -359,13 +824,13 @@
       <label>Stake Tier:</label>
       <div class="tierBtns" id="tierBtns">
         <button class="tierBtn" data-tier="Small" id="tierSmall">
-          <span class="tierDot small">🟢</span> Small<br><span class="tierAmt">-- INFINITE</span>
+          <span class="tierDot small" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span> Small<br><span class="tierAmt">-- INFINITE</span>
         </button>
         <button class="tierBtn" data-tier="Medium" id="tierMedium">
-          <span class="tierDot medium">🟡</span> Medium<br><span class="tierAmt">-- INFINITE</span>
+          <span class="tierDot medium" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#eab308;"></span> Medium<br><span class="tierAmt">-- INFINITE</span>
         </button>
         <button class="tierBtn" data-tier="High" id="tierHigh">
-          <span class="tierDot high">🔴</span> High<br><span class="tierAmt">-- INFINITE</span>
+          <span class="tierDot high" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> High<br><span class="tierAmt">-- INFINITE</span>
         </button>
       </div>
       <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
