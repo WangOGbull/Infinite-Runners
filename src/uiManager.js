@@ -163,7 +163,7 @@ class UIManager {
     `;
     document.body.appendChild(scoreboardOverlay);
 
-    // Create match stats overlay for game over
+    // Create match stats overlay for game over — CLASSIC STYLING, NO EMOJIS
     const matchStatsOverlay = document.createElement('div');
     matchStatsOverlay.id = 'matchStatsOverlay';
     matchStatsOverlay.style.cssText = `
@@ -180,12 +180,16 @@ class UIManager {
     `;
     matchStatsOverlay.innerHTML = `
       <div id="winnerCelebration" style="display:none;text-align:center;margin-bottom:30px;">
-        <div style="font-family:'Cinzel Decorative',serif;font-size:36px;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.5);">🏆 WINNER 🏆</div>
-        <div id="winnerName" style="font-size:24px;color:#00b4d8;margin-top:10px;"></div>
-        <div style="font-size:14px;color:#8b93a6;margin-top:5px;">Prize Pool: <span style="color:#ffd700;">-- INFINITE</span></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:8px;">
+          <i data-lucide="trophy" style="width:36px;height:36px;color:#ffd700;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6));"></i>
+          <div class="victoryTitle" style="font-family:'Cinzel Decorative',serif;font-size:42px;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.5),0 0 60px rgba(201,168,76,0.3);letter-spacing:4px;">VICTORY</div>
+          <i data-lucide="trophy" style="width:36px;height:36px;color:#ffd700;filter:drop-shadow(0 0 10px rgba(255,215,0,0.6));"></i>
+        </div>
+        <div id="winnerName" style="font-size:22px;color:#00b4d8;margin-top:8px;font-family:'Rajdhani',sans-serif;letter-spacing:2px;text-transform:uppercase;font-weight:600;"></div>
+        <div style="font-size:13px;color:#8b93a6;margin-top:6px;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">Prize Pool: <span style="color:#ffd700;font-weight:600;">-- INFINITE</span></div>
       </div>
       <div id="matchStatsTable" style="width:90%;max-width:600px;"></div>
-      <button id="btnCloseMatchStats" style="margin-top:30px;padding:12px 40px;background:transparent;border:1px solid rgba(0,180,216,0.5);color:#00b4d8;border-radius:8px;cursor:pointer;font-size:14px;text-transform:uppercase;letter-spacing:2px;">Continue</button>
+      <button id="btnCloseMatchStats" style="margin-top:30px;padding:12px 40px;background:transparent;border:1px solid rgba(0,180,216,0.5);color:#00b4d8;border-radius:8px;cursor:pointer;font-size:14px;text-transform:uppercase;letter-spacing:2px;transition:all 0.2s;">Continue</button>
     `;
     document.body.appendChild(matchStatsOverlay);
   }
@@ -527,10 +531,16 @@ class UIManager {
       }
     });
 
-    // Close match stats
+    // Close match stats — ROUTE TO MODE SELECT, hide defeated screen underneath
     document.getElementById('btnCloseMatchStats')?.addEventListener('click', () => {
       const overlay = document.getElementById('matchStatsOverlay');
       if (overlay) overlay.style.display = 'none';
+      // Ensure the old defeated screen is not left underneath
+      if (this.screens['gameOverScreen']) {
+        this.screens['gameOverScreen'].classList.remove('active');
+      }
+      // Route back to battle mode select
+      this.showScreen('modeSelectScreen');
     });
   }
 
@@ -553,26 +563,45 @@ class UIManager {
     }
   }
 
-  // Lives HUD update
+  // Helper: render Dragon Age style flame orbs
+  renderLifeOrbs(lives, maxLives = 3, size = 16) {
+    let html = '';
+    for (let i = 0; i < maxLives; i++) {
+      const alive = i < lives;
+      const gradient = alive
+        ? 'radial-gradient(circle at 30% 30%, #ff6b35, #c41e3a)'
+        : 'radial-gradient(circle at 30% 30%, #2a2a2a, #111)';
+      const glow = alive
+        ? `0 0 ${size * 0.5}px rgba(255,107,53,0.5), inset 0 0 ${size * 0.25}px rgba(255,200,100,0.2)`
+        : 'inset 0 0 2px rgba(255,255,255,0.05)';
+      const border = alive ? 'rgba(255,150,100,0.4)' : 'rgba(255,255,255,0.08)';
+      html += `<div style="display:inline-block;width:${size}px;height:${size}px;border-radius:50%;background:${gradient};box-shadow:${glow};border:1px solid ${border};vertical-align:middle;margin:0 2px;"></div>`;
+    }
+    return html;
+  }
+
+  // Lives HUD update — Dragon Age style, NO EMOJIS
   updateLivesHUD(dragon) {
     const livesHud = document.getElementById('livesHud');
     if (!livesHud || !dragon) return;
 
     livesHud.innerHTML = '';
     const lives = dragon.lives || 0;
-    const maxLives = 3;
 
-    for (let i = 0; i < maxLives; i++) {
-      const heart = document.createElement('span');
-      heart.style.cssText = 'font-size:20px;';
-      heart.textContent = i < lives ? '❤️' : '🖤';
-      livesHud.appendChild(heart);
-    }
+    const container = document.createElement('div');
+    container.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+    const orbsDiv = document.createElement('div');
+    orbsDiv.style.cssText = 'display:flex;align-items:center;gap:4px;';
+    orbsDiv.innerHTML = this.renderLifeOrbs(lives, 3, 16);
+    container.appendChild(orbsDiv);
 
     const label = document.createElement('span');
-    label.style.cssText = 'font-size:12px;color:#8b93a6;margin-left:4px;font-family:"Rajdhani",sans-serif;';
-    label.textContent = `LIVES`;
-    livesHud.appendChild(label);
+    label.style.cssText = 'font-size:12px;color:#8b93a6;font-family:"Rajdhani",sans-serif;letter-spacing:2px;text-transform:uppercase;';
+    label.textContent = 'LIVES';
+    container.appendChild(label);
+
+    livesHud.appendChild(container);
   }
 
   // Scoreboard toggle
@@ -583,7 +612,7 @@ class UIManager {
     overlay.style.display = isVisible ? 'none' : 'flex';
   }
 
-  // Update scoreboard content
+  // Update scoreboard content — NO EMOJI HEARTS
   updateScoreboard(dragons) {
     const content = document.getElementById('scoreboardContent');
     if (!content) return;
@@ -600,14 +629,14 @@ class UIManager {
 
     dragons.forEach(d => {
       const isLocal = d === window.game?.localDragon;
-      const status = d.alive ? (d.immunityTimer > 0 ? '⚡' : '') : '💀';
-      const lives = '❤️'.repeat(d.lives) + '🖤'.repeat(3 - d.lives);
+      const status = d.alive ? (d.immunityTimer > 0 ? '<span style="color:#ffd700;">⚡</span>' : '') : '<span style="color:#ff4444;">✕</span>';
+      const livesOrbs = this.renderLifeOrbs(d.lives || 0, 3, 10);
       html += `
         <div style="display:grid;grid-template-columns:1.5fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;${isLocal ? 'color:#00b4d8;font-weight:600;' : 'color:#c8ccd8;'}">
           <div>${status} ${d.type.toUpperCase()} ${isLocal ? '(YOU)' : ''}</div>
           <div style="text-align:center;">${d.kills || 0}</div>
           <div style="text-align:center;">${d.deaths || 0}</div>
-          <div style="text-align:center;font-size:11px;">${lives}</div>
+          <div style="text-align:center;">${livesOrbs}</div>
           <div style="text-align:center;">${d.segments?.length || 0}</div>
         </div>
       `;
@@ -974,16 +1003,30 @@ class UIManager {
     }
   }
 
-  updateGameOver(stats) {
+  // Dynamic game over title: VICTORY or DEFEATED
+  updateGameOver(stats, isWinner = false) {
+    const title = document.getElementById('goTitle');
+    if (title) {
+      title.textContent = isWinner ? 'VICTORY' : 'DEFEATED';
+      title.style.color = isWinner ? '#ffd700' : '#ff4444';
+      title.style.textShadow = isWinner
+        ? '0 0 30px rgba(255,215,0,0.5), 0 0 60px rgba(201,168,76,0.3)'
+        : '0 0 20px rgba(255,68,68,0.4)';
+    }
+
     const goTime = document.getElementById('goTime');
     const goCollect = document.getElementById('goCollect');
     const goKills = document.getElementById('goKills');
-    if (goTime) goTime.textContent = stats.time;
-    if (goCollect) goCollect.textContent = stats.collected;
-    if (goKills) goKills.textContent = stats.kills;
+    const goDeaths = document.getElementById('goDeaths');
+    const goLives = document.getElementById('goLives');
+    if (goTime) goTime.textContent = stats.time || '0:00';
+    if (goCollect) goCollect.textContent = stats.collected || 0;
+    if (goKills) goKills.textContent = stats.kills || 0;
+    if (goDeaths) goDeaths.textContent = stats.deaths || 0;
+    if (goLives) goLives.textContent = stats.lives || 0;
   }
 
-  // Show match stats with winner celebration
+  // Show match stats with classic winner celebration — NO EMOJIS
   showMatchStats(allStats, winner) {
     const overlay = document.getElementById('matchStatsOverlay');
     const winnerDiv = document.getElementById('winnerCelebration');
@@ -992,17 +1035,22 @@ class UIManager {
 
     if (!overlay) return;
 
+    // Hide the old game over screen so DEFEATED doesn't show underneath
+    if (this.screens['gameOverScreen']) {
+      this.screens['gameOverScreen'].classList.remove('active');
+    }
+
     // Show winner celebration
     if (winnerDiv) {
       if (winner) {
         winnerDiv.style.display = 'block';
-        if (winnerName) winnerName.textContent = winner.type.toUpperCase();
+        if (winnerName) winnerName.textContent = winner.type ? winner.type.toUpperCase() : 'WINNER';
       } else {
         winnerDiv.style.display = 'none';
       }
     }
 
-    // Build stats table
+    // Build stats table — Lucide crown for winner, NO emojis
     if (tableDiv) {
       let html = `
         <div style="display:grid;grid-template-columns:1.5fr 0.7fr 0.7fr 1fr 1fr;gap:10px;padding:10px 0;border-bottom:2px solid rgba(0,180,216,0.3);font-size:12px;color:#8b93a6;text-transform:uppercase;letter-spacing:1px;font-weight:600;">
@@ -1019,7 +1067,10 @@ class UIManager {
         const timeStr = this.formatTime(s.timeSurvived);
         html += `
           <div style="display:grid;grid-template-columns:1.5fr 0.7fr 0.7fr 1fr 1fr;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:14px;${isWinner ? 'background:rgba(255,215,0,0.08);color:#ffd700;font-weight:600;' : 'color:#c8ccd8;'}">
-            <div>${isWinner ? '👑 ' : ''}${s.name.toUpperCase()} ${s.isLocal ? '(YOU)' : ''}</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              ${isWinner ? '<i data-lucide="crown" style="width:14px;height:14px;color:#ffd700;filter:drop-shadow(0 0 4px rgba(255,215,0,0.6));"></i>' : ''}
+              <span>${s.name.toUpperCase()} ${s.isLocal ? '(YOU)' : ''}</span>
+            </div>
             <div style="text-align:center;">${s.kills}</div>
             <div style="text-align:center;">${s.deaths}</div>
             <div style="text-align:center;">${timeStr}</div>
@@ -1032,6 +1083,11 @@ class UIManager {
     }
 
     overlay.style.display = 'flex';
+
+    // Re-render Lucide icons for the dynamically added crown/trophy
+    if (typeof lucide !== 'undefined') {
+      setTimeout(() => lucide.createIcons(), 0);
+    }
   }
 
   formatTime(ms) {
