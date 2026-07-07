@@ -150,7 +150,7 @@
     border-color: #00b4d8;
   }
 
-  /* Lives HUD */
+  /* Lives HUD — Dragon Age style flame orbs */
   #livesHud {
     position: fixed;
     top: 70px;
@@ -204,11 +204,12 @@
     text-align: center;
     margin-bottom: 30px;
   }
-  #winnerCelebration .winnerTitle {
+  #winnerCelebration .victoryTitle {
     font-family: 'Cinzel Decorative', serif;
-    font-size: 36px;
+    font-size: 42px;
     color: #ffd700;
-    text-shadow: 0 0 30px rgba(255,215,0,0.5);
+    text-shadow: 0 0 30px rgba(255,215,0,0.5), 0 0 60px rgba(201,168,76,0.3);
+    letter-spacing: 4px;
   }
   #winnerName {
     font-size: 24px;
@@ -245,6 +246,14 @@
   #btnCloseMatchStats:hover {
     background: rgba(0,180,216,0.1);
     border-color: #00b4d8;
+  }
+
+  /* Game Over screen dynamic title */
+  #goTitle {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 48px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
   }
 </style>
 <base target="_blank">
@@ -435,7 +444,7 @@
 
 <!-- ===== GAME OVER ===== -->
 <div id="gameOverScreen" class="screen">
-  <h1>DEFEATED</h1>
+  <h1 id="goTitle">DEFEATED</h1>
   <div class="goStats">
     <div class="goStat"><div class="num" id="goTime">0:00</div><div class="lbl">SURVIVED</div></div>
     <div class="goStat"><div class="num" id="goCollect">0</div><div class="lbl">COLLECTED</div></div>
