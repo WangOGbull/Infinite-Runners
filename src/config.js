@@ -7,6 +7,25 @@ export const DRAGONS = [
   'magnetron'
 ];
 
+// Dragon power base stats and upgrade costs (placeholder)
+export const DRAGON_POWERS = {
+  aegis:     { defense: 3, speed: 2, rush: 2, attack: 2, color: '#9b4dff' },
+  ignis:     { defense: 1, speed: 4, rush: 3, attack: 3, color: '#ff4d4d' },
+  infinite:  { defense: 2, speed: 2, rush: 1, attack: 4, color: '#00b4d8' },
+  magnetron: { defense: 4, speed: 1, rush: 2, attack: 2, color: '#ff00aa' }
+};
+
+// Upgrade costs per stat (placeholder INFINITE coin prices)
+export const POWER_UPGRADE_COSTS = {
+  defense: 500,
+  speed: 600,
+  rush: 800,
+  attack: 1000
+};
+
+// Max power level per stat
+export const MAX_POWER_LEVEL = 10;
+
 const CONFIG = {
 
   // ==================== ARENA ====================
