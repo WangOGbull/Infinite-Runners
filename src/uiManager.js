@@ -1,3 +1,5 @@
+import { DRAGON_IMAGES, DRAGON_POWERS } from './config.js';
+
 class UIManager {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -16,9 +18,10 @@ class UIManager {
     // Dragon carousel state
     this.carouselIndex = 0;
     this.dragonsData = [];
-    this.dragonPowers = {}; // persisted per dragon
-    this.playerCoins = 1000000; // placeholder
+    this.dragonPowers = {};
+    this.playerCoins = 1000000;
     this.selectedDragonName = null;
+    this._modalDragon = null;
 
     this.initScreens();
     this.createDynamicModals();
@@ -37,7 +40,7 @@ class UIManager {
       'titleScreen', 'dragonSelectScreen', 'modeSelectScreen',
       'mpMenuScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
       'gameOverScreen', 'howToPlayScreen', 'walletModal',
-      'mpGameOver', 'loadingOverlay'
+      'mpGameOver', 'loadingOverlay', 'dragonDetailModal'
     ];
     screenIds.forEach(id => {
       const el = document.getElementById(id);
@@ -170,7 +173,7 @@ class UIManager {
     `;
     document.body.appendChild(scoreboardOverlay);
 
-    // Create match stats overlay for game over — CLASSIC STYLING, NO EMOJIS
+    // Create match stats overlay for game over
     const matchStatsOverlay = document.createElement('div');
     matchStatsOverlay.id = 'matchStatsOverlay';
     matchStatsOverlay.style.cssText = `
@@ -208,13 +211,11 @@ class UIManager {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
 
-    // Load saved powers from localStorage
     try {
       const saved = localStorage.getItem('dragonPowers');
       if (saved) this.dragonPowers = JSON.parse(saved);
     } catch (e) { this.dragonPowers = {}; }
 
-    // Load saved coins
     try {
       const savedCoins = localStorage.getItem('playerCoins');
       if (savedCoins) this.playerCoins = parseInt(savedCoins);
@@ -230,14 +231,24 @@ class UIManager {
 
     const name = d.name || d.type || 'Unknown';
     const key = name.toLowerCase();
-    const color = d.color || '#00b4d8';
+    const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
 
-    // Dragon image
+    // Dragon image — use uploaded assets
     const imgEl = document.getElementById('dsDragonImg');
-    const headUrl = typeof d.head === 'string' ? d.head : (d.head?.src || '');
+    const newHeadUrl = DRAGON_IMAGES[key];
     if (imgEl) {
-      imgEl.src = headUrl;
+      imgEl.src = newHeadUrl || (typeof d.head === 'string' ? d.head : (d.head && d.head.src ? d.head.src : ''));
       imgEl.style.filter = `drop-shadow(0 0 30px ${color}25)`;
+    }
+
+    // Make dragon image clickable to open modal
+    const imgWrap = document.getElementById('dsDragonImgWrap');
+    if (imgWrap) {
+      imgWrap.style.cursor = 'pointer';
+      imgWrap.onclick = (e) => {
+        e.stopPropagation();
+        this.showDragonModal(d);
+      };
     }
 
     // Name
@@ -270,7 +281,7 @@ class UIManager {
     // Powers grid
     this.renderPowersGrid(key, color);
 
-    // Select badge
+    // Select badge & button
     const badge = document.getElementById('dsSelectBadge');
     const isSelected = this.selectedDragonName === name;
     if (badge) {
@@ -278,18 +289,102 @@ class UIManager {
       badge.classList.toggle('selected', isSelected);
     }
 
+    // Update main SELECT button — becomes BATTLE MODE if this dragon is selected
+    const selectBtn = document.getElementById('dsSelectBtn');
+    if (selectBtn) {
+      if (isSelected) {
+        selectBtn.textContent = 'BATTLE MODE';
+        selectBtn.style.background = 'linear-gradient(135deg, #c9a84c, #a08030)';
+        selectBtn.style.boxShadow = '0 4px 20px rgba(201,168,76,0.3)';
+      } else {
+        selectBtn.textContent = 'SELECT';
+        selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+        selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
+      }
+    }
+
     // Nav dots
     this.renderNavDots();
 
-    // Re-init lucide for dynamic icons
     if (typeof lucide !== 'undefined') {
       setTimeout(() => lucide.createIcons(), 0);
     }
   }
 
+  // ===== DRAGON DETAIL MODAL =====
+  showDragonModal(dragon) {
+    const modal = document.getElementById('dragonDetailModal');
+    if (!modal) return;
+
+    const name = dragon.name || dragon.type || 'Unknown';
+    const key = name.toLowerCase();
+    const color = dragon.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
+
+    // Image
+    const img = document.getElementById('ddmImg');
+    if (img) {
+      img.src = DRAGON_IMAGES[key] || dragon.head || '';
+      img.style.filter = `drop-shadow(0 0 40px ${color}40)`;
+    }
+
+    // Name
+    const nameEl = document.getElementById('ddmName');
+    if (nameEl) {
+      nameEl.textContent = name.toUpperCase();
+      nameEl.style.color = color;
+      nameEl.style.textShadow = `0 0 20px ${color}40`;
+    }
+
+    // Tier & Level
+    const powers = this.getDragonPowers(key);
+    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
+    const tierEl = document.getElementById('ddmTierNum');
+    const levelEl = document.getElementById('ddmDragonLevel');
+    if (tierEl) tierEl.textContent = avgLevel;
+    if (levelEl) levelEl.textContent = avgLevel;
+
+    // Box border color theme
+    const box = document.getElementById('ddmBox');
+    if (box) {
+      box.style.borderColor = color + '60';
+      box.style.boxShadow = `0 0 60px ${color}15, inset 0 0 40px ${color}08`;
+    }
+
+    // Stats
+    const statsContainer = document.getElementById('ddmStats');
+    if (statsContainer) {
+      const stats = [
+        { label: 'Defense', value: powers.defense, max: 10 },
+        { label: 'Speed', value: powers.speed, max: 10 },
+        { label: 'Rush', value: powers.rush, max: 10 },
+        { label: 'Attack', value: powers.attack, max: 10 }
+      ];
+      statsContainer.innerHTML = stats.map(s => `
+        <div class="ddmStatRow">
+          <span class="ddmStatLabel">${s.label}</span>
+          <div class="ddmStatBarWrap">
+            <div class="ddmStatBar" style="width:${(s.value / s.max) * 100}%; background:linear-gradient(90deg, ${color}, ${color}80);"></div>
+          </div>
+          <span class="ddmStatValue" style="color:${color}">${s.value}</span>
+        </div>
+      `).join('');
+    }
+
+    // Store reference for select button
+    this._modalDragon = dragon;
+
+    modal.classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  hideDragonModal() {
+    const modal = document.getElementById('dragonDetailModal');
+    if (modal) modal.classList.remove('active');
+    this._modalDragon = null;
+  }
+
   getDragonPowers(dragonKey) {
     if (!this.dragonPowers[dragonKey]) {
-      // Default base stats from config or fallback
       const defaults = {
         aegis: { defense: 3, speed: 2, rush: 2, attack: 2 },
         ignis: { defense: 1, speed: 4, rush: 3, attack: 3 },
@@ -338,9 +433,9 @@ class UIManager {
 
     grid.innerHTML = html;
 
-    // Bind upgrade buttons
     grid.querySelectorAll('.dsUpgradeBtn').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const stat = btn.dataset.stat;
         const cost = parseInt(btn.dataset.cost);
         const dKey = btn.dataset.dragon;
@@ -358,13 +453,11 @@ class UIManager {
     this.playerCoins -= cost;
     powers[stat] = (powers[stat] || 1) + 1;
 
-    // Save
     try {
       localStorage.setItem('dragonPowers', JSON.stringify(this.dragonPowers));
       localStorage.setItem('playerCoins', this.playerCoins.toString());
     } catch (e) {}
 
-    // Flash effect
     const card = document.getElementById(`powerCard-${stat}`);
     if (card) {
       card.classList.add('flash');
@@ -374,7 +467,6 @@ class UIManager {
     this.updateCoinDisplay();
     this.renderCarousel();
 
-    // Emit event for game logic
     this.eventBus.emit('ui:powerUpgraded', { dragon: dragonKey, stat, level: powers[stat] });
   }
 
@@ -409,17 +501,20 @@ class UIManager {
   }
 
   selectCurrentDragon() {
-    const d = this.dragonsData[this.carouselIndex];
+    const d = this._modalDragon || this.dragonsData[this.carouselIndex];
     if (!d) return;
     this.selectedDragon = d.name || d.type;
     this.selectedDragonName = this.selectedDragon;
-    this.renderCarousel(); // update badge
+    this.hideDragonModal();
+    this.renderCarousel();
     this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
+  }
+
+  goToBattleMode() {
     this.showScreen('modeSelectScreen');
   }
 
   buildDragonSelect(dragons) {
-    // Now initializes carousel instead of grid
     this.initDragonCarousel(dragons);
   }
 
@@ -494,7 +589,20 @@ class UIManager {
     });
     document.getElementById('dsArrowLeft')?.addEventListener('click', () => this.carouselPrev());
     document.getElementById('dsArrowRight')?.addEventListener('click', () => this.carouselNext());
-    document.getElementById('dsSelectBtn')?.addEventListener('click', () => this.selectCurrentDragon());
+
+    // SELECT button — opens modal if no dragon selected, else goes to battle mode
+    document.getElementById('dsSelectBtn')?.addEventListener('click', () => {
+      if (this.selectedDragonName) {
+        this.goToBattleMode();
+      } else {
+        const d = this.dragonsData[this.carouselIndex];
+        if (d) this.showDragonModal(d);
+      }
+    });
+
+    // Modal events
+    document.getElementById('btnDdmSelect')?.addEventListener('click', () => this.selectCurrentDragon());
+    document.getElementById('btnDdmClose')?.addEventListener('click', () => this.hideDragonModal());
 
     // Bottom nav
     document.querySelectorAll('.dsBottomNavBtn').forEach(btn => {
@@ -505,7 +613,6 @@ class UIManager {
         if (tab === 'dragons') {
           // already on dragons
         } else {
-          // placeholder for other tabs
           this.eventBus.emit('ui:bottomNav', { tab });
         }
       });
@@ -724,11 +831,12 @@ class UIManager {
       this.setDepositStatus(label || 'Deposit confirmed.', 'confirmed');
     });
 
-    // Scoreboard toggle with TAB key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (this.currentScreen === 'gameScreen') {
           this.eventBus.emit('game:pause');
+        } else if (document.getElementById('dragonDetailModal')?.classList.contains('active')) {
+          this.hideDragonModal();
         }
       }
       if (e.key === 'Tab') {
@@ -737,7 +845,6 @@ class UIManager {
       }
     });
 
-    // Close match stats — ROUTE TO MODE SELECT, hide defeated screen underneath
     document.getElementById('btnCloseMatchStats')?.addEventListener('click', () => {
       const overlay = document.getElementById('matchStatsOverlay');
       if (overlay) overlay.style.display = 'none';
@@ -760,14 +867,12 @@ class UIManager {
       setTimeout(() => lucide.createIcons(), 50);
     }
 
-    // Show/hide lives HUD
     const livesHud = document.getElementById('livesHud');
     if (livesHud) {
       livesHud.style.display = screenId === 'gameScreen' ? 'flex' : 'none';
     }
   }
 
-  // Helper: render Dragon Age style flame orbs
   renderLifeOrbs(lives, maxLives = 3, size = 16) {
     let html = '';
     for (let i = 0; i < maxLives; i++) {
@@ -784,7 +889,6 @@ class UIManager {
     return html;
   }
 
-  // Lives HUD update — Dragon Age style, NO EMOJIS
   updateLivesHUD(dragon) {
     const livesHud = document.getElementById('livesHud');
     if (!livesHud || !dragon) return;
@@ -808,7 +912,6 @@ class UIManager {
     livesHud.appendChild(container);
   }
 
-  // Scoreboard toggle
   toggleScoreboard() {
     const overlay = document.getElementById('scoreboardOverlay');
     if (!overlay) return;
@@ -816,7 +919,6 @@ class UIManager {
     overlay.style.display = isVisible ? 'none' : 'flex';
   }
 
-  // Update scoreboard content — NO EMOJI HEARTS
   updateScoreboard(dragons) {
     const content = document.getElementById('scoreboardContent');
     if (!content) return;
@@ -1190,15 +1292,12 @@ class UIManager {
     }
   }
 
-  // Updated HUD with lives
   updateHUD(score, time, dragon) {
     const timerDisplay = document.getElementById('timerDisplay');
     if (timerDisplay) timerDisplay.textContent = time;
 
-    // Update lives HUD
     this.updateLivesHUD(dragon);
 
-    // Update scoreboard if visible
     const scoreboardOverlay = document.getElementById('scoreboardOverlay');
     if (scoreboardOverlay && scoreboardOverlay.style.display === 'flex') {
       if (window.game && window.game.dragonManager) {
@@ -1207,7 +1306,6 @@ class UIManager {
     }
   }
 
-  // Dynamic game over title: VICTORY or DEFEATED
   updateGameOver(stats, isWinner = false) {
     const title = document.getElementById('goTitle');
     if (title) {
@@ -1230,7 +1328,6 @@ class UIManager {
     if (goLives) goLives.textContent = stats.lives || 0;
   }
 
-  // Show match stats with classic winner celebration — NO EMOJIS
   showMatchStats(allStats, winner) {
     const overlay = document.getElementById('matchStatsOverlay');
     const winnerDiv = document.getElementById('winnerCelebration');
@@ -1239,12 +1336,10 @@ class UIManager {
 
     if (!overlay) return;
 
-    // Hide the old game over screen so DEFEATED doesn't show underneath
     if (this.screens['gameOverScreen']) {
       this.screens['gameOverScreen'].classList.remove('active');
     }
 
-    // Show winner celebration
     if (winnerDiv) {
       if (winner) {
         winnerDiv.style.display = 'block';
@@ -1254,7 +1349,6 @@ class UIManager {
       }
     }
 
-    // Build stats table — Lucide crown for winner, NO emojis
     if (tableDiv) {
       let html = `
         <div style="display:grid;grid-template-columns:1.5fr 0.7fr 0.7fr 1fr 1fr;gap:10px;padding:10px 0;border-bottom:2px solid rgba(0,180,216,0.3);font-size:12px;color:#8b93a6;text-transform:uppercase;letter-spacing:1px;font-weight:600;">
@@ -1288,7 +1382,6 @@ class UIManager {
 
     overlay.style.display = 'flex';
 
-    // Re-render Lucide icons for the dynamically added crown/trophy
     if (typeof lucide !== 'undefined') {
       setTimeout(() => lucide.createIcons(), 0);
     }
