@@ -319,6 +319,8 @@ class UIManager {
     const name = dragon.name || dragon.type || 'Unknown';
     const key = name.toLowerCase();
     const color = dragon.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
+    const powers = this.getDragonPowers(key);
+    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
 
     // Image
     const img = document.getElementById('ddmImg');
@@ -336,8 +338,6 @@ class UIManager {
     }
 
     // Tier & Level
-    const powers = this.getDragonPowers(key);
-    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
     const tierEl = document.getElementById('ddmTierNum');
     const levelEl = document.getElementById('ddmDragonLevel');
     if (tierEl) tierEl.textContent = avgLevel;
@@ -366,6 +366,39 @@ class UIManager {
             <div class="ddmStatBar" style="width:${(s.value / s.max) * 100}%; background:linear-gradient(90deg, ${color}, ${color}80);"></div>
           </div>
           <span class="ddmStatValue" style="color:${color}">${s.value}</span>
+        </div>
+      `).join('');
+    }
+
+    // Special Powers — update with dragon-specific names and unlock levels
+    const powersContainer = document.getElementById('ddmPowers');
+    if (powersContainer) {
+      const specialPowers = {
+        aegis: [
+          { name: 'Aegis Shield', desc: 'Unlock at Dragon Level 5', unlock: 5 },
+          { name: 'Iron Fortress', desc: 'Unlock at Dragon Level 10', unlock: 10 }
+        ],
+        ignis: [
+          { name: 'Inferno Breath', desc: 'Unlock at Dragon Level 5', unlock: 5 },
+          { name: 'Phoenix Rebirth', desc: 'Unlock at Dragon Level 10', unlock: 10 }
+        ],
+        infinite: [
+          { name: 'Time Warp', desc: 'Unlock at Dragon Level 5', unlock: 5 },
+          { name: 'Eternal Loop', desc: 'Unlock at Dragon Level 10', unlock: 10 }
+        ],
+        magnetron: [
+          { name: 'Magnetic Pull', desc: 'Unlock at Dragon Level 5', unlock: 5 },
+          { name: 'Gravity Crush', desc: 'Unlock at Dragon Level 10', unlock: 10 }
+        ]
+      };
+      const dragonPowers = specialPowers[key] || specialPowers.aegis;
+      powersContainer.innerHTML = dragonPowers.map(p => `
+        <div class="ddmPowerSlot locked">
+          <div class="ddmPowerIcon"><i data-lucide="lock"></i></div>
+          <div class="ddmPowerInfo">
+            <div class="ddmPowerName">${p.name}</div>
+            <div class="ddmPowerDesc">${p.desc}</div>
+          </div>
         </div>
       `).join('');
     }
