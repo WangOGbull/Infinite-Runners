@@ -297,10 +297,12 @@ class UIManager {
         selectBtn.textContent = 'BATTLE MODE';
         selectBtn.style.background = 'linear-gradient(135deg, #c9a84c, #a08030)';
         selectBtn.style.boxShadow = '0 4px 20px rgba(201,168,76,0.3)';
+        selectBtn.style.color = '#fff';
       } else {
         selectBtn.textContent = 'SELECT';
         selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
         selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
+        selectBtn.style.color = '#fff';
       }
     }
 
@@ -309,6 +311,33 @@ class UIManager {
 
     if (typeof lucide !== 'undefined') {
       setTimeout(() => lucide.createIcons(), 0);
+    }
+  }
+
+  // Explicitly update the SELECT/BATTLE MODE button
+  updateSelectButton() {
+    const d = this.dragonsData[this.carouselIndex];
+    if (!d) return;
+    const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
+    const isSelected = this.selectedDragonName === name;
+
+    const badge = document.getElementById('dsSelectBadge');
+    if (badge) {
+      badge.textContent = isSelected ? 'SELECTED' : 'NOT SELECTED';
+      badge.classList.toggle('selected', isSelected);
+    }
+
+    const selectBtn = document.getElementById('dsSelectBtn');
+    if (selectBtn) {
+      if (isSelected) {
+        selectBtn.textContent = 'BATTLE MODE';
+        selectBtn.style.background = 'linear-gradient(135deg, #c9a84c, #a08030)';
+        selectBtn.style.boxShadow = '0 4px 20px rgba(201,168,76,0.3)';
+      } else {
+        selectBtn.textContent = 'SELECT';
+        selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+        selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
+      }
     }
   }
 
@@ -537,16 +566,26 @@ class UIManager {
   selectCurrentDragon() {
     const d = this._modalDragon || this.dragonsData[this.carouselIndex];
     if (!d) return;
-    this.selectedDragon = typeof d === 'string' ? d : (d.name || d.type);
-    this.selectedDragonName = this.selectedDragon;
+
+    // Get the dragon name consistently
+    const dragonName = typeof d === 'string' ? d : (d.name || d.type);
+    this.selectedDragon = dragonName;
+    this.selectedDragonName = dragonName;
+
+    console.log('[DragonSelect] Selected:', dragonName);
+
     this.hideDragonModal();
-    // Re-render carousel to show BATTLE MODE button
+
+    // Sync carousel index to the selected dragon
     this.carouselIndex = this.dragonsData.findIndex(dr => {
       const drName = typeof dr === 'string' ? dr : (dr.name || dr.type);
-      return drName === this.selectedDragon;
+      return drName === dragonName;
     });
     if (this.carouselIndex < 0) this.carouselIndex = 0;
+
+    // Re-render to show BATTLE MODE button
     this.renderCarousel();
+
     this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
   }
 
