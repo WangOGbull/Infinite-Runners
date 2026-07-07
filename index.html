@@ -672,6 +672,7 @@
 </style>
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -1019,5 +1020,51 @@
 </div>
 
 <script type="module" src="./src/main.js"></script>
+
+<!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
+<div id="dragonDetailModal" class="screen">
+  <div class="ddmOverlay"></div>
+  <div class="ddmBox" id="ddmBox">
+    <button class="ddmClose" id="btnDdmClose"><i data-lucide="x"></i></button>
+
+    <div class="ddmHeader">
+      <div class="ddmImgWrap">
+        <img id="ddmImg" src="" alt="Dragon">
+      </div>
+      <div class="ddmName" id="ddmName">AEGIS</div>
+      <div class="ddmTierLine">TIER <span id="ddmTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="ddmDragonLevel">1</span></div>
+    </div>
+
+    <div class="ddmSection">
+      <div class="ddmSectionTitle"><i data-lucide="shield"></i> Dragon Stats</div>
+      <div class="ddmStats" id="ddmStats"></div>
+    </div>
+
+    <div class="ddmSection">
+      <div class="ddmSectionTitle"><i data-lucide="zap"></i> Special Powers</div>
+      <div class="ddmPowers" id="ddmPowers">
+        <div class="ddmPowerSlot locked">
+          <div class="ddmPowerIcon"><i data-lucide="lock"></i></div>
+          <div class="ddmPowerInfo">
+            <div class="ddmPowerName">Ancient Flame</div>
+            <div class="ddmPowerDesc">Unlock at Dragon Level 5</div>
+          </div>
+        </div>
+        <div class="ddmPowerSlot locked">
+          <div class="ddmPowerIcon"><i data-lucide="lock"></i></div>
+          <div class="ddmPowerInfo">
+            <div class="ddmPowerName">Void Shield</div>
+            <div class="ddmPowerDesc">Unlock at Dragon Level 10</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ddmActions">
+      <button class="ddmSelectBtn" id="btnDdmSelect"><i data-lucide="check-circle"></i> SELECT DRAGON</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
