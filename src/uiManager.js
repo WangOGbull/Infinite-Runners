@@ -13,6 +13,13 @@ class UIManager {
     this.selectedTier = null;
     this.tierAmounts = null;
 
+    // Dragon carousel state
+    this.carouselIndex = 0;
+    this.dragonsData = [];
+    this.dragonPowers = {}; // persisted per dragon
+    this.playerCoins = 1000000; // placeholder
+    this.selectedDragonName = null;
+
     this.initScreens();
     this.createDynamicModals();
     this.buildModeSelect();
@@ -196,44 +203,224 @@ class UIManager {
 
   buildModeSelect() {}
 
-  buildDragonSelect(dragons) {
-    const list = document.getElementById('dragonList');
-    if (!list) return;
-    list.innerHTML = '';
+  // ===== DRAGON CAROUSEL SYSTEM =====
+  initDragonCarousel(dragons) {
+    this.dragonsData = dragons;
+    this.carouselIndex = 0;
 
-    dragons.forEach((d, i) => {
-      const card = document.createElement('div');
-      card.className = 'dragonCard';
-      const dc = d.color || '#888888';
-      card.style.setProperty('--dc', dc);
-      card.style.setProperty('--dim', dc + '15');
+    // Load saved powers from localStorage
+    try {
+      const saved = localStorage.getItem('dragonPowers');
+      if (saved) this.dragonPowers = JSON.parse(saved);
+    } catch (e) { this.dragonPowers = {}; }
 
-      const headUrl = typeof d.head === 'string' ? d.head : (d.head?.src || '');
-      const statsHtml = (d.stats || []).map(s => `
-        <div class="dStat">
-          <label>${s.name}</label>
-          <div class="dBar"><div style="width:${s.value}%"></div></div>
-          <span class="dVal">${s.value}</span>
-        </div>
-      `).join('');
+    // Load saved coins
+    try {
+      const savedCoins = localStorage.getItem('playerCoins');
+      if (savedCoins) this.playerCoins = parseInt(savedCoins);
+    } catch (e) {}
 
-      card.innerHTML = `
-        <div class="dImg"><img src="${headUrl}" alt="${d.name}" loading="lazy"></div>
-        <div class="dInfo">
-          <div class="dName">${d.name}</div>
-          <div class="dSpecial">${d.special || ''}</div>
-          <div class="dStats">${statsHtml}</div>
+    this.renderCarousel();
+    this.updateCoinDisplay();
+  }
+
+  renderCarousel() {
+    const d = this.dragonsData[this.carouselIndex];
+    if (!d) return;
+
+    const name = d.name || d.type || 'Unknown';
+    const key = name.toLowerCase();
+    const color = d.color || '#00b4d8';
+
+    // Dragon image
+    const imgEl = document.getElementById('dsDragonImg');
+    const headUrl = typeof d.head === 'string' ? d.head : (d.head?.src || '');
+    if (imgEl) {
+      imgEl.src = headUrl;
+      imgEl.style.filter = `drop-shadow(0 0 30px ${color}25)`;
+    }
+
+    // Name
+    const nameEl = document.getElementById('dsDragonName');
+    if (nameEl) {
+      nameEl.textContent = name.toUpperCase();
+      nameEl.style.color = color;
+      nameEl.style.textShadow = `0 0 20px ${color}40`;
+    }
+
+    // Tier & Level
+    const powers = this.getDragonPowers(key);
+    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
+    const tierEl = document.getElementById('dsDragonTierNum');
+    const levelEl = document.getElementById('dsDragonLevel');
+    if (tierEl) tierEl.textContent = avgLevel;
+    if (levelEl) levelEl.textContent = avgLevel;
+
+    // XP Bar
+    const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
+    const xpText = document.getElementById('dsXpText');
+    const xpFill = document.getElementById('dsXpBarFill');
+    const xpStart = document.getElementById('dsXpLevelStart');
+    const xpEnd = document.getElementById('dsXpLevelEnd');
+    if (xpText) xpText.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
+    if (xpFill) xpFill.style.width = `${(xpCurrent / 5200) * 100}%`;
+    if (xpStart) xpStart.textContent = avgLevel;
+    if (xpEnd) xpEnd.textContent = avgLevel + 1;
+
+    // Powers grid
+    this.renderPowersGrid(key, color);
+
+    // Select badge
+    const badge = document.getElementById('dsSelectBadge');
+    const isSelected = this.selectedDragonName === name;
+    if (badge) {
+      badge.textContent = isSelected ? 'SELECTED' : 'NOT SELECTED';
+      badge.classList.toggle('selected', isSelected);
+    }
+
+    // Nav dots
+    this.renderNavDots();
+
+    // Re-init lucide for dynamic icons
+    if (typeof lucide !== 'undefined') {
+      setTimeout(() => lucide.createIcons(), 0);
+    }
+  }
+
+  getDragonPowers(dragonKey) {
+    if (!this.dragonPowers[dragonKey]) {
+      // Default base stats from config or fallback
+      const defaults = {
+        aegis: { defense: 3, speed: 2, rush: 2, attack: 2 },
+        ignis: { defense: 1, speed: 4, rush: 3, attack: 3 },
+        infinite: { defense: 2, speed: 2, rush: 1, attack: 4 },
+        magnetron: { defense: 4, speed: 1, rush: 2, attack: 2 }
+      };
+      this.dragonPowers[dragonKey] = { ...(defaults[dragonKey] || { defense: 2, speed: 2, rush: 2, attack: 2 }) };
+    }
+    return this.dragonPowers[dragonKey];
+  }
+
+  renderPowersGrid(dragonKey, color) {
+    const grid = document.getElementById('dsPowersGrid');
+    if (!grid) return;
+
+    const powers = this.getDragonPowers(dragonKey);
+    const costs = { defense: 500, speed: 600, rush: 800, attack: 1000 };
+    const labels = { defense: 'Defense', speed: 'Speed', rush: 'Rush Ability', attack: 'Attack' };
+    const maxLevel = 10;
+
+    let html = '';
+    Object.keys(labels).forEach(stat => {
+      const level = powers[stat] || 1;
+      const cost = costs[stat];
+      const canAfford = this.playerCoins >= cost;
+      const isMaxed = level >= maxLevel;
+      const barPct = (level / maxLevel) * 100;
+
+      html += `
+        <div class="dsPowerCard" id="powerCard-${stat}">
+          <div class="dsPowerName">${labels[stat]}</div>
+          <div class="dsPowerLevelRow">
+            <span class="dsPowerLevel">${level}</span>
+            <div class="dsPowerBar">
+              <div class="dsPowerBarFill" style="width:${barPct}%;"></div>
+            </div>
+            <button class="dsUpgradeBtn ${isMaxed ? 'maxed' : ''}" 
+              data-stat="${stat}" data-cost="${cost}" data-dragon="${dragonKey}"
+              ${isMaxed || !canAfford ? 'disabled' : ''}>
+              ${isMaxed ? '<i data-lucide="check"></i> MAX' : `<i data-lucide="arrow-up"></i> ${cost.toLocaleString()}`}
+            </button>
+          </div>
         </div>
       `;
-
-      card.addEventListener('click', () => {
-        this.selectedDragon = d.name;
-        this.eventBus.emit('ui:dragonSelected', { name: d.name });
-        this.showScreen('modeSelectScreen');
-      });
-
-      list.appendChild(card);
     });
+
+    grid.innerHTML = html;
+
+    // Bind upgrade buttons
+    grid.querySelectorAll('.dsUpgradeBtn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const stat = btn.dataset.stat;
+        const cost = parseInt(btn.dataset.cost);
+        const dKey = btn.dataset.dragon;
+        this.upgradePower(dKey, stat, cost);
+      });
+    });
+  }
+
+  upgradePower(dragonKey, stat, cost) {
+    if (this.playerCoins < cost) return;
+
+    const powers = this.getDragonPowers(dragonKey);
+    if (powers[stat] >= 10) return;
+
+    this.playerCoins -= cost;
+    powers[stat] = (powers[stat] || 1) + 1;
+
+    // Save
+    try {
+      localStorage.setItem('dragonPowers', JSON.stringify(this.dragonPowers));
+      localStorage.setItem('playerCoins', this.playerCoins.toString());
+    } catch (e) {}
+
+    // Flash effect
+    const card = document.getElementById(`powerCard-${stat}`);
+    if (card) {
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 500);
+    }
+
+    this.updateCoinDisplay();
+    this.renderCarousel();
+
+    // Emit event for game logic
+    this.eventBus.emit('ui:powerUpgraded', { dragon: dragonKey, stat, level: powers[stat] });
+  }
+
+  updateCoinDisplay() {
+    const el = document.getElementById('dsCoinAmount');
+    if (el) el.textContent = this.playerCoins.toLocaleString();
+  }
+
+  renderNavDots() {
+    const dots = document.getElementById('dsNavDots');
+    if (!dots) return;
+    dots.innerHTML = '';
+    this.dragonsData.forEach((_, i) => {
+      const dot = document.createElement('div');
+      dot.className = 'dsNavDot' + (i === this.carouselIndex ? ' active' : '');
+      dot.addEventListener('click', () => {
+        this.carouselIndex = i;
+        this.renderCarousel();
+      });
+      dots.appendChild(dot);
+    });
+  }
+
+  carouselPrev() {
+    this.carouselIndex = (this.carouselIndex - 1 + this.dragonsData.length) % this.dragonsData.length;
+    this.renderCarousel();
+  }
+
+  carouselNext() {
+    this.carouselIndex = (this.carouselIndex + 1) % this.dragonsData.length;
+    this.renderCarousel();
+  }
+
+  selectCurrentDragon() {
+    const d = this.dragonsData[this.carouselIndex];
+    if (!d) return;
+    this.selectedDragon = d.name || d.type;
+    this.selectedDragonName = this.selectedDragon;
+    this.renderCarousel(); // update badge
+    this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
+    this.showScreen('modeSelectScreen');
+  }
+
+  buildDragonSelect(dragons) {
+    // Now initializes carousel instead of grid
+    this.initDragonCarousel(dragons);
   }
 
   initLucide() {
@@ -301,8 +488,27 @@ class UIManager {
       this.showScreen('howToPlayScreen');
     });
 
+    // Dragon select carousel events
     document.getElementById('btnDsBack')?.addEventListener('click', () => {
       this.showScreen('titleScreen');
+    });
+    document.getElementById('dsArrowLeft')?.addEventListener('click', () => this.carouselPrev());
+    document.getElementById('dsArrowRight')?.addEventListener('click', () => this.carouselNext());
+    document.getElementById('dsSelectBtn')?.addEventListener('click', () => this.selectCurrentDragon());
+
+    // Bottom nav
+    document.querySelectorAll('.dsBottomNavBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.dsBottomNavBtn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        if (tab === 'dragons') {
+          // already on dragons
+        } else {
+          // placeholder for other tabs
+          this.eventBus.emit('ui:bottomNav', { tab });
+        }
+      });
     });
 
     document.getElementById('btnModeBack')?.addEventListener('click', () => {
@@ -535,11 +741,9 @@ class UIManager {
     document.getElementById('btnCloseMatchStats')?.addEventListener('click', () => {
       const overlay = document.getElementById('matchStatsOverlay');
       if (overlay) overlay.style.display = 'none';
-      // Ensure the old defeated screen is not left underneath
       if (this.screens['gameOverScreen']) {
         this.screens['gameOverScreen'].classList.remove('active');
       }
-      // Route back to battle mode select
       this.showScreen('modeSelectScreen');
     });
   }
@@ -671,7 +875,7 @@ class UIManager {
             : '<span class="depositBadge pending"><i data-lucide="clock"></i> Waiting for deposit</span>';
           slot.innerHTML = `
             <div class="lobbyPlayerCard ${player.isLocal ? 'local' : ''}">
-              <div class="lobbyPlayerIcon">🐉</div>
+              <div class="lobbyPlayerIcon" style="font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);border-radius:8px;flex-shrink:0;"><i data-lucide="flame" style="width:20px;height:20px;color:#ff6b35;"></i></div>
               <div class="lobbyPlayerInfo">
                 <div class="lobbyPlayerName">${player.name || 'Player'}</div>
                 <div class="lobbyPlayerDragon">${player.dragon || 'Unknown'}</div>
