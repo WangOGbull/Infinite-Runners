@@ -406,3 +406,71 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
   .tierBtn{font-size:10px;padding:8px 4px}
   .tierBtn .tierAmt{font-size:9px}
 }
+
+/* ==================== DRAGON DETAIL MODAL (Dragon Age Style) ==================== */
+#dragonDetailModal{background:rgba(3,8,20,0.92);align-items:center;justify-content:center;z-index:500}
+#dragonDetailModal.active{display:flex}
+
+.ddmOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:1}
+
+.ddmBox{position:relative;z-index:2;width:92%;max-width:420px;max-height:90vh;overflow-y:auto;border-radius:20px;padding:28px 24px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.25);box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 60px rgba(0,180,216,0.08) inset;-webkit-overflow-scrolling:touch}
+
+.ddmClose{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.5);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s;z-index:10}
+.ddmClose:hover{background:rgba(255,68,68,0.15);color:#ff6b6b}
+
+.ddmHeader{text-align:center;margin-bottom:20px}
+
+.ddmImgWrap{width:160px;height:160px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;position:relative}
+.ddmImgWrap::before{content:'';position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(0,180,216,0.15);animation:ddmPulse 3s ease-in-out infinite}
+@keyframes ddmPulse{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.05);opacity:1}}
+
+.ddmImgWrap img{width:100%;height:100%;object-fit:contain;transition:all 0.4s ease}
+
+.ddmName{font-family:'Cinzel Decorative',cursive;font-size:26px;letter-spacing:4px;color:#c77dff;text-shadow:0 0 20px rgba(155,77,255,0.3);margin-bottom:4px}
+
+.ddmTierLine{font-family:'Rajdhani',sans-serif;font-size:11px;letter-spacing:2px;color:rgba(255,255,255,0.4)}
+.ddmTierLine span{color:#00b4d8;font-weight:600}
+
+.ddmSection{margin-bottom:18px}
+
+.ddmSectionTitle{font-family:'Cinzel Decorative',cursive;font-size:13px;letter-spacing:2px;color:rgba(255,255,255,0.6);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.ddmSectionTitle i{width:16px;height:16px;color:#00b4d8}
+
+.ddmStats{display:flex;flex-direction:column;gap:10px}
+
+.ddmStatRow{display:flex;align-items:center;gap:10px}
+.ddmStatLabel{width:70px;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:11px;letter-spacing:1px;color:rgba(255,255,255,0.5);text-transform:uppercase;text-align:right}
+.ddmStatBarWrap{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,0.06);overflow:hidden}
+.ddmStatBar{height:100%;border-radius:4px;transition:width 0.6s ease;box-shadow:0 0 8px rgba(0,180,216,0.2)}
+.ddmStatValue{width:24px;font-family:'Cinzel Decorative',cursive;font-size:14px;text-align:right}
+
+.ddmPowers{display:flex;flex-direction:column;gap:8px}
+
+.ddmPowerSlot{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);transition:all .2s}
+.ddmPowerSlot:hover{border-color:rgba(0,180,216,0.15);background:rgba(255,255,255,0.04)}
+
+.ddmPowerIcon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);flex-shrink:0}
+.ddmPowerSlot.locked .ddmPowerIcon{color:rgba(255,255,255,0.3)}
+.ddmPowerSlot.locked .ddmPowerIcon i{width:18px;height:18px}
+
+.ddmPowerInfo{flex:1}
+.ddmPowerName{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;letter-spacing:1px;color:rgba(255,255,255,0.7);margin-bottom:2px}
+.ddmPowerDesc{font-family:'Rajdhani',sans-serif;font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:0.5px}
+
+.ddmActions{display:flex;justify-content:center;margin-top:8px}
+
+.ddmSelectBtn{padding:12px 40px;border-radius:50px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:13px;letter-spacing:3px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(34,197,94,0.3);display:flex;align-items:center;gap:8px}
+.ddmSelectBtn:hover{transform:scale(1.05);box-shadow:0 6px 28px rgba(34,197,94,0.4)}
+.ddmSelectBtn:active{transform:scale(0.97)}
+
+@media(max-width:480px){
+  .ddmBox{padding:22px 16px 18px;border-radius:16px}
+  .ddmImgWrap{width:120px;height:120px}
+  .ddmName{font-size:20px;letter-spacing:3px}
+  .ddmSectionTitle{font-size:11px}
+  .ddmStatLabel{width:60px;font-size:10px}
+  .ddmStatValue{font-size:12px}
+  .ddmSelectBtn{padding:10px 32px;font-size:11px}
+  .ddmPowerName{font-size:11px}
+  .ddmPowerDesc{font-size:9px}
+}
