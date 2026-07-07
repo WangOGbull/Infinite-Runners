@@ -1,32 +1,1023 @@
-<!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
-<div id="dragonDetailModal" class="screen">
-  <div class="ddmOverlay">
-    <div class="ddmBox" id="ddmBox">
-      <button class="ddmClose" id="btnDdmClose"><i data-lucide="x"></i></button>
-      <div class="ddmContent">
-        <div class="ddmLeft">
-          <div class="ddmImgWrap">
-            <img id="ddmImg" src="" alt="Dragon">
-          </div>
-          <div class="ddmName" id="ddmName">AEGIS</div>
-          <div class="ddmTier">TIER <span id="ddmTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="ddmDragonLevel">1</span></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Infinite Runners - Dragons Arena</title>
+
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+<!-- Solana web3.js (exposes window.solanaWeb3) -->
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+
+<!-- tweetnacl (needed for Phantom's mobile deep-link encryption handshake) -->
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- FontAwesome for your icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<link rel="stylesheet" href="./src/styles.css">
+
+<style>
+  /* Mobile dragon select scroll fix */
+  #dragonSelectScreen {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #dragonSelectScreen .dsInner {
+    padding-bottom: 80px;
+    min-height: 100vh;
+  }
+
+  /* Wallet integration */
+  #walletBtn.connected {
+    background: rgba(0,180,216,0.15);
+    border: 1px solid rgba(0,180,216,0.5);
+  }
+  .wHint {
+    color: #8b93a6;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 12px;
+  }
+  .wSpinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(171,159,242,0.2);
+    border-top-color: #ab9ff2;
+    border-radius: 50%;
+    margin: 20px auto;
+    animation: wSpin 0.8s linear infinite;
+  }
+  @keyframes wSpin { to { transform: rotate(360deg); } }
+  #walletConnectingView p {
+    text-align: center;
+    color: #c8ccd8;
+    font-size: 13px;
+  }
+  .wAccountRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .wAccountInfo { flex: 1; min-width: 0; }
+  .wAddress {
+    font-family: monospace;
+    font-size: 14px;
+    color: #e8d5a3;
+    letter-spacing: 0.5px;
+  }
+  .wBalance {
+    font-size: 12px;
+    color: #00b4d8;
+    margin-top: 6px;
+  }
+  .wTestBtn, .wDisconnectBtn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    color: #e0e0e0;
+  }
+  .wTestBtn:hover { border-color: #00b4d8; color: #00b4d8; }
+  .wDisconnectBtn:hover { border-color: #ff4444; color: #ff4444; }
+  .wSignResult {
+    font-size: 11px;
+    text-align: center;
+    margin-top: 8px;
+    min-height: 14px;
+    word-break: break-all;
+    color: #8b93a6;
+  }
+  .wSignOk { color: #4dff88; font-size: 12px; }
+  .wSignFail { color: #ff4444; font-size: 12px; }
+  .wSignHash { font-family: monospace; margin-top: 4px; }
+  .wError {
+    color: #ff4444;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 12px;
+    background: rgba(255,68,68,0.08);
+    border: 1px solid rgba(255,68,68,0.2);
+    border-radius: 6px;
+    padding: 8px;
+  }
+
+  /* Scan Button Styling */
+  #btnWalletRefreshInline {
+    margin-left: 10px;
+    padding: 4px 10px;
+    background: #2a2a3a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #btnWalletRefreshInline:hover {
+    background: #3a3a4a;
+    border-color: #00b4d8;
+  }
+
+  /* Lives HUD — Dragon Age style flame orbs */
+  #livesHud {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 6px;
+    z-index: 100;
+    background: rgba(0,0,0,0.5);
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* Scoreboard Overlay */
+  #scoreboardOverlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    flex-direction: column;
+    background: rgba(7,16,24,0.95);
+    border: 1px solid rgba(0,180,216,0.3);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 90vw;
+    z-index: 200;
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* Match Stats Overlay */
+  #matchStatsOverlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.92);
+    z-index: 300;
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  #winnerCelebration {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  #winnerCelebration .victoryTitle {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 42px;
+    color: #ffd700;
+    text-shadow: 0 0 30px rgba(255,215,0,0.5), 0 0 60px rgba(201,168,76,0.3);
+    letter-spacing: 4px;
+  }
+  #winnerName {
+    font-size: 24px;
+    color: #00b4d8;
+    margin-top: 10px;
+  }
+  .prizePool {
+    font-size: 14px;
+    color: #8b93a6;
+    margin-top: 5px;
+  }
+  .prizePool span {
+    color: #ffd700;
+  }
+
+  #matchStatsTable {
+    width: 90%;
+    max-width: 600px;
+  }
+
+  #btnCloseMatchStats {
+    margin-top: 30px;
+    padding: 12px 40px;
+    background: transparent;
+    border: 1px solid rgba(0,180,216,0.5);
+    color: #00b4d8;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+  }
+  #btnCloseMatchStats:hover {
+    background: rgba(0,180,216,0.1);
+    border-color: #00b4d8;
+  }
+
+  /* Game Over screen dynamic title */
+  #goTitle {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 48px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+  }
+
+  /* ===== DRAGON SELECT CAROUSEL STYLES ===== */
+  #dragonSelectScreen {
+    background: linear-gradient(180deg, #030814 0%, #0a1628 50%, #06122e 100%);
+  }
+
+  .dsCarouselWrap {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 20px;
+    overflow: hidden;
+  }
+
+  .dsTopBar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    margin-bottom: 10px;
+  }
+
+  .dsBackBtn {
+    padding: 6px 14px;
+    border-radius: 50px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.5);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dsBackBtn:hover { color: #fff; border-color: rgba(255,255,255,0.2); }
+
+  .dsCoinDisplay {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 50px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(0,180,216,0.2);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #00b4d8;
+  }
+  .dsCoinDisplay i { color: #ffd700; }
+
+  .dsDragonStage {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    height: 45vh;
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dsArrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,180,216,0.25);
+    background: rgba(0,0,0,0.4);
+    color: #00b4d8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .2s;
+    z-index: 10;
+    font-size: 18px;
+  }
+  .dsArrow:hover {
+    border-color: rgba(0,180,216,0.6);
+    background: rgba(0,180,216,0.1);
+    box-shadow: 0 0 16px rgba(0,180,216,0.2);
+  }
+  .dsArrowLeft { left: 12px; }
+  .dsArrowRight { right: 12px; }
+
+  .dsDragonImgWrap {
+    width: 70%;
+    max-width: 320px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .dsDragonImgWrap img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 0 30px rgba(0,180,216,0.15));
+    transition: all 0.4s ease;
+  }
+
+  .dsDragonInfo {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .dsDragonName {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 24px;
+    letter-spacing: 3px;
+    color: #c77dff;
+    text-shadow: 0 0 20px rgba(155,77,255,0.3);
+  }
+
+  .dsDragonTier {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 4px;
+  }
+
+  .dsDragonTier span {
+    color: #00b4d8;
+    font-weight: 600;
+  }
+
+  .dsXpBarWrap {
+    width: 80%;
+    max-width: 320px;
+    margin: 0 auto 16px;
+  }
+
+  .dsXpBarTop {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .dsXpBarTop .dsLevelNum {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: #00b4d8;
+  }
+
+  .dsXpBarTop .dsXpText {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .dsXpBar {
+    width: 100%;
+    height: 6px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .dsXpBarFill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #00b4d8, #48cae4);
+    transition: width 0.6s ease;
+    box-shadow: 0 0 8px rgba(0,180,216,0.3);
+  }
+
+  .dsPowersGrid {
+    width: 90%;
+    max-width: 420px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .dsPowerCard {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+
+  .dsPowerCard:hover {
+    border-color: rgba(0,180,216,0.15);
+    background: rgba(255,255,255,0.04);
+  }
+
+  .dsPowerName {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+  }
+
+  .dsPowerLevelRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .dsPowerLevel {
+    font-family: 'Cinzel Decorative', cursive;
+    font-size: 18px;
+    color: #fff;
+  }
+
+  .dsPowerBar {
+    flex: 1;
+    height: 4px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    margin: 0 8px;
+    overflow: hidden;
+  }
+
+  .dsPowerBarFill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #9b4dff, #00b4d8);
+    transition: width 0.4s ease;
+  }
+
+  .dsUpgradeBtn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(0,180,216,0.3);
+    background: rgba(0,180,216,0.08);
+    color: #00b4d8;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .dsUpgradeBtn:hover {
+    background: rgba(0,180,216,0.15);
+    border-color: rgba(0,180,216,0.5);
+    box-shadow: 0 0 10px rgba(0,180,216,0.15);
+  }
+
+  .dsUpgradeBtn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .dsUpgradeBtn.maxed {
+    border-color: rgba(74,222,128,0.3);
+    background: rgba(74,222,128,0.08);
+    color: #4ade80;
+  }
+
+  .dsSelectRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .dsSelectBadge {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(255,68,68,0.1);
+    border: 1px solid rgba(255,68,68,0.3);
+    color: #ff6b6b;
+  }
+
+  .dsSelectBadge.selected {
+    background: rgba(74,222,128,0.1);
+    border-color: rgba(74,222,128,0.3);
+    color: #4ade80;
+  }
+
+  .dsSelectBtn {
+    padding: 12px 48px;
+    border-radius: 50px;
+    border: none;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+    font-family: 'Cinzel Decorative', cursive;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(34,197,94,0.3);
+  }
+
+  .dsSelectBtn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 28px rgba(34,197,94,0.4);
+  }
+
+  .dsSelectBtn:active {
+    transform: scale(0.97);
+  }
+
+  .dsNavDots {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+
+  .dsNavDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .dsNavDot.active {
+    background: #00b4d8;
+    box-shadow: 0 0 8px rgba(0,180,216,0.4);
+    width: 20px;
+    border-radius: 4px;
+  }
+
+  .dsBottomNav {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    padding: 8px 0;
+    background: rgba(0,0,0,0.4);
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .dsBottomNavBtn {
+    flex: 1;
+    max-width: 100px;
+    padding: 8px 4px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: rgba(255,255,255,0.35);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .dsBottomNavBtn i {
+    width: 18px;
+    height: 18px;
+    opacity: 0.5;
+  }
+
+  .dsBottomNavBtn:hover {
+    color: rgba(255,255,255,0.6);
+  }
+
+  .dsBottomNavBtn.active {
+    color: #00b4d8;
+    border-bottom-color: #00b4d8;
+  }
+  .dsBottomNavBtn.active i {
+    opacity: 1;
+    color: #00b4d8;
+  }
+
+  /* Power upgrade flash animation */
+  @keyframes powerFlash {
+    0% { box-shadow: 0 0 0 rgba(0,180,216,0); }
+    50% { box-shadow: 0 0 20px rgba(0,180,216,0.4); border-color: rgba(0,180,216,0.5); }
+    100% { box-shadow: 0 0 0 rgba(0,180,216,0); }
+  }
+  .dsPowerCard.flash {
+    animation: powerFlash 0.5s ease;
+  }
+
+  @media(max-width: 480px) {
+    .dsDragonName { font-size: 18px; }
+    .dsPowersGrid { grid-template-columns: 1fr; gap: 8px; }
+    .dsDragonStage { height: 35vh; min-height: 200px; }
+    .dsArrow { width: 36px; height: 36px; font-size: 14px; }
+    .dsSelectBtn { padding: 10px 36px; font-size: 12px; }
+  }
+</style>
+<base target="_blank">
+<base target="_blank">
+</head>
+<body>
+
+<!-- ===== PARTICLE BACKGROUND CANVAS ===== -->
+<canvas id="pCanvas"></canvas>
+
+<!-- ===== TITLE SCREEN ===== -->
+<div id="titleScreen" class="screen active" style="background-image:url('./shadow-drake-bg.png');background-size:cover;background-position:center;background-repeat:no-repeat;">
+  <div class="darken"></div>
+  <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button>
+  <div class="content">
+    <h1>Infinite Runners</h1>
+    <h2>^Dragons Arena^</h2>
+    <h3>Chronicles of the Void</h3>
+    <p class="subtitle">^ Free to Play ^</p>
+    <button class="playBtn" id="btnPlayNow"><i data-lucide="play"></i> PLAY NOW</button>
+    <div class="menuBtns">
+      <button class="menuBtn" id="btnStartGame"><i data-lucide="gamepad-2"></i> Start Game</button>
+      <button class="menuBtn" id="btnLeaderboard"><i data-lucide="trophy"></i> Leaderboard</button>
+      <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button>
+    </div>
+  </div>
+  <span class="copyright">2025 Infinite Runners Dragons Arena. All rights reserved.</span>
+</div>
+
+<!-- ===== DRAGON SELECT (CAROUSEL) ===== -->
+<div id="dragonSelectScreen" class="screen">
+  <div class="dsInner" style="width:100%;height:100%;display:flex;flex-direction:column;">
+    <div class="dsTopBar">
+      <button class="dsBackBtn" id="btnDsBack"><i data-lucide="arrow-left"></i> Back</button>
+      <div class="dsCoinDisplay" id="dsCoinDisplay">
+        <i data-lucide="coins"></i>
+        <span id="dsCoinAmount">1,000,000</span>
+      </div>
+    </div>
+
+    <div class="dsCarouselWrap">
+      <div class="dsDragonStage">
+        <button class="dsArrow dsArrowLeft" id="dsArrowLeft"><i data-lucide="chevron-left"></i></button>
+        <div class="dsDragonImgWrap" id="dsDragonImgWrap">
+          <img id="dsDragonImg" src="" alt="Dragon">
         </div>
-        <div class="ddmRight">
-          <div class="ddmSection">
-            <h3><i data-lucide="shield"></i> Powers & Abilities</h3>
-            <div class="ddmStats" id="ddmStats"></div>
-          </div>
-          <div class="ddmSection">
-            <h3><i data-lucide="zap"></i> Special Powers</h3>
-            <div class="ddmSpecials" id="ddmSpecials">
-              <div class="ddmSpecialSlot"><i data-lucide="lock"></i><span>Dragon Fury — Unlock at Level 5</span></div>
-              <div class="ddmSpecialSlot"><i data-lucide="lock"></i><span>Ancient Breath — Unlock at Level 10</span></div>
-              <div class="ddmSpecialSlot"><i data-lucide="lock"></i><span>Infinity Blaze — Unlock at Level 15</span></div>
-            </div>
-          </div>
-          <button class="ddmSelectBtn" id="btnDdmSelect">SELECT DRAGON</button>
+        <button class="dsArrow dsArrowRight" id="dsArrowRight"><i data-lucide="chevron-right"></i></button>
+      </div>
+
+      <div class="dsDragonInfo">
+        <div class="dsDragonName" id="dsDragonName">AEGIS</div>
+        <div class="dsDragonTier">TIER <span id="dsDragonTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="dsDragonLevel">1</span></div>
+      </div>
+
+      <div class="dsXpBarWrap">
+        <div class="dsXpBarTop">
+          <span class="dsLevelNum" id="dsXpLevelStart">1</span>
+          <span class="dsXpText" id="dsXpText">0 / 5,200</span>
+          <span class="dsLevelNum" id="dsXpLevelEnd">2</span>
+        </div>
+        <div class="dsXpBar">
+          <div class="dsXpBarFill" id="dsXpBarFill" style="width: 0%;"></div>
         </div>
       </div>
+
+      <div class="dsPowersGrid" id="dsPowersGrid">
+        <!-- Powers injected by JS -->
+      </div>
+
+      <div class="dsSelectRow">
+        <span class="dsSelectBadge" id="dsSelectBadge">NOT SELECTED</span>
+        <button class="dsSelectBtn" id="dsSelectBtn">SELECT</button>
+      </div>
+
+      <div class="dsNavDots" id="dsNavDots">
+        <!-- Dots injected by JS -->
+      </div>
+    </div>
+
+    <div class="dsBottomNav">
+      <button class="dsBottomNavBtn active" data-tab="dragons"><i data-lucide="flame"></i>Dragons</button>
+      <button class="dsBottomNavBtn" data-tab="campaign"><i data-lucide="map"></i>Campaign</button>
+      <button class="dsBottomNavBtn" data-tab="quests"><i data-lucide="scroll-text"></i>Quests</button>
+      <button class="dsBottomNavBtn" data-tab="shop"><i data-lucide="shopping-bag"></i>Shop</button>
     </div>
   </div>
 </div>
+
+<!-- ===== MODE SELECT (1v1 AI + Multiplayer only) ===== -->
+<div id="modeSelectScreen" class="screen">
+  <div class="modeBox">
+    <h2>Choose Battle Mode</h2>
+    <p class="sub">Select how you want to play</p>
+    <div class="modeCards">
+      <div class="modeCard" id="btn1v1AI" data-mode="1v1AI">
+        <div class="mIcon"><i data-lucide="swords"></i></div>
+        <div class="mLabel">1v1 vs AI</div>
+        <div class="mDesc">Battle solo against AI bots. Perfect for practice.</div>
+      </div>
+      <div class="modeCard" id="btnMpMultiplayer" data-mode="multiplayer">
+        <div class="mIcon"><i data-lucide="wifi"></i></div>
+        <div class="mLabel">Multiplayer</div>
+        <div class="mDesc">Play online with friends via room code.</div>
+      </div>
+    </div>
+    <button class="menuBtn" id="btnModeBack"><i data-lucide="arrow-left"></i> Back to Dragons</button>
+  </div>
+</div>
+
+<!-- ===== MULTIPLAYER MENU ===== -->
+<div id="mpMenuScreen" class="screen">
+  <div class="mpBox">
+    <h2>Multiplayer</h2>
+    <p class="sub">Create or join a battle room</p>
+    <div class="modeCards">
+      <div class="modeCard" id="btnMpCreate">
+        <div class="mIcon"><i data-lucide="plus-circle"></i></div>
+        <div class="mLabel">Create Room</div>
+        <div class="mDesc">Start a new room and invite friends.</div>
+      </div>
+    </div>
+    <div class="mpJoinSection">
+      <div class="joinTitle">Join Room</div>
+      <p class="joinSub">Enter a 6-digit room code</p>
+      <div class="mpJoinRow">
+        <input type="text" id="mpRoomInput" class="mpRoomInput" placeholder="000000" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
+        <button class="mpJoinBtn" id="btnMpJoin"><i data-lucide="log-in"></i> Join</button>
+      </div>
+      <p class="mpJoinError" id="mpJoinError"></p>
+    </div>
+    <button class="menuBtn" id="btnMpBack"><i data-lucide="arrow-left"></i> Back to Mode</button>
+  </div>
+</div>
+
+<!-- ===== LOBBY ===== -->
+<div id="lobbyScreen" class="screen">
+  <div class="lobbyBox">
+    <h2>Game Lobby</h2>
+    <div class="roomCodeRow">
+      <span class="roomLabel">Room Code:</span>
+      <span id="roomCodeDisplay">------</span>
+    </div>
+    <div class="lobbyMeta">
+      <span id="lobbyGameMode">Free For All</span> | <span id="lobbyPlayerCount">1 / 4</span>
+    </div>
+    <div class="modeSelectorHost" id="modeSelectorHost">
+      <label>Mode:</label>
+      <button id="lobbyModeFfa" class="active">FFA</button>
+      <button id="lobbyMode2v2">2v2</button>
+    </div>
+
+    <!-- ===== STAKING: tier selector (1v1 rooms only) ===== -->
+    <div class="lobbyTierSelector" id="lobbyTierSelector" style="display:none;">
+      <label>Stake Tier:</label>
+      <div class="tierBtns" id="tierBtns">
+        <button class="tierBtn" data-tier="Small" id="tierSmall">
+          <span class="tierDot small" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span> Small<br><span class="tierAmt">-- INFINITE</span>
+        </button>
+        <button class="tierBtn" data-tier="Medium" id="tierMedium">
+          <span class="tierDot medium" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#eab308;"></span> Medium<br><span class="tierAmt">-- INFINITE</span>
+        </button>
+        <button class="tierBtn" data-tier="High" id="tierHigh">
+          <span class="tierDot high" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> High<br><span class="tierAmt">-- INFINITE</span>
+        </button>
+      </div>
+      <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
+    </div>
+
+    <div class="lobbyArenaSelector" id="lobbyArenaSelector">
+      <label>Arena:</label>
+      <div class="arenaThumbs" id="lobbyArenaThumbs">
+        <button data-arena="0" class="arenaThumb active" id="lobbyArena0">
+          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png" alt="Stone">
+          <span>Stone</span>
+        </button>
+        <button data-arena="1" class="arenaThumb" id="lobbyArena1">
+          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png" alt="Grass">
+          <span>Grass</span>
+        </button>
+        <button data-arena="2" class="arenaThumb" id="lobbyArena2">
+          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png" alt="Purple">
+          <span>Purple</span>
+        </button>
+        <button data-arena="3" class="arenaThumb" id="lobbyArena3">
+          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png" alt="Fire">
+          <span>Fire</span>
+        </button>
+      </div>
+    </div>
+    <div class="lobbySlots" id="lobbySlots"></div>
+
+    <!-- ===== STAKING: deposit action + status ===== -->
+    <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;">
+      <i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span>
+    </button>
+    <p id="depositStatusText" class="depositStatusText"></p>
+
+    <div class="lobbyActions">
+      <button class="pBtn pBtnRes" id="lobbyStartBtn"><i data-lucide="play"></i> Start Game</button>
+      <div id="lobbyWaitingText">Waiting for host...</div>
+      <button class="pBtn pBtnOut" id="btnLeaveRoom"><i data-lucide="log-out"></i> Leave Room</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING ===== -->
+<div id="loadingScreen" class="screen">
+  <div class="loadBox">
+    <div class="infsym">&#8734;</div>
+    <div class="orbit1"></div>
+    <div class="orbit2"></div>
+  </div>
+  <h2>Entering the Arena...</h2>
+  <div class="progbar"><div></div></div>
+</div>
+
+<!-- ===== GAME ===== -->
+<div id="gameScreen" class="screen">
+  <canvas id="gameCanvas"></canvas>
+  <div id="gameHud">
+    <div class="hudLeft">
+      <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button>
+      <div id="timerDisplay">0:00</div>
+      <div id="scoreDisplay"><i data-lucide="infinity"></i> <span id="scoreVal">0</span></div>
+    </div>
+    <canvas id="minimapCanvas"></canvas>
+  </div>
+  <div id="mobileControls">
+    <div id="joyArea"><div id="joyKnob"></div></div>
+    <div id="boostBtn"><i data-lucide="zap"></i><span>BOOST</span></div>
+  </div>
+  <div id="pauseOverlay" class="overlay">
+    <h2>PAUSED</h2>
+    <button class="pBtn pBtnRes" id="btnResume"><i data-lucide="play"></i> RESUME</button>
+    <button class="pBtn pBtnOut" id="btnChangeDragon"><i data-lucide="refresh-cw"></i> CHANGE DRAGON</button>
+    <button class="pBtn pBtnOut" id="btnQuit"><i data-lucide="log-out"></i> QUIT TO MENU</button>
+  </div>
+</div>
+
+<!-- ===== GAME OVER ===== -->
+<div id="gameOverScreen" class="screen">
+  <h1 id="goTitle">DEFEATED</h1>
+  <div class="goStats">
+    <div class="goStat"><div class="num" id="goTime">0:00</div><div class="lbl">SURVIVED</div></div>
+    <div class="goStat"><div class="num" id="goCollect">0</div><div class="lbl">COLLECTED</div></div>
+    <div class="goStat"><div class="num" id="goKills">0</div><div class="lbl">KILLS</div></div>
+    <div class="goStat"><div class="num" id="goDeaths">0</div><div class="lbl">DEATHS</div></div>
+    <div class="goStat"><div class="num" id="goLives">0</div><div class="lbl">LIVES LEFT</div></div>
+  </div>
+  <div class="goActions">
+    <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
+    <button class="pBtn pBtnOut" id="btnMainMenu"><i data-lucide="home"></i> MAIN MENU</button>
+  </div>
+</div>
+
+<!-- ===== HOW TO PLAY ===== -->
+<div id="howToPlayScreen" class="screen">
+  <button class="htpClose" id="btnHtpClose"><i data-lucide="x"></i></button>
+  <div class="htpInner">
+    <h2>HOW TO PLAY</h2>
+    <div class="htpTabs">
+      <button class="htpTab active" data-tab="controls">CONTROLS</button>
+      <button class="htpTab" data-tab="mechanics">MECHANICS</button>
+      <button class="htpTab" data-tab="tips">TIPS</button>
+    </div>
+    <div id="htpControls" class="htpPanel active">
+      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div>
+      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Boost</h4><p>Tap and hold the BOOST button for speed burst.</p></div>
+      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move=Mouse, Boost=Click/Space, Pause=ESC</p></div>
+    </div>
+    <div id="htpMechanics" class="htpPanel">
+      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter dies. Equal size = both shrink to start size.</p></div>
+      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Body</h4><p>Smaller dragon shrinks to start size. Larger unaffected. Equal = both shrink.</p></div>
+      <div class="htpCard"><h4><i data-lucide="shield"></i> Tail vs Tail</h4><p>Nothing happens.</p></div>
+      <div class="htpCard"><h4><i data-lucide="infinity"></i> Collect &infin;</h4><p>Eat infinity symbols to grow. Start small, grow to max size.</p></div>
+      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated. Last standing wins!</p></div>
+    </div>
+    <div id="htpTips" class="htpPanel">
+      <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div>
+      <div class="htpCard"><h4 style="color:#ff4d4d">Ignis</h4><p>Fast and aggressive. Rush opponents.</p></div>
+      <div class="htpCard"><h4 style="color:#00b4d8">Infinite</h4><p>Longest body. Trap and block enemies.</p></div>
+      <div class="htpCard"><h4 style="color:#ff00aa">Magnetron</h4><p>Tanky. Hard to kill.</p></div>
+    </div>
+    <button class="gotItBtn" id="btnGotIt">GOT IT</button>
+  </div>
+</div>
+
+<!-- ===== WALLET MODAL ===== -->
+<div id="walletModal" class="screen">
+  <div class="walletBox">
+    <button class="wClose" id="btnWalletClose"><i data-lucide="x"></i></button>
+    <h3>Connect Wallet</h3>
+
+    <div id="walletDisconnectedView">
+      <div class="wOpt" data-w="phantom" id="wOptPhantom">
+        <div class="wIcon" style="background:transparent; padding:0;">
+          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:32px; height:32px; display:block;">
+        </div>
+        <span>Phantom</span>
+      </div>
+      <p class="wHint">Solana wallet required to earn in-game rewards.</p>
+    </div>
+
+    <div id="walletConnectingView" style="display:none">
+      <div class="wSpinner"></div>
+      <p>Approve the connection in Phantom...</p>
+    </div>
+
+    <div id="walletConnectedView" style="display:none">
+      <div class="wAccountRow">
+        <div class="wIcon" style="background:transparent; padding:0;">
+          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;">
+        </div>
+        <div class="wAccountInfo">
+          <div class="wAddress" id="wAddressDisplay">-</div>
+          <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
+        </div>
+      </div>
+      <button class="wTestBtn" id="btnWalletSignTest"><i data-lucide="pen-line"></i> Sign Test Message</button>
+      <div class="wSignResult" id="wSignResult"></div>
+      <button class="wDisconnectBtn" id="btnWalletDisconnect"><i data-lucide="log-out"></i> Disconnect</button>
+    </div>
+
+    <div class="wError" id="walletError" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ===== COUNTDOWN OVERLAY ===== -->
+<div id="countdownOverlay">
+  <div id="countdownText">3</div>
+</div>
+
+<!-- ===== MP GAME OVER ===== -->
+<div id="mpGameOver" class="screen">
+  <div class="mpGoPanel">
+    <h2 id="mpGameOverTitle">Victory!</h2>
+    <div id="mpGameOverStats"></div>
+    <div class="mpGoActions">
+      <button class="pBtn pBtnRes" id="btnReturnLobby"><i data-lucide="corner-up-left"></i> Return to Lobby</button>
+      <button class="pBtn pBtnOut" id="btnMpMainMenu"><i data-lucide="home"></i> Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING OVERLAY ===== -->
+<div id="loadingOverlay">
+  <div class="loadSpin"></div>
+  <div class="loadText">Loading...</div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
