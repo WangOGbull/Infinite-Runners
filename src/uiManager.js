@@ -539,6 +539,9 @@ class UIManager {
     this.selectedDragon = d.name || d.type;
     this.selectedDragonName = this.selectedDragon;
     this.hideDragonModal();
+    // Re-render carousel to show BATTLE MODE button
+    this.carouselIndex = this.dragonsData.findIndex(dr => (dr.name || dr.type) === this.selectedDragon);
+    if (this.carouselIndex < 0) this.carouselIndex = 0;
     this.renderCarousel();
     this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
   }
@@ -625,10 +628,10 @@ class UIManager {
 
     // SELECT button — opens modal if no dragon selected, else goes to battle mode
     document.getElementById('dsSelectBtn')?.addEventListener('click', () => {
-      if (this.selectedDragonName) {
+      const d = this.dragonsData[this.carouselIndex];
+      if (this.selectedDragonName && this.selectedDragonName === (d?.name || d?.type)) {
         this.goToBattleMode();
       } else {
-        const d = this.dragonsData[this.carouselIndex];
         if (d) this.showDragonModal(d);
       }
     });
