@@ -7,10 +7,18 @@ export const DRAGONS = [
   'magnetron'
 ];
 
+// Dragon image URLs (uploaded assets)
+export const DRAGON_IMAGES = {
+  aegis: 'https://i.postimg.cc/85bpqSXV/36824.jpg',
+  ignis: 'https://i.postimg.cc/GpWTcdjJ/36826.jpg',
+  infinite: 'https://i.postimg.cc/xdD98CWv/36823.jpg',
+  magnetron: 'https://i.postimg.cc/PqwNV0kw/36825.jpg'
+};
+
 // Dragon power base stats and upgrade costs (placeholder)
 export const DRAGON_POWERS = {
   aegis:     { defense: 3, speed: 2, rush: 2, attack: 2, color: '#9b4dff' },
-  ignis:     { defense: 1, speed: 4, rush: 3, attack: 3, color: '#ff4d4d' },
+  ignis:     { defense: 1, speed: 4, rush: 3, attack: 3, color: '#ff6b35' },
   infinite:  { defense: 2, speed: 2, rush: 1, attack: 4, color: '#00b4d8' },
   magnetron: { defense: 4, speed: 1, rush: 2, attack: 2, color: '#ff00aa' }
 };
