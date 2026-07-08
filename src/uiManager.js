@@ -22,7 +22,6 @@ class UIManager {
     this.selectedDragonName = null;
     this._modalDragon = null;
 
-    // NUCLEAR FAILSAFE: Catch any error so the UI doesn't lock up
     try {
         this.initScreens();
         this.createDynamicModals();
@@ -30,10 +29,9 @@ class UIManager {
         this.initLucide();
         this.initParticles();
         this.bindEvents();
-        console.log("✅ UI Manager fully loaded.");
+        console.log("✅ UIManager loaded successfully.");
     } catch (e) {
-        console.error("🚨 CRITICAL UI MANAGER CRASH:", e);
-        alert("UI failed to load. Check the console for the error.");
+        console.error("🚨 UI Manager Crash:", e);
     }
   }
 
@@ -51,7 +49,6 @@ class UIManager {
     screenIds.forEach(id => {
       const el = document.getElementById(id);
       if (el) this.screens[id] = el;
-      else console.warn(`⚠️ Missing Screen ID: ${id}`);
     });
   }
 
@@ -515,51 +512,44 @@ class UIManager {
     // === TITLE SCREEN BUTTONS ===
     const btnPlay = document.getElementById('btnPlayNow');
     if (btnPlay) btnPlay.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-    else console.warn("❌ Missing button: btnPlayNow");
 
     const btnStart = document.getElementById('btnStartGame');
     if (btnStart) btnStart.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-    else console.warn("❌ Missing button: btnStartGame");
 
     const btnLeader = document.getElementById('btnLeaderboard');
     if (btnLeader) btnLeader.addEventListener('click', () => {
       this.showScreen('loadingScreen');
       setTimeout(() => this.showScreen('titleScreen'), 1000);
     });
-    else console.warn("❌ Missing button: btnLeaderboard");
 
     const btnHow = document.getElementById('btnHowToPlay');
     if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
-    else console.warn("❌ Missing button: btnHowToPlay");
 
     // === DRAGON SELECT EVENTS ===
     const btnBack = document.getElementById('btnDsBack');
     if (btnBack) btnBack.addEventListener('click', () => this.showScreen('titleScreen'));
 
-    // Top Right Next button
     const nextBtn = document.getElementById('dsNextBtn');
     if (nextBtn) nextBtn.addEventListener('click', () => this.goToBattleMode());
 
-    // Dragon Age Button
     const ageBtn = document.getElementById('dsDragonAgeBtn');
     if (ageBtn) ageBtn.addEventListener('click', () => this.goToBattleMode());
 
-    // Arrows
     const arrowLeft = document.getElementById('dsArrowLeft');
     if (arrowLeft) arrowLeft.addEventListener('click', () => this.carouselPrev());
+
     const arrowRight = document.getElementById('dsArrowRight');
     if (arrowRight) arrowRight.addEventListener('click', () => this.carouselNext());
 
-    // Select Button (Open Modal)
     const selectBtn = document.getElementById('dsSelectBtn');
     if (selectBtn) selectBtn.addEventListener('click', () => {
       const d = this.dragonsData[this.carouselIndex];
       if (d) this.showDragonModal(d);
     });
 
-    // Modal buttons
     const modalSelect = document.getElementById('btnDdmSelect');
     if (modalSelect) modalSelect.addEventListener('click', () => this.selectCurrentDragon());
+
     const modalClose = document.getElementById('btnDdmClose');
     if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
 
@@ -773,6 +763,6 @@ class UIManager {
     }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
   }
-
-  /* All your other existing game mechanic helpers go here unchanged! */
 }
+
+export default UIManager;
