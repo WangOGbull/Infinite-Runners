@@ -752,6 +752,55 @@ class UIManager {
     });
   }
 
+  updateLobby(data = {}) {
+    try {
+      const { roomCode, mode, players = [], maxPlayers, isHost, arenaIndex, tier } = data;
+
+      const codeEl = document.getElementById('roomCodeDisplay');
+      if (codeEl && roomCode) codeEl.textContent = roomCode;
+
+      const modeEl = document.getElementById('lobbyGameMode');
+      if (modeEl && mode) modeEl.textContent = mode;
+
+      const countEl = document.getElementById('lobbyPlayerCount');
+      if (countEl) countEl.textContent = `${players.length} / ${maxPlayers || 4}`;
+
+      const slotsEl = document.getElementById('lobbySlots');
+      if (slotsEl && Array.isArray(players)) {
+        slotsEl.innerHTML = players.map(p => `
+          <div class="lobbyPlayerCard ${p.isLocal ? 'local' : ''}">
+            <div class="lobbyPlayerIcon">🐉</div>
+            <div class="lobbyPlayerInfo">
+              <div class="lobbyPlayerName">${p.name || 'Player'}</div>
+              <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
+            </div>
+          </div>
+        `).join('') || '';
+      }
+
+      if (typeof arenaIndex === 'number') {
+        document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.arena) === arenaIndex);
+        });
+      }
+
+      if (tier) {
+        document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.tier === tier);
+        });
+      }
+
+      const startBtn = document.getElementById('lobbyStartBtn');
+      const waitingText = document.getElementById('lobbyWaitingText');
+      if (startBtn) startBtn.style.display = isHost ? 'flex' : 'none';
+      if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+
+      if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+    } catch (e) {
+      console.warn('updateLobby: could not fully render lobby state', e);
+    }
+  }
+
   showCountdown(onComplete) {
     const overlay = document.getElementById('countdownOverlay');
     const textEl = document.getElementById('countdownText');
