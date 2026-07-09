@@ -752,18 +752,13 @@ class UIManager {
     });
   }
 
-  updateLobby(data = {}) {
+  updateLobby(players = [], maxPlayers = 4, roomCode = '', isHost = false) {
     try {
-      const { roomCode, mode, players = [], maxPlayers, isHost, arenaIndex, tier } = data;
-
       const codeEl = document.getElementById('roomCodeDisplay');
       if (codeEl && roomCode) codeEl.textContent = roomCode;
 
-      const modeEl = document.getElementById('lobbyGameMode');
-      if (modeEl && mode) modeEl.textContent = mode;
-
       const countEl = document.getElementById('lobbyPlayerCount');
-      if (countEl) countEl.textContent = `${players.length} / ${maxPlayers || 4}`;
+      if (countEl) countEl.textContent = `${players.length} / ${maxPlayers}`;
 
       const slotsEl = document.getElementById('lobbySlots');
       if (slotsEl && Array.isArray(players)) {
@@ -774,20 +769,9 @@ class UIManager {
               <div class="lobbyPlayerName">${p.name || 'Player'}</div>
               <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
             </div>
+            ${p.deposited ? '<span class="depositBadge confirmed"><i data-lucide="check"></i> Staked</span>' : ''}
           </div>
-        `).join('') || '';
-      }
-
-      if (typeof arenaIndex === 'number') {
-        document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
-          btn.classList.toggle('active', parseInt(btn.dataset.arena) === arenaIndex);
-        });
-      }
-
-      if (tier) {
-        document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
-          btn.classList.toggle('active', btn.dataset.tier === tier);
-        });
+        `).join('');
       }
 
       const startBtn = document.getElementById('lobbyStartBtn');
@@ -801,15 +785,165 @@ class UIManager {
     }
   }
 
-  showCountdown(onComplete) {
+  updateLobbyArena(arenaIndex, isHost) {
+    document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
+      const idx = parseInt(btn.dataset.arena);
+      btn.classList.toggle('active', idx === arenaIndex);
+      btn.disabled = !isHost;
+    });
+  }
+
+  updateTierAmounts(tiers) {
+    if (!tiers) return;
+    const map = {};
+    if (Array.isArray(tiers)) {
+      tiers.forEach(t => {
+        if (t && t.tier) map[t.tier] = t.amount ?? t.label ?? t.display;
+      });
+    } else if (typeof tiers === 'object') {
+      Object.assign(map, tiers);
+    }
+    ['Small', 'Medium', 'High'].forEach(tier => {
+      const btn = document.getElementById('tier' + tier);
+      if (!btn) return;
+      const amtEl = btn.querySelector('.tierAmt');
+      if (amtEl && map[tier] !== undefined) amtEl.textContent = map[tier];
+    });
+  }
+
+  updateStakingUI(state = {}) {
+    const { isHost, tier, hostDeposited, opponentDeposited, canDeposit } = state;
+    const myDeposited = isHost ? hostDeposited : opponentDeposited;
+
+    const depositBtn = document.getElementById('lobbyDepositBtn');
+    const label = document.getElementById('depositBtnLabel');
+    const statusText = document.getElementById('depositStatusText');
+
+    if (depositBtn) {
+      depositBtn.style.display = tier ? 'flex' : 'none';
+      depositBtn.disabled = !canDeposit || !!myDeposited;
+    }
+    if (label) {
+      label.textContent = myDeposited ? 'Deposit Locked' : (isHost ? 'Lock Stake & Open Room' : 'Lock Stake & Join');
+    }
+    if (statusText) {
+      if (hostDeposited && opponentDeposited) {
+        statusText.textContent = 'Both players staked — ready to battle!';
+        statusText.className = 'depositStatusText confirmed';
+      } else if (myDeposited) {
+        statusText.textContent = 'Waiting for opponent to deposit...';
+        statusText.className = 'depositStatusText pending';
+      } else {
+        statusText.textContent = '';
+        statusText.className = 'depositStatusText';
+      }
+    }
+    document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tier === tier);
+      btn.disabled = isHost ? !!hostDeposited : true;
+    });
+  }
+
+  updateHUD(score, timeStr, localDragon) {
+    const scoreEl = document.getElementById('scoreVal');
+    if (scoreEl && score !== undefined) scoreEl.textContent = score;
+
+    const timerEl = document.getElementById('timerDisplay');
+    if (timerEl && timeStr) timerEl.textContent = timeStr;
+
+    const livesHud = document.getElementById('livesHud');
+    if (livesHud && localDragon) {
+      livesHud.style.display = 'flex';
+      const lives = localDragon.lives || 0;
+      livesHud.innerHTML = lives > 0
+        ? Array.from({ length: lives }).map(() => '<i data-lucide="flame" style="color:#ff6b35;width:16px;height:16px;"></i>').join('')
+        : '<span style="color:#ff6b6b;font-size:11px;">No lives</span>';
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+  }
+
+  renderMinimap(canvas, camera, arenaManager, dragons, foods) {
+    if (!canvas || !arenaManager) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width = canvas.clientWidth || 90;
+    const h = canvas.height = canvas.clientHeight || 90;
+    ctx.clearRect(0, 0, w, h);
+
+    const bounds = arenaManager.getBounds();
+    const worldW = bounds.maxX - bounds.minX;
+    const worldH = bounds.maxY - bounds.minY;
+    if (!worldW || !worldH) return;
+    const scaleX = w / worldW;
+    const scaleY = h / worldH;
+    const toMini = (wx, wy) => ({ x: (wx - bounds.minX) * scaleX, y: (wy - bounds.minY) * scaleY });
+
+    ctx.fillStyle = 'rgba(0,180,216,0.7)';
+    (foods || []).forEach(f => {
+      const p = toMini(f.x, f.y);
+      ctx.fillRect(p.x, p.y, 1.5, 1.5);
+    });
+
+    (dragons || []).forEach(d => {
+      if (!d.alive) return;
+      const p = toMini(d.head.x, d.head.y);
+      ctx.beginPath();
+      ctx.fillStyle = '#ff6666';
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    if (camera) {
+      const viewW = (canvas.parentElement ? canvas.parentElement.clientWidth : w * camera.zoom) / camera.zoom;
+      const viewH = (canvas.parentElement ? canvas.parentElement.clientHeight : h * camera.zoom) / camera.zoom;
+      const topLeft = toMini(camera.x - viewW / 2, camera.y - viewH / 2);
+      const rectW = viewW * scaleX;
+      const rectH = viewH * scaleY;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(topLeft.x, topLeft.y, rectW, rectH);
+    }
+  }
+
+  updateGameOver(stats = {}) {
+    const map = {
+      goTime: stats.time,
+      goCollect: stats.collected,
+      goKills: stats.kills,
+      goDeaths: stats.deaths,
+      goLives: stats.lives
+    };
+    Object.entries(map).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (el && val !== undefined) el.textContent = val;
+    });
+  }
+
+  showMatchStats(stats = [], winner) {
+    const titleEl = document.getElementById('goTitle');
+    if (!titleEl) return;
+    const localStat = Array.isArray(stats) ? stats.find(s => s.isLocal) : null;
+    const localWon = winner && localStat && winner.id === localStat.id;
+    if (!winner) {
+      titleEl.textContent = 'DRAW';
+      titleEl.style.color = '#48cae4';
+    } else if (localWon) {
+      titleEl.textContent = 'VICTORY!';
+      titleEl.style.color = '#4ade80';
+    } else {
+      titleEl.textContent = 'DEFEATED';
+      titleEl.style.color = '#ff4d4d';
+    }
+  }
+
+  showCountdown(seconds, onComplete) {
     const overlay = document.getElementById('countdownOverlay');
     const textEl = document.getElementById('countdownText');
+    let count = typeof seconds === 'number' ? seconds : 3;
     if (!overlay || !textEl) {
       if (typeof onComplete === 'function') onComplete();
       return;
     }
     overlay.classList.add('active');
-    let count = 3;
     textEl.textContent = count;
     const tick = () => {
       count--;
@@ -832,9 +966,9 @@ class UIManager {
     if (overlay) overlay.classList.remove('active');
   }
 
-  showPauseOverlay() {
+  showPauseOverlay(visible = true) {
     const el = document.getElementById('pauseOverlay');
-    if (el) el.classList.add('active');
+    if (el) el.classList.toggle('active', !!visible);
   }
 
   hidePauseOverlay() {
