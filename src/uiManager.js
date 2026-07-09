@@ -157,13 +157,6 @@ class UIManager {
     const key = name.toLowerCase();
     const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
 
-    // Give the whole stage a soft radial glow matching this dragon's color
-    // (adds depth / per-dragon identity instead of one flat gradient for every dragon)
-    const stage = document.querySelector('.dsDragonStage');
-    if (stage) {
-      stage.style.background = `radial-gradient(ellipse at 50% 62%, ${color}22, transparent 65%)`;
-    }
-
     const imgEl = document.getElementById('dsDragonImg');
     const newHeadUrl = DRAGON_IMAGES[key];
     if (imgEl) {
@@ -221,15 +214,14 @@ class UIManager {
 
     if (isSelected) {
       if (selectBtn) selectBtn.style.display = 'none';
-      if (leftArrow) leftArrow.style.display = 'none';
-      if (rightArrow) rightArrow.style.display = 'none';
       if (ageBtn) ageBtn.style.display = 'flex';
     } else {
       if (selectBtn) selectBtn.style.display = 'flex';
-      if (leftArrow) leftArrow.style.display = 'flex';
-      if (rightArrow) rightArrow.style.display = 'flex';
       if (ageBtn) ageBtn.style.display = 'none';
     }
+    // Arrows always stay visible so you can browse dragons whether or not one is selected
+    if (leftArrow) leftArrow.style.display = 'flex';
+    if (rightArrow) rightArrow.style.display = 'flex';
 
     if (selectBtn) {
       selectBtn.textContent = 'SELECT';
@@ -758,6 +750,47 @@ class UIManager {
         document.getElementById('htp' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1))?.classList.add('active');
       });
     });
+  }
+
+  showCountdown(onComplete) {
+    const overlay = document.getElementById('countdownOverlay');
+    const textEl = document.getElementById('countdownText');
+    if (!overlay || !textEl) {
+      if (typeof onComplete === 'function') onComplete();
+      return;
+    }
+    overlay.classList.add('active');
+    let count = 3;
+    textEl.textContent = count;
+    const tick = () => {
+      count--;
+      if (count > 0) {
+        textEl.textContent = count;
+        setTimeout(tick, 1000);
+      } else if (count === 0) {
+        textEl.textContent = 'GO!';
+        setTimeout(tick, 700);
+      } else {
+        overlay.classList.remove('active');
+        if (typeof onComplete === 'function') onComplete();
+      }
+    };
+    setTimeout(tick, 1000);
+  }
+
+  hideCountdown() {
+    const overlay = document.getElementById('countdownOverlay');
+    if (overlay) overlay.classList.remove('active');
+  }
+
+  showPauseOverlay() {
+    const el = document.getElementById('pauseOverlay');
+    if (el) el.classList.add('active');
+  }
+
+  hidePauseOverlay() {
+    const el = document.getElementById('pauseOverlay');
+    if (el) el.classList.remove('active');
   }
 
   setWalletModalState(state) {
