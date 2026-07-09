@@ -39,7 +39,7 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 #dragonSelectScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
 #dragonSelectScreen .dsInner{width:100%;height:100%;display:flex;flex-direction:column}
 
-.dsCarouselWrap{position:relative;width:100%;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:20px;overflow:hidden}
+.dsCarouselWrap{position:relative;width:100%;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:20px;padding-bottom:16px;overflow-y:auto;overflow-x:hidden}
 
 .dsTopBar{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 20px;margin-bottom:10px}
 
@@ -49,7 +49,7 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .dsCoinDisplay{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:50px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,180,216,0.2);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;color:#00b4d8}
 .dsCoinDisplay i{color:#ffd700}
 
-.dsDragonStage{position:relative;width:100%;max-width:500px;height:45vh;min-height:280px;display:flex;align-items:center;justify-content:center;border-radius:20px;overflow:hidden}
+.dsDragonStage{position:relative;width:100%;max-width:500px;height:36vh;min-height:220px;display:flex;align-items:center;justify-content:center;border-radius:20px;overflow:hidden}
 
 /* Ground shadow beneath the dragon — this + the float animation on
    .dsDragonImgWrap below is what mainly kills the "flat 2D" look */
