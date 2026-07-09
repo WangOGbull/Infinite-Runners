@@ -760,6 +760,50 @@ class UIManager {
     });
   }
 
+  setWalletModalState(state) {
+    const views = {
+      disconnected: document.getElementById('walletDisconnectedView'),
+      connecting: document.getElementById('walletConnectingView'),
+      connected: document.getElementById('walletConnectedView')
+    };
+    Object.entries(views).forEach(([key, el]) => {
+      if (el) el.style.display = key === state ? 'block' : 'none';
+    });
+    const errEl = document.getElementById('walletError');
+    if (errEl && state !== 'disconnected') errEl.style.display = 'none';
+  }
+
+  updateWalletDisplay(address, balance) {
+    const addrEl = document.getElementById('wAddressDisplay');
+    if (addrEl && address) {
+      addrEl.textContent = address.length > 12
+        ? `${address.slice(0, 6)}...${address.slice(-4)}`
+        : address;
+    }
+    const balEl = document.getElementById('wBalanceDisplay');
+    if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
+    this.updateWalletButton(address);
+  }
+
+  updateWalletButton(address) {
+    const btn = document.getElementById('walletBtn');
+    if (!btn) return;
+    const label = btn.querySelector('span');
+    if (address) {
+      btn.classList.add('connected');
+      if (label) label.textContent = `${address.slice(0, 4)}...${address.slice(-4)}`;
+    } else {
+      btn.classList.remove('connected');
+      if (label) label.textContent = 'Connect Wallet';
+    }
+  }
+
+  toggleScoreboard() {
+    const el = document.getElementById('scoreboardOverlay');
+    if (!el) return;
+    el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+  }
+
   showScreen(screenId) {
     Object.values(this.screens).forEach(s => {
       if (s) s.classList.remove('active');
