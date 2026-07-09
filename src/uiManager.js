@@ -157,6 +157,13 @@ class UIManager {
     const key = name.toLowerCase();
     const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
 
+    // Give the whole stage a soft radial glow matching this dragon's color
+    // (adds depth / per-dragon identity instead of one flat gradient for every dragon)
+    const stage = document.querySelector('.dsDragonStage');
+    if (stage) {
+      stage.style.background = `radial-gradient(ellipse at 50% 62%, ${color}22, transparent 65%)`;
+    }
+
     const imgEl = document.getElementById('dsDragonImg');
     const newHeadUrl = DRAGON_IMAGES[key];
     if (imgEl) {
