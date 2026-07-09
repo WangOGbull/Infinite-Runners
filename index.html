@@ -1,1075 +1,852 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Infinite Runners - Dragons Arena</title>
-
-<!-- Lucide Icons -->
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-
-<!-- Solana web3.js (exposes window.solanaWeb3) -->
-<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
-
-<!-- tweetnacl (needed for Phantom's mobile deep-link encryption handshake) -->
-<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
-
-<!-- Google Fonts -->
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-<!-- FontAwesome for your icons -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-<link rel="stylesheet" href="./src/styles.css">
-
-<style>
-  /* Mobile dragon select scroll fix */
-  #dragonSelectScreen {
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-  #dragonSelectScreen .dsInner {
-    padding-bottom: 80px;
-    min-height: 100vh;
-  }
-
-  /* Wallet integration */
-  #walletBtn.connected {
-    background: rgba(0,180,216,0.15);
-    border: 1px solid rgba(0,180,216,0.5);
-  }
-  .wHint {
-    color: #8b93a6;
-    font-size: 12px;
-    text-align: center;
-    margin-top: 12px;
-  }
-  .wSpinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid rgba(171,159,242,0.2);
-    border-top-color: #ab9ff2;
-    border-radius: 50%;
-    margin: 20px auto;
-    animation: wSpin 0.8s linear infinite;
-  }
-  @keyframes wSpin { to { transform: rotate(360deg); } }
-  #walletConnectingView p {
-    text-align: center;
-    color: #c8ccd8;
-    font-size: 13px;
-  }
-  .wAccountRow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 12px;
-    margin-bottom: 12px;
-  }
-  .wAccountInfo { flex: 1; min-width: 0; }
-  .wAddress {
-    font-family: monospace;
-    font-size: 14px;
-    color: #e8d5a3;
-    letter-spacing: 0.5px;
-  }
-  .wBalance {
-    font-size: 12px;
-    color: #00b4d8;
-    margin-top: 6px;
-  }
-  .wTestBtn, .wDisconnectBtn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    cursor: pointer;
-    margin-top: 8px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(255,255,255,0.03);
-    color: #e0e0e0;
-  }
-  .wTestBtn:hover { border-color: #00b4d8; color: #00b4d8; }
-  .wDisconnectBtn:hover { border-color: #ff4444; color: #ff4444; }
-  .wSignResult {
-    font-size: 11px;
-    text-align: center;
-    margin-top: 8px;
-    min-height: 14px;
-    word-break: break-all;
-    color: #8b93a6;
-  }
-  .wSignOk { color: #4dff88; font-size: 12px; }
-  .wSignFail { color: #ff4444; font-size: 12px; }
-  .wSignHash { font-family: monospace; margin-top: 4px; }
-  .wError {
-    color: #ff4444;
-    font-size: 12px;
-    text-align: center;
-    margin-top: 12px;
-    background: rgba(255,68,68,0.08);
-    border: 1px solid rgba(255,68,68,0.2);
-    border-radius: 6px;
-    padding: 8px;
-  }
-
-  /* Scan Button Styling */
-  #btnWalletRefreshInline {
-    margin-left: 10px;
-    padding: 4px 10px;
-    background: #2a2a3a;
-    border: 1px solid #444;
-    border-radius: 4px;
-    color: #fff;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  #btnWalletRefreshInline:hover {
-    background: #3a3a4a;
-    border-color: #00b4d8;
-  }
-
-  /* Lives HUD — Dragon Age style flame orbs */
-  #livesHud {
-    position: fixed;
-    top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: none;
-    align-items: center;
-    gap: 6px;
-    z-index: 100;
-    background: rgba(0,0,0,0.5);
-    padding: 6px 16px;
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.1);
-    font-family: 'Rajdhani', sans-serif;
-  }
-
-  /* Scoreboard Overlay */
-  #scoreboardOverlay {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    display: none;
-    flex-direction: column;
-    background: rgba(7,16,24,0.95);
-    border: 1px solid rgba(0,180,216,0.3);
-    border-radius: 12px;
-    padding: 20px;
-    min-width: 300px;
-    max-width: 90vw;
-    z-index: 200;
-    color: #fff;
-    font-family: 'Rajdhani', sans-serif;
-  }
-
-  /* Match Stats Overlay */
-  #matchStatsOverlay {
-    position: fixed;
-    top: 0; left: 0; width: 100vw; height: 100vh;
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.92);
-    z-index: 300;
-    color: #fff;
-    font-family: 'Rajdhani', sans-serif;
-  }
-
-  #winnerCelebration {
-    text-align: center;
-    margin-bottom: 30px;
-  }
-  #winnerCelebration .victoryTitle {
-    font-family: 'Cinzel Decorative', serif;
-    font-size: 42px;
-    color: #ffd700;
-    text-shadow: 0 0 30px rgba(255,215,0,0.5), 0 0 60px rgba(201,168,76,0.3);
-    letter-spacing: 4px;
-  }
-  #winnerName {
-    font-size: 24px;
-    color: #00b4d8;
-    margin-top: 10px;
-  }
-  .prizePool {
-    font-size: 14px;
-    color: #8b93a6;
-    margin-top: 5px;
-  }
-  .prizePool span {
-    color: #ffd700;
-  }
-
-  #matchStatsTable {
-    width: 90%;
-    max-width: 600px;
-  }
-
-  #btnCloseMatchStats {
-    margin-top: 30px;
-    padding: 12px 40px;
-    background: transparent;
-    border: 1px solid rgba(0,180,216,0.5);
-    color: #00b4d8;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    transition: all 0.2s;
-  }
-  #btnCloseMatchStats:hover {
-    background: rgba(0,180,216,0.1);
-    border-color: #00b4d8;
-  }
-
-  /* Game Over screen dynamic title */
-  #goTitle {
-    font-family: 'Cinzel Decorative', serif;
-    font-size: 48px;
-    margin-bottom: 20px;
-    transition: all 0.3s ease;
-  }
-
-  /* ===== DRAGON SELECT CAROUSEL STYLES ===== */
-  #dragonSelectScreen {
-    background: linear-gradient(180deg, #030814 0%, #0a1628 50%, #06122e 100%);
-  }
-
-  .dsCarouselWrap {
-    position: relative;
-    width: 100%;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    padding-top: 20px;
-    padding-bottom: 16px;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  .dsTopBar {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    margin-bottom: 10px;
-  }
-
-  .dsBackBtn {
-    padding: 6px 14px;
-    border-radius: 50px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(255,255,255,0.03);
-    color: rgba(255,255,255,0.5);
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 600;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all .2s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .dsBackBtn:hover { color: #fff; border-color: rgba(255,255,255,0.2); }
-
-  .dsCoinDisplay {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border-radius: 50px;
-    background: rgba(0,0,0,0.4);
-    border: 1px solid rgba(0,180,216,0.2);
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 700;
-    font-size: 13px;
-    color: #00b4d8;
-  }
-  .dsCoinDisplay i { color: #ffd700; }
-
-  .dsDragonStage {
-    position: relative;
-    width: 100%;
-    max-width: 500px;
-    height: 36vh;
-    min-height: 220px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .dsArrow {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: 1px solid rgba(0,180,216,0.25);
-    background: rgba(0,0,0,0.4);
-    color: #00b4d8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all .2s;
-    z-index: 10;
-    font-size: 18px;
-  }
-  .dsArrow:hover {
-    border-color: rgba(0,180,216,0.6);
-    background: rgba(0,180,216,0.1);
-    box-shadow: 0 0 16px rgba(0,180,216,0.2);
-  }
-  .dsArrowLeft { left: 12px; }
-  .dsArrowRight { right: 12px; }
-
-  .dsDragonImgWrap {
-    width: 70%;
-    max-width: 320px;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-
-  .dsDragonImgWrap img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    filter: drop-shadow(0 0 30px rgba(0,180,216,0.15));
-    transition: all 0.4s ease;
-  }
-
-  .dsDragonInfo {
-    text-align: center;
-    margin-bottom: 12px;
-  }
-
-  .dsDragonName {
-    font-family: 'Cinzel Decorative', cursive;
-    font-size: 24px;
-    letter-spacing: 3px;
-    color: #c77dff;
-    text-shadow: 0 0 20px rgba(155,77,255,0.3);
-  }
-
-  .dsDragonTier {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 11px;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.4);
-    margin-top: 4px;
-  }
-
-  .dsDragonTier span {
-    color: #00b4d8;
-    font-weight: 600;
-  }
-
-  .dsXpBarWrap {
-    width: 80%;
-    max-width: 320px;
-    margin: 0 auto 16px;
-  }
-
-  .dsXpBarTop {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-  }
-
-  .dsXpBarTop .dsLevelNum {
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    color: #00b4d8;
-  }
-
-  .dsXpBarTop .dsXpText {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 11px;
-    color: rgba(255,255,255,0.4);
-  }
-
-  .dsXpBar {
-    width: 100%;
-    height: 6px;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.06);
-    overflow: hidden;
-    position: relative;
-  }
-
-  .dsXpBarFill {
-    height: 100%;
-    border-radius: 4px;
-    background: linear-gradient(90deg, #00b4d8, #48cae4);
-    transition: width 0.6s ease;
-    box-shadow: 0 0 8px rgba(0,180,216,0.3);
-  }
-
-  .dsPowersGrid {
-    width: 90%;
-    max-width: 420px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-  .dsPowerCard {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.2s;
-  }
-
-  .dsPowerCard:hover {
-    border-color: rgba(0,180,216,0.15);
-    background: rgba(255,255,255,0.04);
-  }
-
-  .dsPowerName {
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 600;
-    font-size: 11px;
-    letter-spacing: 1px;
-    color: rgba(255,255,255,0.5);
-    text-transform: uppercase;
-  }
-
-  .dsPowerLevelRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .dsPowerLevel {
-    font-family: 'Cinzel Decorative', cursive;
-    font-size: 18px;
-    color: #fff;
-  }
-
-  .dsPowerBar {
-    flex: 1;
-    height: 4px;
-    border-radius: 3px;
-    background: rgba(255,255,255,0.06);
-    margin: 0 8px;
-    overflow: hidden;
-  }
-
-  .dsPowerBarFill {
-    height: 100%;
-    border-radius: 3px;
-    background: linear-gradient(90deg, #9b4dff, #00b4d8);
-    transition: width 0.4s ease;
-  }
-
-  .dsUpgradeBtn {
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid rgba(0,180,216,0.3);
-    background: rgba(0,180,216,0.08);
-    color: #00b4d8;
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 700;
-    font-size: 10px;
-    letter-spacing: 1px;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .dsUpgradeBtn:hover {
-    background: rgba(0,180,216,0.15);
-    border-color: rgba(0,180,216,0.5);
-    box-shadow: 0 0 10px rgba(0,180,216,0.15);
-  }
-
-  .dsUpgradeBtn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .dsUpgradeBtn.maxed {
-    border-color: rgba(74,222,128,0.3);
-    background: rgba(74,222,128,0.08);
-    color: #4ade80;
-  }
-
-  .dsSelectRow {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-
-  .dsSelectBadge {
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 600;
-    font-size: 11px;
-    letter-spacing: 1px;
-    padding: 4px 12px;
-    border-radius: 20px;
-    background: rgba(255,68,68,0.1);
-    border: 1px solid rgba(255,68,68,0.3);
-    color: #ff6b6b;
-  }
-
-  .dsSelectBadge.selected {
-    background: rgba(74,222,128,0.1);
-    border-color: rgba(74,222,128,0.3);
-    color: #4ade80;
-  }
-
-  .dsSelectBtn {
-    padding: 12px 48px;
-    border-radius: 50px;
-    border: none;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: #fff;
-    font-family: 'Cinzel Decorative', cursive;
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: 3px;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 4px 20px rgba(34,197,94,0.3);
-  }
-
-  .dsSelectBtn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 28px rgba(34,197,94,0.4);
-  }
-
-  .dsSelectBtn:active {
-    transform: scale(0.97);
-  }
-
-  .dsNavDots {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    margin-bottom: 10px;
-  }
-
-  .dsNavDot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.15);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .dsNavDot.active {
-    background: #00b4d8;
-    box-shadow: 0 0 8px rgba(0,180,216,0.4);
-    width: 20px;
-    border-radius: 4px;
-  }
-
-  .dsBottomNav {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    gap: 0;
-    padding: 8px 0;
-    background: rgba(0,0,0,0.4);
-    border-top: 1px solid rgba(255,255,255,0.06);
-  }
-
-  .dsBottomNavBtn {
-    flex: 1;
-    max-width: 100px;
-    padding: 8px 4px;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    color: rgba(255,255,255,0.35);
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 600;
-    font-size: 10px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .dsBottomNavBtn i {
-    width: 18px;
-    height: 18px;
-    opacity: 0.5;
-  }
-
-  .dsBottomNavBtn:hover {
-    color: rgba(255,255,255,0.6);
-  }
-
-  .dsBottomNavBtn.active {
-    color: #00b4d8;
-    border-bottom-color: #00b4d8;
-  }
-  .dsBottomNavBtn.active i {
-    opacity: 1;
-    color: #00b4d8;
-  }
-
-  /* Power upgrade flash animation */
-  @keyframes powerFlash {
-    0% { box-shadow: 0 0 0 rgba(0,180,216,0); }
-    50% { box-shadow: 0 0 20px rgba(0,180,216,0.4); border-color: rgba(0,180,216,0.5); }
-    100% { box-shadow: 0 0 0 rgba(0,180,216,0); }
-  }
-  .dsPowerCard.flash {
-    animation: powerFlash 0.5s ease;
-  }
-
-  @media(max-width: 480px) {
-    .dsDragonName { font-size: 18px; }
-    .dsPowersGrid { grid-template-columns: 1fr; gap: 8px; }
-    .dsDragonStage { height: 35vh; min-height: 200px; }
-    .dsArrow { width: 36px; height: 36px; font-size: 14px; }
-    .dsSelectBtn { padding: 10px 36px; font-size: 12px; }
-  }
-</style>
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
-</head>
-<body>
-
-<!-- ===== PARTICLE BACKGROUND CANVAS ===== -->
-<canvas id="pCanvas"></canvas>
-
-<!-- ===== TITLE SCREEN ===== -->
-<div id="titleScreen" class="screen active" style="background-image:url('./shadow-drake-bg.png');background-size:cover;background-position:center;background-repeat:no-repeat;">
-  <div class="darken"></div>
-  <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button>
-  <div class="content">
-    <h1>Infinite Runners</h1>
-    <h2>^Dragons Arena^</h2>
-    <h3>Chronicles of the Void</h3>
-    <p class="subtitle">^ Free to Play ^</p>
-    <button class="playBtn" id="btnPlayNow"><i data-lucide="play"></i> PLAY NOW</button>
-    <div class="menuBtns">
-      <button class="menuBtn" id="btnStartGame"><i data-lucide="gamepad-2"></i> Start Game</button>
-      <button class="menuBtn" id="btnLeaderboard"><i data-lucide="trophy"></i> Leaderboard</button>
-      <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button>
-    </div>
-  </div>
-  <span class="copyright">2025 Infinite Runners Dragons Arena. All rights reserved.</span>
-</div>
-
-<!-- ===== DRAGON SELECT (CAROUSEL) ===== -->
-<div id="dragonSelectScreen" class="screen">
-  <div class="dsInner" style="width:100%;height:100%;display:flex;flex-direction:column;">
-    <div class="dsTopBar">
-      <button class="dsBackBtn" id="btnDsBack"><i data-lucide="arrow-left"></i> Back</button>
-      <div class="dsCoinDisplay" id="dsCoinDisplay">
-        <i data-lucide="coins"></i>
-        <span id="dsCoinAmount">1,000,000</span>
-      </div>
-    </div>
-
-    <div class="dsCarouselWrap">
-      <div class="dsDragonStage">
-        <button class="dsArrow dsArrowLeft" id="dsArrowLeft"><i data-lucide="chevron-left"></i></button>
-        <div class="dsDragonImgWrap" id="dsDragonImgWrap">
-          <img id="dsDragonImg" src="" alt="Dragon">
+import { DRAGON_IMAGES, DRAGON_POWERS } from './config.js';
+
+class UIManager {
+  constructor(eventBus) {
+    this.eventBus = eventBus;
+    this.screens = {};
+    this.currentScreen = 'title';
+    this.selectedDragon = null;
+    this.selectedMode = 'FFA';
+    this.isHost = false;
+    this.roomCode = '';
+    this.selectedDifficulty = 'advanced';
+    this.selectedMpMode = 'FFA';
+    this.selectedArena = 0;
+    this.selectedTier = null;
+    this.tierAmounts = null;
+
+    this.carouselIndex = 0;
+    this.dragonsData = [];
+    this.dragonPowers = {};
+    this.playerCoins = 1000000;
+    this.selectedDragonName = null;
+    this._modalDragon = null;
+
+    try {
+        this.initScreens();
+        this.createDynamicModals();
+        this.buildModeSelect();
+        this.initLucide();
+        this.initParticles();
+        this.bindEvents();
+        console.log("✅ UIManager loaded successfully.");
+    } catch (e) {
+        console.error("🚨 UI Manager Crash:", e);
+    }
+  }
+
+  isMobile() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }
+
+  initScreens() {
+    const screenIds = [
+      'titleScreen', 'dragonSelectScreen', 'modeSelectScreen',
+      'mpMenuScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
+      'gameOverScreen', 'howToPlayScreen', 'walletModal',
+      'mpGameOver', 'loadingOverlay', 'dragonDetailModal'
+    ];
+    screenIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) this.screens[id] = el;
+    });
+  }
+
+  createDynamicModals() {
+    const diffModal = document.createElement('div');
+    diffModal.id = 'difficultyModal';
+    diffModal.className = 'screen';
+    diffModal.innerHTML = `
+      <div class="difficultyBox">
+        <h2>Select Difficulty</h2>
+        <div class="difficultyGrid">
+          <button class="diffBtn" data-diff="beginner">Beginner</button>
+          <button class="diffBtn" data-diff="easy">Easy</button>
+          <button class="diffBtn" data-diff="advanced">Advanced</button>
+          <button class="diffBtn" data-diff="master">Master</button>
+          <button class="diffBtn" data-diff="legendary">Legendary</button>
         </div>
-        <button class="dsArrow dsArrowRight" id="dsArrowRight"><i data-lucide="chevron-right"></i></button>
+        <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
       </div>
+    `;
+    document.body.appendChild(diffModal);
+    this.screens['difficultyModal'] = diffModal;
 
-      <div class="dsDragonInfo">
-        <div class="dsDragonName" id="dsDragonName">AEGIS</div>
-        <div class="dsDragonTier">TIER <span id="dsDragonTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="dsDragonLevel">1</span></div>
-      </div>
-
-      <div class="dsXpBarWrap">
-        <div class="dsXpBarTop">
-          <span class="dsLevelNum" id="dsXpLevelStart">1</span>
-          <span class="dsXpText" id="dsXpText">0 / 5,200</span>
-          <span class="dsLevelNum" id="dsXpLevelEnd">2</span>
+    const arenaModal = document.createElement('div');
+    arenaModal.id = 'arenaSelectModal';
+    arenaModal.className = 'screen';
+    arenaModal.innerHTML = `
+      <div class="arenaSelectInner">
+        <h2>Select Arena</h2>
+        <div class="arenaGrid">
+          <div class="arenaCard" data-arena="0">
+            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png)"></div>
+            <div class="arenaName">Stone Castle</div>
+          </div>
+          <div class="arenaCard" data-arena="1">
+            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png)"></div>
+            <div class="arenaName">Grass Field</div>
+          </div>
+          <div class="arenaCard" data-arena="2">
+            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png)"></div>
+            <div class="arenaName">Purple Magic</div>
+          </div>
+          <div class="arenaCard" data-arena="3">
+            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png)"></div>
+            <div class="arenaName">Fire Arena</div>
+          </div>
         </div>
-        <div class="dsXpBar">
-          <div class="dsXpBarFill" id="dsXpBarFill" style="width: 0%;"></div>
+        <button id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
+      </div>
+    `;
+    document.body.appendChild(arenaModal);
+    this.screens['arenaSelectModal'] = arenaModal;
+
+    const mpModeSelect = document.createElement('div');
+    mpModeSelect.id = 'mpModeSelect';
+    mpModeSelect.className = 'screen';
+    mpModeSelect.innerHTML = `
+      <div class="mpModeBox">
+        <h2>Multiplayer Mode</h2>
+        <div class="mpModeGrid">
+          <div class="modeCard" data-mpmode="1v1">
+            <div class="mIcon"><i data-lucide="swords"></i></div>
+            <div class="mLabel">1v1 Duel</div>
+            <div class="mDesc">One on one battle.</div>
+          </div>
+          <div class="modeCard" data-mpmode="2v2">
+            <div class="mIcon"><i data-lucide="users"></i></div>
+            <div class="mLabel">2v2 Teams</div>
+            <div class="mDesc">Team up and fight together.</div>
+          </div>
+          <div class="modeCard" data-mpmode="FFA">
+            <div class="mIcon"><i data-lucide="globe"></i></div>
+            <div class="mLabel">Free For All</div>
+            <div class="mDesc">Every dragon for itself.</div>
+          </div>
         </div>
+        <button class="menuBtn" id="btnMpModeBack"><i data-lucide="arrow-left"></i> Back</button>
       </div>
+    `;
+    document.body.appendChild(mpModeSelect);
+    this.screens['mpModeSelect'] = mpModeSelect;
+  }
 
-      <div class="dsPowersGrid" id="dsPowersGrid">
-        <!-- Powers injected by JS -->
-      </div>
+  buildModeSelect() {}
 
-      <div class="dsSelectRow">
-        <span class="dsSelectBadge" id="dsSelectBadge">NOT SELECTED</span>
-        <button class="dsSelectBtn" id="dsSelectBtn">SELECT</button>
-        <button class="dsDragonAgeBtn" id="dsDragonAgeBtn" style="display:none;">
-          <i data-lucide="swords"></i> ENTER BATTLE
-        </button>
-      </div>
+  initDragonCarousel(dragons) {
+    this.dragonsData = dragons;
+    this.carouselIndex = 0;
+    try {
+      const saved = localStorage.getItem('dragonPowers');
+      if (saved) this.dragonPowers = JSON.parse(saved);
+    } catch (e) { this.dragonPowers = {}; }
+    try {
+      const savedCoins = localStorage.getItem('playerCoins');
+      if (savedCoins) this.playerCoins = parseInt(savedCoins);
+    } catch (e) {}
+    this.renderCarousel();
+    this.updateCoinDisplay();
+  }
 
-      <div class="dsNavDots" id="dsNavDots">
-        <!-- Dots injected by JS -->
-      </div>
-    </div>
+  renderCarousel() {
+    const d = this.dragonsData[this.carouselIndex];
+    if (!d) return;
 
-    <div class="dsBottomNav">
-      <button class="dsBottomNavBtn active" data-tab="dragons"><i data-lucide="flame"></i>Dragons</button>
-      <button class="dsBottomNavBtn" data-tab="campaign"><i data-lucide="map"></i>Campaign</button>
-      <button class="dsBottomNavBtn" data-tab="quests"><i data-lucide="scroll-text"></i>Quests</button>
-      <button class="dsBottomNavBtn" data-tab="shop"><i data-lucide="shopping-bag"></i>Shop</button>
-    </div>
-  </div>
-</div>
+    const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
+    const key = name.toLowerCase();
+    const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
 
-<!-- ===== MODE SELECT (1v1 AI + Multiplayer only) ===== -->
-<div id="modeSelectScreen" class="screen">
-  <div class="modeBox">
-    <h2>Choose Battle Mode</h2>
-    <p class="sub">Select how you want to play</p>
-    <div class="modeCards">
-      <div class="modeCard" id="btn1v1AI" data-mode="1v1AI">
-        <div class="mIcon"><i data-lucide="swords"></i></div>
-        <div class="mLabel">1v1 vs AI</div>
-        <div class="mDesc">Battle solo against AI bots. Perfect for practice.</div>
-      </div>
-      <div class="modeCard" id="btnMpMultiplayer" data-mode="multiplayer">
-        <div class="mIcon"><i data-lucide="wifi"></i></div>
-        <div class="mLabel">Multiplayer</div>
-        <div class="mDesc">Play online with friends via room code.</div>
-      </div>
-    </div>
-    <button class="menuBtn" id="btnModeBack"><i data-lucide="arrow-left"></i> Back to Dragons</button>
-  </div>
-</div>
+    const imgEl = document.getElementById('dsDragonImg');
+    const newHeadUrl = DRAGON_IMAGES[key];
+    if (imgEl) {
+      imgEl.src = newHeadUrl || (typeof d.head === 'string' ? d.head : (d.head && d.head.src ? d.head.src : ''));
+      imgEl.style.filter = `drop-shadow(0 0 30px ${color}25)`;
+    }
 
-<!-- ===== MULTIPLAYER MENU ===== -->
-<div id="mpMenuScreen" class="screen">
-  <div class="mpBox">
-    <h2>Multiplayer</h2>
-    <p class="sub">Create or join a battle room</p>
-    <div class="modeCards">
-      <div class="modeCard" id="btnMpCreate">
-        <div class="mIcon"><i data-lucide="plus-circle"></i></div>
-        <div class="mLabel">Create Room</div>
-        <div class="mDesc">Start a new room and invite friends.</div>
-      </div>
-    </div>
-    <div class="mpJoinSection">
-      <div class="joinTitle">Join Room</div>
-      <p class="joinSub">Enter a 6-digit room code</p>
-      <div class="mpJoinRow">
-        <input type="text" id="mpRoomInput" class="mpRoomInput" placeholder="000000" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
-        <button class="mpJoinBtn" id="btnMpJoin"><i data-lucide="log-in"></i> Join</button>
-      </div>
-      <p class="mpJoinError" id="mpJoinError"></p>
-    </div>
-    <button class="menuBtn" id="btnMpBack"><i data-lucide="arrow-left"></i> Back to Mode</button>
-  </div>
-</div>
+    const imgWrap = document.getElementById('dsDragonImgWrap');
+    if (imgWrap) {
+      imgWrap.style.cursor = 'pointer';
+      imgWrap.onclick = (e) => {
+        e.stopPropagation();
+        const currentD = this.dragonsData[this.carouselIndex];
+        if (currentD) this.showDragonModal(currentD);
+      };
+    }
 
-<!-- ===== LOBBY ===== -->
-<div id="lobbyScreen" class="screen">
-  <div class="lobbyBox">
-    <h2>Game Lobby</h2>
-    <div class="roomCodeRow">
-      <span class="roomLabel">Room Code:</span>
-      <span id="roomCodeDisplay">------</span>
-    </div>
-    <div class="lobbyMeta">
-      <span id="lobbyGameMode">Free For All</span> | <span id="lobbyPlayerCount">1 / 4</span>
-    </div>
-    <div class="modeSelectorHost" id="modeSelectorHost">
-      <label>Mode:</label>
-      <button id="lobbyModeFfa" class="active">FFA</button>
-      <button id="lobbyMode2v2">2v2</button>
-    </div>
+    const nameEl = document.getElementById('dsDragonName');
+    if (nameEl) {
+      nameEl.textContent = name.toUpperCase();
+      nameEl.style.color = color;
+      nameEl.style.textShadow = `0 0 20px ${color}40`;
+    }
 
-    <!-- ===== STAKING: tier selector (1v1 rooms only) ===== -->
-    <div class="lobbyTierSelector" id="lobbyTierSelector" style="display:none;">
-      <label>Stake Tier:</label>
-      <div class="tierBtns" id="tierBtns">
-        <button class="tierBtn" data-tier="Small" id="tierSmall">
-          <span class="tierDot small" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span> Small<br><span class="tierAmt">-- INFINITE</span>
-        </button>
-        <button class="tierBtn" data-tier="Medium" id="tierMedium">
-          <span class="tierDot medium" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#eab308;"></span> Medium<br><span class="tierAmt">-- INFINITE</span>
-        </button>
-        <button class="tierBtn" data-tier="High" id="tierHigh">
-          <span class="tierDot high" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> High<br><span class="tierAmt">-- INFINITE</span>
-        </button>
-      </div>
-      <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
-    </div>
+    const powers = this.getDragonPowers(key);
+    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
+    const tierEl = document.getElementById('dsDragonTierNum');
+    const levelEl = document.getElementById('dsDragonLevel');
+    if (tierEl) tierEl.textContent = avgLevel;
+    if (levelEl) levelEl.textContent = avgLevel;
 
-    <div class="lobbyArenaSelector" id="lobbyArenaSelector">
-      <label>Arena:</label>
-      <div class="arenaThumbs" id="lobbyArenaThumbs">
-        <button data-arena="0" class="arenaThumb active" id="lobbyArena0">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png" alt="Stone">
-          <span>Stone</span>
-        </button>
-        <button data-arena="1" class="arenaThumb" id="lobbyArena1">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png" alt="Grass">
-          <span>Grass</span>
-        </button>
-        <button data-arena="2" class="arenaThumb" id="lobbyArena2">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png" alt="Purple">
-          <span>Purple</span>
-        </button>
-        <button data-arena="3" class="arenaThumb" id="lobbyArena3">
-          <img src="https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png" alt="Fire">
-          <span>Fire</span>
-        </button>
-      </div>
-    </div>
-    <div class="lobbySlots" id="lobbySlots"></div>
+    const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
+    const xpText = document.getElementById('dsXpText');
+    const xpFill = document.getElementById('dsXpBarFill');
+    const xpStart = document.getElementById('dsXpLevelStart');
+    const xpEnd = document.getElementById('dsXpLevelEnd');
+    if (xpText) xpText.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
+    if (xpFill) xpFill.style.width = `${(xpCurrent / 5200) * 100}%`;
+    if (xpStart) xpStart.textContent = avgLevel;
+    if (xpEnd) xpEnd.textContent = avgLevel + 1;
 
-    <!-- ===== STAKING: deposit action + status ===== -->
-    <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;">
-      <i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span>
-    </button>
-    <p id="depositStatusText" class="depositStatusText"></p>
+    this.renderPowersGrid(key, color);
 
-    <div class="lobbyActions">
-      <button class="pBtn pBtnRes" id="lobbyStartBtn"><i data-lucide="play"></i> Start Game</button>
-      <div id="lobbyWaitingText">Waiting for host...</div>
-      <button class="pBtn pBtnOut" id="btnLeaveRoom"><i data-lucide="log-out"></i> Leave Room</button>
-    </div>
-  </div>
-</div>
+    const badge = document.getElementById('dsSelectBadge');
+    const isSelected = this.selectedDragonName === name;
+    if (badge) {
+      badge.textContent = isSelected ? 'SELECTED' : 'NOT SELECTED';
+      badge.classList.toggle('selected', isSelected);
+    }
 
-<!-- ===== LOADING ===== -->
-<div id="loadingScreen" class="screen">
-  <div class="loadBox">
-    <div class="infsym">&#8734;</div>
-    <div class="orbit1"></div>
-    <div class="orbit2"></div>
-  </div>
-  <h2>Entering the Arena...</h2>
-  <div class="progbar"><div></div></div>
-</div>
+    const leftArrow = document.getElementById('dsArrowLeft');
+    const rightArrow = document.getElementById('dsArrowRight');
+    const ageBtn = document.getElementById('dsDragonAgeBtn');
+    const selectBtn = document.getElementById('dsSelectBtn');
 
-<!-- ===== GAME ===== -->
-<div id="gameScreen" class="screen">
-  <canvas id="gameCanvas"></canvas>
-  <div id="gameHud">
-    <div class="hudLeft">
-      <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button>
-      <div id="timerDisplay">0:00</div>
-      <div id="scoreDisplay"><i data-lucide="infinity"></i> <span id="scoreVal">0</span></div>
-    </div>
-    <canvas id="minimapCanvas"></canvas>
-  </div>
-  <div id="mobileControls">
-    <div id="joyArea"><div id="joyKnob"></div></div>
-    <div id="boostBtn"><i data-lucide="zap"></i><span>BOOST</span></div>
-  </div>
-  <div id="pauseOverlay" class="overlay">
-    <h2>PAUSED</h2>
-    <button class="pBtn pBtnRes" id="btnResume"><i data-lucide="play"></i> RESUME</button>
-    <button class="pBtn pBtnOut" id="btnChangeDragon"><i data-lucide="refresh-cw"></i> CHANGE DRAGON</button>
-    <button class="pBtn pBtnOut" id="btnQuit"><i data-lucide="log-out"></i> QUIT TO MENU</button>
-  </div>
-</div>
+    if (isSelected) {
+      if (selectBtn) selectBtn.style.display = 'none';
+      if (ageBtn) ageBtn.style.display = 'flex';
+    } else {
+      if (selectBtn) selectBtn.style.display = 'flex';
+      if (ageBtn) ageBtn.style.display = 'none';
+    }
+    // Arrows always stay visible so you can browse dragons whether or not one is selected
+    if (leftArrow) leftArrow.style.display = 'flex';
+    if (rightArrow) rightArrow.style.display = 'flex';
 
-<!-- ===== GAME OVER ===== -->
-<div id="gameOverScreen" class="screen">
-  <h1 id="goTitle">DEFEATED</h1>
-  <div class="goStats">
-    <div class="goStat"><div class="num" id="goTime">0:00</div><div class="lbl">SURVIVED</div></div>
-    <div class="goStat"><div class="num" id="goCollect">0</div><div class="lbl">COLLECTED</div></div>
-    <div class="goStat"><div class="num" id="goKills">0</div><div class="lbl">KILLS</div></div>
-    <div class="goStat"><div class="num" id="goDeaths">0</div><div class="lbl">DEATHS</div></div>
-    <div class="goStat"><div class="num" id="goLives">0</div><div class="lbl">LIVES LEFT</div></div>
-  </div>
-  <div class="goActions">
-    <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
-    <button class="pBtn pBtnOut" id="btnMainMenu"><i data-lucide="home"></i> MAIN MENU</button>
-  </div>
-</div>
+    if (selectBtn) {
+      selectBtn.textContent = 'SELECT';
+      selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+      selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
+      selectBtn.style.color = '#fff';
+    }
 
-<!-- ===== HOW TO PLAY ===== -->
-<div id="howToPlayScreen" class="screen">
-  <button class="htpClose" id="btnHtpClose"><i data-lucide="x"></i></button>
-  <div class="htpInner">
-    <h2>HOW TO PLAY</h2>
-    <div class="htpTabs">
-      <button class="htpTab active" data-tab="controls">CONTROLS</button>
-      <button class="htpTab" data-tab="mechanics">MECHANICS</button>
-      <button class="htpTab" data-tab="tips">TIPS</button>
-    </div>
-    <div id="htpControls" class="htpPanel active">
-      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div>
-      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Boost</h4><p>Tap and hold the BOOST button for speed burst.</p></div>
-      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move=Mouse, Boost=Click/Space, Pause=ESC</p></div>
-    </div>
-    <div id="htpMechanics" class="htpPanel">
-      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter dies. Equal size = both shrink to start size.</p></div>
-      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Body</h4><p>Smaller dragon shrinks to start size. Larger unaffected. Equal = both shrink.</p></div>
-      <div class="htpCard"><h4><i data-lucide="shield"></i> Tail vs Tail</h4><p>Nothing happens.</p></div>
-      <div class="htpCard"><h4><i data-lucide="infinity"></i> Collect &infin;</h4><p>Eat infinity symbols to grow. Start small, grow to max size.</p></div>
-      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated. Last standing wins!</p></div>
-    </div>
-    <div id="htpTips" class="htpPanel">
-      <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div>
-      <div class="htpCard"><h4 style="color:#ff4d4d">Ignis</h4><p>Fast and aggressive. Rush opponents.</p></div>
-      <div class="htpCard"><h4 style="color:#00b4d8">Infinite</h4><p>Longest body. Trap and block enemies.</p></div>
-      <div class="htpCard"><h4 style="color:#ff00aa">Magnetron</h4><p>Tanky. Hard to kill.</p></div>
-    </div>
-    <button class="gotItBtn" id="btnGotIt">GOT IT</button>
-  </div>
-</div>
+    this.renderNavDots();
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+  }
 
-<!-- ===== WALLET MODAL ===== -->
-<div id="walletModal" class="screen">
-  <div class="walletBox">
-    <button class="wClose" id="btnWalletClose"><i data-lucide="x"></i></button>
-    <h3>Connect Wallet</h3>
+  showDragonModal(dragon) {
+    const modal = document.getElementById('dragonDetailModal');
+    if (!modal) return;
 
-    <div id="walletDisconnectedView">
-      <div class="wOpt" data-w="phantom" id="wOptPhantom">
-        <div class="wIcon" style="background:transparent; padding:0;">
-          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:32px; height:32px; display:block;">
+    const name = (typeof dragon === 'string' ? dragon : (dragon.name || dragon.type)) || 'Unknown';
+    const key = name.toLowerCase();
+    const color = dragon.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
+    const powers = this.getDragonPowers(key);
+    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
+
+    const img = document.getElementById('ddmImg');
+    if (img) {
+      img.src = DRAGON_IMAGES[key] || dragon.head || '';
+      img.style.filter = `drop-shadow(0 0 40px ${color}40)`;
+    }
+
+    const nameEl = document.getElementById('ddmName');
+    if (nameEl) {
+      nameEl.textContent = name.toUpperCase();
+      nameEl.style.color = color;
+      nameEl.style.textShadow = `0 0 20px ${color}40`;
+    }
+
+    const tierEl = document.getElementById('ddmTierNum');
+    const levelEl = document.getElementById('ddmDragonLevel');
+    if (tierEl) tierEl.textContent = avgLevel;
+    if (levelEl) levelEl.textContent = avgLevel;
+
+    const box = document.getElementById('ddmBox');
+    if (box) {
+      box.style.borderColor = color + '60';
+      box.style.boxShadow = `0 0 60px ${color}15, inset 0 0 40px ${color}08`;
+    }
+
+    const statsContainer = document.getElementById('ddmStats');
+    if (statsContainer) {
+      const stats = [
+        { label: 'Defense', value: powers.defense, max: 10 },
+        { label: 'Speed', value: powers.speed, max: 10 },
+        { label: 'Rush', value: powers.rush, max: 10 },
+        { label: 'Attack', value: powers.attack, max: 10 }
+      ];
+      statsContainer.innerHTML = stats.map(s => `
+        <div class="ddmStatRow">
+          <span class="ddmStatLabel">${s.label}</span>
+          <div class="ddmStatBarWrap">
+            <div class="ddmStatBar" style="width:${(s.value / s.max) * 100}%; background:linear-gradient(90deg, ${color}, ${color}80);"></div>
+          </div>
+          <span class="ddmStatValue" style="color:${color}">${s.value}</span>
         </div>
-        <span>Phantom</span>
-      </div>
-      <p class="wHint">Solana wallet required to earn in-game rewards.</p>
-    </div>
+      `).join('');
+    }
 
-    <div id="walletConnectingView" style="display:none">
-      <div class="wSpinner"></div>
-      <p>Approve the connection in Phantom...</p>
-    </div>
-
-    <div id="walletConnectedView" style="display:none">
-      <div class="wAccountRow">
-        <div class="wIcon" style="background:transparent; padding:0;">
-          <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;">
-        </div>
-        <div class="wAccountInfo">
-          <div class="wAddress" id="wAddressDisplay">-</div>
-          <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
-        </div>
-      </div>
-      <button class="wTestBtn" id="btnWalletSignTest"><i data-lucide="pen-line"></i> Sign Test Message</button>
-      <div class="wSignResult" id="wSignResult"></div>
-      <button class="wDisconnectBtn" id="btnWalletDisconnect"><i data-lucide="log-out"></i> Disconnect</button>
-    </div>
-
-    <div class="wError" id="walletError" style="display:none"></div>
-  </div>
-</div>
-
-<!-- ===== COUNTDOWN OVERLAY ===== -->
-<div id="countdownOverlay">
-  <div id="countdownText">3</div>
-</div>
-
-<!-- ===== MP GAME OVER ===== -->
-<div id="mpGameOver" class="screen">
-  <div class="mpGoPanel">
-    <h2 id="mpGameOverTitle">Victory!</h2>
-    <div id="mpGameOverStats"></div>
-    <div class="mpGoActions">
-      <button class="pBtn pBtnRes" id="btnReturnLobby"><i data-lucide="corner-up-left"></i> Return to Lobby</button>
-      <button class="pBtn pBtnOut" id="btnMpMainMenu"><i data-lucide="home"></i> Main Menu</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== LOADING OVERLAY ===== -->
-<div id="loadingOverlay">
-  <div class="loadSpin"></div>
-  <div class="loadText">Loading...</div>
-</div>
-
-<script type="module" src="./src/main.js"></script>
-
-<!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
-<div id="dragonDetailModal" class="screen">
-  <div class="ddmOverlay"></div>
-  <div class="ddmBox" id="ddmBox">
-    <button class="ddmClose" id="btnDdmClose"><i data-lucide="x"></i></button>
-
-    <div class="ddmHeader">
-      <div class="ddmImgWrap">
-        <img id="ddmImg" src="" alt="Dragon">
-      </div>
-      <div class="ddmName" id="ddmName">AEGIS</div>
-      <div class="ddmTierLine">TIER <span id="ddmTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="ddmDragonLevel">1</span></div>
-    </div>
-
-    <div class="ddmSection">
-      <div class="ddmSectionTitle"><i data-lucide="shield"></i> Dragon Stats</div>
-      <div class="ddmStats" id="ddmStats"></div>
-    </div>
-
-    <div class="ddmSection">
-      <div class="ddmSectionTitle"><i data-lucide="zap"></i> Special Powers</div>
-      <div class="ddmPowers" id="ddmPowers">
+    const powersContainer = document.getElementById('ddmPowers');
+    if (powersContainer) {
+      const specialPowers = {
+        aegis: [{ name: 'Aegis Shield', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Iron Fortress', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
+        ignis: [{ name: 'Inferno Breath', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Phoenix Rebirth', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
+        infinite: [{ name: 'Time Warp', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Eternal Loop', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
+        magnetron: [{ name: 'Magnetic Pull', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Gravity Crush', desc: 'Unlock at Dragon Level 10', unlock: 10 }]
+      };
+      const dragonPowers = specialPowers[key] || specialPowers.aegis;
+      powersContainer.innerHTML = dragonPowers.map(p => `
         <div class="ddmPowerSlot locked">
           <div class="ddmPowerIcon"><i data-lucide="lock"></i></div>
           <div class="ddmPowerInfo">
-            <div class="ddmPowerName">Ancient Flame</div>
-            <div class="ddmPowerDesc">Unlock at Dragon Level 5</div>
+            <div class="ddmPowerName">${p.name}</div>
+            <div class="ddmPowerDesc">${p.desc}</div>
           </div>
         </div>
-        <div class="ddmPowerSlot locked">
-          <div class="ddmPowerIcon"><i data-lucide="lock"></i></div>
-          <div class="ddmPowerInfo">
-            <div class="ddmPowerName">Void Shield</div>
-            <div class="ddmPowerDesc">Unlock at Dragon Level 10</div>
+      `).join('');
+    }
+
+    this._modalDragon = dragon;
+    modal.classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  hideDragonModal() {
+    const modal = document.getElementById('dragonDetailModal');
+    if (modal) modal.classList.remove('active');
+    this._modalDragon = null;
+  }
+
+  getDragonPowers(dragonKey) {
+    if (!this.dragonPowers[dragonKey]) {
+      const defaults = {
+        aegis: { defense: 3, speed: 2, rush: 2, attack: 2 },
+        ignis: { defense: 1, speed: 4, rush: 3, attack: 3 },
+        infinite: { defense: 2, speed: 2, rush: 1, attack: 4 },
+        magnetron: { defense: 4, speed: 1, rush: 2, attack: 2 }
+      };
+      this.dragonPowers[dragonKey] = { ...(defaults[dragonKey] || { defense: 2, speed: 2, rush: 2, attack: 2 }) };
+    }
+    return this.dragonPowers[dragonKey];
+  }
+
+  renderPowersGrid(dragonKey, color) {
+    const grid = document.getElementById('dsPowersGrid');
+    if (!grid) return;
+
+    const powers = this.getDragonPowers(dragonKey);
+    const costs = { defense: 500, speed: 600, rush: 800, attack: 1000 };
+    const labels = { defense: 'Defense', speed: 'Speed', rush: 'Rush Ability', attack: 'Attack' };
+    const maxLevel = 10;
+
+    let html = '';
+    Object.keys(labels).forEach(stat => {
+      const level = powers[stat] || 1;
+      const cost = costs[stat];
+      const canAfford = this.playerCoins >= cost;
+      const isMaxed = level >= maxLevel;
+      const barPct = (level / maxLevel) * 100;
+
+      html += `
+        <div class="dsPowerCard" id="powerCard-${stat}">
+          <div class="dsPowerName">${labels[stat]}</div>
+          <div class="dsPowerLevelRow">
+            <span class="dsPowerLevel">${level}</span>
+            <div class="dsPowerBar">
+              <div class="dsPowerBarFill" style="width:${barPct}%;"></div>
+            </div>
+            <button class="dsUpgradeBtn ${isMaxed ? 'maxed' : ''}" 
+              data-stat="${stat}" data-cost="${cost}" data-dragon="${dragonKey}"
+              ${isMaxed || !canAfford ? 'disabled' : ''}>
+              ${isMaxed ? '<i data-lucide="check"></i> MAX' : `<i data-lucide="arrow-up"></i> ${cost.toLocaleString()}`}
+            </button>
           </div>
         </div>
-      </div>
-    </div>
+      `;
+    });
 
-    <div class="ddmActions">
-      <button class="ddmSelectBtn" id="btnDdmSelect"><i data-lucide="check-circle"></i> SELECT DRAGON</button>
-    </div>
-  </div>
-</div>
+    grid.innerHTML = html;
 
-</body>
-</html>
+    grid.querySelectorAll('.dsUpgradeBtn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const stat = btn.dataset.stat;
+        const cost = parseInt(btn.dataset.cost);
+        const dKey = btn.dataset.dragon;
+        this.upgradePower(dKey, stat, cost);
+      });
+    });
+  }
+
+  upgradePower(dragonKey, stat, cost) {
+    if (this.playerCoins < cost) return;
+    const powers = this.getDragonPowers(dragonKey);
+    if (powers[stat] >= 10) return;
+
+    this.playerCoins -= cost;
+    powers[stat] = (powers[stat] || 1) + 1;
+
+    try {
+      localStorage.setItem('dragonPowers', JSON.stringify(this.dragonPowers));
+      localStorage.setItem('playerCoins', this.playerCoins.toString());
+    } catch (e) {}
+
+    const card = document.getElementById(`powerCard-${stat}`);
+    if (card) {
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 500);
+    }
+
+    this.updateCoinDisplay();
+    this.renderCarousel();
+    this.eventBus.emit('ui:powerUpgraded', { dragon: dragonKey, stat, level: powers[stat] });
+  }
+
+  updateCoinDisplay() {
+    const el = document.getElementById('dsCoinAmount');
+    if (el) el.textContent = this.playerCoins.toLocaleString();
+  }
+
+  renderNavDots() {
+    const dots = document.getElementById('dsNavDots');
+    if (!dots) return;
+    dots.innerHTML = '';
+    this.dragonsData.forEach((_, i) => {
+      const dot = document.createElement('div');
+      dot.className = 'dsNavDot' + (i === this.carouselIndex ? ' active' : '');
+      dot.addEventListener('click', () => {
+        this.carouselIndex = i;
+        this.renderCarousel();
+      });
+      dots.appendChild(dot);
+    });
+  }
+
+  carouselPrev() {
+    this.carouselIndex = (this.carouselIndex - 1 + this.dragonsData.length) % this.dragonsData.length;
+    this.renderCarousel();
+  }
+
+  carouselNext() {
+    this.carouselIndex = (this.carouselIndex + 1) % this.dragonsData.length;
+    this.renderCarousel();
+  }
+
+  selectCurrentDragon() {
+    const d = this._modalDragon || this.dragonsData[this.carouselIndex];
+    if (!d) return;
+    const dragonName = typeof d === 'string' ? d : (d.name || d.type);
+    this.selectedDragon = dragonName;
+    this.selectedDragonName = dragonName;
+    this.hideDragonModal();
+
+    this.carouselIndex = this.dragonsData.findIndex(dr => {
+      const drName = typeof dr === 'string' ? dr : (dr.name || dr.type);
+      return drName === dragonName;
+    });
+    if (this.carouselIndex < 0) this.carouselIndex = 0;
+
+    this.renderCarousel();
+    this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
+  }
+
+  goToBattleMode() {
+    this.showScreen('modeSelectScreen');
+  }
+
+  buildDragonSelect(dragons) {
+    this.initDragonCarousel(dragons);
+  }
+
+  initLucide() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  initParticles() {
+    const canvas = document.getElementById('pCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const particles = [];
+    const count = 60;
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 2 + 0.5,
+        dx: (Math.random() - 0.5) * 0.3,
+        dy: (Math.random() - 0.5) * 0.3,
+        alpha: Math.random() * 0.5 + 0.1
+      });
+    }
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += p.dx;
+        p.y += p.dy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 180, 216, ${p.alpha})`;
+        ctx.fill();
+      });
+      requestAnimationFrame(animate);
+    };
+    animate();
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  }
+
+  bindEvents() {
+    // === TITLE SCREEN BUTTONS ===
+    const btnPlay = document.getElementById('btnPlayNow');
+    if (btnPlay) btnPlay.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
+
+    const btnStart = document.getElementById('btnStartGame');
+    if (btnStart) btnStart.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
+
+    const btnLeader = document.getElementById('btnLeaderboard');
+    if (btnLeader) btnLeader.addEventListener('click', () => {
+      this.showScreen('loadingScreen');
+      setTimeout(() => this.showScreen('titleScreen'), 1000);
+    });
+
+    const btnHow = document.getElementById('btnHowToPlay');
+    if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
+
+    // === DRAGON SELECT EVENTS ===
+    const btnBack = document.getElementById('btnDsBack');
+    if (btnBack) btnBack.addEventListener('click', () => this.showScreen('titleScreen'));
+
+    const nextBtn = document.getElementById('dsNextBtn');
+    if (nextBtn) nextBtn.addEventListener('click', () => this.goToBattleMode());
+
+    const ageBtn = document.getElementById('dsDragonAgeBtn');
+    if (ageBtn) ageBtn.addEventListener('click', () => this.goToBattleMode());
+
+    const arrowLeft = document.getElementById('dsArrowLeft');
+    if (arrowLeft) arrowLeft.addEventListener('click', () => this.carouselPrev());
+
+    const arrowRight = document.getElementById('dsArrowRight');
+    if (arrowRight) arrowRight.addEventListener('click', () => this.carouselNext());
+
+    const selectBtn = document.getElementById('dsSelectBtn');
+    if (selectBtn) selectBtn.addEventListener('click', () => {
+      const d = this.dragonsData[this.carouselIndex];
+      if (d) this.showDragonModal(d);
+    });
+
+    const modalSelect = document.getElementById('btnDdmSelect');
+    if (modalSelect) modalSelect.addEventListener('click', () => this.selectCurrentDragon());
+
+    const modalClose = document.getElementById('btnDdmClose');
+    if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
+
+    // === MODE SCREEN EVENTS ===
+    const modeBack = document.getElementById('btnModeBack');
+    if (modeBack) modeBack.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
+
+    const btn1v1 = document.getElementById('btn1v1AI');
+    if (btn1v1) btn1v1.addEventListener('click', () => {
+      this.selectedMode = '1v1AI';
+      this.showScreen('difficultyModal');
+    });
+
+    const btnMp = document.getElementById('btnMpMultiplayer');
+    if (btnMp) btnMp.addEventListener('click', () => this.showScreen('mpMenuScreen'));
+
+    document.querySelectorAll('#difficultyModal .diffBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedDifficulty = btn.dataset.diff;
+        this.showScreen('arenaSelectModal');
+      });
+    });
+
+    const diffBack = document.getElementById('btnDiffBack');
+    if (diffBack) diffBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
+
+    document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedArena = parseInt(btn.dataset.arena);
+        this.eventBus.emit('ui:arenaSelected', {
+          mode: this.selectedMode,
+          difficulty: this.selectedDifficulty,
+          arenaIndex: this.selectedArena
+        });
+      });
+    });
+
+    const arenaBack = document.getElementById('btnArenaBack');
+    if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('difficultyModal'));
+
+    // === MULTIPLAYER EVENTS ===
+    const mpCreate = document.getElementById('btnMpCreate');
+    if (mpCreate) mpCreate.addEventListener('click', () => this.showScreen('mpModeSelect'));
+
+    const mpJoin = document.getElementById('btnMpJoin');
+    if (mpJoin) mpJoin.addEventListener('click', () => {
+      const input = document.getElementById('mpRoomInput');
+      const code = input?.value.trim();
+      if (code && code.length === 6) {
+        this.eventBus.emit('mp:joinRoom', { code });
+      } else {
+        const err = document.getElementById('mpJoinError');
+        if (err) err.textContent = 'Enter a valid 6-digit code';
+      }
+    });
+
+    const mpBack = document.getElementById('btnMpBack');
+    if (mpBack) mpBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
+
+    document.querySelectorAll('#mpModeSelect .modeCard').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.selectedMpMode = btn.dataset.mpmode;
+        this.eventBus.emit('mp:createRoom', { mode: this.selectedMpMode });
+      });
+    });
+
+    const mpModeBack = document.getElementById('btnMpModeBack');
+    if (mpModeBack) mpModeBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
+
+    const startBtn = document.getElementById('lobbyStartBtn');
+    if (startBtn) startBtn.addEventListener('click', () => this.eventBus.emit('mp:startGame'));
+
+    const leaveBtn = document.getElementById('btnLeaveRoom');
+    if (leaveBtn) leaveBtn.addEventListener('click', () => {
+      this.eventBus.emit('mp:leaveRoom');
+      this.showScreen('titleScreen');
+    });
+
+    document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const arenaIndex = parseInt(btn.dataset.arena);
+        this.eventBus.emit('lobby:arenaSelected', { arenaIndex });
+      });
+    });
+
+    document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        this.selectedTier = btn.dataset.tier;
+        this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier });
+      });
+    });
+
+    const depositBtn = document.getElementById('lobbyDepositBtn');
+    if (depositBtn) depositBtn.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
+
+    // === GAME EVENTS ===
+    const pauseBtn = document.getElementById('pauseBtn');
+    if (pauseBtn) pauseBtn.addEventListener('click', () => this.eventBus.emit('game:pause'));
+
+    const resumeBtn = document.getElementById('btnResume');
+    if (resumeBtn) resumeBtn.addEventListener('click', () => this.eventBus.emit('game:resume'));
+
+    const quitBtn = document.getElementById('btnQuit');
+    if (quitBtn) quitBtn.addEventListener('click', () => {
+      this.eventBus.emit('game:quit');
+      this.showScreen('titleScreen');
+    });
+
+    const changeDragon = document.getElementById('btnChangeDragon');
+    if (changeDragon) changeDragon.addEventListener('click', () => {
+      this.eventBus.emit('game:quit');
+      this.showScreen('dragonSelectScreen');
+    });
+
+    const playAgain = document.getElementById('btnPlayAgain');
+    if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
+
+    const mainMenu = document.getElementById('btnMainMenu');
+    if (mainMenu) mainMenu.addEventListener('click', () => {
+      this.eventBus.emit('game:quit');
+      this.showScreen('titleScreen');
+    });
+
+    // === WALLET EVENTS ===
+    const walletBtn = document.getElementById('walletBtn');
+    if (walletBtn) walletBtn.addEventListener('click', () => this.showScreen('walletModal'));
+
+    const walletClose = document.getElementById('btnWalletClose');
+    if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
+
+    const wOpt = document.getElementById('wOptPhantom');
+    if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest');
+    });
+
+    const signTest = document.getElementById('btnWalletSignTest');
+    if (signTest) signTest.addEventListener('click', () => {
+      const resultEl = document.getElementById('wSignResult');
+      if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
+      this.eventBus.emit('wallet:signTestRequest');
+    });
+
+    // === EVENT BUS LISTENERS ===
+    this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
+    this.eventBus.on('wallet:connected', ({ address, balance }) => {
+      this.setWalletModalState('connected');
+      this.updateWalletDisplay(address, balance);
+    });
+    this.eventBus.on('wallet:disconnected', () => {
+      this.setWalletModalState('disconnected');
+      this.updateWalletButton(null);
+    });
+    this.eventBus.on('wallet:error', ({ message }) => {
+      this.setWalletModalState('disconnected');
+      const errEl = document.getElementById('walletError');
+      if (errEl) { errEl.textContent = message; errEl.style.display = 'block'; }
+    });
+    this.eventBus.on('wallet:signTestResult', (result) => {
+      const resultEl = document.getElementById('wSignResult');
+      if (resultEl) {
+        resultEl.innerHTML = `<span class="wSignOk"><i class="fa-solid fa-check-circle"></i> Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0, 24)}...</div>`;
+      }
+    });
+    this.eventBus.on('wallet:signTestError', ({ message }) => {
+      const resultEl = document.getElementById('wSignResult');
+      if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
+    });
+
+    // === KEYBOARD ===
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (this.currentScreen === 'gameScreen') {
+          this.eventBus.emit('game:pause');
+        } else if (document.getElementById('dragonDetailModal')?.classList.contains('active')) {
+          this.hideDragonModal();
+        }
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        this.toggleScoreboard();
+      }
+    });
+
+    // === OTHER ===
+    const htpClose = document.getElementById('btnHtpClose');
+    if (htpClose) htpClose.addEventListener('click', () => this.showScreen('titleScreen'));
+
+    const gotIt = document.getElementById('btnGotIt');
+    if (gotIt) gotIt.addEventListener('click', () => this.showScreen('titleScreen'));
+
+    document.querySelectorAll('.htpTab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.htpTab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.htpPanel').forEach(p => p.classList.remove('active'));
+        document.getElementById('htp' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1))?.classList.add('active');
+      });
+    });
+  }
+
+  showCountdown(onComplete) {
+    const overlay = document.getElementById('countdownOverlay');
+    const textEl = document.getElementById('countdownText');
+    if (!overlay || !textEl) {
+      if (typeof onComplete === 'function') onComplete();
+      return;
+    }
+    overlay.classList.add('active');
+    let count = 3;
+    textEl.textContent = count;
+    const tick = () => {
+      count--;
+      if (count > 0) {
+        textEl.textContent = count;
+        setTimeout(tick, 1000);
+      } else if (count === 0) {
+        textEl.textContent = 'GO!';
+        setTimeout(tick, 700);
+      } else {
+        overlay.classList.remove('active');
+        if (typeof onComplete === 'function') onComplete();
+      }
+    };
+    setTimeout(tick, 1000);
+  }
+
+  hideCountdown() {
+    const overlay = document.getElementById('countdownOverlay');
+    if (overlay) overlay.classList.remove('active');
+  }
+
+  showPauseOverlay() {
+    const el = document.getElementById('pauseOverlay');
+    if (el) el.classList.add('active');
+  }
+
+  hidePauseOverlay() {
+    const el = document.getElementById('pauseOverlay');
+    if (el) el.classList.remove('active');
+  }
+
+  setWalletModalState(state) {
+    const views = {
+      disconnected: document.getElementById('walletDisconnectedView'),
+      connecting: document.getElementById('walletConnectingView'),
+      connected: document.getElementById('walletConnectedView')
+    };
+    Object.entries(views).forEach(([key, el]) => {
+      if (el) el.style.display = key === state ? 'block' : 'none';
+    });
+    const errEl = document.getElementById('walletError');
+    if (errEl && state !== 'disconnected') errEl.style.display = 'none';
+  }
+
+  updateWalletDisplay(address, balance) {
+    const addrEl = document.getElementById('wAddressDisplay');
+    if (addrEl && address) {
+      addrEl.textContent = address.length > 12
+        ? `${address.slice(0, 6)}...${address.slice(-4)}`
+        : address;
+    }
+    const balEl = document.getElementById('wBalanceDisplay');
+    if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
+    this.updateWalletButton(address);
+  }
+
+  updateWalletButton(address) {
+    const btn = document.getElementById('walletBtn');
+    if (!btn) return;
+    const label = btn.querySelector('span');
+    if (address) {
+      btn.classList.add('connected');
+      if (label) label.textContent = `${address.slice(0, 4)}...${address.slice(-4)}`;
+    } else {
+      btn.classList.remove('connected');
+      if (label) label.textContent = 'Connect Wallet';
+    }
+  }
+
+  toggleScoreboard() {
+    const el = document.getElementById('scoreboardOverlay');
+    if (!el) return;
+    el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+  }
+
+  showScreen(screenId) {
+    Object.values(this.screens).forEach(s => {
+      if (s) s.classList.remove('active');
+    });
+    if (this.screens[screenId]) {
+      this.screens[screenId].classList.add('active');
+      this.currentScreen = screenId;
+    }
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+  }
+}
+
+export default UIManager;
