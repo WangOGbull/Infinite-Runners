@@ -219,7 +219,6 @@ class UIManager {
       if (selectBtn) selectBtn.style.display = 'flex';
       if (ageBtn) ageBtn.style.display = 'none';
     }
-    // Arrows always stay visible so you can browse dragons whether or not one is selected
     if (leftArrow) leftArrow.style.display = 'flex';
     if (rightArrow) rightArrow.style.display = 'flex';
 
@@ -508,7 +507,6 @@ class UIManager {
   }
 
   bindEvents() {
-    // === TITLE SCREEN BUTTONS ===
     const btnPlay = document.getElementById('btnPlayNow');
     if (btnPlay) btnPlay.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
 
@@ -524,7 +522,6 @@ class UIManager {
     const btnHow = document.getElementById('btnHowToPlay');
     if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
 
-    // === DRAGON SELECT EVENTS ===
     const btnBack = document.getElementById('btnDsBack');
     if (btnBack) btnBack.addEventListener('click', () => this.showScreen('titleScreen'));
 
@@ -552,7 +549,6 @@ class UIManager {
     const modalClose = document.getElementById('btnDdmClose');
     if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
 
-    // === MODE SCREEN EVENTS ===
     const modeBack = document.getElementById('btnModeBack');
     if (modeBack) modeBack.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
 
@@ -589,7 +585,6 @@ class UIManager {
     const arenaBack = document.getElementById('btnArenaBack');
     if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('difficultyModal'));
 
-    // === MULTIPLAYER EVENTS ===
     const mpCreate = document.getElementById('btnMpCreate');
     if (mpCreate) mpCreate.addEventListener('click', () => this.showScreen('mpModeSelect'));
 
@@ -645,7 +640,6 @@ class UIManager {
     const depositBtn = document.getElementById('lobbyDepositBtn');
     if (depositBtn) depositBtn.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
 
-    // === GAME EVENTS ===
     const pauseBtn = document.getElementById('pauseBtn');
     if (pauseBtn) pauseBtn.addEventListener('click', () => this.eventBus.emit('game:pause'));
 
@@ -673,7 +667,6 @@ class UIManager {
       this.showScreen('titleScreen');
     });
 
-    // === WALLET EVENTS ===
     const walletBtn = document.getElementById('walletBtn');
     if (walletBtn) walletBtn.addEventListener('click', () => this.showScreen('walletModal'));
 
@@ -694,7 +687,6 @@ class UIManager {
       this.eventBus.emit('wallet:signTestRequest');
     });
 
-    // === EVENT BUS LISTENERS ===
     this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
     this.eventBus.on('wallet:connected', ({ address, balance }) => {
       this.setWalletModalState('connected');
@@ -720,7 +712,31 @@ class UIManager {
       if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
     });
 
-    // === KEYBOARD ===
+    // === STAKING STATUS LISTENERS ===
+    // These were missing before - lobby:depositRequested fired, but nothing
+    // ever showed the "pending / confirmed / error" message during a deposit.
+    this.eventBus.on('staking:pending', ({ label }) => {
+      const statusText = document.getElementById('depositStatusText');
+      if (statusText) {
+        statusText.textContent = label || 'Processing your bet…';
+        statusText.className = 'depositStatusText pending';
+      }
+    });
+    this.eventBus.on('staking:confirmed', ({ label }) => {
+      const statusText = document.getElementById('depositStatusText');
+      if (statusText) {
+        statusText.textContent = label || 'Bet placed!';
+        statusText.className = 'depositStatusText confirmed';
+      }
+    });
+    this.eventBus.on('staking:error', ({ message }) => {
+      const statusText = document.getElementById('depositStatusText');
+      if (statusText) {
+        statusText.textContent = message || 'Something went wrong placing your bet.';
+        statusText.className = 'depositStatusText error';
+      }
+    });
+
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (this.currentScreen === 'gameScreen') {
@@ -735,7 +751,6 @@ class UIManager {
       }
     });
 
-    // === OTHER ===
     const htpClose = document.getElementById('btnHtpClose');
     if (htpClose) htpClose.addEventListener('click', () => this.showScreen('titleScreen'));
 
@@ -766,7 +781,7 @@ class UIManager {
           <div class="lobbyPlayerCard ${p.isLocal ? 'local' : ''}">
             <div class="lobbyPlayerIcon">🐉</div>
             <div class="lobbyPlayerInfo">
-              <div class="lobbyPlayerName">${p.name || 'Player'}</div>
+              <div class="lobbyPlayerName">${p.isHost ? 'Host' : (p.name || 'Player')}</div>
               <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
             </div>
             ${p.deposited ? '<span class="depositBadge confirmed"><i data-lucide="check"></i> Staked</span>' : ''}
@@ -824,7 +839,7 @@ class UIManager {
       depositBtn.disabled = !canDeposit || !!myDeposited;
     }
     if (label) {
-      label.textContent = myDeposited ? 'Deposit Locked' : (isHost ? 'Lock Stake & Open Room' : 'Lock Stake & Join');
+      label.textContent = myDeposited ? 'Bet Placed' : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join');
     }
     if (statusText) {
       if (hostDeposited && opponentDeposited) {
