@@ -1,5 +1,5 @@
 // walletManager.js
-const RPC_ENDPOINT = 'https://broken-dimensional-bridge.solana-mainnet.quiknode.pro/71331ad63dbca61e4f46856dbe393fad7465aa4a/';
+const RPC_ENDPOINT = 'https://api.devnet.solana.com'; // DEVNET FOR TESTING - swap back to your mainnet endpoint before launch
 
 // ---- minimal base58 helpers (avoids pulling in a separate bs58 package) ----
 const B58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
