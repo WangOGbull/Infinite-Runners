@@ -10,9 +10,9 @@
 // `anchor keys sync` + `initialize_config` on your deployed program. Nothing
 // here will work against placeholder values.
 
-const PROGRAM_ID_STR = 'REPLACE_WITH_DEPLOYED_PROGRAM_ID';
-const TREASURY_TOKEN_ACCOUNT_STR = '4QP35RwE2JHdDfiDgnUtTWw17XFGY5ufYaHyBH9o35CgZbbBDMabC4qU7BcUyCzYMnzQbMHiJ99F2ceDHpjwNozF';
-const INFINITE_MINT = new solanaWeb3.PublicKey('C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump');
+const PROGRAM_ID_STR = 'HezS1VfaBjg4FHatf9UrYbjmt14kyPyBQhQUiU6ojLAA';
+const TREASURY_TOKEN_ACCOUNT_STR = 'AeHeRAGnJ9gprjqX4VtbPxw6oHUC7Q9vsqF7vMX1VALK';
+const INFINITE_MINT = new solanaWeb3.PublicKey('5B3WSHvvSSdcHcitSe9ihisoaUEEjRgJdvRy9J638r85'); // DEVNET TEST TOKEN - swap back to the real mint before Mainnet
 const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const SYSVAR_RENT_PUBKEY = new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111');
