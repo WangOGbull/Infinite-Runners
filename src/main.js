@@ -399,11 +399,17 @@ class Game {
   async _markDeposited(role, tier, signature) {
     if (!this.roomRef) return;
     const updates = {};
+    // Stash the depositing wallet's own public key in Firebase so the backend
+    // knows where to send a payout later - nothing wrote this before, and
+    // settle_match cannot function without it.
+    const myPubkey = this.walletManager.publicKey.toString();
     if (role === 'host') {
       updates.tier = tier;
+      updates.hostPubkey = myPubkey;
       updates['staking/hostDeposited'] = true;
       updates['staking/hostTx'] = signature;
     } else {
+      updates.opponentPubkey = myPubkey;
       updates['staking/opponentDeposited'] = true;
       updates['staking/opponentTx'] = signature;
     }
@@ -707,6 +713,11 @@ class Game {
       y: this.localDragon.head.y,
       angle: this.localDragon.angle,
       score: this.localDragon.score || 0,
+      // Segment count is required by the server-side match simulator to
+      // correctly replicate collisionSystem.js's head-to-head death rule
+      // (shorter dragon dies) - without this the server cannot independently
+      // verify who won.
+      segments: this.localDragon.segments.length,
       t: now
     });
   }
