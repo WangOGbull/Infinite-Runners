@@ -369,7 +369,7 @@ class Game {
       this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
       return;
     }
-    this.eventBus.emit('staking:pending', { label: 'Waiting for wallet approval…' });
+    this.eventBus.emit('staking:pending', { label: 'Forging your stake into the arena…' });
     try {
       if (this.isHost) {
         if (!this.lobbyTier) {
@@ -624,6 +624,7 @@ class Game {
       const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
         ...p,
         isLocal: id === this.localPlayerId,
+        isHost: id === 'local', // the host's Firebase key is always 'local', regardless of which browser is viewing
         deposited: id === 'local' ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited,
       }));
       const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
