@@ -54,6 +54,15 @@ class Game {
     this.gameModeManager = new GameModeManager();
     this.uiManager = new UIManager(this.eventBus);
     this.effectsSystem = new EffectsSystem();
+    // NOTE: WalletManager's constructor no longer processes a Phantom mobile
+    // redirect on its own. It used to call _handleMobileRedirect() here,
+    // synchronously, which meant 'wallet:txConfirmed' / 'wallet:txError'
+    // could fire before Game.setupEventListeners() (called from init(),
+    // further down) had registered any listeners - the event fired into
+    // an empty EventBus and was lost. That's why staking on mobile bounced
+    // back to the title screen with the wallet looking disconnected instead
+    // of resuming the lobby. We now call walletManager.processMobileRedirect()
+    // explicitly from init(), after listeners and Firebase are ready.
     this.walletManager = new WalletManager(this.eventBus);
     this.stakingManager = new StakingManager(this.eventBus, this.walletManager);
     this.aiController = null;
@@ -99,7 +108,17 @@ class Game {
     this.setupFirebase();
     this.effectsSystem.init();
 
-    this.uiManager.showScreen('titleScreen');
+    // Process any pending Phantom mobile redirect now that listeners
+    // (setupEventListeners) and Firebase (setupFirebase) are both ready.
+    // This can synchronously emit 'wallet:connected' / 'wallet:txConfirmed' /
+    // 'wallet:txError', which in turn can call showScreen('lobbyScreen') via
+    // _rejoinRoom() - so we only default to the title screen if that didn't
+    // already happen.
+    this.walletManager.processMobileRedirect();
+
+    if (!this.roomRef) {
+      this.uiManager.showScreen('titleScreen');
+    }
 
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
