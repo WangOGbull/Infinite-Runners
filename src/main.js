@@ -304,7 +304,7 @@ class Game {
 
   _persistLobbyContext() {
     try {
-      sessionStorage.setItem(LOBBY_CONTEXT_KEY, JSON.stringify({
+      localStorage.setItem(LOBBY_CONTEXT_KEY, JSON.stringify({
         roomCode: this.roomCode,
         isHost: this.isHost,
         localPlayerId: this.localPlayerId,
@@ -317,8 +317,8 @@ class Game {
 
   _consumeLobbyContext() {
     try {
-      const raw = sessionStorage.getItem(LOBBY_CONTEXT_KEY);
-      sessionStorage.removeItem(LOBBY_CONTEXT_KEY);
+      const raw = localStorage.getItem(LOBBY_CONTEXT_KEY);
+      localStorage.removeItem(LOBBY_CONTEXT_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (_) {
       return null;
