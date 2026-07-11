@@ -363,19 +363,22 @@ class Game {
     this._ensurePresence();
   }
 
-  // Keeps the room's player list accurate: (1) arms Firebase onDisconnect
-  // so a player who actually leaves (closes the tab, loses signal, never
-  // comes back) gets cleaned up instead of lingering as a ghost that
-  // inflates the player count forever, and (2) self-heals by re-adding
-  // this player's own entry if it's missing.
+  // Self-heals by re-adding this player's own entry if it's ever missing
+  // from the room (e.g. after resuming from a Phantom redirect).
   //
-  // The self-heal matters because a mobile Phantom redirect (staking)
-  // briefly drops the page's connection to Firebase too - if we'd armed
-  // onDisconnect on our OWN entry and didn't re-check it on resume, that
-  // brief drop could fire the cleanup and silently remove the very player
-  // who's in the middle of staking, right as they try to join. Calling
-  // this on every room entry/resume means the count always reflects who's
-  // actually present, without that footgun.
+  // This USED to also arm Firebase onDisconnect().remove() here, on the
+  // theory that a player who truly leaves (closes the tab, loses signal)
+  // shouldn't linger forever as a ghost entry. That backfired badly: any
+  // WebSocket disconnect fires onDisconnect, and backgrounding a mobile
+  // browser tab - e.g. switching to Telegram to share the room code, which
+  // is completely normal, expected behavior - can itself drop the
+  // connection. That deleted the HOST's own entry while they'd never
+  // actually left, showing "0/N players" when they came back. Kicking an
+  // active player out of their own room for switching apps for a second is
+  // a much worse failure than a rare stale entry from someone who
+  // genuinely abandoned a room, so onDisconnect cleanup has been removed
+  // entirely. leaveRoom() (Leave Room button) remains the way entries get
+  // cleaned up.
   _ensurePresence() {
     if (!this.roomRef) return;
     if (this.isHost) {
@@ -384,7 +387,6 @@ class Game {
         if (!snap.exists()) {
           hostRef.set({ name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true });
         }
-        hostRef.onDisconnect().remove();
       }).catch(() => {});
     } else if (this.localPlayerId) {
       const meRef = this.roomRef.child('players/' + this.localPlayerId);
@@ -392,7 +394,6 @@ class Game {
         if (!snap.exists()) {
           meRef.set({ name: 'Player', dragon: this.selectedDragon || 'ignis', ready: true });
         }
-        meRef.onDisconnect().remove();
       }).catch(() => {});
     }
   }
@@ -423,16 +424,6 @@ class Game {
       this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
       return;
     }
-    // Cancel any pending onDisconnect cleanup on our OWN presence node before
-    // we potentially navigate away to Phantom for a mobile signature. That
-    // navigation causes a real (if brief) disconnect from Firebase - without
-    // cancelling first, the onDisconnect().remove() armed by
-    // _ensurePresence() would delete this player from the room the instant
-    // they try to stake, which is exactly what caused the opponent to
-    // "disappear" after the Phantom redirect. We re-arm it in the `finally`
-    // below (covers the desktop/synchronous path) and again via
-    // _ensurePresence() on resume after a mobile redirect.
-    this._cancelPresenceCleanup();
     this.eventBus.emit('staking:pending', { label: 'Forging your stake into the arena…' });
     try {
       if (this.isHost) {
@@ -457,21 +448,6 @@ class Game {
     } catch (err) {
       console.error('[Staking] deposit failed:', err);
       this.eventBus.emit('staking:error', { message: err?.message || 'Deposit failed. Your funds were not moved.' });
-    } finally {
-      // Only re-arms if we're still actually in the room (i.e. this path
-      // didn't navigate away) - if a mobile redirect just happened, this
-      // code doesn't even run since the page is already gone; the re-arm
-      // for that case happens in _rejoinRoom() -> _ensurePresence() instead.
-      this._ensurePresence();
-    }
-  }
-
-  _cancelPresenceCleanup() {
-    if (!this.roomRef) return;
-    if (this.isHost) {
-      this.roomRef.child('players/local').onDisconnect().cancel();
-    } else if (this.localPlayerId) {
-      this.roomRef.child('players/' + this.localPlayerId).onDisconnect().cancel();
     }
   }
 
