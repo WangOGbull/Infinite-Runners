@@ -438,9 +438,17 @@ class Game {
   }
 
   _refreshStakingUI() {
-    const stakingApplies = this.selectedMpMode === '1v1';
+    // Staking isn't limited to 1v1 - FFA and 2v2 rooms also show stake
+    // tiers and a deposit button in the lobby. The old
+    // `selectedMpMode === '1v1'` check meant updateStakingUI() was never
+    // called for any other mode, so the deposit button on the joining
+    // player's screen just kept whatever disabled state it had at page
+    // load and never unlocked - that's why staking looked "locked" in an
+    // FFA room. Gate on whether a tier has actually been picked instead,
+    // since that applies the same way in every mode.
+    const stakingApplies = !!this.lobbyTier;
     const tierSelector = document.getElementById('lobbyTierSelector');
-    if (tierSelector) tierSelector.style.display = stakingApplies ? 'flex' : 'none';
+    if (tierSelector) tierSelector.style.display = 'flex';
     if (!stakingApplies) return;
     this.uiManager.updateStakingUI({
       isHost: this.isHost,
@@ -688,7 +696,11 @@ class Game {
   }
 
   startMpGame() {
-    const stakingApplies = this.selectedMpMode === '1v1';
+    // Same fix as _refreshStakingUI(): a stake tier can be set in any mode,
+    // not just 1v1, so the "both players must deposit" requirement has to
+    // be gated on whether a tier is actually set, not on the mode string -
+    // otherwise FFA/2v2 rooms could start with an unstaked opponent.
+    const stakingApplies = !!this.lobbyTier;
     if (stakingApplies && !(this.stakingState.hostDeposited && this.stakingState.opponentDeposited)) {
       this.eventBus.emit('staking:error', { message: 'Both players must deposit their stake before the match can start.' });
       return;
