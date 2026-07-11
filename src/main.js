@@ -360,6 +360,41 @@ class Game {
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.uiManager.showScreen('lobbyScreen');
     this._attachRoomListener();
+    this._ensurePresence();
+  }
+
+  // Keeps the room's player list accurate: (1) arms Firebase onDisconnect
+  // so a player who actually leaves (closes the tab, loses signal, never
+  // comes back) gets cleaned up instead of lingering as a ghost that
+  // inflates the player count forever, and (2) self-heals by re-adding
+  // this player's own entry if it's missing.
+  //
+  // The self-heal matters because a mobile Phantom redirect (staking)
+  // briefly drops the page's connection to Firebase too - if we'd armed
+  // onDisconnect on our OWN entry and didn't re-check it on resume, that
+  // brief drop could fire the cleanup and silently remove the very player
+  // who's in the middle of staking, right as they try to join. Calling
+  // this on every room entry/resume means the count always reflects who's
+  // actually present, without that footgun.
+  _ensurePresence() {
+    if (!this.roomRef) return;
+    if (this.isHost) {
+      const hostRef = this.roomRef.child('players/local');
+      hostRef.once('value').then(snap => {
+        if (!snap.exists()) {
+          hostRef.set({ name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true });
+        }
+        hostRef.onDisconnect().remove();
+      }).catch(() => {});
+    } else if (this.localPlayerId) {
+      const meRef = this.roomRef.child('players/' + this.localPlayerId);
+      meRef.once('value').then(snap => {
+        if (!snap.exists()) {
+          meRef.set({ name: 'Player', dragon: this.selectedDragon || 'ignis', ready: true });
+        }
+        meRef.onDisconnect().remove();
+      }).catch(() => {});
+    }
   }
 
   async _resumeStakingAction(pendingAction, signature) {
@@ -590,6 +625,7 @@ class Game {
     this.uiManager.showScreen('lobbyScreen');
     this._refreshStakingUI();
     this._attachRoomListener();
+    this._ensurePresence();
   }
 
   joinRoom(code) {
@@ -629,6 +665,7 @@ class Game {
       this.uiManager.showScreen('lobbyScreen');
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
       this._attachRoomListener();
+      this._ensurePresence();
     });
   }
 
@@ -769,6 +806,44 @@ class Game {
       if (!pos) continue;
       dragon.remoteTarget = { x: pos.x, y: pos.y };
       dragon.angle = pos.angle;
+      // Sync this dragon's actual size to the network's authoritative
+      // segment count. broadcastPosition() already sends `segments`, but
+      // nothing was ever reading it back - each client was instead letting
+      // its OWN local food collisions grow remote dragons (collision:eat
+      // fires for any dragon, including remote ones), and food isn't
+      // networked at all. Two clients running independent, unsynced growth
+      // simulations for the same remote dragon is exactly why the size
+      // looked different on phone vs PC. This forces it back in line every
+      // network tick (~50ms), so any local drift self-corrects almost
+      // immediately instead of accumulating.
+      if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
+        this._resizeRemoteDragon(dragon, pos.segments);
+      }
+    }
+  }
+
+  // Grows or shrinks a REMOTE dragon's segment array to match targetLength.
+  // Deliberately bypasses growthSystem (that's for the local player's own
+  // eating/growthProgress bookkeeping only) so remote dragons are purely
+  // network-driven and can never desync from what's authoritative on the
+  // client that actually owns them.
+  _resizeRemoteDragon(dragon, targetLength) {
+    const baseSpacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
+    const fatSpacing = baseSpacing * 2;
+    while (dragon.segments.length < targetLength && dragon.segments.length < CONFIG.DRAGON_MAX_SEGMENTS) {
+      const spacing = dragon.segments.length >= 25 ? fatSpacing : baseSpacing;
+      const tailSeg = dragon.segments[dragon.segments.length - 1];
+      const beforeTail = dragon.segments.length > 1
+        ? dragon.segments[dragon.segments.length - 2]
+        : dragon.head;
+      const angle = Math.atan2(tailSeg.y - beforeTail.y, tailSeg.x - beforeTail.x);
+      dragon.segments.push({
+        x: tailSeg.x + Math.cos(angle) * spacing,
+        y: tailSeg.y + Math.sin(angle) * spacing
+      });
+    }
+    while (dragon.segments.length > targetLength && dragon.segments.length > CONFIG.DRAGON_START_SEGMENTS) {
+      dragon.segments.pop();
     }
   }
 
