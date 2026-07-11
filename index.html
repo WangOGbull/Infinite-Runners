@@ -21,10 +21,16 @@
 <!-- Google Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+<!-- Google Material Icons (used for the staking "confirmed" checkmark - a
+     real icon-font glyph rendered in our own accent color, not a Unicode
+     emoji, so it looks the same crisp way on every device instead of
+     falling back to whatever colorful emoji font the platform ships) -->
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
 <!-- FontAwesome for your icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<link rel="stylesheet" href="./src/styles.css">
+<link rel="stylesheet" href="./src/styles.css?v=3">
 
 <style>
   /* Mobile dragon select scroll fix */
@@ -248,6 +254,40 @@
     font-size: 48px;
     margin-bottom: 20px;
     transition: all 0.3s ease;
+  }
+
+  /* ===== Staking "confirmed" checkmark badge (Google Material Icons) =====
+     Deliberately an icon-font glyph, not a Unicode emoji (✅), so it renders
+     identically on every OS/browser instead of falling back to whatever
+     colorful emoji font the platform ships. */
+  .depositBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .depositBadge.confirmed {
+    color: #4ade80;
+    background: rgba(74,222,128,0.1);
+    border: 1px solid rgba(74,222,128,0.3);
+  }
+  .depositBadge .material-icons {
+    font-size: 14px;
+    line-height: 1;
+    color: #4ade80;
+  }
+
+  /* Start Game button - visibly inert while disabled, so it's clear it's
+     gated on the host's stake rather than just silently doing nothing */
+  #lobbyStartBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: grayscale(0.4);
   }
 
   /* ===== DRAGON SELECT CAROUSEL STYLES ===== */
@@ -1018,7 +1058,7 @@
   <div class="loadText">Loading...</div>
 </div>
 
-<script type="module" src="./src/main.js"></script>
+<script type="module" src="./src/main.js?v=3"></script>
 
 <!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
 <div id="dragonDetailModal" class="screen">
