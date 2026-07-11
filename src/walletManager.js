@@ -67,7 +67,21 @@ class WalletManager {
       this.scanBalances();
     });
 
-    // Handle the redirect Phantom sends us back to on mobile
+    // NOTE: we deliberately do NOT call _handleMobileRedirect() here anymore.
+    // Doing it from inside the constructor fired 'wallet:txConfirmed' /
+    // 'wallet:txError' before Game.setupEventListeners() had registered its
+    // listeners for those events (WalletManager is constructed before
+    // Game.init() runs). The emit happened into an empty EventBus and was
+    // silently lost - which is why room-rejoin after a mobile Phantom
+    // redirect never fired. Call processMobileRedirect() explicitly from
+    // Game, after setupEventListeners()/setupFirebase() are ready.
+  }
+
+  // Public entry point - call this AFTER the owning app has registered its
+  // eventBus listeners (and ideally after Firebase is initialized), so any
+  // 'wallet:connected' / 'wallet:txConfirmed' / 'wallet:txError' emitted as
+  // a result of a Phantom redirect actually reaches its listeners.
+  processMobileRedirect() {
     this._handleMobileRedirect();
   }
 
