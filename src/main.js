@@ -509,7 +509,16 @@ class Game {
     const stakingApplies = !!this.lobbyTier;
     const tierSelector = document.getElementById('lobbyTierSelector');
     if (tierSelector) tierSelector.style.display = 'flex';
-    if (!stakingApplies) return;
+    if (!stakingApplies) {
+      // No tier chosen yet, so this room isn't using staking (or hasn't
+      // started to). Don't leave Start Game blocked on a deposit that was
+      // never required - updateStakingUI() (which owns the actual
+      // host-must-deposit-first gate) is only reached below, once a tier
+      // is picked.
+      const startBtn = document.getElementById('lobbyStartBtn');
+      if (startBtn) startBtn.disabled = false;
+      return;
+    }
     this.uiManager.updateStakingUI({
       isHost: this.isHost,
       tier: this.lobbyTier,
