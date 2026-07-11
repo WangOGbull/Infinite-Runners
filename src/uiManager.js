@@ -102,6 +102,12 @@ class UIManager {
     document.body.appendChild(arenaModal);
     this.screens['arenaSelectModal'] = arenaModal;
 
+    // NOTE: the mpModeSelect modal (1v1 / 2v2 / FFA picker) is still built
+    // here but is no longer shown - see bindEvents()'s btnMpCreate handler,
+    // which now skips straight to FFA. Only FFA syncs correctly right now
+    // (dragon size + player count). Left this modal's markup/listeners in
+    // place, untouched, so re-enabling 1v1/2v2 later is a one-line revert
+    // in bindEvents() rather than rebuilding this UI from scratch.
     const mpModeSelect = document.createElement('div');
     mpModeSelect.id = 'mpModeSelect';
     mpModeSelect.className = 'screen';
@@ -586,7 +592,15 @@ class UIManager {
     if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('difficultyModal'));
 
     const mpCreate = document.getElementById('btnMpCreate');
-    if (mpCreate) mpCreate.addEventListener('click', () => this.showScreen('mpModeSelect'));
+    if (mpCreate) mpCreate.addEventListener('click', () => {
+      // Multiplayer is FFA-only for now: 1v1 and 2v2 currently desync
+      // (player count and dragon size both go wrong), so we're skipping
+      // the mode picker entirely and always creating an FFA room until
+      // those other modes are fixed and re-enabled. To bring the picker
+      // back later, revert this handler to `this.showScreen('mpModeSelect')`.
+      this.selectedMpMode = 'FFA';
+      this.eventBus.emit('mp:createRoom', { mode: 'FFA' });
+    });
 
     const mpJoin = document.getElementById('btnMpJoin');
     if (mpJoin) mpJoin.addEventListener('click', () => {
