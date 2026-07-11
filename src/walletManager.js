@@ -168,6 +168,26 @@ class WalletManager {
     } catch (_) { /* ignore */ }
   }
 
+  // TEMPORARY diagnostic aid: renders a small on-screen log so we can see
+  // exactly what's happening around the Phantom mobile redirect without
+  // needing USB/remote debugging. Safe to delete once the staking-redirect
+  // issue is confirmed fixed.
+  _debugLog(msg) {
+    try {
+      let box = document.getElementById('wmDebugOverlay');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'wmDebugOverlay';
+        box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:32vh;overflow-y:auto;background:rgba(0,0,0,0.88);color:#39ff6a;font-size:10px;font-family:monospace;padding:6px;z-index:999999;white-space:pre-wrap;word-break:break-all;border-top:1px solid #39ff6a;';
+        document.body.appendChild(box);
+      }
+      const line = document.createElement('div');
+      line.textContent = `[${new Date().toISOString().slice(11, 19)}] ${msg}`;
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
+    } catch (_) { /* ignore */ }
+  }
+
   _getOrCreateDappKeyPair() {
     if (this.dappKeyPair) return this.dappKeyPair;
     if (typeof nacl === 'undefined') {
@@ -238,6 +258,12 @@ class WalletManager {
   // localStorage and handed back via 'wallet:txConfirmed' once Phantom redirects
   // back, since the page fully reloads in between and loses all JS memory state.
   _buildMobileSignAndSendUrl(serializedTransaction, pendingAction) {
+    this._debugLog(
+      `buildSignAndSend: mobileSession=${this.mobileSession ? 'present' : 'MISSING'} ` +
+      `phantomPubKey=${this.phantomWalletPublicKey ? 'present' : 'MISSING'} ` +
+      `dappKeyPair=${this.dappKeyPair ? 'present' : 'MISSING'} ` +
+      `pendingAction=${JSON.stringify(pendingAction)}`
+    );
     if (!this.mobileSession) throw new Error('No active mobile session.');
     const keyPair = this._getOrCreateDappKeyPair();
     const sharedSecret = nacl.box.before(this.phantomWalletPublicKey, keyPair.secretKey);
@@ -274,12 +300,24 @@ class WalletManager {
     const returnType = urlParams.get('walletReturn');
     if (!returnType) return;
 
+    this._debugLog(
+      `redirect received: type=${returnType} ` +
+      `errorCode=${urlParams.get('errorCode') || 'none'} ` +
+      `errorMessage=${urlParams.get('errorMessage') || 'none'} ` +
+      `hasPhantomPubKey=${!!urlParams.get('phantom_encryption_public_key')} ` +
+      `hasNonce=${!!urlParams.get('nonce')} ` +
+      `hasData=${!!urlParams.get('data')} ` +
+      `hasDsk=${!!urlParams.get('dsk')} ` +
+      `mobileSessionBeforeProcessing=${this.mobileSession ? 'present' : 'MISSING'}`
+    );
+
     // Clean the URL so a page refresh doesn't try to re-process this
     const cleanUrl = window.location.href.split('?')[0];
     window.history.replaceState({}, document.title, cleanUrl);
 
     if (urlParams.get('errorCode')) {
       const message = urlParams.get('errorMessage') || 'Phantom request was rejected.';
+      this._debugLog(`=> ERROR PATH: ${message}`);
       if (returnType === 'signMessage') {
         this.eventBus.emit('wallet:signTestError', { message });
       } else if (returnType === 'signAndSendTransaction') {
@@ -316,6 +354,7 @@ class WalletManager {
 
       if (!decrypted) throw new Error('Failed to decrypt Phantom response.');
       const result = JSON.parse(new TextDecoder().decode(decrypted));
+      this._debugLog(`decrypt OK for type=${returnType}`);
 
       if (returnType === 'connect') {
         this.phantomWalletPublicKey = phantomPubKey;
@@ -346,6 +385,7 @@ class WalletManager {
       }
     } catch (err) {
       console.error('[WalletManager] Failed to process Phantom redirect:', err);
+      this._debugLog(`=> CAUGHT EXCEPTION processing redirect: ${err?.message || err}`);
       if (returnType === 'signAndSendTransaction') {
         const pendingAction = this._consumePendingAction();
         this.eventBus.emit('wallet:txError', {
