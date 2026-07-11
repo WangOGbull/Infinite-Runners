@@ -798,7 +798,7 @@ class UIManager {
               <div class="lobbyPlayerName">${p.isHost ? 'Host' : (p.name || 'Player')}</div>
               <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
             </div>
-            ${p.deposited ? '<span class="depositBadge confirmed"><i data-lucide="check"></i> Staked</span>' : ''}
+            ${p.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span> Staked</span>' : ''}
           </div>
         `).join('');
       }
@@ -854,6 +854,15 @@ class UIManager {
     }
     if (label) {
       label.textContent = myDeposited ? 'Bet Placed' : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join');
+    }
+    // Start Game is gated on the HOST's stake being placed first. Only the
+    // host ever sees/clicks this button (see updateLobby()'s
+    // isHost ? 'flex' : 'none'), but this stays keyed off the synced
+    // Firebase staking state rather than a local-only flag, so it's
+    // consistent no matter whose client is currently rendering it.
+    const startBtn = document.getElementById('lobbyStartBtn');
+    if (startBtn) {
+      startBtn.disabled = !hostDeposited;
     }
     if (statusText) {
       if (hostDeposited && opponentDeposited) {
