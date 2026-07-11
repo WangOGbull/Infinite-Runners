@@ -1,5 +1,5 @@
 // walletManager.js
-const RPC_ENDPOINT = 'https://api.devnet.solana.com'; // DEVNET FOR TESTING - swap back to your mainnet endpoint before launch
+const RPC_ENDPOINT = 'https://devnet.helius-rpc.com/?api-key=de2fb44b-73e1-4ee5-aa9d-b1134825a8b0'; // Dedicated Devnet RPC (Helius) - swap back to your mainnet endpoint before launch. The old public api.devnet.solana.com endpoint was blocking a method Phantom needs for signAndSendTransaction (-32601 errors), which a dedicated provider doesn't do.
 
 // Phantom's mobile "connect" deep link needs to know which cluster to
 // establish the session against. This MUST match RPC_ENDPOINT above - if
