@@ -1,6 +1,22 @@
 // walletManager.js
 const RPC_ENDPOINT = 'https://api.devnet.solana.com'; // DEVNET FOR TESTING - swap back to your mainnet endpoint before launch
 
+// Phantom's mobile "connect" deep link needs to know which cluster to
+// establish the session against. This MUST match RPC_ENDPOINT above - if
+// they drift apart (e.g. RPC_ENDPOINT is Devnet but connect says
+// mainnet-beta), Phantom will happily connect, but then reject any
+// signAndSendTransaction built against Devnet with a "-32601 / method not
+// supported" error, since it's not looking at the cluster the transaction
+// actually belongs to. Deriving it from RPC_ENDPOINT instead of hardcoding
+// it means swapping RPC_ENDPOINT to mainnet later automatically keeps
+// this in sync too.
+function clusterFromEndpoint(endpoint) {
+  if (endpoint.includes('devnet')) return 'devnet';
+  if (endpoint.includes('testnet')) return 'testnet';
+  return 'mainnet-beta';
+}
+const PHANTOM_CLUSTER = clusterFromEndpoint(RPC_ENDPOINT);
+
 // ---- minimal base58 helpers (avoids pulling in a separate bs58 package) ----
 const B58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 function b58encode(bytes) {
@@ -170,10 +186,15 @@ class WalletManager {
 
   // TEMPORARY diagnostic aid: renders a small on-screen log so we can see
   // exactly what's happening around the Phantom mobile redirect without
-  // needing USB/remote debugging. Safe to delete once the staking-redirect
-  // issue is confirmed fixed.
+  // needing USB/remote debugging. Off by default - enable by running
+  // `localStorage.setItem('wmDebug','1')` (e.g. via a bookmarklet or the
+  // desktop console on a synced tab) then reloading; disable the same way
+  // with `localStorage.removeItem('wmDebug')`. Uses localStorage (not a
+  // URL param) specifically so it survives the Phantom redirect round-trip
+  // without having to thread a debug flag through every deep-link URL.
   _debugLog(msg) {
     try {
+      if (localStorage.getItem('wmDebug') !== '1') return;
       let box = document.getElementById('wmDebugOverlay');
       if (!box) {
         box = document.createElement('div');
@@ -224,7 +245,7 @@ class WalletManager {
     );
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
 
-    return `https://phantom.app/ul/v1/connect?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrl}&cluster=mainnet-beta`;
+    return `https://phantom.app/ul/v1/connect?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrl}&cluster=${PHANTOM_CLUSTER}`;
   }
 
   _buildMobileSignMessageUrl(message) {
