@@ -423,6 +423,16 @@ class Game {
       this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
       return;
     }
+    // Cancel any pending onDisconnect cleanup on our OWN presence node before
+    // we potentially navigate away to Phantom for a mobile signature. That
+    // navigation causes a real (if brief) disconnect from Firebase - without
+    // cancelling first, the onDisconnect().remove() armed by
+    // _ensurePresence() would delete this player from the room the instant
+    // they try to stake, which is exactly what caused the opponent to
+    // "disappear" after the Phantom redirect. We re-arm it in the `finally`
+    // below (covers the desktop/synchronous path) and again via
+    // _ensurePresence() on resume after a mobile redirect.
+    this._cancelPresenceCleanup();
     this.eventBus.emit('staking:pending', { label: 'Forging your stake into the arena…' });
     try {
       if (this.isHost) {
@@ -447,6 +457,21 @@ class Game {
     } catch (err) {
       console.error('[Staking] deposit failed:', err);
       this.eventBus.emit('staking:error', { message: err?.message || 'Deposit failed. Your funds were not moved.' });
+    } finally {
+      // Only re-arms if we're still actually in the room (i.e. this path
+      // didn't navigate away) - if a mobile redirect just happened, this
+      // code doesn't even run since the page is already gone; the re-arm
+      // for that case happens in _rejoinRoom() -> _ensurePresence() instead.
+      this._ensurePresence();
+    }
+  }
+
+  _cancelPresenceCleanup() {
+    if (!this.roomRef) return;
+    if (this.isHost) {
+      this.roomRef.child('players/local').onDisconnect().cancel();
+    } else if (this.localPlayerId) {
+      this.roomRef.child('players/' + this.localPlayerId).onDisconnect().cancel();
     }
   }
 
