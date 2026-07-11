@@ -141,7 +141,7 @@ class WalletManager {
     // We need the SAME keypair before and after the redirect round-trip,
     // so persist it across the navigation.
     try {
-      const saved = sessionStorage.getItem(PHANTOM_KEYPAIR_KEY);
+      const saved = localStorage.getItem(PHANTOM_KEYPAIR_KEY);
       if (saved) {
         const { publicKey, secretKey } = JSON.parse(saved);
         this.dappKeyPair = {
@@ -149,7 +149,7 @@ class WalletManager {
           secretKey: new Uint8Array(secretKey)
         };
       }
-      const savedSession = sessionStorage.getItem(PHANTOM_SESSION_KEY);
+      const savedSession = localStorage.getItem(PHANTOM_SESSION_KEY);
       if (savedSession) this.mobileSession = savedSession;
     } catch (_) { /* ignore */ }
   }
@@ -166,7 +166,7 @@ class WalletManager {
 
   _persistDappKeyPair(keyPair) {
     try {
-      sessionStorage.setItem(PHANTOM_KEYPAIR_KEY, JSON.stringify({
+      localStorage.setItem(PHANTOM_KEYPAIR_KEY, JSON.stringify({
         publicKey: Array.from(keyPair.publicKey),
         secretKey: Array.from(keyPair.secretKey)
       }));
@@ -176,7 +176,7 @@ class WalletManager {
   // Opening the link from Telegram/Instagram/etc. means the page first loads
   // in that app's in-app browser. Phantom's redirect back, however, lands in
   // the device's default browser (e.g. Chrome) -- a completely different
-  // storage context. sessionStorage set in the in-app browser is invisible
+  // storage context. localStorage set in the in-app browser is invisible
   // there. To survive that hop, we embed the dapp secret key directly in the
   // redirect_link so whatever browser opens it can rebuild the same keypair.
   _buildMobileConnectUrl() {
@@ -221,7 +221,7 @@ class WalletManager {
   // Same encrypted-payload pattern as signMessage, but for signAndSendTransaction.
   // `pendingAction` is an arbitrary small JSON object (e.g. { type: 'createRoom',
   // roomId, tier }) describing what this transaction was for - it's stashed in
-  // sessionStorage and handed back via 'wallet:txConfirmed' once Phantom redirects
+  // localStorage and handed back via 'wallet:txConfirmed' once Phantom redirects
   // back, since the page fully reloads in between and loses all JS memory state.
   _buildMobileSignAndSendUrl(serializedTransaction, pendingAction) {
     if (!this.mobileSession) throw new Error('No active mobile session.');
@@ -240,7 +240,7 @@ class WalletManager {
     );
 
     try {
-      sessionStorage.setItem(PHANTOM_PENDING_ACTION_KEY, JSON.stringify(pendingAction || null));
+      localStorage.setItem(PHANTOM_PENDING_ACTION_KEY, JSON.stringify(pendingAction || null));
     } catch (_) { /* ignore */ }
 
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
@@ -306,7 +306,7 @@ class WalletManager {
       if (returnType === 'connect') {
         this.phantomWalletPublicKey = phantomPubKey;
         this.mobileSession = result.session;
-        sessionStorage.setItem(PHANTOM_SESSION_KEY, this.mobileSession);
+        localStorage.setItem(PHANTOM_SESSION_KEY, this.mobileSession);
 
         this.publicKey = new solanaWeb3.PublicKey(result.public_key);
         this.connected = true;
@@ -346,8 +346,8 @@ class WalletManager {
 
   _consumePendingAction() {
     try {
-      const raw = sessionStorage.getItem(PHANTOM_PENDING_ACTION_KEY);
-      sessionStorage.removeItem(PHANTOM_PENDING_ACTION_KEY);
+      const raw = localStorage.getItem(PHANTOM_PENDING_ACTION_KEY);
+      localStorage.removeItem(PHANTOM_PENDING_ACTION_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (_) {
       return null;
@@ -415,7 +415,7 @@ class WalletManager {
     this.balance = null;
     this.mobileSession = null;
     this.phantomWalletPublicKey = null;
-    sessionStorage.removeItem(PHANTOM_SESSION_KEY);
+    localStorage.removeItem(PHANTOM_SESSION_KEY);
     this.eventBus.emit('wallet:disconnected');
   }
 
@@ -529,7 +529,7 @@ class WalletManager {
 
     if (this.isMobile()) {
       const serialized = transaction.serialize({ requireAllSignatures: false });
-      window.location.href = this._buildMobileSignAndSendUrl(serialized, pendingAction);
+      window.location.replace(this._buildMobileSignAndSendUrl(serialized, pendingAction));
       return { deepLinked: true };
     }
 
