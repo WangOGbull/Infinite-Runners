@@ -58,6 +58,8 @@ function b58decode(str) {
 
 const PHANTOM_SESSION_KEY = 'phantomDappSession';
 const PHANTOM_KEYPAIR_KEY = 'phantomDappKeyPair';
+const PHANTOM_WALLET_PUBKEY_KEY = 'phantomWalletPubkey';
+const PHANTOM_USER_ADDRESS_KEY = 'phantomUserAddress';
 const PHANTOM_PENDING_ACTION_KEY = 'phantomPendingAction';
 
 class WalletManager {
@@ -181,6 +183,24 @@ class WalletManager {
       }
       const savedSession = localStorage.getItem(PHANTOM_SESSION_KEY);
       if (savedSession) this.mobileSession = savedSession;
+
+      // Restore full connected state, not just the session token. Before
+      // this fix, `connected` / `publicKey` / `phantomWalletPublicKey` were
+      // ONLY ever set during a fresh 'connect' redirect - so reloading the
+      // page after ANY other redirect (signAndSendTransaction, signMessage)
+      // silently reset the wallet to looking disconnected, even though the
+      // underlying session was still perfectly valid. That's exactly why
+      // the deposit button showed disabled ("Place Bet to Join", greyed
+      // out) the instant you landed back in the room after staking on
+      // mobile - canDeposit was false because `connected` never got
+      // restored, regardless of whether the deposit itself worked.
+      const savedWalletPubkey = localStorage.getItem(PHANTOM_WALLET_PUBKEY_KEY);
+      const savedAddress = localStorage.getItem(PHANTOM_USER_ADDRESS_KEY);
+      if (savedSession && savedWalletPubkey && savedAddress && this.dappKeyPair) {
+        this.phantomWalletPublicKey = b58decode(savedWalletPubkey);
+        this.publicKey = new solanaWeb3.PublicKey(savedAddress);
+        this.connected = true;
+      }
     } catch (_) { /* ignore */ }
   }
 
@@ -319,7 +339,15 @@ class WalletManager {
   _handleMobileRedirect() {
     const urlParams = new URLSearchParams(window.location.search);
     const returnType = urlParams.get('walletReturn');
-    if (!returnType) return;
+    if (!returnType) {
+      // Nothing to process this load, but if _restoreMobileKeyPair()
+      // found a valid persisted session (address + Phantom pubkey), let
+      // the rest of the app know now that it's safe to emit events (this
+      // runs from processMobileRedirect(), called after
+      // Game.setupEventListeners() has registered its listeners).
+      this._notifyRestoredConnection();
+      return;
+    }
 
     this._debugLog(
       `redirect received: type=${returnType} ` +
@@ -381,9 +409,15 @@ class WalletManager {
         this.phantomWalletPublicKey = phantomPubKey;
         this.mobileSession = result.session;
         localStorage.setItem(PHANTOM_SESSION_KEY, this.mobileSession);
+        try {
+          localStorage.setItem(PHANTOM_WALLET_PUBKEY_KEY, b58encode(phantomPubKey));
+        } catch (_) { /* ignore */ }
 
         this.publicKey = new solanaWeb3.PublicKey(result.public_key);
         this.connected = true;
+        try {
+          localStorage.setItem(PHANTOM_USER_ADDRESS_KEY, this.publicKey.toString());
+        } catch (_) { /* ignore */ }
 
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:connected', {
@@ -416,6 +450,17 @@ class WalletManager {
       } else {
         this.eventBus.emit('wallet:error', { message: 'Could not complete Phantom connection.' });
       }
+    }
+  }
+
+  _notifyRestoredConnection() {
+    if (this.connected && this.publicKey) {
+      this._refreshBalance().then(() => {
+        this.eventBus.emit('wallet:connected', {
+          address: this.publicKey.toString(),
+          balance: this.balance
+        });
+      });
     }
   }
 
@@ -491,6 +536,8 @@ class WalletManager {
     this.mobileSession = null;
     this.phantomWalletPublicKey = null;
     localStorage.removeItem(PHANTOM_SESSION_KEY);
+    localStorage.removeItem(PHANTOM_WALLET_PUBKEY_KEY);
+    localStorage.removeItem(PHANTOM_USER_ADDRESS_KEY);
     this.eventBus.emit('wallet:disconnected');
   }
 
