@@ -80,19 +80,19 @@ class UIManager {
         <h2>Select Arena</h2>
         <div class="arenaGrid">
           <div class="arenaCard" data-arena="0">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png)"></div>
+            <div class="arenaPreview" style="background-image:url(/arenas/arena_stone.png)"></div>
             <div class="arenaName">Stone Castle</div>
           </div>
           <div class="arenaCard" data-arena="1">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png)"></div>
+            <div class="arenaPreview" style="background-image:url(/arenas/arena_grass.png)"></div>
             <div class="arenaName">Grass Field</div>
           </div>
           <div class="arenaCard" data-arena="2">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png)"></div>
+            <div class="arenaPreview" style="background-image:url(/arenas/arena_purple.png)"></div>
             <div class="arenaName">Purple Magic</div>
           </div>
           <div class="arenaCard" data-arena="3">
-            <div class="arenaPreview" style="background-image:url(https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png)"></div>
+            <div class="arenaPreview" style="background-image:url(/arenas/arena_fire.png)"></div>
             <div class="arenaName">Fire Arena</div>
           </div>
         </div>
