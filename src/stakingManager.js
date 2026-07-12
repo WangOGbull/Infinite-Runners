@@ -17,6 +17,28 @@ const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWu
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const SYSVAR_RENT_PUBKEY = new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111');
 
+// ---------------------------------------------------------------------
+// TEMPORARY diagnostic aid: times every RPC round-trip in the staking flow
+// and prints it to the console, so we can see exactly which call the
+// multi-minute delay is coming from (our RPC calls before handing off to
+// Phantom, vs Phantom's own simulation after that). Safe to remove once
+// the delay is tracked down.
+// ---------------------------------------------------------------------
+async function _timed(label, promiseFactory) {
+  const start = performance.now();
+  console.log(`[Staking][timing] START ${label}`);
+  try {
+    const result = await promiseFactory();
+    const ms = Math.round(performance.now() - start);
+    console.log(`[Staking][timing] DONE  ${label} (${ms}ms)`);
+    return result;
+  } catch (err) {
+    const ms = Math.round(performance.now() - start);
+    console.log(`[Staking][timing] FAILED ${label} after ${ms}ms:`, err?.message || err);
+    throw err;
+  }
+}
+
 // PROGRAM_ID and the treasury account are only parsed the first time they're
 // actually needed (not at module load) - so the rest of the page keeps working
 // normally even before you've deployed the program and filled these in. Trying
@@ -127,7 +149,7 @@ function buildCreateAtaIx(payer, owner, ata, mint = INFINITE_MINT) {
 
 async function ensureAtaInstructions(connection, payer, owner, mint = INFINITE_MINT) {
   const ata = getAssociatedTokenAddress(owner, mint);
-  const info = await connection.getAccountInfo(ata);
+  const info = await _timed('connection.getAccountInfo(ata)', () => connection.getAccountInfo(ata));
   if (info) return { ata, instructions: [] };
   return { ata, instructions: [buildCreateAtaIx(payer, owner, ata, mint)] };
 }
@@ -255,7 +277,10 @@ class StakingManager {
   async _sendTx(instructions, pendingAction) {
     const connection = this.connection;
     const feePayer = this.walletManager.publicKey;
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash, lastValidBlockHeight } = await _timed(
+      'connection.getLatestBlockhash',
+      () => connection.getLatestBlockhash('confirmed')
+    );
 
     const tx = new solanaWeb3.Transaction({
       feePayer,
@@ -268,12 +293,25 @@ class StakingManager {
     // never resolves in this page load - completion is picked up later via the
     // 'wallet:txConfirmed' event once Phantom redirects back (see walletManager.js
     // and Game._restoreLobbyContext in main.js).
-    const result = await this.walletManager.sendTransaction(tx, pendingAction);
+    //
+    // On desktop (extension present), this is where the Phantom popup actually
+    // opens. Everything above this line ran in OUR code first - if Phantom takes
+    // a long time to even appear, check the timing logs above this one: if
+    // getAccountInfo/getLatestBlockhash already took minutes, the delay is our
+    // RPC, not Phantom. If those were fast and Phantom still took forever to
+    // pop up, the delay is inside Phantom/the browser extension itself.
+    const result = await _timed(
+      'walletManager.sendTransaction (opens Phantom, waits for user + simulation)',
+      () => this.walletManager.sendTransaction(tx, pendingAction)
+    );
     if (result?.deepLinked) return result;
 
-    await connection.confirmTransaction(
-      { signature: result.signature, blockhash, lastValidBlockHeight },
-      'confirmed'
+    await _timed(
+      'connection.confirmTransaction',
+      () => connection.confirmTransaction(
+        { signature: result.signature, blockhash, lastValidBlockHeight },
+        'confirmed'
+      )
     );
     return result;
   }
