@@ -148,7 +148,15 @@ const CONFIG = {
   RENDER_DISTANCE: 1600,
 
   // ==================== ASSETS ====================
-  ASSET_BASE_URL: 'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/dragons/',
+  // Was raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/dragons/ -
+  // GitHub's raw content host isn't meant for production hotlinking and was
+  // rate-limiting/resetting connections under repeated load (the
+  // ERR_CONNECTION_RESET errors on aegis_head/tail/body.png). These same
+  // files already live in this repo, which Cloudflare Pages now serves
+  // directly - so pointing at our own domain instead of GitHub's raw host
+  // fixes the rate limiting and is also just plain faster (same CDN as the
+  // rest of the site, no extra cross-origin hop).
+  ASSET_BASE_URL: '/dragons/',
   DRAGON_NAMES: DRAGONS
 };
 
