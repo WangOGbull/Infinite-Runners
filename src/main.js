@@ -117,7 +117,18 @@ class Game {
     this.walletManager.processMobileRedirect();
 
     if (!this.roomRef) {
-      this.uiManager.showScreen('titleScreen');
+      // If a lobby context is saved, we're in the middle of restoring from
+      // a mobile Phantom redirect (staking) - the signTransaction flow
+      // submits the transaction ourselves via our own RPC connection
+      // (see walletManager.js), which is an extra async round trip that
+      // didn't exist with the old (deprecated) signAndSendTransaction
+      // flow. That means roomRef isn't set synchronously here anymore, so
+      // showing the title screen unconditionally caused a visible flash
+      // before landing back in the lobby. Show a loading screen instead
+      // when we know a restore is imminent.
+      let hasPendingRestore = false;
+      try { hasPendingRestore = !!localStorage.getItem(LOBBY_CONTEXT_KEY); } catch (_) { /* ignore */ }
+      this.uiManager.showScreen(hasPendingRestore ? 'loadingScreen' : 'titleScreen');
     }
 
     this.stakingManager.getDisplayTiers()
@@ -493,6 +504,16 @@ class Game {
       // is picked.
       const startBtn = document.getElementById('lobbyStartBtn');
       if (startBtn) startBtn.disabled = false;
+      // Also clear any leftover status text from a PREVIOUS room (e.g.
+      // "Both players staked - ready to battle!") - this element isn't
+      // torn down between rooms, just toggled visible/hidden with the
+      // screen, so without this it kept showing stale text from whatever
+      // room was last played until a snapshot happened to overwrite it.
+      const statusText = document.getElementById('depositStatusText');
+      if (statusText) {
+        statusText.textContent = '';
+        statusText.className = 'depositStatusText';
+      }
       return;
     }
     this.uiManager.updateStakingUI({
@@ -545,17 +566,13 @@ class Game {
         this.initMatchStats(remoteDragon);
       }
 
-      const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
-      for (let i = this.playerIds.length; i < maxPlayers; i++) {
-        const spawn = spawnPositions[i];
-        const aiName = aiNames[i % aiNames.length];
-        const teamId = this.gameModeManager.getTeamForPlayer(i);
-        const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
-        if (this.aiController) {
-          aiDragon.speed *= this.aiController.getSpeedMult();
-        }
-        this.initMatchStats(aiDragon);
-      }
+      // NOTE: multiplayer rooms deliberately do NOT get backfilled with AI
+      // bots for empty slots. maxPlayers (e.g. 8 for FFA) is a capacity
+      // ceiling, not a target headcount - a 2-player staked match should
+      // only ever contain those 2 real dragons. Padding with bots was also
+      // why the match never ended after 3 deaths: checkMatchEnd() requires
+      // exactly ONE dragon left with lives > 0 to declare a winner, and
+      // with 6 AI bots also alive that condition could never be met.
     } else {
       const localSpawn = spawnPositions[0];
       this.localDragon = this.dragonManager.createDragon(
