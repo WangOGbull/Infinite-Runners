@@ -80,6 +80,7 @@ class WalletManager {
     this._initConnection();
     this._bindProviderEvents();
     this._restoreMobileKeyPair();
+    this._checkDebugQueryParam();
 
     this.eventBus.on('wallet:scanRequest', () => {
       this.scanBalances();
@@ -168,6 +169,24 @@ class WalletManager {
   // ---------------------------------------------------------------------
   // Mobile deep-link (Phantom Connect API) handling
   // ---------------------------------------------------------------------
+
+  // Enables/disables the debug overlay via a plain URL query param instead
+  // of a javascript: bookmarklet, since mobile Chrome blocks javascript:
+  // URLs typed directly into the address bar (silently does nothing -
+  // which is exactly why the earlier bookmarklet approach didn't work).
+  // Visit the site once with ?debug=1 to turn it on, ?debug=0 to turn it
+  // off - it's stored in localStorage either way, so it persists across
+  // reloads and redirects without needing the query param every time.
+  _checkDebugQueryParam() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('debug') === '1') {
+        localStorage.setItem('wmDebug', '1');
+      } else if (params.get('debug') === '0') {
+        localStorage.removeItem('wmDebug');
+      }
+    } catch (_) { /* ignore */ }
+  }
 
   _restoreMobileKeyPair() {
     // We need the SAME keypair before and after the redirect round-trip,
