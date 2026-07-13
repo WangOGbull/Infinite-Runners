@@ -427,7 +427,15 @@ class WalletManager {
     const phantomPubKeyParam = urlParams.get('phantom_encryption_public_key');
     const nonceParam = urlParams.get('nonce');
     const dataParam = urlParams.get('data');
-    if (!phantomPubKeyParam || !nonceParam || !dataParam) return;
+    // phantom_encryption_public_key is only resent on 'connect' responses -
+    // signTransaction/signMessage responses only include nonce+data per
+    // Phantom's docs, reusing the public key we already got at connect
+    // time. Requiring it on every redirect type meant this whole handler
+    // silently no-op'd on every non-connect response (hasPhantomPubKey was
+    // false, so this returned before ever attempting to decrypt) - which is
+    // exactly why staking landed back on the title screen with nothing
+    // restored, even though Phantom had genuinely signed the transaction.
+    if (!nonceParam || !dataParam) return;
 
     try {
       // Prefer the keypair embedded in the URL (dsk) -- it's guaranteed to
@@ -443,7 +451,14 @@ class WalletManager {
       } else {
         keyPair = this._getOrCreateDappKeyPair();
       }
-      const phantomPubKey = b58decode(phantomPubKeyParam);
+      // Use the fresh key if Phantom sent one (connect), otherwise fall
+      // back to the one we stored from the original connect response.
+      const phantomPubKey = phantomPubKeyParam
+        ? b58decode(phantomPubKeyParam)
+        : this.phantomWalletPublicKey;
+      if (!phantomPubKey) {
+        throw new Error('No Phantom public key available - please reconnect your wallet.');
+      }
       const sharedSecret = nacl.box.before(phantomPubKey, keyPair.secretKey);
       const decrypted = nacl.box.open.after(b58decode(dataParam), b58decode(nonceParam), sharedSecret);
 
