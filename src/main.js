@@ -814,6 +814,15 @@ class Game {
       // (shorter dragon dies) - without this the server cannot independently
       // verify who won.
       segments: this.localDragon.segments.length,
+      // lives/alive: each client is only authoritative for its OWN
+      // dragon's death/respawn state (see collisionSystem.js - it no
+      // longer lets a client declare a remote dragon dead based on its own
+      // local, lerped approximation of that dragon's position). Other
+      // clients now sync the real lives/alive state from here instead of
+      // computing it themselves, which is what was causing the opponent to
+      // vanish on one client but not the other.
+      lives: this.localDragon.lives,
+      alive: this.localDragon.alive,
       t: now
     });
   }
@@ -845,6 +854,18 @@ class Game {
       // immediately instead of accumulating.
       if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
         this._resizeRemoteDragon(dragon, pos.segments);
+      }
+      // Sync lives/alive from the network - collisionSystem.js no longer
+      // lets any client declare a remote dragon dead on its own, so this
+      // is the only place a remote dragon's death/respawn state actually
+      // changes. The existing per-frame win-check in update() already
+      // re-evaluates allDragons every tick, so a real death arriving here
+      // is picked up automatically without needing anything extra.
+      if (typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
+        dragon.lives = pos.lives;
+      }
+      if (typeof pos.alive === 'boolean' && pos.alive !== dragon.alive) {
+        dragon.alive = pos.alive;
       }
     }
   }
