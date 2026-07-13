@@ -30,7 +30,7 @@
 <!-- FontAwesome for your icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<link rel="stylesheet" href="./src/styles.css?v=19">
+<link rel="stylesheet" href="./src/styles.css?v=20">
 
 <style>
   /* Mobile dragon select scroll fix */
@@ -365,6 +365,16 @@
     padding-bottom: 16px;
     overflow-y: auto;
     overflow-x: hidden;
+    /* Hide the visible scrollbar track/thumb while keeping the panel
+       scrollable - a raw OS scrollbar line running down the dragon select
+       screen looked out of place against the custom nav-dots design. */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* old Edge/IE */
+  }
+  .dsCarouselWrap::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/new Edge */
+    width: 0;
+    height: 0;
   }
 
   .dsTopBar {
@@ -1117,7 +1127,7 @@
   <div class="loadText">Loading...</div>
 </div>
 
-<script type="module" src="./src/main.js?v=19"></script>
+<script type="module" src="./src/main.js?v=20"></script>
 
 <!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
 <div id="dragonDetailModal" class="screen">
