@@ -117,18 +117,31 @@ class Game {
     this.walletManager.processMobileRedirect();
 
     if (!this.roomRef) {
-      // If a lobby context is saved, we're in the middle of restoring from
-      // a mobile Phantom redirect (staking) - the signTransaction flow
-      // submits the transaction ourselves via our own RPC connection
-      // (see walletManager.js), which is an extra async round trip that
-      // didn't exist with the old (deprecated) signAndSendTransaction
-      // flow. That means roomRef isn't set synchronously here anymore, so
-      // showing the title screen unconditionally caused a visible flash
-      // before landing back in the lobby. Show a loading screen instead
-      // when we know a restore is imminent.
-      let hasPendingRestore = false;
-      try { hasPendingRestore = !!localStorage.getItem(LOBBY_CONTEXT_KEY); } catch (_) { /* ignore */ }
-      this.uiManager.showScreen(hasPendingRestore ? 'loadingScreen' : 'titleScreen');
+      // Only show the loading screen if we're ACTUALLY processing a
+      // redirect right now (the URL literally has ?walletReturn=... on
+      // it) - not just because a lobby context happens to exist in
+      // localStorage. That key only gets cleared on a SUCCESSFUL deposit;
+      // any abandoned attempt (tab closed mid-flow, browser killed,
+      // anything) leaves it sitting there indefinitely. Using its mere
+      // presence as the signal meant every future normal page load -
+      // typing the URL fresh, no redirect involved at all - would show
+      // the loading screen and then get stuck on it forever, since
+      // nothing was ever going to transition it away. This is exactly
+      // what caused the permanent "Entering the Arena..." freeze.
+      let urlHasWalletReturn = false;
+      try { urlHasWalletReturn = !!new URLSearchParams(window.location.search).get('walletReturn'); } catch (_) { /* ignore */ }
+      this.uiManager.showScreen(urlHasWalletReturn ? 'loadingScreen' : 'titleScreen');
+
+      // Safety net: even if a redirect IS genuinely in flight, don't ever
+      // strand the user here forever if restoration fails silently for
+      // some future, unforeseen reason. Fall back to the title screen.
+      if (urlHasWalletReturn) {
+        setTimeout(() => {
+          if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
+            this.uiManager.showScreen('titleScreen');
+          }
+        }, 6000);
+      }
     }
 
     this.stakingManager.getDisplayTiers()
