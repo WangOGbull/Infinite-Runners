@@ -331,14 +331,22 @@ class WalletManager {
     return `https://phantom.app/ul/v1/signMessage?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
   }
 
-  // Same encrypted-payload pattern as signMessage, but for signAndSendTransaction.
+  // Phantom's signAndSendTransaction deeplink is DEPRECATED (confirmed on
+  // Phantom's own current docs: "Use signAllTransactions or signTransaction
+  // instead"). That's the actual cause of the -32601 "method not supported"
+  // errors we kept hitting on mobile, regardless of RPC endpoint, cluster,
+  // or session freshness - none of those were ever the real problem. This
+  // uses signTransaction instead: Phantom signs the transaction and hands
+  // the signed bytes back to us, then WE submit it via our own RPC
+  // connection (see the signTransaction branch in _handleMobileRedirect).
+  //
   // `pendingAction` is an arbitrary small JSON object (e.g. { type: 'createRoom',
   // roomId, tier }) describing what this transaction was for - it's stashed in
   // localStorage and handed back via 'wallet:txConfirmed' once Phantom redirects
   // back, since the page fully reloads in between and loses all JS memory state.
-  _buildMobileSignAndSendUrl(serializedTransaction, pendingAction) {
+  _buildMobileSignTransactionUrl(serializedTransaction, pendingAction) {
     this._debugLog(
-      `buildSignAndSend: mobileSession=${this.mobileSession ? 'present' : 'MISSING'} ` +
+      `buildSignTransaction: mobileSession=${this.mobileSession ? 'present' : 'MISSING'} ` +
       `phantomPubKey=${this.phantomWalletPublicKey ? 'present' : 'MISSING'} ` +
       `dappKeyPair=${this.dappKeyPair ? 'present' : 'MISSING'} ` +
       `pendingAction=${JSON.stringify(pendingAction)}`
@@ -365,13 +373,13 @@ class WalletManager {
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
     const redirectUrl = encodeURIComponent(
-      `${redirectBase}?walletReturn=signAndSendTransaction&dsk=${dsk}`
+      `${redirectBase}?walletReturn=signTransaction&dsk=${dsk}`
     );
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const nonceParam = encodeURIComponent(b58encode(nonce));
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
 
-    return `https://phantom.app/ul/v1/signAndSendTransaction?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
+    return `https://phantom.app/ul/v1/signTransaction?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
   }
 
   _handleMobileRedirect() {
@@ -407,7 +415,7 @@ class WalletManager {
       this._debugLog(`=> ERROR PATH: ${message}`);
       if (returnType === 'signMessage') {
         this.eventBus.emit('wallet:signTestError', { message });
-      } else if (returnType === 'signAndSendTransaction') {
+      } else if (returnType === 'signTransaction') {
         const pendingAction = this._consumePendingAction();
         this.eventBus.emit('wallet:txError', { message, pendingAction });
       } else {
@@ -469,17 +477,32 @@ class WalletManager {
             .map(b => b.toString(16).padStart(2, '0')).join(''),
           publicKey: this.publicKey ? this.publicKey.toString() : ''
         });
-      } else if (returnType === 'signAndSendTransaction') {
+      } else if (returnType === 'signTransaction') {
+        // Phantom only SIGNED this - it does not submit it (that method's
+        // deprecated). result.transaction is the signed, serialized
+        // transaction, base58-encoded. We submit it ourselves via our own
+        // RPC connection, then treat a successful submission exactly like
+        // the old signAndSendTransaction flow used to (same event, same
+        // payload shape), so main.js's existing handling doesn't need to
+        // change at all.
         const pendingAction = this._consumePendingAction();
-        this.eventBus.emit('wallet:txConfirmed', {
-          signature: result.signature,
-          pendingAction,
-        });
+        const signedTxBytes = b58decode(result.transaction);
+        this.connection.sendRawTransaction(signedTxBytes)
+          .then(signature => {
+            this.eventBus.emit('wallet:txConfirmed', { signature, pendingAction });
+          })
+          .catch(err => {
+            this._debugLog(`=> sendRawTransaction FAILED: ${err?.message || err}`);
+            this.eventBus.emit('wallet:txError', {
+              message: err?.message || 'Failed to submit the signed transaction.',
+              pendingAction,
+            });
+          });
       }
     } catch (err) {
       console.error('[WalletManager] Failed to process Phantom redirect:', err);
       this._debugLog(`=> CAUGHT EXCEPTION processing redirect: ${err?.message || err}`);
-      if (returnType === 'signAndSendTransaction') {
+      if (returnType === 'signTransaction') {
         const pendingAction = this._consumePendingAction();
         this.eventBus.emit('wallet:txError', {
           message: 'Could not complete the staking transaction.',
@@ -672,10 +695,17 @@ class WalletManager {
 
   /**
    * Signs and sends a Transaction that already has feePayer/blockhash set.
-   * Desktop (extension present): signs+sends immediately and resolves with
-   * { signature }. Mobile (no extension): redirects to Phantom and resolves
-   * with { deepLinked: true } - the actual result arrives later via the
-   * 'wallet:txConfirmed' / 'wallet:txError' events after Phantom redirects back.
+   * Desktop (extension present): signs+sends immediately via the injected
+   * provider's signAndSendTransaction - this is the Wallet Standard provider
+   * API and is NOT the same thing as Phantom's deprecated HTTP deeplink of
+   * the same name, so it's unaffected by that deprecation. Resolves with
+   * { signature }.
+   * Mobile (no extension): redirects to Phantom's signTransaction deeplink
+   * (sign-only - the signAndSendTransaction deeplink is deprecated) and
+   * resolves with { deepLinked: true }. The signed transaction comes back
+   * via the redirect, gets submitted via our own RPC connection in
+   * _handleMobileRedirect(), and the actual result arrives later via the
+   * 'wallet:txConfirmed' / 'wallet:txError' events.
    */
   async sendTransaction(transaction, pendingAction) {
     if (!this.connected) {
@@ -689,7 +719,7 @@ class WalletManager {
 
     if (this.isMobile()) {
       const serialized = transaction.serialize({ requireAllSignatures: false });
-      window.location.replace(this._buildMobileSignAndSendUrl(serialized, pendingAction));
+      window.location.replace(this._buildMobileSignTransactionUrl(serialized, pendingAction));
       return { deepLinked: true };
     }
 
