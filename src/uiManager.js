@@ -855,14 +855,16 @@ class UIManager {
     if (label) {
       label.textContent = myDeposited ? 'Bet Placed' : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join');
     }
-    // Start Game is gated on the HOST's stake being placed first. Only the
-    // host ever sees/clicks this button (see updateLobby()'s
-    // isHost ? 'flex' : 'none'), but this stays keyed off the synced
-    // Firebase staking state rather than a local-only flag, so it's
-    // consistent no matter whose client is currently rendering it.
+    // Start Game only looks clickable once BOTH players have staked -
+    // matches the actual safety check in main.js's startMpGame() that
+    // already blocks starting otherwise. It used to only require the
+    // host's own stake, which meant the button looked fully ready the
+    // moment the host deposited even with zero opponents in the room -
+    // confusing, and part of what led to a room getting started
+    // prematurely.
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn) {
-      startBtn.disabled = !hostDeposited;
+      startBtn.disabled = !(hostDeposited && opponentDeposited);
     }
     if (statusText) {
       if (hostDeposited && opponentDeposited) {
