@@ -257,7 +257,10 @@ class WalletManager {
       if (!box) {
         box = document.createElement('div');
         box.id = 'wmDebugOverlay';
-        box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:32vh;overflow-y:auto;background:rgba(0,0,0,0.88);color:#39ff6a;font-size:10px;font-family:monospace;padding:6px;z-index:999999;white-space:pre-wrap;word-break:break-all;border-top:1px solid #39ff6a;';
+        // pointer-events:none so this NEVER blocks taps on real UI
+        // underneath it (was covering Start Game / status text on small
+        // screens). Shrunk height and font so it takes up less room too.
+        box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:16vh;overflow-y:auto;background:rgba(0,0,0,0.75);color:#39ff6a;font-size:8px;font-family:monospace;padding:4px;z-index:999999;white-space:pre-wrap;word-break:break-all;border-top:1px solid #39ff6a;pointer-events:none;';
         document.body.appendChild(box);
       }
       const line = document.createElement('div');
