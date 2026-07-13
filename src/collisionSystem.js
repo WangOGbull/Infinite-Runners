@@ -93,6 +93,7 @@ class CollisionSystem {
     const head = headDragon.head;
     const headRadius = headDragon.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS;
     const bodyRadius = bodyDragon.headRadius || CONFIG.DRAGON_COLLISION_RADIUS;
+    const lastIdx = bodyDragon.segments.length - 1;
 
     // Check headDragon's head against bodyDragon's body segments (skip head)
     for (let i = 1; i < bodyDragon.segments.length; i++) {
@@ -103,21 +104,27 @@ class CollisionSystem {
       const hitDist = headRadius + bodyRadius;
 
       if (dist < hitDist) {
-        const len1 = headDragon.segments.length;
-        const len2 = bodyDragon.segments.length;
+        const isTailHit = (i === lastIdx);
 
-        // Same rule as checkDragonCollisions: never declare an outcome for
-        // a remote dragon, only for a dragon this client actually owns.
-        if (len1 < len2) {
-          // headDragon is smaller -> shrink to start size
-          if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'head_vs_body', other: bodyDragon });
-        } else if (len2 < len1) {
-          // bodyDragon is smaller -> shrink to start size
-          if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'head_vs_body', other: headDragon });
+        if (isTailHit) {
+          // HEAD vs TAIL: instant kill of the dragon whose tail got hit,
+          // regardless of relative size.
+          if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
         } else {
-          // Equal size -> both shrink to start size
-          if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body' });
-          if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body' });
+          // HEAD vs BODY (non-tail): the SMALLER dragon dies outright
+          // (previously it only shrank). Equal size still shrinks both -
+          // "smaller dies" doesn't apply when there's no smaller one.
+          const len1 = headDragon.segments.length;
+          const len2 = bodyDragon.segments.length;
+
+          if (len1 < len2) {
+            if (!headDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: headDragon, killer: bodyDragon });
+          } else if (len2 < len1) {
+            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+          } else {
+            if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body' });
+            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body' });
+          }
         }
         return;
       }
