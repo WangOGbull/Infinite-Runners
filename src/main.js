@@ -1026,7 +1026,7 @@ class Game {
 
   pauseGame() {
     this.isPaused = true;
-    this.uiManager.showPauseOverlay(true);
+    this.uiManager.showPauseOverlay(true, this.isMultiplayer);
   }
 
   resumeGame() {
