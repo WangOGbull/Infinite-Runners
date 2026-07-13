@@ -147,10 +147,23 @@ function buildCreateAtaIx(payer, owner, ata, mint = INFINITE_MINT) {
   });
 }
 
+// Session-level cache: once we've confirmed a wallet's Associated Token
+// Account exists, it will always exist (accounts don't get deleted), so
+// there's no reason to spend an RPC round-trip re-checking it on every
+// single stake attempt. Keyed by "ownerPubkey:mintPubkey".
+const _knownAtaCache = new Map();
+
 async function ensureAtaInstructions(connection, payer, owner, mint = INFINITE_MINT) {
   const ata = getAssociatedTokenAddress(owner, mint);
+  const cacheKey = `${owner.toString()}:${mint.toString()}`;
+  if (_knownAtaCache.has(cacheKey)) {
+    return { ata, instructions: [] };
+  }
   const info = await _timed('connection.getAccountInfo(ata)', () => connection.getAccountInfo(ata));
-  if (info) return { ata, instructions: [] };
+  if (info) {
+    _knownAtaCache.set(cacheKey, true);
+    return { ata, instructions: [] };
+  }
   return { ata, instructions: [buildCreateAtaIx(payer, owner, ata, mint)] };
 }
 
@@ -274,10 +287,10 @@ class StakingManager {
     return this.walletManager.connection;
   }
 
-  async _sendTx(instructions, pendingAction) {
+  async _sendTx(instructions, pendingAction, prefetchedBlockhashInfo) {
     const connection = this.connection;
     const feePayer = this.walletManager.publicKey;
-    const { blockhash, lastValidBlockHeight } = await _timed(
+    const { blockhash, lastValidBlockHeight } = prefetchedBlockhashInfo || await _timed(
       'connection.getLatestBlockhash',
       () => connection.getLatestBlockhash('confirmed')
     );
@@ -320,7 +333,13 @@ class StakingManager {
   async createStakedRoom({ roomId, tier, depositTimeoutSecs = 300, settleTimeoutSecs = 900 }) {
     const connection = this.connection;
     const hostPubkey = this.walletManager.publicKey;
-    const { ata: hostAta, instructions: ataIxs } = await ensureAtaInstructions(connection, hostPubkey, hostPubkey);
+    // These two calls don't depend on each other's results - running them
+    // in parallel instead of one after another roughly halves the wait
+    // before we even get to redirecting to Phantom.
+    const [{ ata: hostAta, instructions: ataIxs }, blockhashInfo] = await Promise.all([
+      ensureAtaInstructions(connection, hostPubkey, hostPubkey),
+      _timed('connection.getLatestBlockhash (parallel)', () => connection.getLatestBlockhash('confirmed')),
+    ]);
 
     const createIx = await buildCreateRoomIx({
       hostPubkey,
@@ -331,21 +350,20 @@ class StakingManager {
       settleTimeoutSecs,
     });
 
-    return this._sendTx([...ataIxs, createIx], { type: 'createRoom', roomId, tier });
+    return this._sendTx([...ataIxs, createIx], { type: 'createRoom', roomId, tier }, blockhashInfo);
   }
 
   /** Opponent deposits the exact tier amount already locked in by the host. */
   async joinStakedRoom({ roomId }) {
     const connection = this.connection;
     const opponentPubkey = this.walletManager.publicKey;
-    const { ata: opponentAta, instructions: ataIxs } = await ensureAtaInstructions(
-      connection,
-      opponentPubkey,
-      opponentPubkey
-    );
+    const [{ ata: opponentAta, instructions: ataIxs }, blockhashInfo] = await Promise.all([
+      ensureAtaInstructions(connection, opponentPubkey, opponentPubkey),
+      _timed('connection.getLatestBlockhash (parallel)', () => connection.getLatestBlockhash('confirmed')),
+    ]);
 
     const joinIx = await buildJoinRoomIx({ opponentPubkey, opponentAta, roomId });
-    return this._sendTx([...ataIxs, joinIx], { type: 'joinRoom', roomId });
+    return this._sendTx([...ataIxs, joinIx], { type: 'joinRoom', roomId }, blockhashInfo);
   }
 
   /** Both players back out after both deposited but before the match starts. Needs both wallets connected. */
