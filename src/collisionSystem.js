@@ -57,16 +57,27 @@ class CollisionSystem {
       const len1 = d1.segments ? d1.segments.length : 0;
       const len2 = d2.segments ? d2.segments.length : 0;
 
+      // IMPORTANT: only ever declare a death/shrink outcome for a dragon
+      // that ISN'T remote. Every client runs this exact same collision
+      // check locally, including for the opponent's dragon - but each
+      // client's copy of the remote dragon is a lerped approximation, not
+      // ground truth. If we let every client independently decide the
+      // remote dragon's fate, they disagree (that's what caused PC to
+      // think the opponent died - and stop rendering them - while the
+      // opponent's own client never agreed). A dragon's fate is only ever
+      // decided on the client that actually owns it; everyone else finds
+      // out via the network (see applyRemotePositions() in main.js, which
+      // now syncs `lives`/`alive` the same way it already synced segments).
       if (len1 < len2) {
         // d1 is shorter -> d1 dies
-        this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+        if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
       } else if (len2 < len1) {
         // d2 is shorter -> d2 dies
-        this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+        if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
       } else {
         // Equal size -> both shrink to start size (NOT die)
-        this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'equal_head' });
-        this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'equal_head' });
+        if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'equal_head' });
+        if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'equal_head' });
       }
       return;
     }
@@ -95,16 +106,18 @@ class CollisionSystem {
         const len1 = headDragon.segments.length;
         const len2 = bodyDragon.segments.length;
 
+        // Same rule as checkDragonCollisions: never declare an outcome for
+        // a remote dragon, only for a dragon this client actually owns.
         if (len1 < len2) {
           // headDragon is smaller -> shrink to start size
-          this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'head_vs_body', other: bodyDragon });
+          if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'head_vs_body', other: bodyDragon });
         } else if (len2 < len1) {
           // bodyDragon is smaller -> shrink to start size
-          this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'head_vs_body', other: headDragon });
+          if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'head_vs_body', other: headDragon });
         } else {
           // Equal size -> both shrink to start size
-          this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body' });
-          this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body' });
+          if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body' });
+          if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body' });
         }
         return;
       }
