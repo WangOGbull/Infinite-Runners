@@ -1004,9 +1004,14 @@ class UIManager {
     if (overlay) overlay.classList.remove('active');
   }
 
-  showPauseOverlay(visible = true) {
+  showPauseOverlay(visible = true, isMultiplayer = false) {
     const el = document.getElementById('pauseOverlay');
     if (el) el.classList.toggle('active', !!visible);
+    // "Change Dragon" doesn't make sense mid-multiplayer-match - your
+    // dragon type is already known to the other player(s) and tied to the
+    // room state, so swapping it here would desync what they see.
+    const changeDragonBtn = document.getElementById('btnChangeDragon');
+    if (changeDragonBtn) changeDragonBtn.style.display = isMultiplayer ? 'none' : 'flex';
   }
 
   hidePauseOverlay() {
