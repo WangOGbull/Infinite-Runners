@@ -30,7 +30,7 @@
 <!-- FontAwesome for your icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<link rel="stylesheet" href="./src/styles.css?v=10">
+<link rel="stylesheet" href="./src/styles.css?v=17">
 
 <style>
   /* Mobile dragon select scroll fix */
@@ -307,6 +307,45 @@
     opacity: 0.4;
     cursor: not-allowed;
     filter: grayscale(0.4);
+  }
+
+  /* ===== Defensive layout fixes: prevent horizontal overflow / cut-off
+     content on narrow mobile screens. Added without seeing styles.css, so
+     these are intentionally general safety nets rather than surgical
+     overrides - they shouldn't conflict with the existing design, just
+     stop things from spilling past the viewport edge. ===== */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  /* The lobby's Player 2 / Host card row was overflowing past the right
+     edge on narrow screens (e.g. the Host card + its "Staked" badge got
+     clipped off entirely) - force it to wrap and let cards shrink to fit
+     instead of holding a fixed width wider than the viewport. */
+  #lobbySlots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+  }
+  #lobbySlots > * {
+    flex: 1 1 140px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  #lobbySlots .depositBadge,
+  #lobbySlots .lobbyPlayerName,
+  #lobbySlots .lobbyPlayerDragon {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lobbyBox, #lobbyTierSelector, #lobbyArenaSelector, #tierBtns, #lobbyArenaThumbs {
+    max-width: 100%;
   }
 
   /* ===== DRAGON SELECT CAROUSEL STYLES ===== */
@@ -1077,7 +1116,7 @@
   <div class="loadText">Loading...</div>
 </div>
 
-<script type="module" src="./src/main.js?v=10"></script>
+<script type="module" src="./src/main.js?v=17"></script>
 
 <!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
 <div id="dragonDetailModal" class="screen">
