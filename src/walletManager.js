@@ -185,6 +185,25 @@ class WalletManager {
       } else if (params.get('debug') === '0') {
         localStorage.removeItem('wmDebug');
       }
+      // Forcibly clears every Phantom-related localStorage key, guaranteeing
+      // the next "Connect Wallet" creates a genuinely fresh session instead
+      // of relying on the Disconnect button (or this restore logic) having
+      // fully cleaned up a stale one. Specifically for stale sessions that
+      // were established before the mainnet/devnet cluster fix - those
+      // sessions are permanently tied to the wrong cluster and will keep
+      // producing "-32601 method not supported" errors from Phantom no
+      // matter how many times you reconnect through the normal UI, since
+      // reconnecting alone doesn't necessarily invalidate the old session
+      // token if something upstream still has it cached.
+      if (params.get('resetWallet') === '1') {
+        [PHANTOM_SESSION_KEY, PHANTOM_KEYPAIR_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY]
+          .forEach(key => localStorage.removeItem(key));
+        this.mobileSession = null;
+        this.dappKeyPair = null;
+        this.phantomWalletPublicKey = null;
+        this.publicKey = null;
+        this.connected = false;
+      }
     } catch (_) { /* ignore */ }
   }
 
