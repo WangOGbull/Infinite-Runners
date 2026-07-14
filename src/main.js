@@ -105,7 +105,7 @@ class Game {
 
   async init() {
     this.setupEventListeners();
-    this.setupFirebase();
+    await this.setupFirebase();
     this.effectsSystem.init();
 
     // Process any pending Phantom mobile redirect now that listeners
@@ -159,7 +159,7 @@ class Game {
     }
   }
 
-  setupFirebase() {
+  async setupFirebase() {
     try {
       const firebaseConfig = {
         apiKey: "AIzaSyAI0oDj8ZyjQzvdAWS-3CxbHCbJHU5R62s",
@@ -174,6 +174,21 @@ class Game {
       if (typeof firebase !== 'undefined') {
         this.firebaseApp = firebase.initializeApp(firebaseConfig);
         this.db = firebase.database();
+        // Anonymous auth: every visitor silently gets a unique,
+        // Firebase-verified identity the moment the page loads - no login
+        // screen, no friction, invisible to the player. This is what lets
+        // the database rules require `auth != null` on writes (see the
+        // rules JSON), closing off random unauthenticated tampering via
+        // the raw REST API, instead of the database being wide open to
+        // anyone who finds the URL.
+        if (firebase.auth) {
+          try {
+            const cred = await firebase.auth().signInAnonymously();
+            this.authUid = cred?.user?.uid || null;
+          } catch (authErr) {
+            console.error('[Firebase] Anonymous sign-in failed:', authErr);
+          }
+        }
       }
     } catch (e) {
       console.log('Firebase not available, running in local mode');
@@ -489,6 +504,11 @@ class Game {
       updates['staking/hostTx'] = signature;
     } else {
       updates.opponentPubkey = myPubkey;
+      // Records which authenticated visitor actually claimed the opponent
+      // slot for staking, at the moment they stake - this is what the
+      // rules use to stop a THIRD person (in an FFA room with more than 2
+      // players) from being able to overwrite someone else's stake status.
+      updates.opponentAuthUid = this.authUid || null;
       updates['staking/opponentDeposited'] = true;
       updates['staking/opponentTx'] = signature;
     }
@@ -642,6 +662,7 @@ class Game {
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
       host: 'local',
+      hostAuthUid: this.authUid || null,
       mode: this.selectedMpMode,
       maxPlayers: maxPlayers,
       arenaIndex: 0,
