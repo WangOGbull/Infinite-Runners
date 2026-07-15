@@ -681,6 +681,9 @@ class UIManager {
       this.showScreen('titleScreen');
     });
 
+    const resumeRoomBtn = document.getElementById('btnResumeRoom');
+    if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
+
     const walletBtn = document.getElementById('walletBtn');
     if (walletBtn) walletBtn.addEventListener('click', () => this.showScreen('walletModal'));
 
@@ -1063,6 +1066,19 @@ class UIManager {
     const el = document.getElementById('scoreboardOverlay');
     if (!el) return;
     el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
+  }
+
+  showResumeRoomBanner(roomCode) {
+    const banner = document.getElementById('resumeRoomBanner');
+    const codeSpan = document.getElementById('resumeRoomCode');
+    if (codeSpan) codeSpan.textContent = roomCode;
+    if (banner) banner.style.display = 'block';
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+  }
+
+  hideResumeRoomBanner() {
+    const banner = document.getElementById('resumeRoomBanner');
+    if (banner) banner.style.display = 'none';
   }
 
   showScreen(screenId) {
