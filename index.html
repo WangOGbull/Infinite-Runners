@@ -13,6 +13,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
+<!-- Photon Realtime SDK for "Search Battle" quick matchmaking. Download
+     from dashboard.photonengine.com -> SDKs -> Realtime, unzip, and place
+     Photon-Javascript_SDK.min.js at this exact path. Deliberately NOT
+     loaded from a CDN - Photon doesn't officially publish one. -->
+<script src="./lib/Photon-Javascript_SDK.min.js"></script>
+
 <!-- Solana web3.js (exposes window.solanaWeb3) -->
 <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 
@@ -31,7 +37,7 @@
 <!-- FontAwesome for your icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<link rel="stylesheet" href="./src/styles.css?v=22">
+<link rel="stylesheet" href="./src/styles.css?v=23">
 
 <style>
   /* Mobile dragon select scroll fix */
@@ -907,6 +913,11 @@
         <div class="mLabel">Create Room</div>
         <div class="mDesc">Start a new room and invite friends.</div>
       </div>
+      <div class="modeCard" id="btnMpSearchBattle">
+        <div class="mIcon"><i data-lucide="swords"></i></div>
+        <div class="mLabel">Search Battle</div>
+        <div class="mDesc">Automatically match with any available player.</div>
+      </div>
     </div>
     <div class="mpJoinSection">
       <div class="joinTitle">Join Room</div>
@@ -918,6 +929,28 @@
       <p class="mpJoinError" id="mpJoinError"></p>
     </div>
     <button class="menuBtn" id="btnMpBack"><i data-lucide="arrow-left"></i> Back to Mode</button>
+  </div>
+</div>
+
+<!-- ===== SEARCH BATTLE: searching for opponent ===== -->
+<div id="matchmakingSearchScreen" class="screen">
+  <div class="mpBox" style="text-align:center;">
+    <h2>Searching for an Opponent...</h2>
+    <div class="wSpinner" style="margin:30px auto;"></div>
+    <p class="sub" id="matchmakingStatusText">Looking for any available player.</p>
+    <button class="menuBtn" id="btnCancelSearch"><i data-lucide="x"></i> Cancel Search</button>
+  </div>
+</div>
+
+<!-- ===== SEARCH BATTLE: opponent found ===== -->
+<div id="matchmakingFoundScreen" class="screen">
+  <div class="mpBox" style="text-align:center;">
+    <h2>Opponent Found!</h2>
+    <p class="sub">An opponent is ready to battle. Proceed to set up the match?</p>
+    <div class="lobbyActions" style="margin-top:20px;">
+      <button class="pBtn pBtnRes" id="btnProceedMatch"><i data-lucide="check"></i> Proceed</button>
+      <button class="pBtn pBtnOut" id="btnCancelMatch"><i data-lucide="x"></i> Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -1138,7 +1171,7 @@
   <div class="loadText">Loading...</div>
 </div>
 
-<script type="module" src="./src/main.js?v=22"></script>
+<script type="module" src="./src/main.js?v=23"></script>
 
 <!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
 <div id="dragonDetailModal" class="screen">
