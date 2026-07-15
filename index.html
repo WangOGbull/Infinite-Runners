@@ -31,7 +31,7 @@
 <!-- FontAwesome for your icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<link rel="stylesheet" href="./src/styles.css?v=21">
+<link rel="stylesheet" href="./src/styles.css?v=22">
 
 <style>
   /* Mobile dragon select scroll fix */
@@ -795,6 +795,16 @@
 <div id="titleScreen" class="screen active" style="background-image:url('./shadow-drake-bg.png');background-size:cover;background-position:center;background-repeat:no-repeat;">
   <div class="darken"></div>
   <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button>
+  <!-- Hidden by default. Shown when a recent room exists in localStorage
+       (see LAST_ROOM_KEY in main.js) - gives players a way back into their
+       room after a mobile Phantom redirect lands them here with no data at
+       all (a real Android behavior, not something we can prevent), instead
+       of a dead end where their room - and possibly a real on-chain
+       deposit - is stranded with no path back to it. -->
+  <div id="resumeRoomBanner" style="display:none; position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:50; background:rgba(0,0,0,0.7); border:1px solid rgba(0,180,216,0.4); border-radius:12px; padding:14px 20px; text-align:center; max-width:90vw;">
+    <div style="color:#c8ccd8; font-size:13px; margin-bottom:8px;">You have a room in progress</div>
+    <button id="btnResumeRoom" class="menuBtn" style="margin:0 auto;"><i data-lucide="rotate-ccw"></i> Resume Room <span id="resumeRoomCode"></span></button>
+  </div>
   <div class="content">
     <h1>Infinite Runners</h1>
     <h2>^Dragons Arena^</h2>
@@ -1128,7 +1138,7 @@
   <div class="loadText">Loading...</div>
 </div>
 
-<script type="module" src="./src/main.js?v=21"></script>
+<script type="module" src="./src/main.js?v=22"></script>
 
 <!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
 <div id="dragonDetailModal" class="screen">
