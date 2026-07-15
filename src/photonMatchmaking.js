@@ -23,7 +23,7 @@
 const PHOTON_APP_ID = '9dad70be-61cb-4d4e-bba4-ca57fa9942f3';
 const PHOTON_APP_VERSION = '1.0';
 const PHOTON_REGION = 'us'; // change to whichever Photon region is closest to your players
-const MAX_ACCEPTABLE_RTT_MS = 400; // "strong network connection" gate for Search Battle
+const MAX_ACCEPTABLE_RTT_MS = 3000; // "strong network connection" gate - full connect time, not raw ping (see checkConnectionQuality)
 const ROOM_READY_EVENT_CODE = 1;
 
 let _appIdWarningShown = false;
@@ -51,7 +51,7 @@ class PhotonMatchmaking {
 
   _newClient() {
     return new Photon.LoadBalancing.LoadBalancingClient(
-      Photon.LoadBalancing.Constants.ConnectionProtocol.Wss,
+      Photon.ConnectionProtocol.Wss,
       PHOTON_APP_ID,
       PHOTON_APP_VERSION
     );
@@ -60,14 +60,24 @@ class PhotonMatchmaking {
   /**
    * Quick connectivity check BEFORE committing to a real search - this is
    * the "should require strong network connection" requirement. Connects
-   * briefly, measures round-trip time to Photon's nearest server, reports
-   * back whether it's good enough, then disconnects. startSearch() below
-   * does its own separate, full connection.
+   * briefly and measures how long it takes to reach the master server,
+   * reports back whether it's good enough, then disconnects. startSearch()
+   * below does its own separate, full connection.
+   *
+   * NOTE: this measures OUR OWN wall-clock connect time, not the SDK's
+   * getRtt() - per the actual SDK source, getRtt() only returns a real
+   * value once you're in a game room with an active gamePeer; called any
+   * earlier (like right after reaching ConnectedToMaster, before joining
+   * any room) it always returns 0, which would make this check fail
+   * permanently even on a perfect connection. Since this measures full
+   * connection setup time (DNS + handshake + auth), not a single ping, the
+   * threshold is intentionally generous compared to a raw RTT figure.
    */
   async checkConnectionQuality() {
     assertConfigured();
     return new Promise((resolve) => {
       const testClient = this._newClient();
+      const startedAt = Date.now();
       let resolved = false;
       const finish = (result) => {
         if (resolved) return;
@@ -77,8 +87,8 @@ class PhotonMatchmaking {
       };
       testClient.onStateChange = (state) => {
         if (state === Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToMaster) {
-          const rtt = typeof testClient.getRtt === 'function' ? testClient.getRtt() : null;
-          finish({ ok: rtt != null && rtt > 0 && rtt <= MAX_ACCEPTABLE_RTT_MS, rtt });
+          const elapsedMs = Date.now() - startedAt;
+          finish({ ok: elapsedMs <= MAX_ACCEPTABLE_RTT_MS, rtt: elapsedMs });
         }
       };
       testClient.onError = () => finish({ ok: false, rtt: null, error: true });
