@@ -15,6 +15,12 @@ import StakingManager from './stakingManager.js';
 import AIController from './aiController.js';
 
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
+// Separate from LOBBY_CONTEXT_KEY (which is ephemeral - consumed the moment
+// a deposit confirms) - this one persists as long as you're plausibly still
+// in a room, specifically so a bare title screen (Android dropping Phantom's
+// redirect data entirely, which is a real OS-level behavior JS can't
+// prevent) still gives you a way back into your room instead of a dead end.
+const LAST_ROOM_KEY = 'lastRoomInfo';
 
 // ==================== EVENT BUS ====================
 class EventBus {
@@ -141,6 +147,12 @@ class Game {
             this.uiManager.showScreen('titleScreen');
           }
         }, 6000);
+      } else {
+        // No redirect data at all this load - if Android dropped it
+        // entirely (a real behavior, not something JS can prevent), this
+        // is the actual way back into the room instead of a dead end.
+        const lastRoom = this._getLastRoom();
+        if (lastRoom) this.uiManager.showResumeRoomBanner(lastRoom.roomCode);
       }
     }
 
@@ -323,6 +335,14 @@ class Game {
 
     this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
 
+    this.eventBus.on('ui:resumeRoom', () => {
+      const lastRoom = this._getLastRoom();
+      if (lastRoom && this.db) {
+        this.uiManager.hideResumeRoomBanner();
+        this._rejoinRoom(lastRoom);
+      }
+    });
+
     this.eventBus.on('wallet:txConfirmed', ({ signature, pendingAction }) => {
       this._resumeStakingAction(pendingAction, signature);
     });
@@ -373,6 +393,70 @@ class Game {
     } catch (_) {}
   }
 
+  _persistLastRoom() {
+    try {
+      localStorage.setItem(LAST_ROOM_KEY, JSON.stringify({
+        roomCode: this.roomCode,
+        isHost: this.isHost,
+        localPlayerId: this.localPlayerId,
+        selectedDragon: this.selectedDragon,
+        selectedMpMode: this.selectedMpMode,
+        lobbyTier: this.lobbyTier,
+        savedAt: Date.now(),
+      }));
+    } catch (_) {}
+  }
+
+  _getLastRoom() {
+    try {
+      const raw = localStorage.getItem(LAST_ROOM_KEY);
+      if (!raw) return null;
+      const ctx = JSON.parse(raw);
+      // Ignore anything older than 2 hours - a stale "resume?" prompt for a
+      // long-dead room would just be confusing, not helpful.
+      if (!ctx.savedAt || Date.now() - ctx.savedAt > 2 * 60 * 60 * 1000) return null;
+      return ctx;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _clearLastRoom() {
+    try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
+  }
+
+  // Reconciles Firebase's staking flags against the actual on-chain Room
+  // account. Called whenever we (re)enter a room - catches the case where a
+  // deposit genuinely succeeded on-chain but our app never found out
+  // (Android dropping Phantom's redirect data), which would otherwise leave
+  // the room showing "not staked" forever even though the player paid.
+  async _syncStakeFromChain() {
+    if (!this.roomRef || !this.roomCode) return;
+    const roomIdNum = parseInt(this.roomCode, 10);
+    if (!roomIdNum) return;
+    try {
+      const onChain = await this.stakingManager.getRoomAccount(roomIdNum);
+      if (!onChain.exists) return; // host hasn't actually deposited on-chain yet - nothing to reconcile
+
+      const updates = {};
+      if (!this.stakingState.hostDeposited && onChain.hostDeposited) {
+        updates['staking/hostDeposited'] = true;
+        if (onChain.hostPubkey) updates.hostPubkey = onChain.hostPubkey;
+        if (onChain.tier) updates.tier = onChain.tier;
+      }
+      if (!this.stakingState.opponentDeposited && onChain.opponentDeposited) {
+        updates['staking/opponentDeposited'] = true;
+        if (onChain.opponentPubkey) updates.opponentPubkey = onChain.opponentPubkey;
+      }
+      if (Object.keys(updates).length > 0) {
+        await this.roomRef.update(updates);
+        this.eventBus.emit('staking:confirmed', { label: 'Synced your stake status from the blockchain.' });
+      }
+    } catch (err) {
+      console.warn('[Staking] on-chain sync check failed (non-fatal):', err?.message || err);
+    }
+  }
+
   _consumeLobbyContext() {
     try {
       const raw = localStorage.getItem(LOBBY_CONTEXT_KEY);
@@ -400,6 +484,8 @@ class Game {
     this.uiManager.showScreen('lobbyScreen');
     this._attachRoomListener();
     this._ensurePresence();
+    this._persistLastRoom();
+    this._syncStakeFromChain();
   }
 
   // Self-heals by re-adding this player's own entry if it's ever missing
@@ -687,6 +773,7 @@ class Game {
     this._refreshStakingUI();
     this._attachRoomListener();
     this._ensurePresence();
+    this._persistLastRoom();
   }
 
   joinRoom(code) {
@@ -727,6 +814,7 @@ class Game {
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
       this._attachRoomListener();
       this._ensurePresence();
+      this._persistLastRoom();
     });
   }
 
@@ -791,6 +879,7 @@ class Game {
     this.lobbyTier = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
     this._consumeLobbyContext();
+    this._clearLastRoom();
   }
 
   startMpGame() {
