@@ -13,6 +13,7 @@ import EffectsSystem from './effectsSystem.js';
 import WalletManager from './walletManager.js';
 import StakingManager from './stakingManager.js';
 import AIController from './aiController.js';
+import PhotonMatchmaking from './photonMatchmaking.js';
 
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
 // Separate from LOBBY_CONTEXT_KEY (which is ephemeral - consumed the moment
@@ -71,6 +72,7 @@ class Game {
     // explicitly from init(), after listeners and Firebase are ready.
     this.walletManager = new WalletManager(this.eventBus);
     this.stakingManager = new StakingManager(this.eventBus, this.walletManager);
+    this.matchmaking = new PhotonMatchmaking(this.eventBus);
     this.aiController = null;
 
     this.localDragon = null;
@@ -341,6 +343,71 @@ class Game {
         this.uiManager.hideResumeRoomBanner();
         this._rejoinRoom(lastRoom);
       }
+    });
+
+    // ===== SEARCH BATTLE (Photon matchmaking) =====
+    // Photon's ONLY job across all of this is finding an opponent and
+    // exchanging a room code. The moment that code exists, everything
+    // hands off to the existing, already-working Firebase
+    // createRoom()/joinRoom() flow below - staking, gameplay, all of it
+    // stays exactly as-is.
+    this.eventBus.on('ui:searchBattle', async () => {
+      this.uiManager.showScreen('matchmakingSearchScreen');
+      try {
+        const quality = await this.matchmaking.checkConnectionQuality();
+        if (!quality.ok) {
+          this.eventBus.emit('matchmaking:error', {
+            message: quality.timeout
+              ? 'Could not verify your connection quickly enough. Check your network and try again.'
+              : `Your connection may be too unstable for real-time matchmaking (${quality.rtt ?? '?'}ms). Try again on a stronger connection.`
+          });
+          return;
+        }
+        this.matchmaking.startSearch();
+      } catch (err) {
+        this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
+      }
+    });
+
+    this.eventBus.on('matchmaking:found', () => {
+      this.uiManager.showScreen('matchmakingFoundScreen');
+    });
+
+    this.eventBus.on('ui:proceedMatch', () => {
+      if (this.matchmaking.iAmInitiator) {
+        // We're the initiator: create the real Firebase room using the
+        // EXACT same path as tapping "Create Room" manually, then tell our
+        // matched opponent the code via Photon.
+        this.createRoom(this.selectedMpMode || 'FFA');
+        if (this.roomCode) this.matchmaking.announceRoomReady(this.roomCode);
+      } else {
+        // We're not the initiator - just wait for 'matchmaking:ready' to
+        // arrive with the code (may already be in flight).
+        this.uiManager.showScreen('matchmakingSearchScreen');
+      }
+    });
+
+    this.eventBus.on('matchmaking:ready', ({ roomCode, isInitiator }) => {
+      this.matchmaking.cleanup(); // Photon's job is done
+      if (!isInitiator) {
+        this.joinRoom(roomCode); // identical to typing the code in manually
+      }
+    });
+
+    this.eventBus.on('ui:cancelSearch', () => {
+      this.matchmaking.cancelSearch();
+    });
+    this.eventBus.on('ui:cancelMatch', () => {
+      this.matchmaking.cancelSearch();
+    });
+    this.eventBus.on('matchmaking:cancelled', () => {
+      this.uiManager.showScreen('mpMenuScreen');
+    });
+    this.eventBus.on('matchmaking:error', ({ message }) => {
+      this.matchmaking.cancelSearch();
+      this.uiManager.showScreen('mpMenuScreen');
+      const err = document.getElementById('mpJoinError');
+      if (err) err.textContent = message || 'Matchmaking failed.';
     });
 
     this.eventBus.on('wallet:txConfirmed', ({ signature, pendingAction }) => {
