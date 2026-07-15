@@ -401,6 +401,55 @@ class StakingManager {
       feePercent: config.feeBps / 100,
     };
   }
+
+  /**
+   * Reads a Room account directly from chain, bypassing Firebase entirely.
+   * This exists specifically to self-heal the case where a mobile Phantom
+   * redirect drops its confirmation data before our own app ever sees it
+   * (a real Android/Chrome behavior, not something JS can prevent) - the
+   * on-chain deposit can succeed even though our app never found out and
+   * Firebase's staking flags stay wrong forever.
+   *
+   * Byte layout matches Room in state.rs exactly:
+   *   0-8    discriminator
+   *   8-16   room_id (u64 LE)
+   *   16-48  host (Pubkey, 32 bytes)
+   *   48-80  opponent (Pubkey, 32 bytes - all zero until someone joins)
+   *   80-81  tier (borsh enum = 1 byte variant index: 0=Small,1=Medium,2=High)
+   *   81-89  stake_amount (u64)
+   *   89-97  net_amount (u64)
+   *   97-98  status (borsh enum = 1 byte: 0=AwaitingOpponent,1=Ready,2=Settled,3=Refunded,4=Cancelled)
+   * (remaining fields aren't needed for this check)
+   *
+   * The room existing at all means create_room succeeded (host deposit is
+   * atomic with room creation) - so existence + status alone tell us
+   * everything Firebase's staking.hostDeposited/opponentDeposited flags
+   * are supposed to represent, straight from ground truth.
+   */
+  async getRoomAccount(roomId) {
+    const pda = roomPda(roomId);
+    const info = await this.connection.getAccountInfo(pda);
+    if (!info) return { exists: false };
+
+    const data = info.data;
+    const hostBytes = data.slice(16, 48);
+    const opponentBytes = data.slice(48, 80);
+    const tierByte = data[80];
+    const statusByte = data[97];
+    const isDefaultOpponent = opponentBytes.every((b) => b === 0);
+    const TIER_BYTE_NAMES = ['Small', 'Medium', 'High'];
+    const ROOM_STATUS = ['AwaitingOpponent', 'Ready', 'Settled', 'Refunded', 'Cancelled'];
+
+    return {
+      exists: true,
+      hostPubkey: new solanaWeb3.PublicKey(hostBytes).toString(),
+      opponentPubkey: isDefaultOpponent ? null : new solanaWeb3.PublicKey(opponentBytes).toString(),
+      tier: TIER_BYTE_NAMES[tierByte] || null,
+      status: ROOM_STATUS[statusByte] || null,
+      hostDeposited: true,
+      opponentDeposited: !isDefaultOpponent,
+    };
+  }
 }
 
 export default StakingManager;
