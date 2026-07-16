@@ -16,14 +16,8 @@ import AIController from './aiController.js';
 import PhotonMatchmaking from './photonMatchmaking.js';
 
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
-// Separate from LOBBY_CONTEXT_KEY (which is ephemeral - consumed the moment
-// a deposit confirms) - this one persists as long as you're plausibly still
-// in a room, specifically so a bare title screen (Android dropping Phantom's
-// redirect data entirely, which is a real OS-level behavior JS can't
-// prevent) still gives you a way back into your room instead of a dead end.
 const LAST_ROOM_KEY = 'lastRoomInfo';
 
-// ==================== EVENT BUS ====================
 class EventBus {
   constructor() {
     this.listeners = new Map();
@@ -45,7 +39,6 @@ class EventBus {
   }
 }
 
-// ==================== MAIN GAME ====================
 class Game {
   constructor() {
     this.eventBus = new EventBus();
@@ -61,15 +54,6 @@ class Game {
     this.gameModeManager = new GameModeManager();
     this.uiManager = new UIManager(this.eventBus);
     this.effectsSystem = new EffectsSystem();
-    // NOTE: WalletManager's constructor no longer processes a Phantom mobile
-    // redirect on its own. It used to call _handleMobileRedirect() here,
-    // synchronously, which meant 'wallet:txConfirmed' / 'wallet:txError'
-    // could fire before Game.setupEventListeners() (called from init(),
-    // further down) had registered any listeners - the event fired into
-    // an empty EventBus and was lost. That's why staking on mobile bounced
-    // back to the title screen with the wallet looking disconnected instead
-    // of resuming the lobby. We now call walletManager.processMobileRedirect()
-    // explicitly from init(), after listeners and Firebase are ready.
     this.walletManager = new WalletManager(this.eventBus);
     this.stakingManager = new StakingManager(this.eventBus, this.walletManager);
     this.matchmaking = new PhotonMatchmaking(this.eventBus);
@@ -104,9 +88,11 @@ class Game {
 
     this.assetsLoaded = false;
 
-    // Match statistics
     this.matchStats = {};
     this.winner = null;
+
+    this.lobbyCountdownStarted = false;
+    this.lobbyCountdownInterval = null;
 
     this.init();
   }
@@ -116,33 +102,13 @@ class Game {
     await this.setupFirebase();
     this.effectsSystem.init();
 
-    // Process any pending Phantom mobile redirect now that listeners
-    // (setupEventListeners) and Firebase (setupFirebase) are both ready.
-    // This can synchronously emit 'wallet:connected' / 'wallet:txConfirmed' /
-    // 'wallet:txError', which in turn can call showScreen('lobbyScreen') via
-    // _rejoinRoom() - so we only default to the title screen if that didn't
-    // already happen.
     this.walletManager.processMobileRedirect();
 
     if (!this.roomRef) {
-      // Only show the loading screen if we're ACTUALLY processing a
-      // redirect right now (the URL literally has ?walletReturn=... on
-      // it) - not just because a lobby context happens to exist in
-      // localStorage. That key only gets cleared on a SUCCESSFUL deposit;
-      // any abandoned attempt (tab closed mid-flow, browser killed,
-      // anything) leaves it sitting there indefinitely. Using its mere
-      // presence as the signal meant every future normal page load -
-      // typing the URL fresh, no redirect involved at all - would show
-      // the loading screen and then get stuck on it forever, since
-      // nothing was ever going to transition it away. This is exactly
-      // what caused the permanent "Entering the Arena..." freeze.
       let urlHasWalletReturn = false;
       try { urlHasWalletReturn = !!new URLSearchParams(window.location.search).get('walletReturn'); } catch (_) { /* ignore */ }
       this.uiManager.showScreen(urlHasWalletReturn ? 'loadingScreen' : 'titleScreen');
 
-      // Safety net: even if a redirect IS genuinely in flight, don't ever
-      // strand the user here forever if restoration fails silently for
-      // some future, unforeseen reason. Fall back to the title screen.
       if (urlHasWalletReturn) {
         setTimeout(() => {
           if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
@@ -150,9 +116,6 @@ class Game {
           }
         }, 6000);
       } else {
-        // No redirect data at all this load - if Android dropped it
-        // entirely (a real behavior, not something JS can prevent), this
-        // is the actual way back into the room instead of a dead end.
         const lastRoom = this._getLastRoom();
         if (lastRoom) this.uiManager.showResumeRoomBanner(lastRoom.roomCode);
       }
@@ -188,13 +151,6 @@ class Game {
       if (typeof firebase !== 'undefined') {
         this.firebaseApp = firebase.initializeApp(firebaseConfig);
         this.db = firebase.database();
-        // Anonymous auth: every visitor silently gets a unique,
-        // Firebase-verified identity the moment the page loads - no login
-        // screen, no friction, invisible to the player. This is what lets
-        // the database rules require `auth != null` on writes (see the
-        // rules JSON), closing off random unauthenticated tampering via
-        // the raw REST API, instead of the database being wide open to
-        // anyone who finds the URL.
         if (firebase.auth) {
           try {
             const cred = await firebase.auth().signInAnonymously();
@@ -245,7 +201,6 @@ class Game {
       this.effectsSystem.playHeadCollisionSound();
     });
 
-    // NEW: Dragon shrink event (head-to-body collision, equal head collision)
     this.eventBus.on('dragon:shrink', ({ dragon, reason, other }) => {
       this.dragonManager.shrinkDragon(dragon);
       this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#ffaa00', CONFIG.EFFECTS.SHRINK_PARTICLES || 15, CONFIG.EFFECTS.SHRINK_PARTICLE_SPEED || 4, CONFIG.EFFECTS.SHRINK_PARTICLE_LIFE || 500);
@@ -253,7 +208,6 @@ class Game {
       this.effectsSystem.playTone(200, 'sawtooth', 0.3, 0.15);
     });
 
-    // UPDATED: Dragon death with lives/respawn system
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
       dragon.deaths = (dragon.deaths || 0) + 1;
       dragon.lives = (dragon.lives || 0) - 1;
@@ -265,7 +219,6 @@ class Game {
       this.effectsSystem.flashVignette(isLocal ? '#ff0000' : '#ff4400', isLocal ? 0.5 : 0.25, 400);
       this.effectsSystem.playDeathSound(isLocal);
 
-      // Track killer stats
       if (killer && killer !== dragon) {
         killer.kills = (killer.kills || 0) + 1;
         const killerIsLocal = killer === this.localDragon;
@@ -276,15 +229,12 @@ class Game {
         }
       }
 
-      // Drop food from dead dragon
       for (const seg of dragon.segments) {
         this.foodSystem.spawnFoodAt(seg.x, seg.y);
       }
       this.foodSystem.spawnFoodAt(dragon.head.x, dragon.head.y, true);
 
-      // Check if dragon has lives remaining
       if (dragon.lives > 0) {
-        // Respawn after delay
         dragon.alive = false;
         setTimeout(() => {
           if (this.state === 'PLAYING') {
@@ -293,7 +243,6 @@ class Game {
           }
         }, CONFIG.RESPAWN_DELAY_MS);
       } else {
-        // Eliminated - no lives left
         dragon.alive = false;
         this.checkMatchEnd();
       }
@@ -346,13 +295,6 @@ class Game {
     });
 
     // ===== SEARCH BATTLE (Photon matchmaking, tier-first) =====
-    // Player picks a stake tier BEFORE searching; Photon only matches them
-    // with someone who picked the same tier (native Photon room-property
-    // filtering, not something checked after the fact). The moment two
-    // players are matched, this hands off entirely to the existing,
-    // already-working Firebase createRoom()/joinRoom() flow with that tier
-    // already locked in - no separate "Proceed" confirmation step, since
-    // picking a tier and starting the search already is the commitment.
     this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
       this.uiManager.showScreen('matchmakingSearchScreen');
       try {
@@ -371,16 +313,19 @@ class Game {
       }
     });
 
+    this.eventBus.on('matchmaking:opponentFound', ({ isInitiator, tier }) => {
+      this.uiManager.showOpponentFoundModal(tier);
+    });
+
+    this.eventBus.on('matchmaking:proceed', () => {
+      this.matchmaking.proceed();
+    });
+
     this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
       if (isInitiator) {
-        // Create the real Firebase room using the EXACT same path as
-        // tapping "Create Room" manually, with the agreed tier already
-        // locked in, then tell the matched opponent the code via Photon.
         this.createRoom(this.selectedMpMode || 'FFA', tier);
         if (this.roomCode) this.matchmaking.announceRoomReady(this.roomCode);
       } else {
-        // roomCode arrives via Photon's onEvent - join it exactly as if
-        // typed in manually. Tier is already set on the room itself.
         this.joinRoom(roomCode);
       }
     });
@@ -411,21 +356,18 @@ class Game {
     const allDragons = this.dragonManager.getAllDragons();
     const withLives = allDragons.filter(d => d.lives > 0);
 
-    // If only one dragon has lives left, they win
     if (withLives.length === 1 && allDragons.length > 1) {
       this.winner = withLives[0];
       this.endGame(true);
       return;
     }
 
-    // If no one has lives left, it is a draw
     if (withLives.length === 0 && allDragons.length > 0) {
       this.winner = null;
       this.endGame(true);
       return;
     }
 
-    // If local dragon is eliminated, check if match still ongoing
     if (this.localDragon && this.localDragon.lives <= 0 && !this.localDragon.alive) {
       const living = this.dragonManager.getLivingDragons();
       const othersAlive = living.filter(d => d !== this.localDragon);
@@ -467,8 +409,6 @@ class Game {
       const raw = localStorage.getItem(LAST_ROOM_KEY);
       if (!raw) return null;
       const ctx = JSON.parse(raw);
-      // Ignore anything older than 2 hours - a stale "resume?" prompt for a
-      // long-dead room would just be confusing, not helpful.
       if (!ctx.savedAt || Date.now() - ctx.savedAt > 2 * 60 * 60 * 1000) return null;
       return ctx;
     } catch (_) {
@@ -480,18 +420,13 @@ class Game {
     try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
   }
 
-  // Reconciles Firebase's staking flags against the actual on-chain Room
-  // account. Called whenever we (re)enter a room - catches the case where a
-  // deposit genuinely succeeded on-chain but our app never found out
-  // (Android dropping Phantom's redirect data), which would otherwise leave
-  // the room showing "not staked" forever even though the player paid.
   async _syncStakeFromChain() {
     if (!this.roomRef || !this.roomCode) return;
     const roomIdNum = parseInt(this.roomCode, 10);
     if (!roomIdNum) return;
     try {
       const onChain = await this.stakingManager.getRoomAccount(roomIdNum);
-      if (!onChain.exists) return; // host hasn't actually deposited on-chain yet - nothing to reconcile
+      if (!onChain.exists) return;
 
       const updates = {};
       if (!this.stakingState.hostDeposited && onChain.hostDeposited) {
@@ -543,22 +478,6 @@ class Game {
     this._syncStakeFromChain();
   }
 
-  // Self-heals by re-adding this player's own entry if it's ever missing
-  // from the room (e.g. after resuming from a Phantom redirect).
-  //
-  // This USED to also arm Firebase onDisconnect().remove() here, on the
-  // theory that a player who truly leaves (closes the tab, loses signal)
-  // shouldn't linger forever as a ghost entry. That backfired badly: any
-  // WebSocket disconnect fires onDisconnect, and backgrounding a mobile
-  // browser tab - e.g. switching to Telegram to share the room code, which
-  // is completely normal, expected behavior - can itself drop the
-  // connection. That deleted the HOST's own entry while they'd never
-  // actually left, showing "0/N players" when they came back. Kicking an
-  // active player out of their own room for switching apps for a second is
-  // a much worse failure than a rare stale entry from someone who
-  // genuinely abandoned a room, so onDisconnect cleanup has been removed
-  // entirely. leaveRoom() (Leave Room button) remains the way entries get
-  // cleaned up.
   _ensurePresence() {
     if (!this.roomRef) return;
     if (this.isHost) {
@@ -634,9 +553,6 @@ class Game {
   async _markDeposited(role, tier, signature) {
     if (!this.roomRef) return;
     const updates = {};
-    // Stash the depositing wallet's own public key in Firebase so the backend
-    // knows where to send a payout later - nothing wrote this before, and
-    // settle_match cannot function without it.
     const myPubkey = this.walletManager.publicKey.toString();
     if (role === 'host') {
       updates.tier = tier;
@@ -645,10 +561,6 @@ class Game {
       updates['staking/hostTx'] = signature;
     } else {
       updates.opponentPubkey = myPubkey;
-      // Records which authenticated visitor actually claimed the opponent
-      // slot for staking, at the moment they stake - this is what the
-      // rules use to stop a THIRD person (in an FFA room with more than 2
-      // players) from being able to overwrite someone else's stake status.
       updates.opponentAuthUid = this.authUid || null;
       updates['staking/opponentDeposited'] = true;
       updates['staking/opponentTx'] = signature;
@@ -659,30 +571,12 @@ class Game {
   }
 
   _refreshStakingUI() {
-    // Staking isn't limited to 1v1 - FFA and 2v2 rooms also show stake
-    // tiers and a deposit button in the lobby. The old
-    // `selectedMpMode === '1v1'` check meant updateStakingUI() was never
-    // called for any other mode, so the deposit button on the joining
-    // player's screen just kept whatever disabled state it had at page
-    // load and never unlocked - that's why staking looked "locked" in an
-    // FFA room. Gate on whether a tier has actually been picked instead,
-    // since that applies the same way in every mode.
     const stakingApplies = !!this.lobbyTier;
     const tierSelector = document.getElementById('lobbyTierSelector');
     if (tierSelector) tierSelector.style.display = 'flex';
     if (!stakingApplies) {
-      // No tier chosen yet, so this room isn't using staking (or hasn't
-      // started to). Don't leave Start Game blocked on a deposit that was
-      // never required - updateStakingUI() (which owns the actual
-      // host-must-deposit-first gate) is only reached below, once a tier
-      // is picked.
       const startBtn = document.getElementById('lobbyStartBtn');
       if (startBtn) startBtn.disabled = false;
-      // Also clear any leftover status text from a PREVIOUS room (e.g.
-      // "Both players staked - ready to battle!") - this element isn't
-      // torn down between rooms, just toggled visible/hidden with the
-      // screen, so without this it kept showing stale text from whatever
-      // room was last played until a snapshot happened to overwrite it.
       const statusText = document.getElementById('depositStatusText');
       if (statusText) {
         statusText.textContent = '';
@@ -712,7 +606,6 @@ class Game {
 
     this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
 
-    // Reset match stats
     this.matchStats = {};
     this.winner = null;
 
@@ -739,14 +632,6 @@ class Game {
         remoteDragon.isRemote = true;
         this.initMatchStats(remoteDragon);
       }
-
-      // NOTE: multiplayer rooms deliberately do NOT get backfilled with AI
-      // bots for empty slots. maxPlayers (e.g. 8 for FFA) is a capacity
-      // ceiling, not a target headcount - a 2-player staked match should
-      // only ever contain those 2 real dragons. Padding with bots was also
-      // why the match never ended after 3 deaths: checkMatchEnd() requires
-      // exactly ONE dragon left with lives > 0 to declare a winner, and
-      // with 6 AI bots also alive that condition could never be met.
     } else {
       const localSpawn = spawnPositions[0];
       this.localDragon = this.dragonManager.createDragon(
@@ -798,6 +683,12 @@ class Game {
     this.lobbyArenaIndex = 0;
     this.lobbyTier = presetTier;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this.lobbyCountdownStarted = false;
+    if (this.lobbyCountdownInterval) {
+      clearInterval(this.lobbyCountdownInterval);
+      this.lobbyCountdownInterval = null;
+    }
+    this.uiManager.hideLobbyCountdown();
     const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
@@ -838,6 +729,12 @@ class Game {
     }
     this.roomCode = code;
     this.isHost = false;
+    this.lobbyCountdownStarted = false;
+    if (this.lobbyCountdownInterval) {
+      clearInterval(this.lobbyCountdownInterval);
+      this.lobbyCountdownInterval = null;
+    }
+    this.uiManager.hideLobbyCountdown();
     this.roomRef = this.db.ref('rooms/' + code);
 
     this.roomRef.once('value').then(snapshot => {
@@ -892,12 +789,20 @@ class Game {
       const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
         ...p,
         isLocal: id === this.localPlayerId,
-        isHost: id === 'local', // the host's Firebase key is always 'local', regardless of which browser is viewing
+        isHost: id === 'local',
         deposited: id === 'local' ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited,
       }));
       const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
       this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
       this._refreshStakingUI();
+
+      // START COUNTDOWN WHEN BOTH STAKED
+      const bothStaked = this.stakingState.hostDeposited && this.stakingState.opponentDeposited;
+      if (bothStaked && !this.lobbyCountdownStarted && data.status !== 'playing') {
+        this.lobbyCountdownStarted = true;
+        this.startLobbyCountdown();
+      }
+
       if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
         const gameConfig = data.gameConfig || {};
         this.selectedMode = gameConfig.mode || data.mode || 'FFA';
@@ -908,6 +813,22 @@ class Game {
     });
   }
 
+  startLobbyCountdown() {
+    let seconds = 10;
+    this.uiManager.showLobbyCountdown(seconds);
+    this.lobbyCountdownInterval = setInterval(() => {
+      seconds--;
+      this.uiManager.updateLobbyCountdown(seconds);
+      if (seconds <= 0) {
+        clearInterval(this.lobbyCountdownInterval);
+        this.lobbyCountdownInterval = null;
+        if (this.state !== 'PLAYING') {
+          this.startMpGame();
+        }
+      }
+    }, 1000);
+  }
+
   leaveRoom() {
     if (this.stakingState.hostDeposited && this.stakingState.opponentDeposited) {
       this.eventBus.emit('staking:error', {
@@ -915,6 +836,12 @@ class Game {
       });
     }
     this.stopNetworkSync();
+    if (this.lobbyCountdownInterval) {
+      clearInterval(this.lobbyCountdownInterval);
+      this.lobbyCountdownInterval = null;
+    }
+    this.lobbyCountdownStarted = false;
+    this.uiManager.hideLobbyCountdown();
     if (this.roomRef) {
       this.roomRef.off();
       if (this.isHost) {
@@ -938,10 +865,12 @@ class Game {
   }
 
   startMpGame() {
-    // Same fix as _refreshStakingUI(): a stake tier can be set in any mode,
-    // not just 1v1, so the "both players must deposit" requirement has to
-    // be gated on whether a tier is actually set, not on the mode string -
-    // otherwise FFA/2v2 rooms could start with an unstaked opponent.
+    if (this.lobbyCountdownInterval) {
+      clearInterval(this.lobbyCountdownInterval);
+      this.lobbyCountdownInterval = null;
+    }
+    this.uiManager.hideLobbyCountdown();
+
     const stakingApplies = !!this.lobbyTier;
     if (stakingApplies && !(this.stakingState.hostDeposited && this.stakingState.opponentDeposited)) {
       this.eventBus.emit('staking:error', { message: 'Both players must deposit their stake before the match can start.' });
@@ -987,18 +916,7 @@ class Game {
       y: this.localDragon.head.y,
       angle: this.localDragon.angle,
       score: this.localDragon.score || 0,
-      // Segment count is required by the server-side match simulator to
-      // correctly replicate collisionSystem.js's head-to-head death rule
-      // (shorter dragon dies) - without this the server cannot independently
-      // verify who won.
       segments: this.localDragon.segments.length,
-      // lives/alive: each client is only authoritative for its OWN
-      // dragon's death/respawn state (see collisionSystem.js - it no
-      // longer lets a client declare a remote dragon dead based on its own
-      // local, lerped approximation of that dragon's position). Other
-      // clients now sync the real lives/alive state from here instead of
-      // computing it themselves, which is what was causing the opponent to
-      // vanish on one client but not the other.
       lives: this.localDragon.lives,
       alive: this.localDragon.alive,
       t: now
@@ -1020,25 +938,9 @@ class Game {
       if (!pos) continue;
       dragon.remoteTarget = { x: pos.x, y: pos.y };
       dragon.angle = pos.angle;
-      // Sync this dragon's actual size to the network's authoritative
-      // segment count. broadcastPosition() already sends `segments`, but
-      // nothing was ever reading it back - each client was instead letting
-      // its OWN local food collisions grow remote dragons (collision:eat
-      // fires for any dragon, including remote ones), and food isn't
-      // networked at all. Two clients running independent, unsynced growth
-      // simulations for the same remote dragon is exactly why the size
-      // looked different on phone vs PC. This forces it back in line every
-      // network tick (~50ms), so any local drift self-corrects almost
-      // immediately instead of accumulating.
       if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
         this._resizeRemoteDragon(dragon, pos.segments);
       }
-      // Sync lives/alive from the network - collisionSystem.js no longer
-      // lets any client declare a remote dragon dead on its own, so this
-      // is the only place a remote dragon's death/respawn state actually
-      // changes. The existing per-frame win-check in update() already
-      // re-evaluates allDragons every tick, so a real death arriving here
-      // is picked up automatically without needing anything extra.
       if (typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
         dragon.lives = pos.lives;
       }
@@ -1048,11 +950,6 @@ class Game {
     }
   }
 
-  // Grows or shrinks a REMOTE dragon's segment array to match targetLength.
-  // Deliberately bypasses growthSystem (that's for the local player's own
-  // eating/growthProgress bookkeeping only) so remote dragons are purely
-  // network-driven and can never desync from what's authoritative on the
-  // client that actually owns them.
   _resizeRemoteDragon(dragon, targetLength) {
     const baseSpacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
     const fatSpacing = baseSpacing * 2;
@@ -1151,14 +1048,12 @@ class Game {
     this.cameraSystem.update(this.localDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
-    // Update time survived for all living dragons
     for (const dragon of this.dragonManager.getLivingDragons()) {
       if (this.matchStats[dragon.id]) {
         this.matchStats[dragon.id].timeSurvived = Date.now() - this.matchStats[dragon.id].startTime;
       }
     }
 
-    // Check win condition (last standing with lives)
     const livingWithLives = allDragons.filter(d => d.alive && d.lives > 0);
     const totalWithLives = allDragons.filter(d => d.lives > 0);
 
@@ -1228,7 +1123,6 @@ class Game {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Build stats for all dragons
     const allDragons = this.dragonManager.getAllDragons();
     const stats = allDragons.map(d => ({
       id: d.id,
