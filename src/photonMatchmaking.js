@@ -1,22 +1,20 @@
 // photonMatchmaking.js
 //
-// Handles ONLY the "find a stranger to play" step for the new "Search
-// Battle" quick-match option. Once two players are matched and both
-// confirm, this hands off entirely to the EXISTING Firebase
-// createRoom()/joinRoom() flow (see main.js) - staking, gameplay sync,
-// everything else stays exactly as it already works today. Photon never
-// touches any of that.
+// Handles ONLY the "find a stranger to play, at the same stake tier" step
+// for "Search Battle". Player picks a tier BEFORE searching; Photon only
+// matches them with someone who picked the same tier. The moment two
+// players are matched, this hands off entirely to the EXISTING Firebase
+// createRoom()/joinRoom() flow (see main.js) with that tier already locked
+// in - staking, gameplay sync, everything else stays exactly as it already
+// works today. Photon never touches any of that.
 //
 // ===================== SETUP REQUIRED (do this first) =====================
 // 1. Go to dashboard.photonengine.com -> SDKs tab -> download the
 //    "Realtime" JavaScript SDK (make sure your Photon app itself is also
 //    type "Realtime", not PUN/Fusion/Quantum - those are Unity-specific).
 // 2. Unzip it, find Photon-Javascript_SDK.min.js inside the lib/ folder.
-// 3. Add that file to this repo (e.g. at /lib/Photon-Javascript_SDK.min.js)
-//    and reference it with a plain <script> tag in index.html, same as
-//    everything else in this project - deliberately NOT loaded from a CDN
-//    guess, since Photon doesn't officially publish one and guessing a
-//    path has burned real time before on other integrations.
+// 3. Add that file to this repo at /lib/Photon-Javascript_SDK.min.js and
+//    reference it with a plain <script> tag in index.html.
 // 4. Paste your real Photon App ID below.
 // ============================================================================
 
@@ -25,6 +23,13 @@ const PHOTON_APP_VERSION = '1.0';
 const PHOTON_REGION = 'us'; // change to whichever Photon region is closest to your players
 const MAX_ACCEPTABLE_RTT_MS = 3000; // "strong network connection" gate - full connect time, not raw ping (see checkConnectionQuality)
 const ROOM_READY_EVENT_CODE = 1;
+// How long to wait after raiseEvent() before disconnecting the initiator's
+// Photon connection. Previously this disconnected immediately, which could
+// (and did, per real testing) tear down the WebSocket before the "room is
+// ready" message had actually finished transmitting to the matched
+// opponent - the opponent would just sit on "searching" forever with no
+// way to know a room existed. This buffer gives the message time to land.
+const POST_ANNOUNCE_DISCONNECT_DELAY_MS = 1500;
 
 let _appIdWarningShown = false;
 function assertConfigured() {
@@ -47,6 +52,8 @@ class PhotonMatchmaking {
     this.isSearching = false;
     this.matchedRoomCode = null;
     this.iAmInitiator = false;
+    this.tier = null;
+    this._disconnectTimer = null;
   }
 
   _newClient() {
@@ -58,20 +65,12 @@ class PhotonMatchmaking {
   }
 
   /**
-   * Quick connectivity check BEFORE committing to a real search - this is
-   * the "should require strong network connection" requirement. Connects
-   * briefly and measures how long it takes to reach the master server,
-   * reports back whether it's good enough, then disconnects. startSearch()
-   * below does its own separate, full connection.
-   *
-   * NOTE: this measures OUR OWN wall-clock connect time, not the SDK's
-   * getRtt() - per the actual SDK source, getRtt() only returns a real
-   * value once you're in a game room with an active gamePeer; called any
-   * earlier (like right after reaching ConnectedToMaster, before joining
-   * any room) it always returns 0, which would make this check fail
-   * permanently even on a perfect connection. Since this measures full
-   * connection setup time (DNS + handshake + auth), not a single ping, the
-   * threshold is intentionally generous compared to a raw RTT figure.
+   * Quick connectivity check BEFORE committing to a real search - the
+   * "should require strong network connection" requirement. Connects
+   * briefly, measures how long it takes to reach the master server (full
+   * connection setup time, not a raw ping - see the constant comment
+   * above), reports back whether it's good enough, then disconnects.
+   * startSearch() below does its own separate, full connection.
    */
   async checkConnectionQuality() {
     assertConfigured();
@@ -98,50 +97,50 @@ class PhotonMatchmaking {
   }
 
   /**
-   * Starts searching for an opponent. Emits on the shared eventBus:
-   *   'matchmaking:searching'   - entered the queue, waiting for someone
-   *   'matchmaking:found'       - paired with someone; UI should show
-   *                               "Opponent Found" with Cancel/Proceed
-   *   'matchmaking:ready'       - both sides confirmed and a real Firebase
-   *                               room code is ready - main.js should hand
-   *                               off to its existing joinRoom(roomCode)
-   *                               (or, for the initiator, it already ran
-   *                               createRoom() and is just confirming)
+   * Starts searching for an opponent who picked the SAME stake tier.
+   * `tier` is one of 'Small' | 'Medium' | 'High' - matches the exact same
+   * strings already used everywhere else in the app (Create Room's tier
+   * buttons, Firebase's room.tier field, stakingManager.js's TIER map).
+   *
+   * Emits on the shared eventBus:
+   *   'matchmaking:searching' - entered the queue, waiting for someone
+   *   'matchmaking:matched'   - a same-tier opponent was found AND the
+   *                             real Firebase room is already being set
+   *                             up / joined - no separate confirm step,
+   *                             since picking a tier and starting the
+   *                             search already IS the commitment.
    *   'matchmaking:cancelled'
    *   'matchmaking:error'
    */
-  startSearch() {
+  startSearch(tier) {
     assertConfigured();
     if (this.isSearching) return;
     this.isSearching = true;
     this.matchedRoomCode = null;
+    this.tier = tier;
 
     this.client = this._newClient();
 
     this.client.onStateChange = (state) => {
       if (state === Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby) {
+        // Only match with someone who picked the exact same tier - Photon
+        // filters this natively via expectedCustomRoomProperties, so we
+        // never even see/join a room where the tier doesn't match.
         this.client.joinRandomOrCreateRoom(
-          {},
+          { expectedCustomRoomProperties: { tier } },
           null,
-          { maxPlayers: 2, isVisible: true, isOpen: true }
+          { maxPlayers: 2, isVisible: true, isOpen: true, customGameProperties: { tier } }
         );
       }
     };
 
     this.client.onJoinRoom = () => {
       // NOTE: joinRandomOrCreateRoom() always completes via the game
-      // server's JoinGame response internally, regardless of whether this
-      // client's request was the one that actually created the room - so
-      // the createdByMe parameter here is NOT reliable (it's always false
-      // in this flow, confirmed against the actual SDK source, not
-      // assumed). This was why BOTH matched players ended up on the same
-      // "non-initiator" branch and got sent back to the searching screen
-      // instead of one of them ever creating the real room.
-      //
-      // actorNr === 1 is the reliable signal instead: Photon always
-      // assigns the FIRST player to join a room actorNr 1, server-side,
-      // with no ambiguity - so exactly one matched player ends up the
-      // initiator, deterministically.
+      // server's JoinGame response internally (confirmed against the
+      // actual SDK source), regardless of whether this client's request
+      // was the one that created the room - so a createdByMe-style
+      // parameter is NOT reliable here. actorNr === 1 is: Photon always
+      // assigns the FIRST player to join a room actorNr 1, server-side.
       this.iAmInitiator = this.client.myActor().actorNr === 1;
       this.eventBus.emit('matchmaking:searching');
     };
@@ -151,18 +150,15 @@ class PhotonMatchmaking {
         ? this.client.myRoomActorsArray()
         : [];
       if (actors.length >= 2) {
-        this.eventBus.emit('matchmaking:found', {});
+        this._handleMatched();
       }
     };
 
     this.client.onEvent = (code, content) => {
-      // The initiator broadcasts the real Firebase room code once THEY'VE
-      // created it via the existing createRoom() flow - this is the ONLY
-      // payload Photon ever carries. Once the non-initiator gets this,
-      // Photon's job is completely done.
       if (code === ROOM_READY_EVENT_CODE && content && content.roomCode) {
         this.matchedRoomCode = content.roomCode;
-        this.eventBus.emit('matchmaking:ready', { roomCode: content.roomCode, isInitiator: false });
+        this.eventBus.emit('matchmaking:matched', { roomCode: content.roomCode, isInitiator: false, tier: this.tier });
+        this._scheduleCleanup();
       }
     };
 
@@ -174,10 +170,23 @@ class PhotonMatchmaking {
     this.client.connectToRegionMaster(PHOTON_REGION);
   }
 
+  // Called once two players are confirmed present in the same Photon room.
+  // No manual "Proceed" step anymore - choosing a tier and starting the
+  // search already is the commitment (this is what you asked for: stake
+  // amount picked first, then matched only with someone at that same
+  // amount - there's nothing left to separately confirm).
+  _handleMatched() {
+    if (this.iAmInitiator) {
+      this.eventBus.emit('matchmaking:matched', { isInitiator: true, tier: this.tier });
+      // The actual Firebase room + raiseEvent happen in main.js's handler
+      // for this event (it needs to call createRoom(), which lives there).
+    }
+    // Non-initiator just waits for the ROOM_READY_EVENT_CODE via onEvent
+    // above - the initiator announces once their real room actually exists.
+  }
+
   /**
-   * Called by the INITIATOR (the player whose Photon room creation
-   * actually happened first) once they've hit "Proceed" AND already
-   * created the real Firebase room via the existing createRoom() flow -
+   * Called by the INITIATOR once they've created the real Firebase room -
    * broadcasts that room code to the matched opponent so they can join it
    * exactly as if they'd typed a code in manually.
    */
@@ -185,11 +194,20 @@ class PhotonMatchmaking {
     if (!this.client) return;
     this.client.raiseEvent(ROOM_READY_EVENT_CODE, { roomCode });
     this.matchedRoomCode = roomCode;
-    this.eventBus.emit('matchmaking:ready', { roomCode, isInitiator: true });
+    this._scheduleCleanup();
+  }
+
+  // Delays disconnecting until the just-sent raiseEvent has had time to
+  // actually reach Photon's server and relay to the opponent - see the
+  // POST_ANNOUNCE_DISCONNECT_DELAY_MS comment above for why this exists.
+  _scheduleCleanup() {
+    if (this._disconnectTimer) clearTimeout(this._disconnectTimer);
+    this._disconnectTimer = setTimeout(() => this.cleanup(), POST_ANNOUNCE_DISCONNECT_DELAY_MS);
   }
 
   cancelSearch() {
     this.isSearching = false;
+    if (this._disconnectTimer) { clearTimeout(this._disconnectTimer); this._disconnectTimer = null; }
     if (this.client) {
       try { this.client.disconnect(); } catch (_) { /* ignore */ }
       this.client = null;
@@ -197,8 +215,9 @@ class PhotonMatchmaking {
     this.eventBus.emit('matchmaking:cancelled');
   }
 
-  /** Call once the match is fully handed off to Firebase - Photon's role ends here. */
+  /** Photon's role is done - disconnect cleanly. */
   cleanup() {
+    if (this._disconnectTimer) { clearTimeout(this._disconnectTimer); this._disconnectTimer = null; }
     if (this.client) {
       try { this.client.disconnect(); } catch (_) { /* ignore */ }
       this.client = null;
