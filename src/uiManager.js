@@ -466,11 +466,15 @@ class UIManager {
     if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
     const wOpt = document.getElementById('wOptPhantom');
     if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
+    // FIX: Jupiter option in the main wallet modal — was only wired in the
+    // never-opened walletSelectionModal, so Jupiter could never be picked.
+    const wOptJup = document.getElementById('wOptJupiter');
+    if (wOptJup) wOptJup.addEventListener('click', () => this.eventBus.emit('wallet:connectJupiterRequest'));
     document.addEventListener('click', (e) => { if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest'); });
     const signTest = document.getElementById('btnWalletSignTest');
     if (signTest) signTest.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
-      if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
+      if (resultEl) resultEl.innerHTML = 'Waiting for approval in your wallet...';
       this.eventBus.emit('wallet:signTestRequest');
     });
 
@@ -496,12 +500,24 @@ class UIManager {
     const baCancel = document.getElementById('baCancelBetting');
     if (baCancel) baCancel.addEventListener('click', () => this.eventBus.emit('betting:cancel'));
 
-    this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
+    // FIX: wallet:connecting now carries { wallet } — show the right name
+    // instead of hardcoded "Approve the connection in Phantom...".
+    this.eventBus.on('wallet:connecting', ({ wallet } = {}) => {
+      const p = document.querySelector('#walletConnectingView p');
+      if (p) p.textContent = `Approve the connection in ${wallet === 'jupiter' ? 'Jupiter' : 'Phantom'}...`;
+      this.setWalletModalState('connecting');
+    });
     this.eventBus.on('wallet:connected', ({ address, balance }) => {
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance);
     });
     this.eventBus.on('wallet:disconnected', () => { this.setWalletModalState('disconnected'); this.updateWalletButton(null); });
+    // FIX: balance arrives after connected now (connected emits instantly) —
+    // update the balance line when the refresh lands.
+    this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
+      const balEl = document.getElementById('wBalanceDisplay');
+      if (balEl && balance !== undefined && balance !== null) balEl.textContent = typeof balance === 'number' ? `${balance} SOL` : balance;
+    });
     this.eventBus.on('wallet:error', ({ message }) => {
       this.setWalletModalState('disconnected');
       const errEl = document.getElementById('walletError');
@@ -725,7 +741,7 @@ class UIManager {
     const addrEl = document.getElementById('wAddressDisplay');
     if (addrEl && address) addrEl.textContent = address.length > 12 ? `${address.slice(0,6)}...${address.slice(-4)}` : address;
     const balEl = document.getElementById('wBalanceDisplay');
-    if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
+    if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Loading balance...';
     this.updateWalletButton(address);
   }
 
