@@ -42,7 +42,7 @@ class UIManager {
   initScreens() {
     const screenIds = [
       'titleScreen', 'dragonSelectScreen', 'modeSelectScreen',
-      'mpMenuScreen', 'matchmakingSearchScreen', 'matchmakingFoundScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
+      'mpMenuScreen', 'matchmakingTierScreen', 'matchmakingSearchScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
       'gameOverScreen', 'howToPlayScreen', 'walletModal',
       'mpGameOver', 'loadingOverlay', 'dragonDetailModal'
     ];
@@ -605,17 +605,20 @@ class UIManager {
     const mpSearchBattle = document.getElementById('btnMpSearchBattle');
     if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => {
       this.selectedMpMode = 'FFA';
-      this.eventBus.emit('ui:searchBattle');
+      this.showScreen('matchmakingTierScreen');
     });
+
+    document.querySelectorAll('.mmTierBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.eventBus.emit('ui:searchBattleTierSelected', { tier: btn.dataset.tier });
+      });
+    });
+
+    const btnMmTierBack = document.getElementById('btnMmTierBack');
+    if (btnMmTierBack) btnMmTierBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
 
     const btnCancelSearch = document.getElementById('btnCancelSearch');
     if (btnCancelSearch) btnCancelSearch.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
-
-    const btnProceedMatch = document.getElementById('btnProceedMatch');
-    if (btnProceedMatch) btnProceedMatch.addEventListener('click', () => this.eventBus.emit('ui:proceedMatch'));
-
-    const btnCancelMatch = document.getElementById('btnCancelMatch');
-    if (btnCancelMatch) btnCancelMatch.addEventListener('click', () => this.eventBus.emit('ui:cancelMatch'));
 
     const mpJoin = document.getElementById('btnMpJoin');
     if (mpJoin) mpJoin.addEventListener('click', () => {
