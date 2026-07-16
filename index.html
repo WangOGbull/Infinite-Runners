@@ -37,7 +37,7 @@
 <!-- FontAwesome for your icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<link rel="stylesheet" href="./src/styles.css?v=23">
+<link rel="stylesheet" href="./src/styles.css?v=24">
 
 <style>
   /* Mobile dragon select scroll fix */
@@ -932,25 +932,27 @@
   </div>
 </div>
 
+<!-- ===== SEARCH BATTLE: pick a stake tier BEFORE searching ===== -->
+<div id="matchmakingTierScreen" class="screen">
+  <div class="mpBox" style="text-align:center;">
+    <h2>Search Battle</h2>
+    <p class="sub">Pick your stake - you'll only be matched with someone staking the same amount.</p>
+    <div class="lobbyActions" style="flex-direction:column; gap:10px; margin-top:20px;">
+      <button class="menuBtn mmTierBtn" id="btnMmTierSmall" data-tier="Small">Small</button>
+      <button class="menuBtn mmTierBtn" id="btnMmTierMedium" data-tier="Medium">Medium</button>
+      <button class="menuBtn mmTierBtn" id="btnMmTierHigh" data-tier="High">High</button>
+    </div>
+    <button class="menuBtn" id="btnMmTierBack" style="margin-top:16px;"><i data-lucide="arrow-left"></i> Back</button>
+  </div>
+</div>
+
 <!-- ===== SEARCH BATTLE: searching for opponent ===== -->
 <div id="matchmakingSearchScreen" class="screen">
   <div class="mpBox" style="text-align:center;">
     <h2>Searching for an Opponent...</h2>
     <div class="wSpinner" style="margin:30px auto;"></div>
-    <p class="sub" id="matchmakingStatusText">Looking for any available player.</p>
+    <p class="sub" id="matchmakingStatusText">Looking for another player at the same stake.</p>
     <button class="menuBtn" id="btnCancelSearch"><i data-lucide="x"></i> Cancel Search</button>
-  </div>
-</div>
-
-<!-- ===== SEARCH BATTLE: opponent found ===== -->
-<div id="matchmakingFoundScreen" class="screen">
-  <div class="mpBox" style="text-align:center;">
-    <h2>Opponent Found!</h2>
-    <p class="sub">An opponent is ready to battle. Proceed to set up the match?</p>
-    <div class="lobbyActions" style="margin-top:20px;">
-      <button class="pBtn pBtnRes" id="btnProceedMatch"><i data-lucide="check"></i> Proceed</button>
-      <button class="pBtn pBtnOut" id="btnCancelMatch"><i data-lucide="x"></i> Cancel</button>
-    </div>
   </div>
 </div>
 
@@ -1171,7 +1173,7 @@
   <div class="loadText">Loading...</div>
 </div>
 
-<script type="module" src="./src/main.js?v=23"></script>
+<script type="module" src="./src/main.js?v=24"></script>
 
 <!-- ===== DRAGON DETAIL MODAL (Dragon Age Style) ===== -->
 <div id="dragonDetailModal" class="screen">
