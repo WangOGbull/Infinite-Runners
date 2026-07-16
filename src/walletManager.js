@@ -52,6 +52,11 @@ const JUPITER_WALLET_PUBKEY_KEY = 'jupiterWalletPubkey';
 const JUPITER_USER_ADDRESS_KEY = 'jupiterUserAddress';
 const JUPITER_PENDING_ACTION_KEY = 'jupiterPendingAction';
 
+// Cross-tab sync channel — when ANY tab completes a connect/disconnect,
+// all other open tabs update instantly (fixes the "Approve in Phantom..."
+// tab that never learns the wallet connected in the redirect tab).
+const WALLET_SYNC_KEY = 'irWalletSync';
+
 class WalletManager {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -71,6 +76,7 @@ class WalletManager {
     this._bindProviderEvents();
     this._restoreMobileKeyPair();
     this._checkDebugQueryParam();
+    this._bindCrossTabSync();
 
     this.eventBus.on('wallet:scanRequest', () => { this.scanBalances(); });
   }
@@ -102,12 +108,15 @@ class WalletManager {
       this.publicKey = publicKey || provider.publicKey;
       this.connected = true;
       this.walletType = 'phantom';
+      this._broadcastWalletSync();
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
       this._refreshBalance().then(() => {
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
     });
     provider.on('disconnect', () => {
       this.connected = false; this.publicKey = null; this.balance = null; this.walletType = null;
+      this._broadcastWalletSync();
       this.eventBus.emit('wallet:disconnected');
     });
     provider.on('accountChanged', (publicKey) => {
@@ -122,6 +131,50 @@ class WalletManager {
     });
   }
 
+  // ---------------------------------------------------------------
+  // CROSS-TAB SYNC
+  // localStorage is shared across tabs of the same origin, so the
+  // session written by the redirect tab is already readable here —
+  // the old tab just never re-read it. The storage event fixes that.
+  // ---------------------------------------------------------------
+  _bindCrossTabSync() {
+    if (typeof window === 'undefined' || !window.addEventListener) return;
+    window.addEventListener('storage', (e) => {
+      if (e.key !== WALLET_SYNC_KEY) return;
+      this._handleCrossTabSync(e.newValue);
+    });
+  }
+
+  _handleCrossTabSync(raw) {
+    try {
+      const data = raw ? JSON.parse(raw) : null;
+      if (!data) return;
+      if (data.address) {
+        // Another tab connected → adopt the shared session in this tab too
+        if (!this.connected) {
+          this._restoreMobileKeyPair();
+          this._notifyRestoredConnection();
+        }
+      } else {
+        // Another tab disconnected → mirror it here
+        if (this.connected) {
+          this.connected = false; this.publicKey = null; this.balance = null;
+          this.mobileSession = null; this.phantomWalletPublicKey = null; this.walletType = null;
+          this.eventBus.emit('wallet:disconnected');
+        }
+      }
+    } catch (_) {}
+  }
+
+  _broadcastWalletSync() {
+    try {
+      localStorage.setItem(WALLET_SYNC_KEY, JSON.stringify({
+        address: this.publicKey ? this.publicKey.toString() : null,
+        ts: Date.now()
+      }));
+    } catch (_) {}
+  }
+
   _checkDebugQueryParam() {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -129,7 +182,7 @@ class WalletManager {
       else if (params.get('debug') === '0') localStorage.removeItem('wmDebug');
       if (params.get('resetWallet') === '1') {
         [PHANTOM_SESSION_KEY, PHANTOM_KEYPAIR_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
-         JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY].forEach(k => localStorage.removeItem(k));
+         JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, WALLET_SYNC_KEY].forEach(k => localStorage.removeItem(k));
         this.mobileSession = null; this.dappKeyPair = null; this.phantomWalletPublicKey = null;
         this.publicKey = null; this.connected = false; this.walletType = null;
       }
@@ -313,8 +366,12 @@ class WalletManager {
         this.publicKey = new solanaWeb3.PublicKey(result.public_key);
         this.connected = true;
         try { localStorage.setItem(addrKey, this.publicKey.toString()); } catch (_) {}
+        // Emit connected IMMEDIATELY — don't hold the UI hostage to the
+        // Helius balance fetch. Balance arrives via wallet:balanceUpdated.
+        this._broadcastWalletSync();
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: null });
         this._refreshBalance().then(() => {
-          this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+          this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
       } else if (returnType === 'signMessage') {
         this.eventBus.emit('wallet:signTestResult', {
@@ -345,8 +402,10 @@ class WalletManager {
 
   _notifyRestoredConnection() {
     if (this.connected && this.publicKey) {
+      // Emit first with whatever balance we have (possibly null), refresh after.
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
       this._refreshBalance().then(() => {
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
     }
   }
@@ -366,13 +425,15 @@ class WalletManager {
   async connect(preferredWallet) {
     if (this.connecting) return;
     if (preferredWallet === 'jupiter') {
-      return this._connectJupiter();
+      // FIX: was this._connectJupiter() — that method doesn't exist and
+      // would throw. The public method is connectJupiter().
+      return this.connectJupiter();
     }
     const provider = this.getProvider();
     if (provider) return this._connectProvider(provider);
     if (this.isMobile()) {
       this.connecting = true;
-      this.eventBus.emit('wallet:connecting');
+      this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
       window.location.replace(this._buildMobileConnectUrl('phantom'));
       return { deepLinked: true };
     }
@@ -384,7 +445,7 @@ class WalletManager {
   async connectJupiter() {
     if (this.connecting) return;
     this.connecting = true;
-    this.eventBus.emit('wallet:connecting');
+    this.eventBus.emit('wallet:connecting', { wallet: 'jupiter' });
     if (this.isMobile()) {
       window.location.replace(this._buildMobileConnectUrl('jupiter'));
       return { deepLinked: true };
@@ -396,8 +457,11 @@ class WalletManager {
         this.publicKey = resp.publicKey;
         this.connected = true;
         this.walletType = 'jupiter';
-        await this._refreshBalance();
+        this._broadcastWalletSync();
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this._refreshBalance().then(() => {
+          this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        });
         return { address: this.publicKey.toString(), balance: this.balance };
       } catch (err) {
         this.eventBus.emit('wallet:error', { message: err?.message || 'Jupiter connection rejected.' });
@@ -411,15 +475,18 @@ class WalletManager {
 
   async _connectProvider(provider) {
     this.connecting = true;
-    this.eventBus.emit('wallet:connecting');
+    this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
     try {
       const resp = await provider.connect();
       this._bindProviderEvents();
       this.publicKey = resp.publicKey;
       this.connected = true;
       this.walletType = 'phantom';
-      await this._refreshBalance();
+      this._broadcastWalletSync();
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+      this._refreshBalance().then(() => {
+        this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+      });
       return { address: this.publicKey.toString(), balance: this.balance };
     } catch (err) {
       const message = err?.code === 4001 ? 'Connection rejected.' : (err?.message || 'Connection failed.');
@@ -434,6 +501,7 @@ class WalletManager {
     this.mobileSession = null; this.phantomWalletPublicKey = null; this.walletType = null;
     [PHANTOM_SESSION_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
      JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY].forEach(k => localStorage.removeItem(k));
+    this._broadcastWalletSync();
     this.eventBus.emit('wallet:disconnected');
   }
 
