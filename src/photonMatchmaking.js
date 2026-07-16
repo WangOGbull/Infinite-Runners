@@ -4,6 +4,7 @@ const PHOTON_REGION = 'us';
 const MAX_ACCEPTABLE_RTT_MS = 3000;
 const ROOM_READY_EVENT_CODE = 1;
 const POST_ANNOUNCE_DISCONNECT_DELAY_MS = 1500;
+const SEARCH_RETRY_BASE_MS = 3500;
 
 let _appIdWarningShown = false;
 function assertConfigured() {
@@ -29,6 +30,7 @@ class PhotonMatchmaking {
     this.iAmInitiator = false;
     this.tier = null;
     this._disconnectTimer = null;
+    this._retryTimer = null;
   }
 
   _newClient() {
@@ -43,6 +45,9 @@ class PhotonMatchmaking {
     assertConfigured();
     return new Promise((resolve) => {
       const testClient = this._newClient();
+      // FIX: stop the SDK from auto-sending JoinLobby the moment we connect —
+      // that send raced our disconnect() and threw the uncaught Op 229 error.
+      testClient.autoJoinLobby = false;
       const startedAt = Date.now();
       let resolved = false;
       const finish = (result) => {
@@ -58,7 +63,11 @@ class PhotonMatchmaking {
         }
       };
       testClient.onError = () => finish({ ok: false, rtt: null, error: true });
-      testClient.connectToRegionMaster(PHOTON_REGION);
+      try {
+        testClient.connectToRegionMaster(PHOTON_REGION);
+      } catch (_) {
+        finish({ ok: false, rtt: null, error: true });
+      }
       setTimeout(() => finish({ ok: false, rtt: null, timeout: true }), 5000);
     });
   }
@@ -71,16 +80,13 @@ class PhotonMatchmaking {
     this.matchedRoomCode = null;
     this.tier = tier;
     this.iAmInitiator = false;
+    this._clearRetryTimer();
 
     this.client = this._newClient();
 
     this.client.onStateChange = (state) => {
       if (state === Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby) {
-        this.client.joinRandomOrCreateRoom(
-          { expectedCustomRoomProperties: { tier } },
-          null,
-          { maxPlayers: 2, isVisible: true, isOpen: true, customGameProperties: { tier } }
-        );
+        this._safeJoinRandomOrCreate();
       }
     };
 
@@ -92,20 +98,14 @@ class PhotonMatchmaking {
     this.client.onJoinRoom = () => {
       this._setInitiator();
       this.eventBus.emit('matchmaking:searching');
+      // FIX: onActorJoin only fires for actors who join AFTER us — when WE are
+      // the second player, the room creator is already inside and no event
+      // fires. Check the existing actor list or the joiner waits forever.
+      this._checkOpponentPresent();
     };
 
     this.client.onActorJoin = () => {
-      const room = this.client.myRoom();
-      if (!room) return;
-      const actors = room.getActors ? room.getActors() : [];
-      const count = Object.keys(actors).length;
-      if (count >= 2 && !this.opponentFound) {
-        this.opponentFound = true;
-        this.eventBus.emit('matchmaking:opponentFound', {
-          isInitiator: this.iAmInitiator,
-          tier: this.tier
-        });
-      }
+      this._checkOpponentPresent();
     };
 
     this.client.onEvent = (code, content) => {
@@ -117,16 +117,89 @@ class PhotonMatchmaking {
     this.client.onError = (errorCode, errorMsg) => {
       this.isSearching = false;
       this.opponentFound = false;
+      this._clearRetryTimer();
       this.eventBus.emit('matchmaking:error', {
         message: errorMsg || 'Matchmaking connection failed.'
       });
     };
 
     this.client.connectToRegionMaster(PHOTON_REGION);
+    this._startRetryTimer();
   }
 
   _setInitiator() {
-    this.iAmInitiator = this.client.myActor().actorNr === 1;
+    try {
+      this.iAmInitiator = this.client.myActor().actorNr === 1;
+    } catch (_) {}
+  }
+
+  _checkOpponentPresent() {
+    if (this.opponentFound || !this.isSearching || !this.client) return;
+    try {
+      const room = this.client.myRoom();
+      if (!room) return;
+      const actors = room.getActors ? room.getActors() : {};
+      const count = Object.keys(actors).length;
+      if (count >= 2) {
+        this.opponentFound = true;
+        this._clearRetryTimer();
+        this.eventBus.emit('matchmaking:opponentFound', {
+          isInitiator: this.iAmInitiator,
+          tier: this.tier
+        });
+      }
+    } catch (_) {}
+  }
+
+  _safeJoinRandomOrCreate() {
+    if (!this.isSearching || this.opponentFound || !this.client) return;
+    try {
+      if (typeof this.client.isInLobby === 'function' && !this.client.isInLobby()) return;
+      // FIX: expectedCustomRoomProperties must be the plain filter dict
+      // { tier: 'Small' } — not { expectedCustomRoomProperties: { tier } }.
+      // And 'tier' must be listed in propsListedInLobby or Photon ignores it
+      // when matching — both were why every player created their own room.
+      this.client.joinRandomOrCreateRoom(
+        { tier: this.tier },
+        null,
+        {
+          maxPlayers: 2,
+          isVisible: true,
+          isOpen: true,
+          customGameProperties: { tier: this.tier },
+          propsListedInLobby: ['tier']
+        }
+      );
+    } catch (e) {
+      console.warn('[Matchmaking] joinRandomOrCreate failed:', e);
+    }
+  }
+
+  // FIX: if both players search at the same time, both can create their own
+  // room and wait forever. While we sit alone in a room we made, periodically
+  // abandon it and retry a random join — jittered so both sides don't collide.
+  _startRetryTimer() {
+    this._clearRetryTimer();
+    const interval = SEARCH_RETRY_BASE_MS + Math.floor(Math.random() * 1500);
+    this._retryTimer = setInterval(() => {
+      if (!this.isSearching || this.opponentFound || !this.client) return;
+      try {
+        const inRoom = typeof this.client.isJoinedToRoom === 'function' && this.client.isJoinedToRoom();
+        if (inRoom) {
+          const room = this.client.myRoom();
+          const actors = room && room.getActors ? room.getActors() : {};
+          if (Object.keys(actors).length >= 2) return; // matched, timer will be cleared
+          this.client.leaveRoom();
+          setTimeout(() => this._safeJoinRandomOrCreate(), 600);
+        } else {
+          this._safeJoinRandomOrCreate();
+        }
+      } catch (_) {}
+    }, interval);
+  }
+
+  _clearRetryTimer() {
+    if (this._retryTimer) { clearInterval(this._retryTimer); this._retryTimer = null; }
   }
 
   proceed() {
@@ -160,7 +233,12 @@ class PhotonMatchmaking {
 
   announceRoomReady(roomCode) {
     if (!this.client) return;
-    this.client.raiseEvent(ROOM_READY_EVENT_CODE, { roomCode });
+    try {
+      // Reliable delivery — the opponent MUST receive the room code.
+      this.client.raiseEvent(ROOM_READY_EVENT_CODE, { roomCode }, { reliability: 1 });
+    } catch (e) {
+      try { this.client.raiseEvent(ROOM_READY_EVENT_CODE, { roomCode }); } catch (_) {}
+    }
     this.matchedRoomCode = roomCode;
     this._scheduleCleanup();
   }
@@ -173,6 +251,7 @@ class PhotonMatchmaking {
   cancelSearch() {
     this.isSearching = false;
     this.opponentFound = false;
+    this._clearRetryTimer();
     if (this._disconnectTimer) { clearTimeout(this._disconnectTimer); this._disconnectTimer = null; }
     if (this.client) {
       try { this.client.disconnect(); } catch (_) {}
@@ -182,6 +261,7 @@ class PhotonMatchmaking {
   }
 
   cleanup() {
+    this._clearRetryTimer();
     if (this._disconnectTimer) { clearTimeout(this._disconnectTimer); this._disconnectTimer = null; }
     if (this.client) {
       try { this.client.disconnect(); } catch (_) {}
