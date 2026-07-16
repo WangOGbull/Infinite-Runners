@@ -42,7 +42,7 @@ class UIManager {
   initScreens() {
     const screenIds = [
       'titleScreen', 'dragonSelectScreen', 'modeSelectScreen',
-      'mpMenuScreen', 'matchmakingTierScreen', 'matchmakingSearchScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
+      'mpMenuScreen', 'matchmakingTierScreen', 'matchmakingSearchScreen', 'opponentFoundScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
       'gameOverScreen', 'howToPlayScreen', 'walletModal',
       'mpGameOver', 'loadingOverlay', 'dragonDetailModal'
     ];
@@ -102,12 +102,6 @@ class UIManager {
     document.body.appendChild(arenaModal);
     this.screens['arenaSelectModal'] = arenaModal;
 
-    // NOTE: the mpModeSelect modal (1v1 / 2v2 / FFA picker) is still built
-    // here but is no longer shown - see bindEvents()'s btnMpCreate handler,
-    // which now skips straight to FFA. Only FFA syncs correctly right now
-    // (dragon size + player count). Left this modal's markup/listeners in
-    // place, untouched, so re-enabling 1v1/2v2 later is a one-line revert
-    // in bindEvents() rather than rebuilding this UI from scratch.
     const mpModeSelect = document.createElement('div');
     mpModeSelect.id = 'mpModeSelect';
     mpModeSelect.className = 'screen';
@@ -593,11 +587,6 @@ class UIManager {
 
     const mpCreate = document.getElementById('btnMpCreate');
     if (mpCreate) mpCreate.addEventListener('click', () => {
-      // Multiplayer is FFA-only for now: 1v1 and 2v2 currently desync
-      // (player count and dragon size both go wrong), so we're skipping
-      // the mode picker entirely and always creating an FFA room until
-      // those other modes are fixed and re-enabled. To bring the picker
-      // back later, revert this handler to `this.showScreen('mpModeSelect')`.
       this.selectedMpMode = 'FFA';
       this.eventBus.emit('mp:createRoom', { mode: 'FFA' });
     });
@@ -608,7 +597,7 @@ class UIManager {
       this.showScreen('matchmakingTierScreen');
     });
 
-    document.querySelectorAll('.mmTierBtn').forEach(btn => {
+    document.querySelectorAll('.daTierBtn').forEach(btn => {
       btn.addEventListener('click', () => {
         this.eventBus.emit('ui:searchBattleTierSelected', { tier: btn.dataset.tier });
       });
@@ -619,6 +608,16 @@ class UIManager {
 
     const btnCancelSearch = document.getElementById('btnCancelSearch');
     if (btnCancelSearch) btnCancelSearch.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
+
+    const btnProceed = document.getElementById('btnProceedToLobby');
+    if (btnProceed) btnProceed.addEventListener('click', () => {
+      this.eventBus.emit('matchmaking:proceed');
+    });
+
+    const btnCancelOpp = document.getElementById('btnCancelOppFound');
+    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => {
+      this.eventBus.emit('ui:cancelSearch');
+    });
 
     const mpJoin = document.getElementById('btnMpJoin');
     if (mpJoin) mpJoin.addEventListener('click', () => {
@@ -747,9 +746,6 @@ class UIManager {
       if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
     });
 
-    // === STAKING STATUS LISTENERS ===
-    // These were missing before - lobby:depositRequested fired, but nothing
-    // ever showed the "pending / confirmed / error" message during a deposit.
     this.eventBus.on('staking:pending', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
       if (statusText) {
@@ -859,6 +855,11 @@ class UIManager {
       const amtEl = btn.querySelector('.tierAmt');
       if (amtEl && map[tier] !== undefined) amtEl.textContent = map[tier];
     });
+    // Also update matchmaking tier screen
+    ['Small', 'Medium', 'High'].forEach(tier => {
+      const amtEl = document.getElementById('tierAmt' + tier);
+      if (amtEl && map[tier] !== undefined) amtEl.textContent = map[tier];
+    });
   }
 
   updateStakingUI(state = {}) {
@@ -876,13 +877,6 @@ class UIManager {
     if (label) {
       label.textContent = myDeposited ? 'Bet Placed' : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join');
     }
-    // Start Game only looks clickable once BOTH players have staked -
-    // matches the actual safety check in main.js's startMpGame() that
-    // already blocks starting otherwise. It used to only require the
-    // host's own stake, which meant the button looked fully ready the
-    // moment the host deposited even with zero opponents in the room -
-    // confusing, and part of what led to a room getting started
-    // prematurely.
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn) {
       startBtn.disabled = !(hostDeposited && opponentDeposited);
@@ -1030,9 +1024,6 @@ class UIManager {
   showPauseOverlay(visible = true, isMultiplayer = false) {
     const el = document.getElementById('pauseOverlay');
     if (el) el.classList.toggle('active', !!visible);
-    // "Change Dragon" doesn't make sense mid-multiplayer-match - your
-    // dragon type is already known to the other player(s) and tied to the
-    // room state, so swapping it here would desync what they see.
     const changeDragonBtn = document.getElementById('btnChangeDragon');
     if (changeDragonBtn) changeDragonBtn.style.display = isMultiplayer ? 'none' : 'flex';
   }
@@ -1108,6 +1099,42 @@ class UIManager {
       this.currentScreen = screenId;
     }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+  }
+
+  // ===== NEW: Opponent Found Modal =====
+  showOpponentFoundModal(tier) {
+    const tierName = (tier || 'Unknown').toLowerCase();
+    const displayTier = tierName.charAt(0).toUpperCase() + tierName.slice(1);
+    const tierDisplay = document.getElementById('oppFoundTierDisplay');
+    if (tierDisplay) tierDisplay.textContent = `${displayTier} Stake`;
+    this.showScreen('opponentFoundScreen');
+  }
+
+  hideOpponentFoundModal() {
+    const screen = document.getElementById('opponentFoundScreen');
+    if (screen) screen.classList.remove('active');
+  }
+
+  // ===== NEW: Lobby Countdown =====
+  showLobbyCountdown(seconds) {
+    const el = document.getElementById('lobbyCountdown');
+    const numEl = document.getElementById('lobbyCountdownNum');
+    const fillEl = document.getElementById('lobbyCountdownFill');
+    if (el) el.style.display = 'block';
+    if (numEl) numEl.textContent = seconds;
+    if (fillEl) fillEl.style.width = '100%';
+  }
+
+  updateLobbyCountdown(seconds) {
+    const numEl = document.getElementById('lobbyCountdownNum');
+    const fillEl = document.getElementById('lobbyCountdownFill');
+    if (numEl) numEl.textContent = seconds;
+    if (fillEl) fillEl.style.width = `${(seconds / 10) * 100}%`;
+  }
+
+  hideLobbyCountdown() {
+    const el = document.getElementById('lobbyCountdown');
+    if (el) el.style.display = 'none';
   }
 }
 
