@@ -14,39 +14,36 @@ class UIManager {
     this.selectedArena = 0;
     this.selectedTier = null;
     this.tierAmounts = null;
-
     this.carouselIndex = 0;
     this.dragonsData = [];
     this.dragonPowers = {};
     this.playerCoins = 1000000;
     this.selectedDragonName = null;
     this._modalDragon = null;
-
     try {
-        this.initScreens();
-        this.createDynamicModals();
-        this.buildModeSelect();
-        this.initLucide();
-        this.initParticles();
-        this.bindEvents();
-        console.log("✅ UIManager loaded successfully.");
+      this.initScreens();
+      this.createDynamicModals();
+      this.buildModeSelect();
+      this.initLucide();
+      this.initParticles();
+      this.bindEvents();
+      console.log("✅ UIManager loaded.");
     } catch (e) {
-        console.error("🚨 UI Manager Crash:", e);
+      console.error("🚨 UI Manager Crash:", e);
     }
   }
 
-  isMobile() {
-    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  }
+  isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
   initScreens() {
-    const screenIds = [
-      'titleScreen', 'dragonSelectScreen', 'modeSelectScreen',
-      'mpMenuScreen', 'matchmakingTierScreen', 'matchmakingSearchScreen', 'opponentFoundScreen', 'lobbyScreen', 'loadingScreen', 'gameScreen',
-      'gameOverScreen', 'howToPlayScreen', 'walletModal',
-      'mpGameOver', 'loadingOverlay', 'dragonDetailModal'
+    const ids = [
+      'titleScreen','dragonSelectScreen','modeSelectScreen','mpMenuScreen',
+      'matchmakingTierScreen','matchmakingSearchScreen','opponentFoundScreen',
+      'bettingArenaScreen','lobbyScreen','loadingScreen','gameScreen',
+      'gameOverScreen','howToPlayScreen','walletModal','walletSelectionModal',
+      'mpGameOver','loadingOverlay','dragonDetailModal'
     ];
-    screenIds.forEach(id => {
+    ids.forEach(id => {
       const el = document.getElementById(id);
       if (el) this.screens[id] = el;
     });
@@ -67,8 +64,7 @@ class UIManager {
           <button class="diffBtn" data-diff="legendary">Legendary</button>
         </div>
         <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>
-    `;
+      </div>`;
     document.body.appendChild(diffModal);
     this.screens['difficultyModal'] = diffModal;
 
@@ -79,26 +75,13 @@ class UIManager {
       <div class="arenaSelectInner">
         <h2>Select Arena</h2>
         <div class="arenaGrid">
-          <div class="arenaCard" data-arena="0">
-            <div class="arenaPreview" style="background-image:url(/arenas/arena_stone.png)"></div>
-            <div class="arenaName">Stone Castle</div>
-          </div>
-          <div class="arenaCard" data-arena="1">
-            <div class="arenaPreview" style="background-image:url(/arenas/arena_grass.png)"></div>
-            <div class="arenaName">Grass Field</div>
-          </div>
-          <div class="arenaCard" data-arena="2">
-            <div class="arenaPreview" style="background-image:url(/arenas/arena_purple.png)"></div>
-            <div class="arenaName">Purple Magic</div>
-          </div>
-          <div class="arenaCard" data-arena="3">
-            <div class="arenaPreview" style="background-image:url(/arenas/arena_fire.png)"></div>
-            <div class="arenaName">Fire Arena</div>
-          </div>
+          <div class="arenaCard" data-arena="0"><div class="arenaPreview" style="background-image:url(/arenas/arena_stone.png)"></div><div class="arenaName">Stone Castle</div></div>
+          <div class="arenaCard" data-arena="1"><div class="arenaPreview" style="background-image:url(/arenas/arena_grass.png)"></div><div class="arenaName">Grass Field</div></div>
+          <div class="arenaCard" data-arena="2"><div class="arenaPreview" style="background-image:url(/arenas/arena_purple.png)"></div><div class="arenaName">Purple Magic</div></div>
+          <div class="arenaCard" data-arena="3"><div class="arenaPreview" style="background-image:url(/arenas/arena_fire.png)"></div><div class="arenaName">Fire Arena</div></div>
         </div>
         <button id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>
-    `;
+      </div>`;
     document.body.appendChild(arenaModal);
     this.screens['arenaSelectModal'] = arenaModal;
 
@@ -109,25 +92,12 @@ class UIManager {
       <div class="mpModeBox">
         <h2>Multiplayer Mode</h2>
         <div class="mpModeGrid">
-          <div class="modeCard" data-mpmode="1v1">
-            <div class="mIcon"><i data-lucide="swords"></i></div>
-            <div class="mLabel">1v1 Duel</div>
-            <div class="mDesc">One on one battle.</div>
-          </div>
-          <div class="modeCard" data-mpmode="2v2">
-            <div class="mIcon"><i data-lucide="users"></i></div>
-            <div class="mLabel">2v2 Teams</div>
-            <div class="mDesc">Team up and fight together.</div>
-          </div>
-          <div class="modeCard" data-mpmode="FFA">
-            <div class="mIcon"><i data-lucide="globe"></i></div>
-            <div class="mLabel">Free For All</div>
-            <div class="mDesc">Every dragon for itself.</div>
-          </div>
+          <div class="modeCard" data-mpmode="1v1"><div class="mIcon"><i data-lucide="swords"></i></div><div class="mLabel">1v1 Duel</div><div class="mDesc">One on one battle.</div></div>
+          <div class="modeCard" data-mpmode="2v2"><div class="mIcon"><i data-lucide="users"></i></div><div class="mLabel">2v2 Teams</div><div class="mDesc">Team up and fight together.</div></div>
+          <div class="modeCard" data-mpmode="FFA"><div class="mIcon"><i data-lucide="globe"></i></div><div class="mLabel">Free For All</div><div class="mDesc">Every dragon for itself.</div></div>
         </div>
         <button class="menuBtn" id="btnMpModeBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>
-    `;
+      </div>`;
     document.body.appendChild(mpModeSelect);
     this.screens['mpModeSelect'] = mpModeSelect;
   }
@@ -137,14 +107,10 @@ class UIManager {
   initDragonCarousel(dragons) {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
-    try {
-      const saved = localStorage.getItem('dragonPowers');
-      if (saved) this.dragonPowers = JSON.parse(saved);
-    } catch (e) { this.dragonPowers = {}; }
-    try {
-      const savedCoins = localStorage.getItem('playerCoins');
-      if (savedCoins) this.playerCoins = parseInt(savedCoins);
-    } catch (e) {}
+    try { const saved = localStorage.getItem('dragonPowers'); if (saved) this.dragonPowers = JSON.parse(saved); }
+    catch (e) { this.dragonPowers = {}; }
+    try { const savedCoins = localStorage.getItem('playerCoins'); if (savedCoins) this.playerCoins = parseInt(savedCoins); }
+    catch (e) {}
     this.renderCarousel();
     this.updateCoinDisplay();
   }
@@ -152,42 +118,28 @@ class UIManager {
   renderCarousel() {
     const d = this.dragonsData[this.carouselIndex];
     if (!d) return;
-
     const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
     const key = name.toLowerCase();
     const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
-
     const imgEl = document.getElementById('dsDragonImg');
     const newHeadUrl = DRAGON_IMAGES[key];
     if (imgEl) {
       imgEl.src = newHeadUrl || (typeof d.head === 'string' ? d.head : (d.head && d.head.src ? d.head.src : ''));
       imgEl.style.filter = `drop-shadow(0 0 30px ${color}25)`;
     }
-
     const imgWrap = document.getElementById('dsDragonImgWrap');
     if (imgWrap) {
       imgWrap.style.cursor = 'pointer';
-      imgWrap.onclick = (e) => {
-        e.stopPropagation();
-        const currentD = this.dragonsData[this.carouselIndex];
-        if (currentD) this.showDragonModal(currentD);
-      };
+      imgWrap.onclick = (e) => { e.stopPropagation(); const currentD = this.dragonsData[this.carouselIndex]; if (currentD) this.showDragonModal(currentD); };
     }
-
     const nameEl = document.getElementById('dsDragonName');
-    if (nameEl) {
-      nameEl.textContent = name.toUpperCase();
-      nameEl.style.color = color;
-      nameEl.style.textShadow = `0 0 20px ${color}40`;
-    }
-
+    if (nameEl) { nameEl.textContent = name.toUpperCase(); nameEl.style.color = color; nameEl.style.textShadow = `0 0 20px ${color}40`; }
     const powers = this.getDragonPowers(key);
     const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
     const tierEl = document.getElementById('dsDragonTierNum');
     const levelEl = document.getElementById('dsDragonLevel');
     if (tierEl) tierEl.textContent = avgLevel;
     if (levelEl) levelEl.textContent = avgLevel;
-
     const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
     const xpText = document.getElementById('dsXpText');
     const xpFill = document.getElementById('dsXpBarFill');
@@ -197,21 +149,14 @@ class UIManager {
     if (xpFill) xpFill.style.width = `${(xpCurrent / 5200) * 100}%`;
     if (xpStart) xpStart.textContent = avgLevel;
     if (xpEnd) xpEnd.textContent = avgLevel + 1;
-
     this.renderPowersGrid(key, color);
-
     const badge = document.getElementById('dsSelectBadge');
     const isSelected = this.selectedDragonName === name;
-    if (badge) {
-      badge.textContent = isSelected ? 'SELECTED' : 'NOT SELECTED';
-      badge.classList.toggle('selected', isSelected);
-    }
-
+    if (badge) { badge.textContent = isSelected ? 'SELECTED' : 'NOT SELECTED'; badge.classList.toggle('selected', isSelected); }
     const leftArrow = document.getElementById('dsArrowLeft');
     const rightArrow = document.getElementById('dsArrowRight');
     const ageBtn = document.getElementById('dsDragonAgeBtn');
     const selectBtn = document.getElementById('dsSelectBtn');
-
     if (isSelected) {
       if (selectBtn) selectBtn.style.display = 'none';
       if (ageBtn) ageBtn.style.display = 'flex';
@@ -221,14 +166,12 @@ class UIManager {
     }
     if (leftArrow) leftArrow.style.display = 'flex';
     if (rightArrow) rightArrow.style.display = 'flex';
-
     if (selectBtn) {
       selectBtn.textContent = 'SELECT';
       selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
       selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
       selectBtn.style.color = '#fff';
     }
-
     this.renderNavDots();
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
   }
@@ -236,37 +179,21 @@ class UIManager {
   showDragonModal(dragon) {
     const modal = document.getElementById('dragonDetailModal');
     if (!modal) return;
-
     const name = (typeof dragon === 'string' ? dragon : (dragon.name || dragon.type)) || 'Unknown';
     const key = name.toLowerCase();
     const color = dragon.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
     const powers = this.getDragonPowers(key);
     const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
-
     const img = document.getElementById('ddmImg');
-    if (img) {
-      img.src = DRAGON_IMAGES[key] || dragon.head || '';
-      img.style.filter = `drop-shadow(0 0 40px ${color}40)`;
-    }
-
+    if (img) { img.src = DRAGON_IMAGES[key] || dragon.head || ''; img.style.filter = `drop-shadow(0 0 40px ${color}40)`; }
     const nameEl = document.getElementById('ddmName');
-    if (nameEl) {
-      nameEl.textContent = name.toUpperCase();
-      nameEl.style.color = color;
-      nameEl.style.textShadow = `0 0 20px ${color}40`;
-    }
-
+    if (nameEl) { nameEl.textContent = name.toUpperCase(); nameEl.style.color = color; nameEl.style.textShadow = `0 0 20px ${color}40`; }
     const tierEl = document.getElementById('ddmTierNum');
     const levelEl = document.getElementById('ddmDragonLevel');
     if (tierEl) tierEl.textContent = avgLevel;
     if (levelEl) levelEl.textContent = avgLevel;
-
     const box = document.getElementById('ddmBox');
-    if (box) {
-      box.style.borderColor = color + '60';
-      box.style.boxShadow = `0 0 60px ${color}15, inset 0 0 40px ${color}08`;
-    }
-
+    if (box) { box.style.borderColor = color + '60'; box.style.boxShadow = `0 0 60px ${color}15, inset 0 0 40px ${color}08`; }
     const statsContainer = document.getElementById('ddmStats');
     if (statsContainer) {
       const stats = [
@@ -278,14 +205,10 @@ class UIManager {
       statsContainer.innerHTML = stats.map(s => `
         <div class="ddmStatRow">
           <span class="ddmStatLabel">${s.label}</span>
-          <div class="ddmStatBarWrap">
-            <div class="ddmStatBar" style="width:${(s.value / s.max) * 100}%; background:linear-gradient(90deg, ${color}, ${color}80);"></div>
-          </div>
+          <div class="ddmStatBarWrap"><div class="ddmStatBar" style="width:${(s.value / s.max) * 100}%; background:linear-gradient(90deg, ${color}, ${color}80);"></div></div>
           <span class="ddmStatValue" style="color:${color}">${s.value}</span>
-        </div>
-      `).join('');
+        </div>`).join('');
     }
-
     const powersContainer = document.getElementById('ddmPowers');
     if (powersContainer) {
       const specialPowers = {
@@ -298,14 +221,9 @@ class UIManager {
       powersContainer.innerHTML = dragonPowers.map(p => `
         <div class="ddmPowerSlot locked">
           <div class="ddmPowerIcon"><i data-lucide="lock"></i></div>
-          <div class="ddmPowerInfo">
-            <div class="ddmPowerName">${p.name}</div>
-            <div class="ddmPowerDesc">${p.desc}</div>
-          </div>
-        </div>
-      `).join('');
+          <div class="ddmPowerInfo"><div class="ddmPowerName">${p.name}</div><div class="ddmPowerDesc">${p.desc}</div></div>
+        </div>`).join('');
     }
-
     this._modalDragon = dragon;
     modal.classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -319,12 +237,7 @@ class UIManager {
 
   getDragonPowers(dragonKey) {
     if (!this.dragonPowers[dragonKey]) {
-      const defaults = {
-        aegis: { defense: 3, speed: 2, rush: 2, attack: 2 },
-        ignis: { defense: 1, speed: 4, rush: 3, attack: 3 },
-        infinite: { defense: 2, speed: 2, rush: 1, attack: 4 },
-        magnetron: { defense: 4, speed: 1, rush: 2, attack: 2 }
-      };
+      const defaults = { aegis: { defense: 3, speed: 2, rush: 2, attack: 2 }, ignis: { defense: 1, speed: 4, rush: 3, attack: 3 }, infinite: { defense: 2, speed: 2, rush: 1, attack: 4 }, magnetron: { defense: 4, speed: 1, rush: 2, attack: 2 } };
       this.dragonPowers[dragonKey] = { ...(defaults[dragonKey] || { defense: 2, speed: 2, rush: 2, attack: 2 }) };
     }
     return this.dragonPowers[dragonKey];
@@ -333,12 +246,10 @@ class UIManager {
   renderPowersGrid(dragonKey, color) {
     const grid = document.getElementById('dsPowersGrid');
     if (!grid) return;
-
     const powers = this.getDragonPowers(dragonKey);
     const costs = { defense: 500, speed: 600, rush: 800, attack: 1000 };
     const labels = { defense: 'Defense', speed: 'Speed', rush: 'Rush Ability', attack: 'Attack' };
     const maxLevel = 10;
-
     let html = '';
     Object.keys(labels).forEach(stat => {
       const level = powers[stat] || 1;
@@ -346,34 +257,23 @@ class UIManager {
       const canAfford = this.playerCoins >= cost;
       const isMaxed = level >= maxLevel;
       const barPct = (level / maxLevel) * 100;
-
       html += `
         <div class="dsPowerCard" id="powerCard-${stat}">
           <div class="dsPowerName">${labels[stat]}</div>
           <div class="dsPowerLevelRow">
             <span class="dsPowerLevel">${level}</span>
-            <div class="dsPowerBar">
-              <div class="dsPowerBarFill" style="width:${barPct}%;"></div>
-            </div>
-            <button class="dsUpgradeBtn ${isMaxed ? 'maxed' : ''}" 
-              data-stat="${stat}" data-cost="${cost}" data-dragon="${dragonKey}"
-              ${isMaxed || !canAfford ? 'disabled' : ''}>
+            <div class="dsPowerBar"><div class="dsPowerBarFill" style="width:${barPct}%;"></div></div>
+            <button class="dsUpgradeBtn ${isMaxed ? 'maxed' : ''}" data-stat="${stat}" data-cost="${cost}" data-dragon="${dragonKey}" ${isMaxed || !canAfford ? 'disabled' : ''}>
               ${isMaxed ? '<i data-lucide="check"></i> MAX' : `<i data-lucide="arrow-up"></i> ${cost.toLocaleString()}`}
             </button>
           </div>
-        </div>
-      `;
+        </div>`;
     });
-
     grid.innerHTML = html;
-
     grid.querySelectorAll('.dsUpgradeBtn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const stat = btn.dataset.stat;
-        const cost = parseInt(btn.dataset.cost);
-        const dKey = btn.dataset.dragon;
-        this.upgradePower(dKey, stat, cost);
+        this.upgradePower(btn.dataset.dragon, btn.dataset.stat, parseInt(btn.dataset.cost));
       });
     });
   }
@@ -382,21 +282,14 @@ class UIManager {
     if (this.playerCoins < cost) return;
     const powers = this.getDragonPowers(dragonKey);
     if (powers[stat] >= 10) return;
-
     this.playerCoins -= cost;
     powers[stat] = (powers[stat] || 1) + 1;
-
     try {
       localStorage.setItem('dragonPowers', JSON.stringify(this.dragonPowers));
       localStorage.setItem('playerCoins', this.playerCoins.toString());
     } catch (e) {}
-
     const card = document.getElementById(`powerCard-${stat}`);
-    if (card) {
-      card.classList.add('flash');
-      setTimeout(() => card.classList.remove('flash'), 500);
-    }
-
+    if (card) { card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 500); }
     this.updateCoinDisplay();
     this.renderCarousel();
     this.eventBus.emit('ui:powerUpgraded', { dragon: dragonKey, stat, level: powers[stat] });
@@ -414,23 +307,13 @@ class UIManager {
     this.dragonsData.forEach((_, i) => {
       const dot = document.createElement('div');
       dot.className = 'dsNavDot' + (i === this.carouselIndex ? ' active' : '');
-      dot.addEventListener('click', () => {
-        this.carouselIndex = i;
-        this.renderCarousel();
-      });
+      dot.addEventListener('click', () => { this.carouselIndex = i; this.renderCarousel(); });
       dots.appendChild(dot);
     });
   }
 
-  carouselPrev() {
-    this.carouselIndex = (this.carouselIndex - 1 + this.dragonsData.length) % this.dragonsData.length;
-    this.renderCarousel();
-  }
-
-  carouselNext() {
-    this.carouselIndex = (this.carouselIndex + 1) % this.dragonsData.length;
-    this.renderCarousel();
-  }
+  carouselPrev() { this.carouselIndex = (this.carouselIndex - 1 + this.dragonsData.length) % this.dragonsData.length; this.renderCarousel(); }
+  carouselNext() { this.carouselIndex = (this.carouselIndex + 1) % this.dragonsData.length; this.renderCarousel(); }
 
   selectCurrentDragon() {
     const d = this._modalDragon || this.dragonsData[this.carouselIndex];
@@ -439,281 +322,151 @@ class UIManager {
     this.selectedDragon = dragonName;
     this.selectedDragonName = dragonName;
     this.hideDragonModal();
-
     this.carouselIndex = this.dragonsData.findIndex(dr => {
       const drName = typeof dr === 'string' ? dr : (dr.name || dr.type);
       return drName === dragonName;
     });
     if (this.carouselIndex < 0) this.carouselIndex = 0;
-
     this.renderCarousel();
     this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
   }
 
-  goToBattleMode() {
-    this.showScreen('modeSelectScreen');
-  }
-
-  buildDragonSelect(dragons) {
-    this.initDragonCarousel(dragons);
-  }
-
-  initLucide() {
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-  }
+  goToBattleMode() { this.showScreen('modeSelectScreen'); }
+  buildDragonSelect(dragons) { this.initDragonCarousel(dragons); }
+  initLucide() { if (typeof lucide !== 'undefined') lucide.createIcons(); }
 
   initParticles() {
     const canvas = document.getElementById('pCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     const particles = [];
-    const count = 60;
-    for (let i = 0; i < count; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: Math.random() * 2 + 0.5,
-        dx: (Math.random() - 0.5) * 0.3,
-        dy: (Math.random() - 0.5) * 0.3,
-        alpha: Math.random() * 0.5 + 0.1
-      });
+    for (let i = 0; i < 60; i++) {
+      particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: Math.random() * 2 + 0.5, dx: (Math.random() - 0.5) * 0.3, dy: (Math.random() - 0.5) * 0.3, alpha: Math.random() * 0.5 + 0.1 });
     }
-
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       particles.forEach(p => {
-        p.x += p.dx;
-        p.y += p.dy;
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0, 180, 216, ${p.alpha})`;
-        ctx.fill();
+        p.x += p.dx; p.y += p.dy;
+        if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 180, 216, ${p.alpha})`; ctx.fill();
       });
       requestAnimationFrame(animate);
     };
     animate();
-
-    window.addEventListener('resize', () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    });
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
   }
 
   bindEvents() {
     const btnPlay = document.getElementById('btnPlayNow');
     if (btnPlay) btnPlay.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-
     const btnStart = document.getElementById('btnStartGame');
     if (btnStart) btnStart.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-
     const btnLeader = document.getElementById('btnLeaderboard');
-    if (btnLeader) btnLeader.addEventListener('click', () => {
-      this.showScreen('loadingScreen');
-      setTimeout(() => this.showScreen('titleScreen'), 1000);
-    });
-
+    if (btnLeader) btnLeader.addEventListener('click', () => { this.showScreen('loadingScreen'); setTimeout(() => this.showScreen('titleScreen'), 1000); });
     const btnHow = document.getElementById('btnHowToPlay');
     if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
-
     const btnBack = document.getElementById('btnDsBack');
     if (btnBack) btnBack.addEventListener('click', () => this.showScreen('titleScreen'));
-
     const nextBtn = document.getElementById('dsNextBtn');
     if (nextBtn) nextBtn.addEventListener('click', () => this.goToBattleMode());
-
     const ageBtn = document.getElementById('dsDragonAgeBtn');
     if (ageBtn) ageBtn.addEventListener('click', () => this.goToBattleMode());
-
     const arrowLeft = document.getElementById('dsArrowLeft');
     if (arrowLeft) arrowLeft.addEventListener('click', () => this.carouselPrev());
-
     const arrowRight = document.getElementById('dsArrowRight');
     if (arrowRight) arrowRight.addEventListener('click', () => this.carouselNext());
-
     const selectBtn = document.getElementById('dsSelectBtn');
-    if (selectBtn) selectBtn.addEventListener('click', () => {
-      const d = this.dragonsData[this.carouselIndex];
-      if (d) this.showDragonModal(d);
-    });
-
+    if (selectBtn) selectBtn.addEventListener('click', () => { const d = this.dragonsData[this.carouselIndex]; if (d) this.showDragonModal(d); });
     const modalSelect = document.getElementById('btnDdmSelect');
     if (modalSelect) modalSelect.addEventListener('click', () => this.selectCurrentDragon());
-
     const modalClose = document.getElementById('btnDdmClose');
     if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
-
     const modeBack = document.getElementById('btnModeBack');
     if (modeBack) modeBack.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-
     const btn1v1 = document.getElementById('btn1v1AI');
-    if (btn1v1) btn1v1.addEventListener('click', () => {
-      this.selectedMode = '1v1AI';
-      this.showScreen('difficultyModal');
-    });
-
+    if (btn1v1) btn1v1.addEventListener('click', () => { this.selectedMode = '1v1AI'; this.showScreen('difficultyModal'); });
     const btnMp = document.getElementById('btnMpMultiplayer');
     if (btnMp) btnMp.addEventListener('click', () => this.showScreen('mpMenuScreen'));
 
     document.querySelectorAll('#difficultyModal .diffBtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.selectedDifficulty = btn.dataset.diff;
-        this.showScreen('arenaSelectModal');
-      });
+      btn.addEventListener('click', () => { this.selectedDifficulty = btn.dataset.diff; this.showScreen('arenaSelectModal'); });
     });
-
     const diffBack = document.getElementById('btnDiffBack');
     if (diffBack) diffBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
-
     document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
       btn.addEventListener('click', () => {
         this.selectedArena = parseInt(btn.dataset.arena);
-        this.eventBus.emit('ui:arenaSelected', {
-          mode: this.selectedMode,
-          difficulty: this.selectedDifficulty,
-          arenaIndex: this.selectedArena
-        });
+        this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, arenaIndex: this.selectedArena });
       });
     });
-
     const arenaBack = document.getElementById('btnArenaBack');
     if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('difficultyModal'));
-
     const mpCreate = document.getElementById('btnMpCreate');
-    if (mpCreate) mpCreate.addEventListener('click', () => {
-      this.selectedMpMode = 'FFA';
-      this.eventBus.emit('mp:createRoom', { mode: 'FFA' });
-    });
-
+    if (mpCreate) mpCreate.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.eventBus.emit('mp:createRoom', { mode: 'FFA' }); });
     const mpSearchBattle = document.getElementById('btnMpSearchBattle');
-    if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => {
-      this.selectedMpMode = 'FFA';
-      this.showScreen('matchmakingTierScreen');
-    });
+    if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.showScreen('matchmakingTierScreen'); });
 
     document.querySelectorAll('.daTierBtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.eventBus.emit('ui:searchBattleTierSelected', { tier: btn.dataset.tier });
-      });
+      btn.addEventListener('click', () => { this.eventBus.emit('ui:searchBattleTierSelected', { tier: btn.dataset.tier }); });
     });
-
     const btnMmTierBack = document.getElementById('btnMmTierBack');
     if (btnMmTierBack) btnMmTierBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
-
     const btnCancelSearch = document.getElementById('btnCancelSearch');
     if (btnCancelSearch) btnCancelSearch.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
-
     const btnProceed = document.getElementById('btnProceedToLobby');
-    if (btnProceed) btnProceed.addEventListener('click', () => {
-      this.eventBus.emit('matchmaking:proceed');
-    });
-
+    if (btnProceed) btnProceed.addEventListener('click', () => this.eventBus.emit('matchmaking:proceed'));
     const btnCancelOpp = document.getElementById('btnCancelOppFound');
-    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => {
-      this.eventBus.emit('ui:cancelSearch');
-    });
-
+    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
     const mpJoin = document.getElementById('btnMpJoin');
     if (mpJoin) mpJoin.addEventListener('click', () => {
       const input = document.getElementById('mpRoomInput');
       const code = input?.value.trim();
-      if (code && code.length === 6) {
-        this.eventBus.emit('mp:joinRoom', { code });
-      } else {
-        const err = document.getElementById('mpJoinError');
-        if (err) err.textContent = 'Enter a valid 6-digit code';
-      }
+      if (code && code.length === 6) { this.eventBus.emit('mp:joinRoom', { code }); }
+      else { const err = document.getElementById('mpJoinError'); if (err) err.textContent = 'Enter a valid 6-digit code'; }
     });
-
     const mpBack = document.getElementById('btnMpBack');
     if (mpBack) mpBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
-
     document.querySelectorAll('#mpModeSelect .modeCard').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.selectedMpMode = btn.dataset.mpmode;
-        this.eventBus.emit('mp:createRoom', { mode: this.selectedMpMode });
-      });
+      btn.addEventListener('click', () => { this.selectedMpMode = btn.dataset.mpmode; this.eventBus.emit('mp:createRoom', { mode: this.selectedMpMode }); });
     });
-
     const mpModeBack = document.getElementById('btnMpModeBack');
     if (mpModeBack) mpModeBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
-
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn) startBtn.addEventListener('click', () => this.eventBus.emit('mp:startGame'));
-
     const leaveBtn = document.getElementById('btnLeaveRoom');
-    if (leaveBtn) leaveBtn.addEventListener('click', () => {
-      this.eventBus.emit('mp:leaveRoom');
-      this.showScreen('titleScreen');
-    });
-
+    if (leaveBtn) leaveBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); this.showScreen('titleScreen'); });
     document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const arenaIndex = parseInt(btn.dataset.arena);
-        this.eventBus.emit('lobby:arenaSelected', { arenaIndex });
-      });
+      btn.addEventListener('click', () => { this.eventBus.emit('lobby:arenaSelected', { arenaIndex: parseInt(btn.dataset.arena) }); });
     });
-
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.disabled) return;
-        this.selectedTier = btn.dataset.tier;
-        this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier });
-      });
+      btn.addEventListener('click', () => { if (btn.disabled) return; this.selectedTier = btn.dataset.tier; this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier }); });
     });
-
     const depositBtn = document.getElementById('lobbyDepositBtn');
     if (depositBtn) depositBtn.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
-
     const pauseBtn = document.getElementById('pauseBtn');
     if (pauseBtn) pauseBtn.addEventListener('click', () => this.eventBus.emit('game:pause'));
-
     const resumeBtn = document.getElementById('btnResume');
     if (resumeBtn) resumeBtn.addEventListener('click', () => this.eventBus.emit('game:resume'));
-
     const quitBtn = document.getElementById('btnQuit');
-    if (quitBtn) quitBtn.addEventListener('click', () => {
-      this.eventBus.emit('game:quit');
-      this.showScreen('titleScreen');
-    });
-
+    if (quitBtn) quitBtn.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('titleScreen'); });
     const changeDragon = document.getElementById('btnChangeDragon');
-    if (changeDragon) changeDragon.addEventListener('click', () => {
-      this.eventBus.emit('game:quit');
-      this.showScreen('dragonSelectScreen');
-    });
-
+    if (changeDragon) changeDragon.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
-
     const mainMenu = document.getElementById('btnMainMenu');
-    if (mainMenu) mainMenu.addEventListener('click', () => {
-      this.eventBus.emit('game:quit');
-      this.showScreen('titleScreen');
-    });
-
+    if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('titleScreen'); });
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
-
     const walletBtn = document.getElementById('walletBtn');
     if (walletBtn) walletBtn.addEventListener('click', () => this.showScreen('walletModal'));
-
     const walletClose = document.getElementById('btnWalletClose');
     if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
-
     const wOpt = document.getElementById('wOptPhantom');
     if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
-
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest');
-    });
-
+    document.addEventListener('click', (e) => { if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest'); });
     const signTest = document.getElementById('btnWalletSignTest');
     if (signTest) signTest.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
@@ -721,15 +474,34 @@ class UIManager {
       this.eventBus.emit('wallet:signTestRequest');
     });
 
+    // Wallet selection modal
+    const btnSelectPhantom = document.getElementById('btnSelectPhantom');
+    if (btnSelectPhantom) btnSelectPhantom.addEventListener('click', () => {
+      const wm = window.game?.walletManager;
+      if (wm) wm.connect();
+    });
+    const btnSelectJupiter = document.getElementById('btnSelectJupiter');
+    if (btnSelectJupiter) btnSelectJupiter.addEventListener('click', () => {
+      const wm = window.game?.walletManager;
+      if (wm) wm.connectJupiter();
+    });
+    const btnWalletSelBack = document.getElementById('btnWalletSelBack');
+    if (btnWalletSelBack) btnWalletSelBack.addEventListener('click', () => this.showScreen('titleScreen'));
+
+    // Betting arena buttons
+    const baPlaceBet = document.getElementById('baPlaceBetBtn');
+    if (baPlaceBet) baPlaceBet.addEventListener('click', () => this.eventBus.emit('betting:depositRequested'));
+    const baStart = document.getElementById('baStartBtn');
+    if (baStart) baStart.addEventListener('click', () => this.eventBus.emit('betting:startGame'));
+    const baCancel = document.getElementById('baCancelBetting');
+    if (baCancel) baCancel.addEventListener('click', () => this.eventBus.emit('betting:cancel'));
+
     this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
     this.eventBus.on('wallet:connected', ({ address, balance }) => {
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance);
     });
-    this.eventBus.on('wallet:disconnected', () => {
-      this.setWalletModalState('disconnected');
-      this.updateWalletButton(null);
-    });
+    this.eventBus.on('wallet:disconnected', () => { this.setWalletModalState('disconnected'); this.updateWalletButton(null); });
     this.eventBus.on('wallet:error', ({ message }) => {
       this.setWalletModalState('disconnected');
       const errEl = document.getElementById('walletError');
@@ -737,57 +509,41 @@ class UIManager {
     });
     this.eventBus.on('wallet:signTestResult', (result) => {
       const resultEl = document.getElementById('wSignResult');
-      if (resultEl) {
-        resultEl.innerHTML = `<span class="wSignOk"><i class="fa-solid fa-check-circle"></i> Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0, 24)}...</div>`;
-      }
+      if (resultEl) resultEl.innerHTML = `<span class="wSignOk"><i class="fa-solid fa-check-circle"></i> Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0,24)}...</div>`;
     });
     this.eventBus.on('wallet:signTestError', ({ message }) => {
       const resultEl = document.getElementById('wSignResult');
       if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
     });
-
     this.eventBus.on('staking:pending', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
-      if (statusText) {
-        statusText.textContent = label || 'Processing your bet…';
-        statusText.className = 'depositStatusText pending';
-      }
+      if (statusText) { statusText.textContent = label || 'Processing your bet…'; statusText.className = 'depositStatusText pending'; }
+      const baStatus = document.getElementById('baYourStatus');
+      if (baStatus) { baStatus.textContent = 'Placing bet...'; baStatus.style.color = '#eab308'; }
     });
     this.eventBus.on('staking:confirmed', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
-      if (statusText) {
-        statusText.textContent = label || 'Bet placed!';
-        statusText.className = 'depositStatusText confirmed';
-      }
+      if (statusText) { statusText.textContent = label || 'Bet placed!'; statusText.className = 'depositStatusText confirmed'; }
+      const baStatus = document.getElementById('baYourStatus');
+      if (baStatus) { baStatus.textContent = 'Bet Placed'; baStatus.style.color = '#4ade80'; }
     });
     this.eventBus.on('staking:error', ({ message }) => {
       const statusText = document.getElementById('depositStatusText');
-      if (statusText) {
-        statusText.textContent = message || 'Something went wrong placing your bet.';
-        statusText.className = 'depositStatusText error';
-      }
+      if (statusText) { statusText.textContent = message || 'Bet failed.'; statusText.className = 'depositStatusText error'; }
+      const baStatus = document.getElementById('baYourStatus');
+      if (baStatus) { baStatus.textContent = 'Failed'; baStatus.style.color = '#ef4444'; }
     });
-
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        if (this.currentScreen === 'gameScreen') {
-          this.eventBus.emit('game:pause');
-        } else if (document.getElementById('dragonDetailModal')?.classList.contains('active')) {
-          this.hideDragonModal();
-        }
+        if (this.currentScreen === 'gameScreen') this.eventBus.emit('game:pause');
+        else if (document.getElementById('dragonDetailModal')?.classList.contains('active')) this.hideDragonModal();
       }
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        this.toggleScoreboard();
-      }
+      if (e.key === 'Tab') { e.preventDefault(); this.toggleScoreboard(); }
     });
-
     const htpClose = document.getElementById('btnHtpClose');
     if (htpClose) htpClose.addEventListener('click', () => this.showScreen('titleScreen'));
-
     const gotIt = document.getElementById('btnGotIt');
     if (gotIt) gotIt.addEventListener('click', () => this.showScreen('titleScreen'));
-
     document.querySelectorAll('.htpTab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.htpTab').forEach(t => t.classList.remove('active'));
@@ -802,10 +558,8 @@ class UIManager {
     try {
       const codeEl = document.getElementById('roomCodeDisplay');
       if (codeEl && roomCode) codeEl.textContent = roomCode;
-
       const countEl = document.getElementById('lobbyPlayerCount');
       if (countEl) countEl.textContent = `${players.length} / ${maxPlayers}`;
-
       const slotsEl = document.getElementById('lobbySlots');
       if (slotsEl && Array.isArray(players)) {
         slotsEl.innerHTML = players.map(p => `
@@ -816,25 +570,19 @@ class UIManager {
               <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
             </div>
             ${p.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span> Staked</span>' : ''}
-          </div>
-        `).join('');
+          </div>`).join('');
       }
-
       const startBtn = document.getElementById('lobbyStartBtn');
       const waitingText = document.getElementById('lobbyWaitingText');
       if (startBtn) startBtn.style.display = isHost ? 'flex' : 'none';
       if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
-
       if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
-    } catch (e) {
-      console.warn('updateLobby: could not fully render lobby state', e);
-    }
+    } catch (e) { console.warn('updateLobby error:', e); }
   }
 
   updateLobbyArena(arenaIndex, isHost) {
     document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
-      const idx = parseInt(btn.dataset.arena);
-      btn.classList.toggle('active', idx === arenaIndex);
+      btn.classList.toggle('active', parseInt(btn.dataset.arena) === arenaIndex);
       btn.disabled = !isHost;
     });
   }
@@ -842,56 +590,32 @@ class UIManager {
   updateTierAmounts(tiers) {
     if (!tiers) return;
     const map = {};
-    if (Array.isArray(tiers)) {
-      tiers.forEach(t => {
-        if (t && t.tier) map[t.tier] = t.amount ?? t.label ?? t.display;
-      });
-    } else if (typeof tiers === 'object') {
-      Object.assign(map, tiers);
-    }
-    ['Small', 'Medium', 'High'].forEach(tier => {
+    if (Array.isArray(tiers)) { tiers.forEach(t => { if (t && t.tier) map[t.tier] = t.amount ?? t.label ?? t.display; }); }
+    else if (typeof tiers === 'object') Object.assign(map, tiers);
+    ['Small','Medium','High'].forEach(tier => {
       const btn = document.getElementById('tier' + tier);
       if (!btn) return;
       const amtEl = btn.querySelector('.tierAmt');
       if (amtEl && map[tier] !== undefined) amtEl.textContent = map[tier];
-    });
-    // Also update matchmaking tier screen
-    ['Small', 'Medium', 'High'].forEach(tier => {
-      const amtEl = document.getElementById('tierAmt' + tier);
-      if (amtEl && map[tier] !== undefined) amtEl.textContent = map[tier];
+      const mmAmt = document.getElementById('tierAmt' + tier);
+      if (mmAmt && map[tier] !== undefined) mmAmt.textContent = map[tier];
     });
   }
 
   updateStakingUI(state = {}) {
     const { isHost, tier, hostDeposited, opponentDeposited, canDeposit } = state;
     const myDeposited = isHost ? hostDeposited : opponentDeposited;
-
     const depositBtn = document.getElementById('lobbyDepositBtn');
     const label = document.getElementById('depositBtnLabel');
     const statusText = document.getElementById('depositStatusText');
-
-    if (depositBtn) {
-      depositBtn.style.display = tier ? 'flex' : 'none';
-      depositBtn.disabled = !canDeposit || !!myDeposited;
-    }
-    if (label) {
-      label.textContent = myDeposited ? 'Bet Placed' : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join');
-    }
+    if (depositBtn) { depositBtn.style.display = tier ? 'flex' : 'none'; depositBtn.disabled = !canDeposit || !!myDeposited; }
+    if (label) label.textContent = myDeposited ? 'Bet Placed' : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join');
     const startBtn = document.getElementById('lobbyStartBtn');
-    if (startBtn) {
-      startBtn.disabled = !(hostDeposited && opponentDeposited);
-    }
+    if (startBtn) startBtn.disabled = !(hostDeposited && opponentDeposited);
     if (statusText) {
-      if (hostDeposited && opponentDeposited) {
-        statusText.textContent = 'Both players staked — ready to battle!';
-        statusText.className = 'depositStatusText confirmed';
-      } else if (myDeposited) {
-        statusText.textContent = 'Waiting for opponent to deposit...';
-        statusText.className = 'depositStatusText pending';
-      } else {
-        statusText.textContent = '';
-        statusText.className = 'depositStatusText';
-      }
+      if (hostDeposited && opponentDeposited) { statusText.textContent = 'Both players staked — ready!'; statusText.className = 'depositStatusText confirmed'; }
+      else if (myDeposited) { statusText.textContent = 'Waiting for opponent...'; statusText.className = 'depositStatusText pending'; }
+      else { statusText.textContent = ''; statusText.className = 'depositStatusText'; }
     }
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tier === tier);
@@ -902,10 +626,8 @@ class UIManager {
   updateHUD(score, timeStr, localDragon) {
     const scoreEl = document.getElementById('scoreVal');
     if (scoreEl && score !== undefined) scoreEl.textContent = score;
-
     const timerEl = document.getElementById('timerDisplay');
     if (timerEl && timeStr) timerEl.textContent = timeStr;
-
     const livesHud = document.getElementById('livesHud');
     if (livesHud && localDragon) {
       livesHud.style.display = 'flex';
@@ -923,7 +645,6 @@ class UIManager {
     const w = canvas.width = canvas.clientWidth || 90;
     const h = canvas.height = canvas.clientHeight || 90;
     ctx.clearRect(0, 0, w, h);
-
     const bounds = arenaManager.getBounds();
     const worldW = bounds.maxX - bounds.minX;
     const worldH = bounds.maxY - bounds.minY;
@@ -931,46 +652,25 @@ class UIManager {
     const scaleX = w / worldW;
     const scaleY = h / worldH;
     const toMini = (wx, wy) => ({ x: (wx - bounds.minX) * scaleX, y: (wy - bounds.minY) * scaleY });
-
     ctx.fillStyle = 'rgba(0,180,216,0.7)';
-    (foods || []).forEach(f => {
-      const p = toMini(f.x, f.y);
-      ctx.fillRect(p.x, p.y, 1.5, 1.5);
-    });
-
+    (foods || []).forEach(f => { const p = toMini(f.x, f.y); ctx.fillRect(p.x, p.y, 1.5, 1.5); });
     (dragons || []).forEach(d => {
       if (!d.alive) return;
       const p = toMini(d.head.x, d.head.y);
-      ctx.beginPath();
-      ctx.fillStyle = '#ff6666';
-      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.fillStyle = '#ff6666'; ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2); ctx.fill();
     });
-
     if (camera) {
       const viewW = (canvas.parentElement ? canvas.parentElement.clientWidth : w * camera.zoom) / camera.zoom;
       const viewH = (canvas.parentElement ? canvas.parentElement.clientHeight : h * camera.zoom) / camera.zoom;
       const topLeft = toMini(camera.x - viewW / 2, camera.y - viewH / 2);
-      const rectW = viewW * scaleX;
-      const rectH = viewH * scaleY;
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(topLeft.x, topLeft.y, rectW, rectH);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      ctx.strokeRect(topLeft.x, topLeft.y, viewW * scaleX, viewH * scaleY);
     }
   }
 
   updateGameOver(stats = {}) {
-    const map = {
-      goTime: stats.time,
-      goCollect: stats.collected,
-      goKills: stats.kills,
-      goDeaths: stats.deaths,
-      goLives: stats.lives
-    };
-    Object.entries(map).forEach(([id, val]) => {
-      const el = document.getElementById(id);
-      if (el && val !== undefined) el.textContent = val;
-    });
+    const map = { goTime: stats.time, goCollect: stats.collected, goKills: stats.kills, goDeaths: stats.deaths, goLives: stats.lives };
+    Object.entries(map).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val !== undefined) el.textContent = val; });
   }
 
   showMatchStats(stats = [], winner) {
@@ -978,48 +678,28 @@ class UIManager {
     if (!titleEl) return;
     const localStat = Array.isArray(stats) ? stats.find(s => s.isLocal) : null;
     const localWon = winner && localStat && winner.id === localStat.id;
-    if (!winner) {
-      titleEl.textContent = 'DRAW';
-      titleEl.style.color = '#48cae4';
-    } else if (localWon) {
-      titleEl.textContent = 'VICTORY!';
-      titleEl.style.color = '#4ade80';
-    } else {
-      titleEl.textContent = 'DEFEATED';
-      titleEl.style.color = '#ff4d4d';
-    }
+    if (!winner) { titleEl.textContent = 'DRAW'; titleEl.style.color = '#48cae4'; }
+    else if (localWon) { titleEl.textContent = 'VICTORY!'; titleEl.style.color = '#4ade80'; }
+    else { titleEl.textContent = 'DEFEATED'; titleEl.style.color = '#ff4d4d'; }
   }
 
   showCountdown(seconds, onComplete) {
     const overlay = document.getElementById('countdownOverlay');
     const textEl = document.getElementById('countdownText');
     let count = typeof seconds === 'number' ? seconds : 3;
-    if (!overlay || !textEl) {
-      if (typeof onComplete === 'function') onComplete();
-      return;
-    }
+    if (!overlay || !textEl) { if (typeof onComplete === 'function') onComplete(); return; }
     overlay.classList.add('active');
     textEl.textContent = count;
     const tick = () => {
       count--;
-      if (count > 0) {
-        textEl.textContent = count;
-        setTimeout(tick, 1000);
-      } else if (count === 0) {
-        textEl.textContent = 'GO!';
-        setTimeout(tick, 700);
-      } else {
-        overlay.classList.remove('active');
-        if (typeof onComplete === 'function') onComplete();
-      }
+      if (count > 0) { textEl.textContent = count; setTimeout(tick, 1000); }
+      else if (count === 0) { textEl.textContent = 'GO!'; setTimeout(tick, 700); }
+      else { overlay.classList.remove('active'); if (typeof onComplete === 'function') onComplete(); }
     };
     setTimeout(tick, 1000);
   }
 
-  hideCountdown() {
-    const overlay = document.getElementById('countdownOverlay');
-    if (overlay) overlay.classList.remove('active');
-  }
+  hideCountdown() { const overlay = document.getElementById('countdownOverlay'); if (overlay) overlay.classList.remove('active'); }
 
   showPauseOverlay(visible = true, isMultiplayer = false) {
     const el = document.getElementById('pauseOverlay');
@@ -1028,10 +708,7 @@ class UIManager {
     if (changeDragonBtn) changeDragonBtn.style.display = isMultiplayer ? 'none' : 'flex';
   }
 
-  hidePauseOverlay() {
-    const el = document.getElementById('pauseOverlay');
-    if (el) el.classList.remove('active');
-  }
+  hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
 
   setWalletModalState(state) {
     const views = {
@@ -1039,20 +716,14 @@ class UIManager {
       connecting: document.getElementById('walletConnectingView'),
       connected: document.getElementById('walletConnectedView')
     };
-    Object.entries(views).forEach(([key, el]) => {
-      if (el) el.style.display = key === state ? 'block' : 'none';
-    });
+    Object.entries(views).forEach(([key, el]) => { if (el) el.style.display = key === state ? 'block' : 'none'; });
     const errEl = document.getElementById('walletError');
     if (errEl && state !== 'disconnected') errEl.style.display = 'none';
   }
 
   updateWalletDisplay(address, balance) {
     const addrEl = document.getElementById('wAddressDisplay');
-    if (addrEl && address) {
-      addrEl.textContent = address.length > 12
-        ? `${address.slice(0, 6)}...${address.slice(-4)}`
-        : address;
-    }
+    if (addrEl && address) addrEl.textContent = address.length > 12 ? `${address.slice(0,6)}...${address.slice(-4)}` : address;
     const balEl = document.getElementById('wBalanceDisplay');
     if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
     this.updateWalletButton(address);
@@ -1062,13 +733,8 @@ class UIManager {
     const btn = document.getElementById('walletBtn');
     if (!btn) return;
     const label = btn.querySelector('span');
-    if (address) {
-      btn.classList.add('connected');
-      if (label) label.textContent = `${address.slice(0, 4)}...${address.slice(-4)}`;
-    } else {
-      btn.classList.remove('connected');
-      if (label) label.textContent = 'Connect Wallet';
-    }
+    if (address) { btn.classList.add('connected'); if (label) label.textContent = `${address.slice(0,4)}...${address.slice(-4)}`; }
+    else { btn.classList.remove('connected'); if (label) label.textContent = 'Connect Wallet'; }
   }
 
   toggleScoreboard() {
@@ -1085,23 +751,14 @@ class UIManager {
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
   }
 
-  hideResumeRoomBanner() {
-    const banner = document.getElementById('resumeRoomBanner');
-    if (banner) banner.style.display = 'none';
-  }
+  hideResumeRoomBanner() { const banner = document.getElementById('resumeRoomBanner'); if (banner) banner.style.display = 'none'; }
 
   showScreen(screenId) {
-    Object.values(this.screens).forEach(s => {
-      if (s) s.classList.remove('active');
-    });
-    if (this.screens[screenId]) {
-      this.screens[screenId].classList.add('active');
-      this.currentScreen = screenId;
-    }
+    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
+    if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
   }
 
-  // ===== NEW: Opponent Found Modal =====
   showOpponentFoundModal(tier) {
     const tierName = (tier || 'Unknown').toLowerCase();
     const displayTier = tierName.charAt(0).toUpperCase() + tierName.slice(1);
@@ -1115,7 +772,6 @@ class UIManager {
     if (screen) screen.classList.remove('active');
   }
 
-  // ===== NEW: Lobby Countdown =====
   showLobbyCountdown(seconds) {
     const el = document.getElementById('lobbyCountdown');
     const numEl = document.getElementById('lobbyCountdownNum');
@@ -1124,17 +780,89 @@ class UIManager {
     if (numEl) numEl.textContent = seconds;
     if (fillEl) fillEl.style.width = '100%';
   }
-
   updateLobbyCountdown(seconds) {
     const numEl = document.getElementById('lobbyCountdownNum');
     const fillEl = document.getElementById('lobbyCountdownFill');
     if (numEl) numEl.textContent = seconds;
     if (fillEl) fillEl.style.width = `${(seconds / 10) * 100}%`;
   }
+  hideLobbyCountdown() { const el = document.getElementById('lobbyCountdown'); if (el) el.style.display = 'none'; }
 
-  hideLobbyCountdown() {
-    const el = document.getElementById('lobbyCountdown');
-    if (el) el.style.display = 'none';
+  showBettingArena({ roomCode, tier, isHost, yourDragon }) {
+    this.showScreen('bettingArenaScreen');
+    const rcEl = document.getElementById('baRoomCode');
+    if (rcEl) rcEl.textContent = roomCode || '------';
+    const tierEl = document.getElementById('baStakeValue');
+    if (tierEl) tierEl.textContent = tier ? `${tier} Stake` : '-- INFINITE';
+    const yourDragonEl = document.getElementById('baYourDragon');
+    if (yourDragonEl) yourDragonEl.textContent = yourDragon || '???';
+    const oppDragonEl = document.getElementById('baOppDragon');
+    if (oppDragonEl) oppDragonEl.textContent = '???';
+    const oppStatus = document.getElementById('baOppStatus');
+    if (oppStatus) { oppStatus.textContent = 'Waiting...'; oppStatus.style.color = '#8b93a6'; }
+    const yourStatus = document.getElementById('baYourStatus');
+    if (yourStatus) { yourStatus.textContent = 'Not staked'; yourStatus.style.color = '#8b93a6'; }
+    const startBtn = document.getElementById('baStartBtn');
+    if (startBtn) { startBtn.disabled = true; startBtn.style.opacity = '0.4'; }
+    const countdown = document.getElementById('baCountdown');
+    if (countdown) countdown.style.display = 'none';
+  }
+
+  updateBettingArena({ players, roomMax, hostDeposited, opponentDeposited, tier, isHost }) {
+    const playerList = players || [];
+    const host = playerList.find(p => p.isHost);
+    const opponent = playerList.find(p => !p.isHost);
+    const yourStatus = document.getElementById('baYourStatus');
+    const oppStatus = document.getElementById('baOppStatus');
+    const oppDragon = document.getElementById('baOppDragon');
+    const startBtn = document.getElementById('baStartBtn');
+
+    if (host) {
+      if (yourStatus) {
+        if (isHost) {
+          yourStatus.textContent = hostDeposited ? 'Bet Placed' : 'Not staked';
+          yourStatus.style.color = hostDeposited ? '#4ade80' : '#8b93a6';
+        } else {
+          const you = playerList.find(p => p.isLocal);
+          const youDeposited = you ? you.deposited : opponentDeposited;
+          yourStatus.textContent = youDeposited ? 'Bet Placed' : 'Not staked';
+          yourStatus.style.color = youDeposited ? '#4ade80' : '#8b93a6';
+        }
+      }
+    }
+    if (opponent) {
+      if (oppDragon) oppDragon.textContent = opponent.dragon || '???';
+      if (oppStatus) {
+        oppStatus.textContent = opponent.deposited ? 'Bet Placed' : 'Not staked';
+        oppStatus.style.color = opponent.deposited ? '#4ade80' : '#8b93a6';
+      }
+    }
+    if (startBtn) {
+      const bothStaked = hostDeposited && opponentDeposited;
+      startBtn.disabled = !bothStaked;
+      startBtn.style.opacity = bothStaked ? '1' : '0.4';
+    }
+  }
+
+  showBettingCountdown(seconds) {
+    const el = document.getElementById('baCountdown');
+    const numEl = document.getElementById('baCountdownNum');
+    const fillEl = document.getElementById('baCountdownFill');
+    if (el) el.style.display = 'block';
+    if (numEl) numEl.textContent = seconds;
+    if (fillEl) fillEl.style.width = '100%';
+  }
+
+  updateBettingCountdown(seconds) {
+    const numEl = document.getElementById('baCountdownNum');
+    const fillEl = document.getElementById('baCountdownFill');
+    if (numEl) numEl.textContent = seconds;
+    if (fillEl) fillEl.style.width = `${(seconds / 10) * 100}%`;
+  }
+
+  hideBettingArena() {
+    const el = document.getElementById('bettingArenaScreen');
+    if (el) el.classList.remove('active');
   }
 }
 
