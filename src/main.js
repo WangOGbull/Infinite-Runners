@@ -94,15 +94,20 @@ class Game {
     this.lobbyCountdownInterval = null;
     this.inBettingArena = false;
 
+    this.firebaseReady = null;
+
     this.init();
   }
 
   async init() {
     this.setupEventListeners();
-    await this.setupFirebase();
     this.effectsSystem.init();
-    // CRITICAL: process mobile redirect AFTER event listeners are registered
+    // Start Firebase WITHOUT blocking, then process the wallet redirect
+    // immediately — a slow/blocked anonymous auth was holding the wallet
+    // return hostage (the 2-3 min "not connected" stall on mobile).
+    this.firebaseReady = this.setupFirebase();
     this.walletManager.processMobileRedirect();
+    await this.firebaseReady;
 
     if (!this.roomRef) {
       let urlHasWalletReturn = false;
@@ -238,6 +243,7 @@ class Game {
     });
 
     this.eventBus.on('wallet:connectRequest', () => this.walletManager.connect());
+    this.eventBus.on('wallet:connectJupiterRequest', () => this.walletManager.connectJupiter());
     this.eventBus.on('wallet:disconnectRequest', () => this.walletManager.disconnect());
     this.eventBus.on('wallet:refreshRequest', () => this.walletManager.refreshBalance());
     this.eventBus.on('wallet:signTestRequest', () => {
@@ -250,14 +256,14 @@ class Game {
     this.eventBus.on('lobby:arenaSelected', ({ arenaIndex }) => {
       if (this.isHost && this.roomRef) {
         this.lobbyArenaIndex = arenaIndex;
-        this.roomRef.child('arenaIndex').set(arenaIndex);
+        this.roomRef.child('arenaIndex').set(arenaIndex).catch(err => console.warn('[Room] arena update failed:', err));
         this.uiManager.updateLobbyArena(arenaIndex, true);
       }
     });
     this.eventBus.on('lobby:tierSelected', ({ tier }) => {
       if (this.isHost && this.roomRef && !this.stakingState.hostDeposited) {
         this.lobbyTier = tier;
-        this.roomRef.child('tier').set(tier);
+        this.roomRef.child('tier').set(tier).catch(err => console.warn('[Room] tier update failed:', err));
         this._refreshStakingUI();
       }
     });
@@ -297,10 +303,14 @@ class Game {
       this.matchmaking.proceed();
     });
 
-    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
+    this.eventBus.on('matchmaking:matched', async ({ roomCode, isInitiator, tier }) => {
       if (isInitiator) {
-        this.createRoom(this.selectedMpMode || 'FFA', tier, true);
-        if (this.roomCode) this.matchmaking.announceRoomReady(this.roomCode);
+        // FIX: await the Firebase room write BEFORE announcing the code over
+        // Photon — the opponent was being sent to a room that didn't exist yet.
+        const created = await this.createRoom(this.selectedMpMode || 'FFA', tier, true);
+        if (created && this.roomCode) {
+          this.matchmaking.announceRoomReady(this.roomCode);
+        }
       } else {
         this.joinRoom(roomCode, true);
       }
@@ -330,10 +340,14 @@ class Game {
     });
 
     // ===== WALLET TX =====
-    this.eventBus.on('wallet:txConfirmed', ({ signature, pendingAction }) => {
+    this.eventBus.on('wallet:txConfirmed', async ({ signature, pendingAction }) => {
+      // Wait for Firebase before resuming — the redirect is now processed
+      // before Firebase finishes, so the db may not exist yet here.
+      if (this.firebaseReady) await this.firebaseReady;
       this._resumeStakingAction(pendingAction, signature);
     });
-    this.eventBus.on('wallet:txError', ({ message, pendingAction }) => {
+    this.eventBus.on('wallet:txError', async ({ message, pendingAction }) => {
+      if (this.firebaseReady) await this.firebaseReady;
       this._restoreLobbyContextIfPresent();
       this.eventBus.emit('staking:error', { message: message || 'Transaction failed.' });
     });
@@ -614,11 +628,11 @@ class Game {
     };
   }
 
-  createRoom(mpMode, presetTier = null, fromMatchmaking = false) {
+  async createRoom(mpMode, presetTier = null, fromMatchmaking = false) {
     if (!this.db) {
       alert('Multiplayer not available.');
       this.uiManager.showScreen('modeSelectScreen');
-      return;
+      return false;
     }
     this.roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     this.isHost = true;
@@ -634,17 +648,31 @@ class Game {
     const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
-    this.roomRef.set({
-      host: 'local',
-      hostAuthUid: this.authUid || null,
-      mode: this.selectedMpMode,
-      maxPlayers: maxPlayers,
-      arenaIndex: 0,
-      status: 'waiting',
-      tier: presetTier,
-      staking: { hostDeposited: false, opponentDeposited: false },
-      players: { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } }
-    });
+    // FIX: await the write and CATCH failures — before, a failed create was
+    // silent: the host saw a lobby with a code that never existed in Firebase,
+    // and every joiner got "Room not found".
+    try {
+      await this.roomRef.set({
+        host: 'local',
+        hostAuthUid: this.authUid || null,
+        mode: this.selectedMpMode,
+        maxPlayers: maxPlayers,
+        arenaIndex: 0,
+        status: 'waiting',
+        tier: presetTier,
+        staking: { hostDeposited: false, opponentDeposited: false },
+        players: { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } }
+      });
+    } catch (err) {
+      console.error('[Room] create failed:', err);
+      this.roomRef = null;
+      this.eventBus.emit('staking:error', { message: 'Could not create room — check your connection and try again.' });
+      if (!fromMatchmaking) {
+        const errEl = document.getElementById('mpJoinError');
+        if (errEl) errEl.textContent = 'Could not create room. Check connection and retry.';
+      }
+      return false;
+    }
     this.roomPlayers = { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
 
     if (fromMatchmaking) {
@@ -667,6 +695,7 @@ class Game {
     this._attachRoomListener();
     this._ensurePresence();
     this._persistLastRoom();
+    return true;
   }
 
   joinRoom(code, fromMatchmaking = false) {
@@ -683,6 +712,7 @@ class Game {
       if (!data) {
         const err = document.getElementById('mpJoinError');
         if (err) err.textContent = 'Room not found';
+        if (fromMatchmaking) this.uiManager.showScreen('mpMenuScreen');
         this.roomRef = null;
         return;
       }
@@ -691,6 +721,7 @@ class Game {
       if (playerCount >= roomMax) {
         const err = document.getElementById('mpJoinError');
         if (err) err.textContent = 'Room is full';
+        if (fromMatchmaking) this.uiManager.showScreen('mpMenuScreen');
         this.roomRef = null;
         return;
       }
@@ -719,6 +750,14 @@ class Game {
       this._attachRoomListener();
       this._ensurePresence();
       this._persistLastRoom();
+    }).catch(err => {
+      // FIX: this read had no .catch — a failed read made the Join button
+      // appear dead ("refuses to put me in game") with zero feedback.
+      console.error('[Room] join read failed:', err);
+      const errEl = document.getElementById('mpJoinError');
+      if (errEl) errEl.textContent = 'Connection failed. Check network and retry.';
+      if (fromMatchmaking) this.uiManager.showScreen('mpMenuScreen');
+      this.roomRef = null;
     });
   }
 
@@ -814,8 +853,8 @@ class Game {
     this.uiManager.hideBettingArena();
     if (this.roomRef) {
       this.roomRef.off();
-      if (this.isHost) { this.roomRef.remove(); }
-      else if (this.localPlayerId) { this.roomRef.child('players/' + this.localPlayerId).remove(); }
+      if (this.isHost) { this.roomRef.remove().catch(() => {}); }
+      else if (this.localPlayerId) { this.roomRef.child('players/' + this.localPlayerId).remove().catch(() => {}); }
       this.roomRef = null;
     }
     this.isHost = false;
@@ -848,7 +887,7 @@ class Game {
           arenaIndex: this.lobbyArenaIndex,
           playerIds: this.playerIds
         }
-      });
+      }).catch(err => console.warn('[Room] start update failed:', err));
     }
     this.isMultiplayer = true;
     this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced', this.lobbyArenaIndex);
@@ -880,7 +919,7 @@ class Game {
       lives: this.localDragon.lives,
       alive: this.localDragon.alive,
       t: now
-    });
+    }).catch(() => {});
   }
 
   applyRemotePositions() {
