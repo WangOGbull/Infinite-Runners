@@ -345,13 +345,15 @@ class Game {
       }
     });
 
-    // ===== SEARCH BATTLE (Photon matchmaking) =====
-    // Photon's ONLY job across all of this is finding an opponent and
-    // exchanging a room code. The moment that code exists, everything
-    // hands off to the existing, already-working Firebase
-    // createRoom()/joinRoom() flow below - staking, gameplay, all of it
-    // stays exactly as-is.
-    this.eventBus.on('ui:searchBattle', async () => {
+    // ===== SEARCH BATTLE (Photon matchmaking, tier-first) =====
+    // Player picks a stake tier BEFORE searching; Photon only matches them
+    // with someone who picked the same tier (native Photon room-property
+    // filtering, not something checked after the fact). The moment two
+    // players are matched, this hands off entirely to the existing,
+    // already-working Firebase createRoom()/joinRoom() flow with that tier
+    // already locked in - no separate "Proceed" confirmation step, since
+    // picking a tier and starting the search already is the commitment.
+    this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
       this.uiManager.showScreen('matchmakingSearchScreen');
       try {
         const quality = await this.matchmaking.checkConnectionQuality();
@@ -363,41 +365,27 @@ class Game {
           });
           return;
         }
-        this.matchmaking.startSearch();
+        this.matchmaking.startSearch(tier);
       } catch (err) {
         this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
       }
     });
 
-    this.eventBus.on('matchmaking:found', () => {
-      this.uiManager.showScreen('matchmakingFoundScreen');
-    });
-
-    this.eventBus.on('ui:proceedMatch', () => {
-      if (this.matchmaking.iAmInitiator) {
-        // We're the initiator: create the real Firebase room using the
-        // EXACT same path as tapping "Create Room" manually, then tell our
-        // matched opponent the code via Photon.
-        this.createRoom(this.selectedMpMode || 'FFA');
+    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
+      if (isInitiator) {
+        // Create the real Firebase room using the EXACT same path as
+        // tapping "Create Room" manually, with the agreed tier already
+        // locked in, then tell the matched opponent the code via Photon.
+        this.createRoom(this.selectedMpMode || 'FFA', tier);
         if (this.roomCode) this.matchmaking.announceRoomReady(this.roomCode);
       } else {
-        // We're not the initiator - just wait for 'matchmaking:ready' to
-        // arrive with the code (may already be in flight).
-        this.uiManager.showScreen('matchmakingSearchScreen');
-      }
-    });
-
-    this.eventBus.on('matchmaking:ready', ({ roomCode, isInitiator }) => {
-      this.matchmaking.cleanup(); // Photon's job is done
-      if (!isInitiator) {
-        this.joinRoom(roomCode); // identical to typing the code in manually
+        // roomCode arrives via Photon's onEvent - join it exactly as if
+        // typed in manually. Tier is already set on the room itself.
+        this.joinRoom(roomCode);
       }
     });
 
     this.eventBus.on('ui:cancelSearch', () => {
-      this.matchmaking.cancelSearch();
-    });
-    this.eventBus.on('ui:cancelMatch', () => {
       this.matchmaking.cancelSearch();
     });
     this.eventBus.on('matchmaking:cancelled', () => {
@@ -796,7 +784,7 @@ class Game {
     };
   }
 
-  createRoom(mpMode) {
+  createRoom(mpMode, presetTier = null) {
     if (!this.db) {
       alert('Multiplayer not available. Running in local mode.');
       this.uiManager.showScreen('modeSelectScreen');
@@ -808,7 +796,7 @@ class Game {
     this.localPlayerId = 'local';
     this.playerIds = ['local'];
     this.lobbyArenaIndex = 0;
-    this.lobbyTier = null;
+    this.lobbyTier = presetTier;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
     const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
 
@@ -820,7 +808,7 @@ class Game {
       maxPlayers: maxPlayers,
       arenaIndex: 0,
       status: 'waiting',
-      tier: null,
+      tier: presetTier,
       staking: { hostDeposited: false, opponentDeposited: false },
       players: {
         local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
