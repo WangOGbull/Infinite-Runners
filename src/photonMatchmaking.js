@@ -128,8 +128,21 @@ class PhotonMatchmaking {
       }
     };
 
-    this.client.onJoinRoom = (createdByMe) => {
-      this.iAmInitiator = !!createdByMe;
+    this.client.onJoinRoom = () => {
+      // NOTE: joinRandomOrCreateRoom() always completes via the game
+      // server's JoinGame response internally, regardless of whether this
+      // client's request was the one that actually created the room - so
+      // the createdByMe parameter here is NOT reliable (it's always false
+      // in this flow, confirmed against the actual SDK source, not
+      // assumed). This was why BOTH matched players ended up on the same
+      // "non-initiator" branch and got sent back to the searching screen
+      // instead of one of them ever creating the real room.
+      //
+      // actorNr === 1 is the reliable signal instead: Photon always
+      // assigns the FIRST player to join a room actorNr 1, server-side,
+      // with no ambiguity - so exactly one matched player ends up the
+      // initiator, deterministically.
+      this.iAmInitiator = this.client.myActor().actorNr === 1;
       this.eventBus.emit('matchmaking:searching');
     };
 
