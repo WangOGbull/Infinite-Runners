@@ -1,4 +1,3 @@
-// photonMatchmaking.js
 const PHOTON_APP_ID = '9dad70be-61cb-4d4e-bba4-ca57fa9942f3';
 const PHOTON_APP_VERSION = '1.0';
 const PHOTON_REGION = 'us';
@@ -9,14 +8,14 @@ const POST_ANNOUNCE_DISCONNECT_DELAY_MS = 1500;
 let _appIdWarningShown = false;
 function assertConfigured() {
   if (typeof Photon === 'undefined') {
-    throw new Error('Photon SDK not loaded - add Photon-Javascript_SDK.min.js to index.html before using Search Battle.');
+    throw new Error('Photon SDK not loaded — add Photon-Javascript_SDK.min.js before using Search Battle.');
   }
   if (!PHOTON_APP_ID || PHOTON_APP_ID.startsWith('REPLACE_')) {
     if (!_appIdWarningShown) {
       _appIdWarningShown = true;
-      console.warn('[Matchmaking] PHOTON_APP_ID is not set yet - set it in photonMatchmaking.js.');
+      console.warn('[Matchmaking] PHOTON_APP_ID not set.');
     }
-    throw new Error('Search Battle is not configured yet: set PHOTON_APP_ID in photonMatchmaking.js to your real Photon App ID.');
+    throw new Error('Search Battle not configured: set PHOTON_APP_ID in photonMatchmaking.js.');
   }
 }
 
@@ -49,13 +48,13 @@ class PhotonMatchmaking {
       const finish = (result) => {
         if (resolved) return;
         resolved = true;
-        try { testClient.disconnect(); } catch (_) { /* ignore */ }
+        try { testClient.disconnect(); } catch (_) {}
         resolve(result);
       };
       testClient.onStateChange = (state) => {
         if (state === Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToMaster) {
-          const elapsedMs = Date.now() - startedAt;
-          finish({ ok: elapsedMs <= MAX_ACCEPTABLE_RTT_MS, rtt: elapsedMs });
+          const elapsed = Date.now() - startedAt;
+          finish({ ok: elapsed <= MAX_ACCEPTABLE_RTT_MS, rtt: elapsed });
         }
       };
       testClient.onError = () => finish({ ok: false, rtt: null, error: true });
@@ -71,6 +70,7 @@ class PhotonMatchmaking {
     this.opponentFound = false;
     this.matchedRoomCode = null;
     this.tier = tier;
+    this.iAmInitiator = false;
 
     this.client = this._newClient();
 
@@ -84,18 +84,27 @@ class PhotonMatchmaking {
       }
     };
 
+    this.client.onCreateRoom = () => {
+      this._setInitiator();
+      this.eventBus.emit('matchmaking:searching');
+    };
+
     this.client.onJoinRoom = () => {
-      this.iAmInitiator = this.client.myActor().actorNr === 1;
+      this._setInitiator();
       this.eventBus.emit('matchmaking:searching');
     };
 
     this.client.onActorJoin = () => {
-      const actors = typeof this.client.myRoomActorsArray === 'function'
-        ? this.client.myRoomActorsArray()
-        : [];
-      if (actors.length >= 2 && !this.opponentFound) {
+      const room = this.client.myRoom();
+      if (!room) return;
+      const actors = room.getActors ? room.getActors() : [];
+      const count = Object.keys(actors).length;
+      if (count >= 2 && !this.opponentFound) {
         this.opponentFound = true;
-        this.eventBus.emit('matchmaking:opponentFound', { isInitiator: this.iAmInitiator, tier: this.tier });
+        this.eventBus.emit('matchmaking:opponentFound', {
+          isInitiator: this.iAmInitiator,
+          tier: this.tier
+        });
       }
     };
 
@@ -108,18 +117,44 @@ class PhotonMatchmaking {
     this.client.onError = (errorCode, errorMsg) => {
       this.isSearching = false;
       this.opponentFound = false;
-      this.eventBus.emit('matchmaking:error', { message: errorMsg || 'Matchmaking connection failed.' });
+      this.eventBus.emit('matchmaking:error', {
+        message: errorMsg || 'Matchmaking connection failed.'
+      });
     };
 
     this.client.connectToRegionMaster(PHOTON_REGION);
   }
 
+  _setInitiator() {
+    this.iAmInitiator = this.client.myActor().actorNr === 1;
+  }
+
   proceed() {
-    if (!this.opponentFound) return;
+    if (!this.opponentFound) {
+      console.warn('[Matchmaking] proceed() called but opponent not found yet');
+      return;
+    }
     if (this.iAmInitiator) {
-      this.eventBus.emit('matchmaking:matched', { isInitiator: true, tier: this.tier });
+      this.eventBus.emit('matchmaking:matched', {
+        isInitiator: true,
+        tier: this.tier
+      });
     } else if (this.matchedRoomCode) {
-      this.eventBus.emit('matchmaking:matched', { roomCode: this.matchedRoomCode, isInitiator: false, tier: this.tier });
+      this.eventBus.emit('matchmaking:matched', {
+        roomCode: this.matchedRoomCode,
+        isInitiator: false,
+        tier: this.tier
+      });
+    } else {
+      setTimeout(() => {
+        if (this.matchedRoomCode) {
+          this.eventBus.emit('matchmaking:matched', {
+            roomCode: this.matchedRoomCode,
+            isInitiator: false,
+            tier: this.tier
+          });
+        }
+      }, 800);
     }
   }
 
@@ -140,7 +175,7 @@ class PhotonMatchmaking {
     this.opponentFound = false;
     if (this._disconnectTimer) { clearTimeout(this._disconnectTimer); this._disconnectTimer = null; }
     if (this.client) {
-      try { this.client.disconnect(); } catch (_) { /* ignore */ }
+      try { this.client.disconnect(); } catch (_) {}
       this.client = null;
     }
     this.eventBus.emit('matchmaking:cancelled');
@@ -149,7 +184,7 @@ class PhotonMatchmaking {
   cleanup() {
     if (this._disconnectTimer) { clearTimeout(this._disconnectTimer); this._disconnectTimer = null; }
     if (this.client) {
-      try { this.client.disconnect(); } catch (_) { /* ignore */ }
+      try { this.client.disconnect(); } catch (_) {}
       this.client = null;
     }
     this.isSearching = false;
