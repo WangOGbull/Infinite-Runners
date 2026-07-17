@@ -1,11 +1,24 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<style>
-html,body{margin:0;height:100%;overflow:hidden;font-family:'Rajdhani',sans-serif;}
-.screen{position:fixed;inset:0;}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Infinite Runners - Dragons Arena</title>
 
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="./lib/Photon-Javascript_SDK.min.js"></script>
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="./src/styles.css?v=26">
+
+<style>
   html, body { overflow-x: hidden; max-width: 100vw; }
   *, *::before, *::after { box-sizing: border-box; }
   #dragonSelectScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
@@ -219,9 +232,39 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:'Rajdhani',sans-serif
     .baBox { padding: 20px 16px; }
     .baTitle { font-size: 18px; }
   }
+</style>
+<base target="_blank">
+<base target="_blank">
+<base target="_blank">
+</head>
+<body>
 
-</style><base target="_blank">
-</head><body>
+<canvas id="pCanvas"></canvas>
+
+<!-- ===== TITLE SCREEN ===== -->
+<div id="titleScreen" class="screen active" style="background-image:url('./shadow-drake-bg.png');background-size:cover;background-position:center;background-repeat:no-repeat;">
+  <div class="darken"></div>
+  <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button>
+  <div id="resumeRoomBanner" style="display:none; position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:50; background:rgba(0,0,0,0.7); border:1px solid rgba(0,180,216,0.4); border-radius:12px; padding:14px 20px; text-align:center; max-width:90vw;">
+    <div style="color:#c8ccd8; font-size:13px; margin-bottom:8px;">You have a room in progress</div>
+    <button id="btnResumeRoom" class="menuBtn" style="margin:0 auto;"><i data-lucide="rotate-ccw"></i> Resume Room <span id="resumeRoomCode"></span></button>
+  </div>
+  <div class="content">
+    <h1>Infinite Runners</h1>
+    <h2>^Dragons Arena^</h2>
+    <h3>Chronicles of the Void</h3>
+    <p class="subtitle">^ Free to Play ^</p>
+    <button class="playBtn" id="btnPlayNow"><i data-lucide="play"></i> PLAY NOW</button>
+    <div class="menuBtns">
+      <button class="menuBtn" id="btnStartGame"><i data-lucide="gamepad-2"></i> Start Game</button>
+      <button class="menuBtn" id="btnLeaderboard"><i data-lucide="trophy"></i> Leaderboard</button>
+      <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button>
+    </div>
+  </div>
+  <span class="copyright">2025 Infinite Runners Dragons Arena. All rights reserved.</span>
+</div>
+
+<!-- ===== DRAGON SELECT ===== -->
 <div id="dragonSelectScreen" class="screen">
   <div class="dsInner" style="width:100%;height:100%;display:flex;flex-direction:column;">
     <div class="dsTopBar">
@@ -230,31 +273,402 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:'Rajdhani',sans-serif
     </div>
     <div class="dsCarouselWrap">
       <div class="dsDragonInfo">
-        <div class="dsDragonName" id="dsDragonName" style="color:#c77dff;text-shadow:0 0 20px rgba(255,107,53,0.25);">IGNIS</div>
-        <div class="dsDragonTier">TIER <span id="dsDragonTierNum">2</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="dsDragonLevel">2</span></div>
+        <div class="dsDragonName" id="dsDragonName">AEGIS</div>
+        <div class="dsDragonTier">TIER <span id="dsDragonTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="dsDragonLevel">1</span></div>
         <div class="dsXpBarWrap">
-          <div class="dsXpBarTop"><span class="dsLevelNum">2</span><span class="dsXpText">5,344 / 5,200</span><span class="dsLevelNum">3</span></div>
-          <div class="dsXpBar"><div class="dsXpBarFill" style="width: 60%;"></div></div>
+          <div class="dsXpBarTop"><span class="dsLevelNum" id="dsXpLevelStart">1</span><span class="dsXpText" id="dsXpText">0 / 5,200</span><span class="dsLevelNum" id="dsXpLevelEnd">2</span></div>
+          <div class="dsXpBar"><div class="dsXpBarFill" id="dsXpBarFill" style="width: 0%;"></div></div>
         </div>
       </div>
       <div class="dsDragonStage">
-        <button class="dsArrow dsArrowLeft"><i data-lucide="chevron-left"></i></button>
-        <div class="dsDragonImgWrap"><img id="dsDragonImg" src="./dragons/ignis.png" alt="Dragon" style="filter:drop-shadow(0 0 30px rgba(255,107,53,0.15));"></div>
-        <button class="dsArrow dsArrowRight"><i data-lucide="chevron-right"></i></button>
+        <button class="dsArrow dsArrowLeft" id="dsArrowLeft"><i data-lucide="chevron-left"></i></button>
+        <div class="dsDragonImgWrap" id="dsDragonImgWrap"><img id="dsDragonImg" src="" alt="Dragon"></div>
+        <button class="dsArrow dsArrowRight" id="dsArrowRight"><i data-lucide="chevron-right"></i></button>
       </div>
-      <div class="dsPowersGrid">
-        <div class="dsPowerCard"><div class="dsPowerName">Defense</div><div class="dsPowerLevelRow"><span class="dsPowerLevel">3</span><div class="dsPowerBar"><div class="dsPowerBarFill" style="width:30%;"></div></div><button class="dsUpgradeBtn"><i data-lucide="arrow-up"></i> 500</button></div></div>
-        <div class="dsPowerCard"><div class="dsPowerName">Speed</div><div class="dsPowerLevelRow"><span class="dsPowerLevel">2</span><div class="dsPowerBar"><div class="dsPowerBarFill" style="width:20%;"></div></div><button class="dsUpgradeBtn"><i data-lucide="arrow-up"></i> 600</button></div></div>
-        <div class="dsPowerCard"><div class="dsPowerName">Rush Ability</div><div class="dsPowerLevelRow"><span class="dsPowerLevel">2</span><div class="dsPowerBar"><div class="dsPowerBarFill" style="width:20%;"></div></div><button class="dsUpgradeBtn"><i data-lucide="arrow-up"></i> 800</button></div></div>
-        <div class="dsPowerCard"><div class="dsPowerName">Attack</div><div class="dsPowerLevelRow"><span class="dsPowerLevel">2</span><div class="dsPowerBar"><div class="dsPowerBarFill" style="width:20%;"></div></div><button class="dsUpgradeBtn"><i data-lucide="arrow-up"></i> 1,000</button></div></div>
-      </div>
+      <div class="dsPowersGrid" id="dsPowersGrid"></div>
       <div class="dsSelectRow">
-        <span class="dsSelectBadge">NOT SELECTED</span>
-        <button class="dsSelectBtn">SELECT</button>
+        <span class="dsSelectBadge" id="dsSelectBadge">NOT SELECTED</span>
+        <button class="dsSelectBtn" id="dsSelectBtn">SELECT</button>
+        <button class="dsDragonAgeBtn" id="dsDragonAgeBtn" style="display:none;"><i data-lucide="swords"></i> ENTER BATTLE</button>
       </div>
-      <div class="dsNavDots"><div class="dsNavDot active"></div><div class="dsNavDot"></div><div class="dsNavDot"></div><div class="dsNavDot"></div></div>
+      <div class="dsNavDots" id="dsNavDots"></div>
     </div>
   </div>
 </div>
-<script>lucide.createIcons();</script>
-</body></html>
+
+<!-- ===== MODE SELECT ===== -->
+<div id="modeSelectScreen" class="screen">
+  <div class="modeBox">
+    <h2>Choose Battle Mode</h2>
+    <p class="sub">Select how you want to play</p>
+    <div class="modeCards">
+      <div class="modeCard" id="btn1v1AI" data-mode="1v1AI">
+        <div class="mIcon"><i data-lucide="swords"></i></div>
+        <div class="mLabel">1v1 vs AI</div>
+        <div class="mDesc">Battle solo against AI bots. Perfect for practice.</div>
+      </div>
+      <div class="modeCard" id="btnMpMultiplayer" data-mode="multiplayer">
+        <div class="mIcon"><i data-lucide="wifi"></i></div>
+        <div class="mLabel">Multiplayer</div>
+        <div class="mDesc">Play online with friends via room code.</div>
+      </div>
+    </div>
+    <button class="menuBtn" id="btnModeBack"><i data-lucide="arrow-left"></i> Back to Dragons</button>
+  </div>
+</div>
+
+<!-- ===== MULTIPLAYER MENU ===== -->
+<div id="mpMenuScreen" class="screen">
+  <div class="mpBox">
+    <h2>Multiplayer</h2>
+    <p class="sub">Create or join a battle room</p>
+    <div class="modeCards">
+      <div class="modeCard" id="btnMpCreate">
+        <div class="mIcon"><i data-lucide="plus-circle"></i></div>
+        <div class="mLabel">Create Room</div>
+        <div class="mDesc">Start a new room and invite friends.</div>
+      </div>
+      <div class="modeCard" id="btnMpSearchBattle">
+        <div class="mIcon"><i data-lucide="swords"></i></div>
+        <div class="mLabel">Search Battle</div>
+        <div class="mDesc">Automatically match with any available player.</div>
+      </div>
+    </div>
+    <div class="mpJoinSection">
+      <div class="joinTitle">Join Room</div>
+      <p class="joinSub">Enter a 6-digit room code</p>
+      <div class="mpJoinRow">
+        <input type="text" id="mpRoomInput" class="mpRoomInput" placeholder="000000" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
+        <button class="mpJoinBtn" id="btnMpJoin"><i data-lucide="log-in"></i> Join</button>
+      </div>
+      <p class="mpJoinError" id="mpJoinError"></p>
+    </div>
+    <button class="menuBtn" id="btnMpBack"><i data-lucide="arrow-left"></i> Back to Mode</button>
+  </div>
+</div>
+
+<!-- ===== SEARCH BATTLE: Dragon Age stake selection ===== -->
+<div id="matchmakingTierScreen" class="screen">
+  <div class="daModalOverlay"></div>
+  <div class="daStakeModal">
+    <div class="daStakeHeader">
+      <div class="daStakeIcon"><i data-lucide="swords"></i></div>
+      <h2>Choose Your Stake</h2>
+      <p>Select a tier to find a worthy opponent</p>
+    </div>
+    <div class="daStakeTiers">
+      <button class="daTierBtn low" id="btnMmTierSmall" data-tier="Small">
+        <div class="daTierGlow"></div>
+        <div class="daTierLabel">Low</div>
+        <div class="daTierAmount" id="tierAmtSmall">-- INFINITE</div>
+        <div class="daTierDot"></div>
+      </button>
+      <button class="daTierBtn medium" id="btnMmTierMedium" data-tier="Medium">
+        <div class="daTierGlow"></div>
+        <div class="daTierLabel">Medium</div>
+        <div class="daTierAmount" id="tierAmtMedium">-- INFINITE</div>
+        <div class="daTierDot"></div>
+      </button>
+      <button class="daTierBtn high" id="btnMmTierHigh" data-tier="High">
+        <div class="daTierGlow"></div>
+        <div class="daTierLabel">High</div>
+        <div class="daTierAmount" id="tierAmtHigh">-- INFINITE</div>
+        <div class="daTierDot"></div>
+      </button>
+    </div>
+    <button class="daStakeBack" id="btnMmTierBack"><i data-lucide="arrow-left"></i> Back to Menu</button>
+  </div>
+</div>
+
+<!-- ===== SEARCH BATTLE: searching ===== -->
+<div id="matchmakingSearchScreen" class="screen">
+  <div class="mpBox" style="text-align:center;">
+    <h2>Searching for an Opponent...</h2>
+    <div class="wSpinner" style="margin:30px auto;"></div>
+    <p class="sub" id="matchmakingStatusText">Looking for another player at the same stake.</p>
+    <button class="menuBtn" id="btnCancelSearch"><i data-lucide="x"></i> Cancel Search</button>
+  </div>
+</div>
+
+<!-- ===== OPPONENT FOUND ===== -->
+<div id="opponentFoundScreen" class="screen">
+  <div class="daModalOverlay"></div>
+  <div class="daOpponentModal">
+    <div class="daOppHeader">
+      <div class="daOppIcon"><i data-lucide="flame"></i></div>
+      <h2>Opponent Found!</h2>
+      <p>A challenger awaits at your chosen stake</p>
+    </div>
+    <div class="daOppTierDisplay" id="oppFoundTierDisplay">Low Stake</div>
+    <div class="daOppActions">
+      <button class="daOppProceed" id="btnProceedToLobby"><i data-lucide="play"></i> Proceed to Battle</button>
+      <button class="daOppCancel" id="btnCancelOppFound"><i data-lucide="x"></i> Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BETTING ARENA (Dragon Age Neo Blue + Dark Purple) ===== -->
+<div id="bettingArenaScreen" class="screen">
+  <div class="baOverlay"></div>
+  <div class="baBox">
+    <div class="baHeader">
+      <div class="baTitle">Battle Arena</div>
+      <div class="baSubtitle">Stake your claim to victory</div>
+      <div class="baRoomCode">Room: <span id="baRoomCode">------</span></div>
+    </div>
+    <div class="baPlayers">
+      <div class="baPlayer" id="baPlayerYou">
+        <div class="baPlayerIcon">🐉</div>
+        <div class="baPlayerName">You</div>
+        <div class="baPlayerDragon" id="baYourDragon">aegis</div>
+        <div class="baPlayerStatus" id="baYourStatus">Not staked</div>
+      </div>
+      <div class="baVs">VS</div>
+      <div class="baPlayer" id="baPlayerOpp">
+        <div class="baPlayerIcon">🐉</div>
+        <div class="baPlayerName">Opponent</div>
+        <div class="baPlayerDragon" id="baOppDragon">???</div>
+        <div class="baPlayerStatus" id="baOppStatus">Waiting...</div>
+      </div>
+    </div>
+    <div class="baStakeDisplay">
+      <div class="baStakeLabel">Stake Amount</div>
+      <div class="baStakeValue" id="baStakeValue">-- INFINITE</div>
+    </div>
+    <button class="baPlaceBetBtn" id="baPlaceBetBtn"><i data-lucide="lock"></i> Place Bet</button>
+    <button class="baStartBtn" id="baStartBtn" disabled><i data-lucide="play"></i> Start Game</button>
+    <div class="baCountdown" id="baCountdown" style="display:none;">
+      <div class="baCountdownText">Auto-start in <span id="baCountdownNum">10</span>...</div>
+      <div class="baCountdownBar"><div id="baCountdownFill"></div></div>
+    </div>
+    <button class="baCancelBtn" id="baCancelBetting"><i data-lucide="x"></i> Cancel</button>
+  </div>
+</div>
+
+<!-- ===== LOBBY (manual rooms only) ===== -->
+<div id="lobbyScreen" class="screen">
+  <div class="lobbyBox">
+    <h2>Game Lobby</h2>
+    <div class="roomCodeRow"><span class="roomLabel">Room Code:</span><span id="roomCodeDisplay">------</span></div>
+    <div class="lobbyMeta"><span id="lobbyGameMode">Free For All</span> | <span id="lobbyPlayerCount">1 / 4</span></div>
+    <div class="modeSelectorHost" id="modeSelectorHost">
+      <label>Mode:</label><button id="lobbyModeFfa" class="active">FFA</button><button id="lobbyMode2v2">2v2</button>
+    </div>
+    <div class="lobbyTierSelector" id="lobbyTierSelector" style="display:none;">
+      <label>Stake Tier:</label>
+      <div class="tierBtns" id="tierBtns">
+        <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierDot small" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span> Small<br><span class="tierAmt">-- INFINITE</span></button>
+        <button class="tierBtn" data-tier="Medium" id="tierMedium"><span class="tierDot medium" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#eab308;"></span> Medium<br><span class="tierAmt">-- INFINITE</span></button>
+        <button class="tierBtn" data-tier="High" id="tierHigh"><span class="tierDot high" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> High<br><span class="tierAmt">-- INFINITE</span></button>
+      </div>
+      <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
+    </div>
+    <div class="lobbyArenaSelector" id="lobbyArenaSelector">
+      <label>Arena:</label>
+      <div class="arenaThumbs" id="lobbyArenaThumbs">
+        <button data-arena="0" class="arenaThumb active" id="lobbyArena0"><img src="/arenas/arena_stone.png" alt="Stone"><span>Stone</span></button>
+        <button data-arena="1" class="arenaThumb" id="lobbyArena1"><img src="/arenas/arena_grass.png" alt="Grass"><span>Grass</span></button>
+        <button data-arena="2" class="arenaThumb" id="lobbyArena2"><img src="/arenas/arena_purple.png" alt="Purple"><span>Purple</span></button>
+        <button data-arena="3" class="arenaThumb" id="lobbyArena3"><img src="/arenas/arena_fire.png" alt="Fire"><span>Fire</span></button>
+      </div>
+    </div>
+    <div class="lobbySlots" id="lobbySlots"></div>
+    <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;"><i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span></button>
+    <p id="depositStatusText" class="depositStatusText"></p>
+    <div class="lobbyActions">
+      <button class="pBtn pBtnRes" id="lobbyStartBtn"><i data-lucide="play"></i> Start Game</button>
+      <div id="lobbyWaitingText">Waiting for host...</div>
+      <button class="pBtn pBtnOut" id="btnLeaveRoom"><i data-lucide="log-out"></i> Leave Room</button>
+    </div>
+    <div id="lobbyCountdown" style="display:none;">
+      <div class="lobbyCountdownText">Game starts in <span id="lobbyCountdownNum">10</span>...</div>
+      <div class="lobbyCountdownBar"><div id="lobbyCountdownFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING ===== -->
+<div id="loadingScreen" class="screen">
+  <div class="loadBox"><div class="infsym">&#8734;</div><div class="orbit1"></div><div class="orbit2"></div></div>
+  <h2>Entering the Arena...</h2>
+  <div class="progbar"><div></div></div>
+</div>
+
+<!-- ===== GAME ===== -->
+<div id="gameScreen" class="screen">
+  <canvas id="gameCanvas"></canvas>
+  <div id="gameHud">
+    <div class="hudLeft">
+      <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button>
+      <div id="timerDisplay">0:00</div>
+      <div id="scoreDisplay"><i data-lucide="infinity"></i> <span id="scoreVal">0</span></div>
+    </div>
+    <canvas id="minimapCanvas"></canvas>
+  </div>
+  <div id="mobileControls">
+    <div id="joyArea"><div id="joyKnob"></div></div>
+    <div id="boostBtn"><i data-lucide="zap"></i><span>BOOST</span></div>
+  </div>
+  <div id="pauseOverlay" class="overlay">
+    <h2>PAUSED</h2>
+    <button class="pBtn pBtnRes" id="btnResume"><i data-lucide="play"></i> RESUME</button>
+    <button class="pBtn pBtnOut" id="btnChangeDragon"><i data-lucide="refresh-cw"></i> CHANGE DRAGON</button>
+    <button class="pBtn pBtnOut" id="btnQuit"><i data-lucide="log-out"></i> QUIT TO MENU</button>
+  </div>
+</div>
+
+<!-- ===== GAME OVER ===== -->
+<div id="gameOverScreen" class="screen">
+  <h1 id="goTitle">DEFEATED</h1>
+  <div class="goStats">
+    <div class="goStat"><div class="num" id="goTime">0:00</div><div class="lbl">SURVIVED</div></div>
+    <div class="goStat"><div class="num" id="goCollect">0</div><div class="lbl">COLLECTED</div></div>
+    <div class="goStat"><div class="num" id="goKills">0</div><div class="lbl">KILLS</div></div>
+    <div class="goStat"><div class="num" id="goDeaths">0</div><div class="lbl">DEATHS</div></div>
+    <div class="goStat"><div class="num" id="goLives">0</div><div class="lbl">LIVES LEFT</div></div>
+  </div>
+  <div class="goActions">
+    <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
+    <button class="pBtn pBtnOut" id="btnMainMenu"><i data-lucide="home"></i> MAIN MENU</button>
+  </div>
+</div>
+
+<!-- ===== HOW TO PLAY ===== -->
+<div id="howToPlayScreen" class="screen">
+  <button class="htpClose" id="btnHtpClose"><i data-lucide="x"></i></button>
+  <div class="htpInner">
+    <h2>HOW TO PLAY</h2>
+    <div class="htpTabs">
+      <button class="htpTab active" data-tab="controls">CONTROLS</button>
+      <button class="htpTab" data-tab="mechanics">MECHANICS</button>
+      <button class="htpTab" data-tab="tips">TIPS</button>
+    </div>
+    <div id="htpControls" class="htpPanel active">
+      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div>
+      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Boost</h4><p>Tap and hold the BOOST button for speed burst.</p></div>
+      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move=Mouse, Boost=Click/Space, Pause=ESC</p></div>
+    </div>
+    <div id="htpMechanics" class="htpPanel">
+      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter dies. Equal size = both shrink.</p></div>
+      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>Instant kill of the dragon whose tail was hit.</p></div>
+      <div class="htpCard"><h4><i data-lucide="zap"></i> Head vs Body</h4><p>Smaller dragon dies. Larger unaffected. Equal = both shrink.</p></div>
+      <div class="htpCard"><h4><i data-lucide="shield"></i> Tail vs Tail</h4><p>Nothing happens.</p></div>
+      <div class="htpCard"><h4><i data-lucide="infinity"></i> Collect &infin;</h4><p>Eat infinity symbols to grow. Start small, grow to max size.</p></div>
+      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated.</p></div>
+    </div>
+    <div id="htpTips" class="htpPanel">
+      <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div>
+      <div class="htpCard"><h4 style="color:#ff4d4d">Ignis</h4><p>Fast and aggressive. Rush opponents.</p></div>
+      <div class="htpCard"><h4 style="color:#00b4d8">Infinite</h4><p>Longest body. Trap and block enemies.</p></div>
+      <div class="htpCard"><h4 style="color:#ff00aa">Magnetron</h4><p>Tanky. Hard to kill.</p></div>
+    </div>
+    <button class="gotItBtn" id="btnGotIt">GOT IT</button>
+  </div>
+</div>
+
+<!-- ===== WALLET MODAL ===== -->
+<div id="walletModal" class="screen">
+  <div class="walletBox">
+    <button class="wClose" id="btnWalletClose"><i data-lucide="x"></i></button>
+    <h3>Connect Wallet</h3>
+    <div id="walletDisconnectedView">
+      <div class="wOpt" data-w="phantom" id="wOptPhantom">
+        <div class="wIcon" style="background:transparent; padding:0;"><img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:32px; height:32px; display:block;"></div>
+        <span>Phantom</span>
+      </div>
+      <div class="wOpt" data-w="jupiter" id="wOptJupiter">
+        <div class="wIcon" style="background:transparent; padding:0;"><img src="https://i.postimg.cc/T2FJ5G0P/jupiter.png" alt="Jupiter" style="width:32px; height:32px; display:block; border-radius:6px;"></div>
+        <span>Jupiter</span>
+      </div>
+      <p class="wHint">Solana wallet required to earn in-game rewards.</p>
+    </div>
+    <div id="walletConnectingView" style="display:none">
+      <div class="wSpinner"></div>
+      <p>Approve the connection in Phantom...</p>
+    </div>
+    <div id="walletConnectedView" style="display:none">
+      <div class="wAccountRow">
+        <div class="wIcon" style="background:transparent; padding:0;"><img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;"></div>
+        <div class="wAccountInfo">
+          <div class="wAddress" id="wAddressDisplay">-</div>
+          <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
+        </div>
+      </div>
+      <button class="wTestBtn" id="btnWalletSignTest"><i data-lucide="pen-line"></i> Sign Test Message</button>
+      <div class="wSignResult" id="wSignResult"></div>
+      <button class="wDisconnectBtn" id="btnWalletDisconnect"><i data-lucide="log-out"></i> Disconnect</button>
+    </div>
+    <div class="wError" id="walletError" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ===== WALLET SELECTION MODAL (Mobile) ===== -->
+<div id="walletSelectionModal" class="screen">
+  <div class="walletSelModal">
+    <div class="walletSelHeader">
+      <h2>Select Wallet</h2>
+      <p>Choose your Solana wallet to connect</p>
+    </div>
+    <div class="walletSelOptions">
+      <button class="walletSelBtn" id="btnSelectPhantom">
+        <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom">
+        <div><div class="wName">Phantom</div><div class="wDesc">Most popular Solana wallet</div></div>
+      </button>
+      <button class="walletSelBtn" id="btnSelectJupiter">
+        <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;">J</div>
+        <div><div class="wName">Jupiter</div><div class="wDesc">Fast Solana wallet & DEX</div></div>
+      </button>
+    </div>
+    <button class="walletSelBack" id="btnWalletSelBack">Cancel</button>
+  </div>
+</div>
+
+<!-- ===== COUNTDOWN OVERLAY ===== -->
+<div id="countdownOverlay"><div id="countdownText">3</div></div>
+
+<!-- ===== MP GAME OVER ===== -->
+<div id="mpGameOver" class="screen">
+  <div class="mpGoPanel">
+    <h2 id="mpGameOverTitle">Victory!</h2>
+    <div id="mpGameOverStats"></div>
+    <div class="mpGoActions">
+      <button class="pBtn pBtnRes" id="btnReturnLobby"><i data-lucide="corner-up-left"></i> Return to Lobby</button>
+      <button class="pBtn pBtnOut" id="btnMpMainMenu"><i data-lucide="home"></i> Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING OVERLAY ===== -->
+<div id="loadingOverlay"><div class="loadSpin"></div><div class="loadText">Loading...</div></div>
+
+<script type="module" src="./src/main.js?v=27"></script>
+
+<!-- ===== DRAGON DETAIL MODAL ===== -->
+<div id="dragonDetailModal" class="screen">
+  <div class="ddmOverlay"></div>
+  <div class="ddmBox" id="ddmBox">
+    <button class="ddmClose" id="btnDdmClose"><i data-lucide="x"></i></button>
+    <div class="ddmHeader">
+      <div class="ddmImgWrap"><img id="ddmImg" src="" alt="Dragon"></div>
+      <div class="ddmName" id="ddmName">AEGIS</div>
+      <div class="ddmTierLine">TIER <span id="ddmTierNum">1</span> &nbsp;|&nbsp; DRAGON LEVEL <span id="ddmDragonLevel">1</span></div>
+    </div>
+    <div class="ddmSection">
+      <div class="ddmSectionTitle"><i data-lucide="shield"></i> Dragon Stats</div>
+      <div class="ddmStats" id="ddmStats"></div>
+    </div>
+    <div class="ddmSection">
+      <div class="ddmSectionTitle"><i data-lucide="zap"></i> Special Powers</div>
+      <div class="ddmPowers" id="ddmPowers">
+        <div class="ddmPowerSlot locked"><div class="ddmPowerIcon"><i data-lucide="lock"></i></div><div class="ddmPowerInfo"><div class="ddmPowerName">Ancient Flame</div><div class="ddmPowerDesc">Unlock at Dragon Level 5</div></div></div>
+        <div class="ddmPowerSlot locked"><div class="ddmPowerIcon"><i data-lucide="lock"></i></div><div class="ddmPowerInfo"><div class="ddmPowerName">Void Shield</div><div class="ddmPowerDesc">Unlock at Dragon Level 10</div></div></div>
+      </div>
+    </div>
+    <div class="ddmActions">
+      <button class="ddmSelectBtn" id="btnDdmSelect"><i data-lucide="check-circle"></i> SELECT DRAGON</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
