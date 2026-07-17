@@ -27,9 +27,9 @@ class UIManager {
       this.initLucide();
       this.initParticles();
       this.bindEvents();
-      console.log("✅ UIManager loaded.");
+      console.log("UIManager loaded.");
     } catch (e) {
-      console.error("🚨 UI Manager Crash:", e);
+      console.error("UI Manager Crash:", e);
     }
   }
 
@@ -461,24 +461,19 @@ class UIManager {
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
     const walletBtn = document.getElementById('walletBtn');
-    if (walletBtn) walletBtn.addEventListener('click', () => this.showScreen('walletModal'));
+    if (walletBtn) walletBtn.addEventListener('click', () => this.showScreen('walletSelectionModal'));
     const walletClose = document.getElementById('btnWalletClose');
     if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
     const wOpt = document.getElementById('wOptPhantom');
     if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
-    // FIX: Jupiter option in the main wallet modal — was only wired in the
-    // never-opened walletSelectionModal, so Jupiter could never be picked.
-    const wOptJup = document.getElementById('wOptJupiter');
-    if (wOptJup) wOptJup.addEventListener('click', () => this.eventBus.emit('wallet:connectJupiterRequest'));
     document.addEventListener('click', (e) => { if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest'); });
     const signTest = document.getElementById('btnWalletSignTest');
     if (signTest) signTest.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
-      if (resultEl) resultEl.innerHTML = 'Waiting for approval in your wallet...';
+      if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
       this.eventBus.emit('wallet:signTestRequest');
     });
 
-    // Wallet selection modal
     const btnSelectPhantom = document.getElementById('btnSelectPhantom');
     if (btnSelectPhantom) btnSelectPhantom.addEventListener('click', () => {
       const wm = window.game?.walletManager;
@@ -492,7 +487,6 @@ class UIManager {
     const btnWalletSelBack = document.getElementById('btnWalletSelBack');
     if (btnWalletSelBack) btnWalletSelBack.addEventListener('click', () => this.showScreen('titleScreen'));
 
-    // Betting arena buttons
     const baPlaceBet = document.getElementById('baPlaceBetBtn');
     if (baPlaceBet) baPlaceBet.addEventListener('click', () => this.eventBus.emit('betting:depositRequested'));
     const baStart = document.getElementById('baStartBtn');
@@ -500,24 +494,12 @@ class UIManager {
     const baCancel = document.getElementById('baCancelBetting');
     if (baCancel) baCancel.addEventListener('click', () => this.eventBus.emit('betting:cancel'));
 
-    // FIX: wallet:connecting now carries { wallet } — show the right name
-    // instead of hardcoded "Approve the connection in Phantom...".
-    this.eventBus.on('wallet:connecting', ({ wallet } = {}) => {
-      const p = document.querySelector('#walletConnectingView p');
-      if (p) p.textContent = `Approve the connection in ${wallet === 'jupiter' ? 'Jupiter' : 'Phantom'}...`;
-      this.setWalletModalState('connecting');
-    });
+    this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
     this.eventBus.on('wallet:connected', ({ address, balance }) => {
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance);
     });
     this.eventBus.on('wallet:disconnected', () => { this.setWalletModalState('disconnected'); this.updateWalletButton(null); });
-    // FIX: balance arrives after connected now (connected emits instantly) —
-    // update the balance line when the refresh lands.
-    this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
-      const balEl = document.getElementById('wBalanceDisplay');
-      if (balEl && balance !== undefined && balance !== null) balEl.textContent = typeof balance === 'number' ? `${balance} SOL` : balance;
-    });
     this.eventBus.on('wallet:error', ({ message }) => {
       this.setWalletModalState('disconnected');
       const errEl = document.getElementById('walletError');
@@ -533,7 +515,7 @@ class UIManager {
     });
     this.eventBus.on('staking:pending', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
-      if (statusText) { statusText.textContent = label || 'Processing your bet…'; statusText.className = 'depositStatusText pending'; }
+      if (statusText) { statusText.textContent = label || 'Processing your bet...'; statusText.className = 'depositStatusText pending'; }
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Placing bet...'; baStatus.style.color = '#eab308'; }
     });
@@ -580,7 +562,7 @@ class UIManager {
       if (slotsEl && Array.isArray(players)) {
         slotsEl.innerHTML = players.map(p => `
           <div class="lobbyPlayerCard ${p.isLocal ? 'local' : ''}">
-            <div class="lobbyPlayerIcon">🐉</div>
+            <div class="lobbyPlayerIcon">DRAGON</div>
             <div class="lobbyPlayerInfo">
               <div class="lobbyPlayerName">${p.isHost ? 'Host' : (p.name || 'Player')}</div>
               <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
@@ -629,7 +611,7 @@ class UIManager {
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn) startBtn.disabled = !(hostDeposited && opponentDeposited);
     if (statusText) {
-      if (hostDeposited && opponentDeposited) { statusText.textContent = 'Both players staked — ready!'; statusText.className = 'depositStatusText confirmed'; }
+      if (hostDeposited && opponentDeposited) { statusText.textContent = 'Both players staked - ready!'; statusText.className = 'depositStatusText confirmed'; }
       else if (myDeposited) { statusText.textContent = 'Waiting for opponent...'; statusText.className = 'depositStatusText pending'; }
       else { statusText.textContent = ''; statusText.className = 'depositStatusText'; }
     }
@@ -741,7 +723,7 @@ class UIManager {
     const addrEl = document.getElementById('wAddressDisplay');
     if (addrEl && address) addrEl.textContent = address.length > 12 ? `${address.slice(0,6)}...${address.slice(-4)}` : address;
     const balEl = document.getElementById('wBalanceDisplay');
-    if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Loading balance...';
+    if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
     this.updateWalletButton(address);
   }
 
