@@ -46,15 +46,11 @@ const PHANTOM_WALLET_PUBKEY_KEY = 'phantomWalletPubkey';
 const PHANTOM_USER_ADDRESS_KEY = 'phantomUserAddress';
 const PHANTOM_PENDING_ACTION_KEY = 'phantomPendingAction';
 
-// Jupiter uses the same keys — shared session state
 const JUPITER_SESSION_KEY = 'jupiterDappSession';
 const JUPITER_WALLET_PUBKEY_KEY = 'jupiterWalletPubkey';
 const JUPITER_USER_ADDRESS_KEY = 'jupiterUserAddress';
 const JUPITER_PENDING_ACTION_KEY = 'jupiterPendingAction';
 
-// Cross-tab sync channel — when ANY tab completes a connect/disconnect,
-// all other open tabs update instantly (fixes the "Approve in Phantom..."
-// tab that never learns the wallet connected in the redirect tab).
 const WALLET_SYNC_KEY = 'irWalletSync';
 
 class WalletManager {
@@ -66,7 +62,7 @@ class WalletManager {
     this.connecting = false;
     this.balance = null;
     this.connection = null;
-    this.walletType = null; // 'phantom' | 'jupiter'
+    this.walletType = null;
 
     this.mobileSession = null;
     this.dappKeyPair = null;
@@ -100,6 +96,23 @@ class WalletManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
+  // FIX (bug 2): script-invoked window.location.replace()/href to a
+  // Universal Link is handled less reliably by iOS/Android than a real
+  // user-gesture anchor click - a known cause of "app opens, shows
+  // confirm screen, then bounces back without completing the handshake"
+  // because the OS can treat it as a soft/interceptible navigation rather
+  // than a committed one. Routing every mobile wallet deep link through a
+  // real <a> click instead fixes this without touching URL-building or
+  // encryption logic, which was already correct.
+  _navigateToUniversalLink(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
   _bindProviderEvents() {
     const provider = this.getProvider();
     if (!provider || provider === this.provider) return;
@@ -131,12 +144,6 @@ class WalletManager {
     });
   }
 
-  // ---------------------------------------------------------------
-  // CROSS-TAB SYNC
-  // localStorage is shared across tabs of the same origin, so the
-  // session written by the redirect tab is already readable here —
-  // the old tab just never re-read it. The storage event fixes that.
-  // ---------------------------------------------------------------
   _bindCrossTabSync() {
     if (typeof window === 'undefined' || !window.addEventListener) return;
     window.addEventListener('storage', (e) => {
@@ -150,13 +157,11 @@ class WalletManager {
       const data = raw ? JSON.parse(raw) : null;
       if (!data) return;
       if (data.address) {
-        // Another tab connected → adopt the shared session in this tab too
         if (!this.connected) {
           this._restoreMobileKeyPair();
           this._notifyRestoredConnection();
         }
       } else {
-        // Another tab disconnected → mirror it here
         if (this.connected) {
           this.connected = false; this.publicKey = null; this.balance = null;
           this.mobileSession = null; this.phantomWalletPublicKey = null; this.walletType = null;
@@ -196,7 +201,6 @@ class WalletManager {
         const { publicKey, secretKey } = JSON.parse(saved);
         this.dappKeyPair = { publicKey: new Uint8Array(publicKey), secretKey: new Uint8Array(secretKey) };
       }
-      // Try Phantom first, then Jupiter
       let savedSession = localStorage.getItem(PHANTOM_SESSION_KEY);
       let savedWalletPubkey = localStorage.getItem(PHANTOM_WALLET_PUBKEY_KEY);
       let savedAddress = localStorage.getItem(PHANTOM_USER_ADDRESS_KEY);
@@ -366,8 +370,6 @@ class WalletManager {
         this.publicKey = new solanaWeb3.PublicKey(result.public_key);
         this.connected = true;
         try { localStorage.setItem(addrKey, this.publicKey.toString()); } catch (_) {}
-        // Emit connected IMMEDIATELY — don't hold the UI hostage to the
-        // Helius balance fetch. Balance arrives via wallet:balanceUpdated.
         this._broadcastWalletSync();
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: null });
         this._refreshBalance().then(() => {
@@ -402,7 +404,6 @@ class WalletManager {
 
   _notifyRestoredConnection() {
     if (this.connected && this.publicKey) {
-      // Emit first with whatever balance we have (possibly null), refresh after.
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
@@ -425,8 +426,6 @@ class WalletManager {
   async connect(preferredWallet) {
     if (this.connecting) return;
     if (preferredWallet === 'jupiter') {
-      // FIX: was this._connectJupiter() — that method doesn't exist and
-      // would throw. The public method is connectJupiter().
       return this.connectJupiter();
     }
     const provider = this.getProvider();
@@ -434,7 +433,9 @@ class WalletManager {
     if (this.isMobile()) {
       this.connecting = true;
       this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
-      window.location.replace(this._buildMobileConnectUrl('phantom'));
+      const url = this._buildMobileConnectUrl('phantom');
+      this._debugLog(`connect: navigating (anchor-click)`);
+      this._navigateToUniversalLink(url);
       return { deepLinked: true };
     }
     window.open('https://phantom.app/', '_blank');
@@ -447,10 +448,11 @@ class WalletManager {
     this.connecting = true;
     this.eventBus.emit('wallet:connecting', { wallet: 'jupiter' });
     if (this.isMobile()) {
-      window.location.replace(this._buildMobileConnectUrl('jupiter'));
+      const url = this._buildMobileConnectUrl('jupiter');
+      this._debugLog(`connectJupiter: navigating (anchor-click)`);
+      this._navigateToUniversalLink(url);
       return { deepLinked: true };
     }
-    // Desktop Jupiter extension
     if (window?.jupiter?.solana) {
       try {
         const resp = await window.jupiter.solana.connect();
@@ -548,7 +550,7 @@ class WalletManager {
     const message = `Infinite Runners — verify wallet ownership\nAddress: ${this.publicKey.toString()}\nTimestamp: ${new Date().toISOString()}`;
     const encoded = new TextEncoder().encode(message);
     if (this.isMobile() && !this.provider) {
-      window.location.href = this._buildMobileSignMessageUrl(encoded);
+      this._navigateToUniversalLink(this._buildMobileSignMessageUrl(encoded));
       return { deepLinked: true };
     }
     if (!this.provider) throw new Error('Wallet not connected.');
@@ -564,7 +566,7 @@ class WalletManager {
     }
     if (this.isMobile()) {
       const serialized = transaction.serialize({ requireAllSignatures: false });
-      window.location.replace(this._buildMobileSignTransactionUrl(serialized, pendingAction));
+      this._navigateToUniversalLink(this._buildMobileSignTransactionUrl(serialized, pendingAction));
       return { deepLinked: true };
     }
     throw new Error('No wallet provider available.');
