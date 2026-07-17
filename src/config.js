@@ -7,12 +7,12 @@ export const DRAGONS = [
   'magnetron'
 ];
 
-// Dragon image URLs (uploaded assets)
+// Dragon image paths (local transparent PNGs - select screen portraits)
 export const DRAGON_IMAGES = {
-  aegis: 'https://i.postimg.cc/85bpqSXV/36824.jpg',
-  ignis: 'https://i.postimg.cc/GpWTcdjJ/36826.jpg',
-  infinite: 'https://i.postimg.cc/xdD98CWv/36823.jpg',
-  magnetron: 'https://i.postimg.cc/PqwNV0kw/36825.jpg'
+  aegis: './dragons/select/aegis.png',
+  ignis: './dragons/select/ignis.png',
+  infinite: './dragons/select/infinite.png',
+  magnetron: './dragons/select/magnetron.png'
 };
 
 // Dragon power base stats and upgrade costs (placeholder)
