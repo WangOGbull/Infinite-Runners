@@ -73,6 +73,10 @@ class WalletManager {
     this._restoreMobileKeyPair();
     this._checkDebugQueryParam();
     this._bindCrossTabSync();
+    // Deferred to the next tick: Game's constructor creates this manager
+    // BEFORE setupEventListeners() runs, so a 'wallet:connected' emitted
+    // synchronously here would fire into an empty EventBus and be lost.
+    setTimeout(() => this._trySilentExtensionReconnect(), 0);
 
     this.eventBus.on('wallet:scanRequest', () => { this.scanBalances(); });
   }
@@ -321,6 +325,12 @@ class WalletManager {
     const cleanUrl = window.location.href.split('?')[0];
     window.history.replaceState({}, document.title, cleanUrl);
 
+    // The constructor already restored the saved mobile session from
+    // localStorage - but that ran before any UI listeners existed, so the
+    // wallet button still shows "Connect Wallet" after a Phantom redirect
+    // return. Re-announce the restored session now that listeners are up.
+    this._notifyRestoredConnection();
+
     if (urlParams.get('errorCode')) {
       const message = urlParams.get('errorMessage') || 'Wallet request rejected.';
       this._debugLog(`=> ERROR: ${message}`);
@@ -409,6 +419,40 @@ class WalletManager {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
     }
+  }
+
+  // Silently reconnect a browser-extension wallet (Phantom/Jupiter) on page
+  // load when the extension still trusts this dapp - no popup. Without this,
+  // only MOBILE sessions were restored (see _restoreMobileKeyPair), so on PC
+  // every reload left the manager thinking the wallet was disconnected: the
+  // UI showed stale state and clicking the wallet button re-opened the
+  // Phantom/Jupiter picker and re-triggered a connect prompt for a wallet
+  // that was, for all practical purposes, already connected.
+  _trySilentExtensionReconnect() {
+    if (this.connected) return; // mobile session (or something else) already restored
+    const provider = this.getProvider();
+    if (!provider) return; // no extension present (mobile deep-link flow)
+    const finish = (pubkey) => {
+      if (!pubkey || this.connected) return;
+      this.provider = provider;
+      this.publicKey = pubkey;
+      this.connected = true;
+      this.walletType = 'phantom';
+      this._bindProviderEvents();
+      this._broadcastWalletSync();
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+      this._refreshBalance().then(() => {
+        this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+      });
+    };
+    try {
+      if (provider.publicKey) { finish(provider.publicKey); return; }
+      if (typeof provider.connect === 'function') {
+        provider.connect({ onlyIfTrusted: true })
+          .then((resp) => finish(resp && resp.publicKey))
+          .catch(() => { /* not trusted yet - user connects manually */ });
+      }
+    } catch (_) { /* silent-restore is best-effort only */ }
   }
 
   _consumePendingAction(walletType) {
