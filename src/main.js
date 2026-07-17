@@ -294,6 +294,18 @@ class Game {
       } else {
         // Eliminated - no lives left
         dragon.alive = false;
+        // MULTIPLAYER CRITICAL: flush this final death state to Firebase
+        // BEFORE checkMatchEnd() can end the game and stopNetworkSync().
+        // The per-frame broadcast runs before the collision phase, so
+        // without this forced send the loser's client ended its game and
+        // stopped syncing while the last state the opponent ever received
+        // still showed lives > 0 - the WINNER's client then never saw the
+        // elimination, its win-check never fired, and it kept playing
+        // forever with no VICTORY screen and no settlement trigger.
+        if (this.isMultiplayer && dragon === this.localDragon && this.positionsRef) {
+          this.lastBroadcast = 0; // bypass the 50ms throttle for this one send
+          this.broadcastPosition();
+        }
         this.checkMatchEnd();
       }
     });
@@ -355,15 +367,14 @@ class Game {
     this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
       this.uiManager.showScreen('matchmakingSearchScreen');
       try {
-        const quality = await this.matchmaking.checkConnectionQuality();
-        if (!quality.ok) {
-          this.eventBus.emit('matchmaking:error', {
-            message: quality.timeout
-              ? 'Could not verify your connection quickly enough. Check your network and try again.'
-              : `Your connection may be too unstable for real-time matchmaking (${quality.rtt ?? '?'}ms). Try again on a stronger connection.`
-          });
-          return;
-        }
+        // The old pre-search checkConnectionQuality() gate has been removed.
+        // It spun up a THROWAWAY Photon client and force-disconnected it if
+        // the Master handshake took longer than 5s - that mid-handshake kill
+        // is exactly what produced the "WebSocket is closed before the
+        // connection is established" / Master peer 1001+1004 errors, after
+        // which the UI bounced straight back to the menu ("opens then
+        // closes"). The real search client below has its own onError path,
+        // so the gate added failure modes without adding safety.
         this.matchmaking.startSearch(tier);
       } catch (err) {
         this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
@@ -965,6 +976,49 @@ class Game {
     this.positionsRef = this.roomRef.child('positions');
     this.positionsListenerSet = false;
     this.lastBroadcast = 0;
+    this._watchSettlement();
+  }
+
+  // Watches rooms/{code}/settlement - the node the always-on backend
+  // (watchMatches.js) writes after it determines the winner and pays out
+  // on-chain. This is the authoritative result for staked matches: it ends
+  // a match still running locally, corrects/confirm a locally-ended result,
+  // and surfaces the payout transaction to both players.
+  _watchSettlement() {
+    if (!this.roomRef) return;
+    if (this._settlementRef && this._settlementListener) {
+      try { this._settlementRef.off('value', this._settlementListener); } catch (_) {}
+    }
+    this._settlementHandled = false;
+    this._settlementRef = this.roomRef.child('settlement');
+    this._settlementListener = this._settlementRef.on('value', snap => {
+      const s = snap.val();
+      if (!s || this._settlementHandled) return;
+      if (s.status !== 'settled') return;
+      this._settlementHandled = true;
+      const iWon = (s.winner === 'host') === !!this.isHost;
+      if (this.state === 'PLAYING') {
+        // Match still running on this client - end it now with the
+        // server-settled outcome instead of any local approximation.
+        const all = this.dragonManager.getAllDragons();
+        this.winner = iWon
+          ? this.localDragon
+          : (all.find(d => d !== this.localDragon) || null);
+        this.endGame(true);
+      } else if (this._lastStats) {
+        // Game already ended locally - make sure the title matches the
+        // authoritative settled result (winner object only needs .id for
+        // showMatchStats to compare against the local stat entry).
+        const localStat = this._lastStats.find(st => st.isLocal);
+        this.winner = iWon && localStat ? { id: localStat.id } : { id: '__remote__' };
+        this.uiManager.showMatchStats(this._lastStats, this.winner);
+      }
+      if (s.signature) {
+        this.eventBus.emit('staking:confirmed', {
+          label: `Match settled on-chain - payout sent (tx ${String(s.signature).slice(0, 8)}…).`
+        });
+      }
+    });
   }
 
   stopNetworkSync() {
@@ -1252,6 +1306,9 @@ class Game {
     this.uiManager.updateGameOver(localStats);
     this.uiManager.showMatchStats(stats, this.winner);
     this.uiManager.showScreen('gameOverScreen');
+    // Kept so a later server-settlement update can correct/confirm the
+    // result title without re-deriving stats (see _watchSettlement).
+    this._lastStats = stats;
   }
 
   restartGame() {
