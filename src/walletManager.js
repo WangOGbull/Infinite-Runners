@@ -191,7 +191,7 @@ class WalletManager {
       else if (params.get('debug') === '0') localStorage.removeItem('wmDebug');
       if (params.get('resetWallet') === '1') {
         [PHANTOM_SESSION_KEY, PHANTOM_KEYPAIR_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
-         JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, WALLET_SYNC_KEY].forEach(k => localStorage.removeItem(k));
+         JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, WALLET_SYNC_KEY, 'irWalletType'].forEach(k => localStorage.removeItem(k));
         this.mobileSession = null; this.dappKeyPair = null; this.phantomWalletPublicKey = null;
         this.publicKey = null; this.connected = false; this.walletType = null;
       }
@@ -213,7 +213,8 @@ class WalletManager {
         savedSession = localStorage.getItem(JUPITER_SESSION_KEY);
         savedWalletPubkey = localStorage.getItem(JUPITER_WALLET_PUBKEY_KEY);
         savedAddress = localStorage.getItem(JUPITER_USER_ADDRESS_KEY);
-        type = 'jupiter';
+        // ALT slots hold any non-phantom wallet - recover the real type.
+        type = localStorage.getItem('irWalletType') || 'jupiter';
       }
       if (savedSession && savedWalletPubkey && savedAddress && this.dappKeyPair) {
         this.phantomWalletPublicKey = b58decode(savedWalletPubkey);
@@ -267,7 +268,9 @@ class WalletManager {
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const base = walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/connect'
-      : 'https://phantom.app/ul/v1/connect';
+      : walletType === 'solflare'
+        ? 'https://solflare.com/ul/v1/connect'
+        : 'https://phantom.app/ul/v1/connect';
     return `${base}?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrl}&cluster=${PHANTOM_CLUSTER}`;
   }
 
@@ -286,7 +289,9 @@ class WalletManager {
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
     const base = this.walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/signMessage'
-      : 'https://phantom.app/ul/v1/signMessage';
+      : this.walletType === 'solflare'
+        ? 'https://solflare.com/ul/v1/signMessage'
+        : 'https://phantom.app/ul/v1/signMessage';
     return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
   }
 
@@ -299,7 +304,8 @@ class WalletManager {
     const nonce = nacl.randomBytes(24);
     const encryptedPayload = nacl.box.after(new TextEncoder().encode(JSON.stringify(payload)), nonce, sharedSecret);
 
-    const storageKey = this.walletType === 'jupiter' ? JUPITER_PENDING_ACTION_KEY : PHANTOM_PENDING_ACTION_KEY;
+    // Non-phantom mobile wallets share the generic ALT session slots.
+    const storageKey = this.walletType === 'phantom' ? PHANTOM_PENDING_ACTION_KEY : JUPITER_PENDING_ACTION_KEY;
     try { localStorage.setItem(storageKey, JSON.stringify(pendingAction || null)); } catch (_) {}
 
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
@@ -310,7 +316,9 @@ class WalletManager {
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
     const base = this.walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/signTransaction'
-      : 'https://phantom.app/ul/v1/signTransaction';
+      : this.walletType === 'solflare'
+        ? 'https://solflare.com/ul/v1/signTransaction'
+        : 'https://phantom.app/ul/v1/signTransaction';
     return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
   }
 
@@ -372,10 +380,14 @@ class WalletManager {
         this.phantomWalletPublicKey = phantomPubKey;
         this.mobileSession = result.session;
         this.walletType = walletType;
-        const sessionKey = walletType === 'jupiter' ? JUPITER_SESSION_KEY : PHANTOM_SESSION_KEY;
-        const pubkeyKey = walletType === 'jupiter' ? JUPITER_WALLET_PUBKEY_KEY : PHANTOM_WALLET_PUBKEY_KEY;
-        const addrKey = walletType === 'jupiter' ? JUPITER_USER_ADDRESS_KEY : PHANTOM_USER_ADDRESS_KEY;
+        // Non-phantom mobile wallets share the generic ALT session slots;
+        // the actual wallet type is persisted separately so restores and
+        // future deeplinks (signMessage/signTransaction) target the right app.
+        const sessionKey = walletType === 'phantom' ? PHANTOM_SESSION_KEY : JUPITER_SESSION_KEY;
+        const pubkeyKey = walletType === 'phantom' ? PHANTOM_WALLET_PUBKEY_KEY : JUPITER_WALLET_PUBKEY_KEY;
+        const addrKey = walletType === 'phantom' ? PHANTOM_USER_ADDRESS_KEY : JUPITER_USER_ADDRESS_KEY;
         localStorage.setItem(sessionKey, this.mobileSession);
+        try { localStorage.setItem('irWalletType', walletType); } catch (_) {}
         try { localStorage.setItem(pubkeyKey, b58encode(phantomPubKey)); } catch (_) {}
         this.publicKey = new solanaWeb3.PublicKey(result.public_key);
         this.connected = true;
@@ -472,6 +484,9 @@ class WalletManager {
     if (preferredWallet === 'jupiter') {
       return this.connectJupiter();
     }
+    if (preferredWallet === 'solflare') {
+      return this.connectSolflare();
+    }
     const provider = this.getProvider();
     if (provider) return this._connectProvider(provider);
     if (this.isMobile()) {
@@ -519,6 +534,46 @@ class WalletManager {
     throw new Error('Jupiter not installed');
   }
 
+  // Solflare - replaces Jupiter on MOBILE (Jupiter's mobile "wallet" link is
+  // just the jup.ag swap site; it has no Phantom-style dapp deeplink). Solflare
+  // supports the same encrypted /ul/v1 deeplink protocol as Phantom, so mobile
+  // connect/sign/transaction flows work identically. Desktop uses the Solflare
+  // browser extension when present.
+  async connectSolflare() {
+    if (this.connecting) return;
+    this.connecting = true;
+    this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
+    if (this.isMobile()) {
+      const url = this._buildMobileConnectUrl('solflare');
+      this._debugLog(`connectSolflare: navigating (anchor-click)`);
+      this._navigateToUniversalLink(url);
+      return { deepLinked: true };
+    }
+    if (window?.solflare) {
+      try {
+        const resp = await window.solflare.connect();
+        this.provider = window.solflare;
+        this._bindProviderEvents();
+        this.publicKey = resp.publicKey;
+        this.connected = true;
+        this.walletType = 'solflare';
+        this._broadcastWalletSync();
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this._refreshBalance().then(() => {
+          this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        });
+        return { address: this.publicKey.toString(), balance: this.balance };
+      } catch (err) {
+        this.eventBus.emit('wallet:error', { message: err?.message || 'Solflare connection rejected.' });
+        throw err;
+      } finally { this.connecting = false; }
+    }
+    this.connecting = false;
+    window.open('https://solflare.com/', '_blank');
+    this.eventBus.emit('wallet:error', { message: 'Solflare wallet not installed.' });
+    throw new Error('Solflare not installed');
+  }
+
   async _connectProvider(provider) {
     this.connecting = true;
     this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
@@ -546,7 +601,7 @@ class WalletManager {
     this.connected = false; this.publicKey = null; this.balance = null;
     this.mobileSession = null; this.phantomWalletPublicKey = null; this.walletType = null;
     [PHANTOM_SESSION_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
-     JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY].forEach(k => localStorage.removeItem(k));
+     JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, 'irWalletType'].forEach(k => localStorage.removeItem(k));
     this._broadcastWalletSync();
     this.eventBus.emit('wallet:disconnected');
   }
