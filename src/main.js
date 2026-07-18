@@ -994,6 +994,11 @@ class Game {
     this._settlementListener = this._settlementRef.on('value', snap => {
       const s = snap.val();
       if (!s || this._settlementHandled) return;
+      if (s.status === 'draw_needs_dispute_resolution') {
+        this._settlementHandled = true;
+        this.uiManager.showStakeBreakdown({ draw: true });
+        return;
+      }
       if (s.status !== 'settled') return;
       this._settlementHandled = true;
       const iWon = (s.winner === 'host') === !!this.isHost;
@@ -1018,6 +1023,9 @@ class Game {
           label: `Match settled on-chain - payout sent (tx ${String(s.signature).slice(0, 8)}…).`
         });
       }
+      // Fill the Dragon Age settlement breakdown (stakes, pot, 2.5% Treasury
+      // fee, payout, tx link) on the game-over screen.
+      this._showStakeBreakdown(iWon, s);
     });
   }
 
@@ -1309,6 +1317,47 @@ class Game {
     // Kept so a later server-settlement update can correct/confirm the
     // result title without re-deriving stats (see _watchSettlement).
     this._lastStats = stats;
+
+    if (this.isMultiplayer) {
+      // Match is over - clear any saved lobby/room context so the title
+      // screen stops offering "Resume Room" for a finished match.
+      try { localStorage.removeItem(LOBBY_CONTEXT_KEY); } catch (_) {}
+      try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
+      // For staked matches, show the settlement panel in its pending state
+      // until the backend writes rooms/{code}/settlement.
+      if (this.lobbyTier) this.uiManager.showStakeBreakdown({ pending: true });
+    }
+  }
+
+  // Builds the Dragon Age settlement breakdown on the game-over screen once
+  // the backend has settled the match on-chain. Amounts come from the live
+  // on-chain tier config (stakingManager), the result/tx from the
+  // rooms/{code}/settlement node written by watchMatches.js.
+  async _showStakeBreakdown(iWon, settlement) {
+    try {
+      const tiers = await this.stakingManager.getDisplayTiers();
+      const tierName = String(settlement?.tier || this.lobbyTier || '').toLowerCase();
+      const tierKey = Object.keys(tiers).find(k => k.toLowerCase() === tierName);
+      const parseAmt = (v) => Number(String(v).replace(/[^0-9.]/g, '')) || 0;
+      const stake = tierKey ? parseAmt(tiers[tierKey]) : 0;
+      const feePct = Number(tiers.feePercent) || 2.5;
+      const pot = stake * 2;
+      const fee = pot * (feePct / 100);
+      const payout = pot - fee;
+      const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      this.uiManager.showStakeBreakdown({
+        won: iWon,
+        stakeText: stake ? `${fmt(stake)} INFINITE` : null,
+        potText: stake ? `${fmt(pot)} INFINITE` : null,
+        feeText: stake ? `-${fmt(fee)} INFINITE` : null,
+        payoutText: stake ? `${fmt(payout)} INFINITE` : null,
+        feePct,
+        signature: settlement?.signature || null,
+        cluster: settlement?.cluster || 'devnet',
+      });
+    } catch (err) {
+      console.warn('[Staking] settlement breakdown display failed:', err?.message || err);
+    }
   }
 
   restartGame() {
