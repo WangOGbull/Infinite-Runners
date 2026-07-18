@@ -510,7 +510,20 @@ class UIManager {
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance);
     });
-    this.eventBus.on('wallet:disconnected', () => { this.setWalletModalState('disconnected'); this.updateWalletButton(null); });
+    this.eventBus.on('wallet:disconnected', () => {
+      this.updateWalletButton(null);
+      // Close the wallet modal entirely on disconnect instead of leaving it
+      // open on the (desktop fallback) Phantom/Jupiter list - that stray view
+      // is what confused the flow after disconnecting.
+      if (this.currentScreen === 'walletModal') this.showScreen('titleScreen');
+      else this.setWalletModalState('disconnected');
+    });
+    // Balance arrives asynchronously AFTER wallet:connected - without this
+    // listener the panel stayed stuck on "Balance unavailable" forever.
+    this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
+      const balEl = document.getElementById('wBalanceDisplay');
+      if (balEl && balance !== undefined && balance !== null) balEl.textContent = `${balance} SOL`;
+    });
     this.eventBus.on('wallet:error', ({ message }) => {
       this.setWalletModalState('disconnected');
       const errEl = document.getElementById('walletError');
