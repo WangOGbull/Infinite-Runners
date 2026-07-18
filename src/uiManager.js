@@ -461,7 +461,18 @@ class UIManager {
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
     const walletBtn = document.getElementById('walletBtn');
-    if (walletBtn) walletBtn.addEventListener('click', () => this.showScreen('walletSelectionModal'));
+    if (walletBtn) walletBtn.addEventListener('click', () => {
+      // Connected -> open the wallet PANEL (address/balance/sign/disconnect
+      // live in walletModal's connected view). Not connected -> wallet picker.
+      // Previously this ALWAYS opened the picker, which is why the picker
+      // appeared to "block" the panel for connected wallets.
+      if (walletBtn.classList.contains('connected')) {
+        this.setWalletModalState('connected');
+        this.showScreen('walletModal');
+      } else {
+        this.showScreen('walletSelectionModal');
+      }
+    });
     const walletClose = document.getElementById('btnWalletClose');
     if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
     const wOpt = document.getElementById('wOptPhantom');
@@ -479,10 +490,10 @@ class UIManager {
       const wm = window.game?.walletManager;
       if (wm) wm.connect();
     });
-    const btnSelectJupiter = document.getElementById('btnSelectJupiter');
-    if (btnSelectJupiter) btnSelectJupiter.addEventListener('click', () => {
+    const btnSelectSolflare = document.getElementById('btnSelectSolflare');
+    if (btnSelectSolflare) btnSelectSolflare.addEventListener('click', () => {
       const wm = window.game?.walletManager;
-      if (wm) wm.connectJupiter();
+      if (wm) wm.connectSolflare();
     });
     const btnWalletSelBack = document.getElementById('btnWalletSelBack');
     if (btnWalletSelBack) btnWalletSelBack.addEventListener('click', () => this.showScreen('titleScreen'));
