@@ -732,6 +732,50 @@ class UIManager {
 
   hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
 
+  // Dragon Age settlement breakdown panel on the game-over screen.
+  // States: pending (waiting for backend settle), draw, and final (won/lost
+  // with stake/pot/fee/payout + explorer tx link).
+  showStakeBreakdown({ pending = false, draw = false, won = false, stakeText = null, potText = null, feeText = null, payoutText = null, feePct = 2.5, signature = null, cluster = 'devnet' } = {}) {
+    const box = document.getElementById('goStakeBox');
+    if (!box) return;
+    const title = document.getElementById('goStakeTitle');
+    const rows = document.getElementById('goStakeRows');
+    const tx = document.getElementById('goStakeTx');
+    box.style.display = 'block';
+
+    if (pending) {
+      title.textContent = 'SETTLING ON-CHAIN…';
+      rows.innerHTML = `<div class="goStakeRow pending"><span>The Treasury is weighing the stakes…</span></div>`;
+      tx.style.display = 'none';
+      return;
+    }
+
+    if (draw) {
+      title.textContent = 'MATCH DRAWN';
+      rows.innerHTML = `<div class="goStakeRow"><span>Result</span><span class="val">Draw</span></div>
+        <div class="goStakeRow pending"><span>Stakes return via Treasury multisig dispute resolution.</span></div>`;
+      tx.style.display = 'none';
+      return;
+    }
+
+    title.textContent = won ? 'SPOILS OF VICTORY' : 'MATCH SETTLEMENT';
+    const row = (label, val, cls = '') => val ? `<div class="goStakeRow ${cls}"><span>${label}</span><span class="val">${val}</span></div>` : '';
+    rows.innerHTML =
+      row('Your Stake', stakeText) +
+      row('Opponent Stake', stakeText) +
+      row('Total Pot', potText) +
+      row(`Treasury Fee (${feePct}%)`, feeText, 'fee') +
+      row(won ? 'YOU RECEIVE' : 'WINNER RECEIVES', payoutText, 'payout');
+
+    if (signature) {
+      tx.href = `https://explorer.solana.com/tx/${signature}?cluster=${cluster}`;
+      tx.textContent = `View payout transaction (tx ${String(signature).slice(0, 8)}…)`;
+      tx.style.display = 'block';
+    } else {
+      tx.style.display = 'none';
+    }
+  }
+
   setWalletModalState(state) {
     const views = {
       disconnected: document.getElementById('walletDisconnectedView'),
