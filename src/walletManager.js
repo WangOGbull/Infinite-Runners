@@ -552,9 +552,17 @@ class WalletManager {
     if (window?.solflare) {
       try {
         const resp = await window.solflare.connect();
+        // Solflare's extension does NOT reliably return { publicKey } from
+        // connect() the way Phantom does - on several versions the promise
+        // resolves empty and the key only appears on window.solflare.publicKey.
+        // Reading resp.publicKey blindly crashed with
+        // "Cannot read properties of undefined (reading 'toString')" and left
+        // the wallet half-connected with no UI update.
+        const pk = (resp && resp.publicKey) || window.solflare.publicKey || null;
+        if (!pk) throw new Error('Solflare did not return a public key. Please try again.');
         this.provider = window.solflare;
         this._bindProviderEvents();
-        this.publicKey = resp.publicKey;
+        this.publicKey = pk;
         this.connected = true;
         this.walletType = 'solflare';
         this._broadcastWalletSync();
@@ -564,6 +572,8 @@ class WalletManager {
         });
         return { address: this.publicKey.toString(), balance: this.balance };
       } catch (err) {
+        this.connected = false;
+        this.publicKey = null;
         this.eventBus.emit('wallet:error', { message: err?.message || 'Solflare connection rejected.' });
         throw err;
       } finally { this.connecting = false; }
