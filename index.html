@@ -218,6 +218,84 @@
   .baCancelBtn { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 68, 68, 0.2); background: rgba(255, 68, 68, 0.05); color: rgba(255, 107, 107, 0.7); font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
   .baCancelBtn:hover { background: rgba(255, 68, 68, 0.1); border-color: rgba(255, 68, 68, 0.4); color: #ff6b6b; }
 
+  /* ===== STAKE SETTLEMENT PANEL (Dragon Age) ===== */
+  .goStakeBox {
+    width: min(420px, 92%);
+    margin: 18px auto 4px;
+    padding: 16px 20px 14px;
+    background: linear-gradient(160deg, rgba(20, 16, 8, 0.92), rgba(10, 8, 5, 0.95));
+    border: 1px solid rgba(212, 175, 55, 0.45);
+    border-radius: 10px;
+    box-shadow: 0 0 24px rgba(212, 175, 55, 0.12), inset 0 0 30px rgba(0, 0, 0, 0.6);
+    text-align: center;
+  }
+  .goStakeTitle {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #d4af37;
+    letter-spacing: 3px;
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.45);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+  }
+  .goStakeRows { display: flex; flex-direction: column; gap: 6px; }
+  .goStakeRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: rgba(232, 220, 200, 0.75);
+    letter-spacing: 1px;
+    padding: 3px 2px;
+  }
+  .goStakeRow .val { font-weight: 700; color: #e8dcc8; font-size: 15px; }
+  .goStakeRow.fee { color: rgba(255, 159, 67, 0.85); }
+  .goStakeRow.fee .val { color: #ff9f43; }
+  .goStakeRow.payout {
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(212, 175, 55, 0.3);
+    color: rgba(74, 222, 128, 0.9);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .goStakeRow.payout .val {
+    color: #4ade80;
+    font-size: 18px;
+    text-shadow: 0 0 14px rgba(74, 222, 128, 0.5);
+  }
+  .goStakeRow.payout.loss { color: rgba(255, 107, 107, 0.85); }
+  .goStakeRow.payout.loss .val { color: #ff6b6b; text-shadow: 0 0 14px rgba(255, 107, 107, 0.4); }
+  .goStakeRow.pending {
+    justify-content: center;
+    font-size: 13px;
+    color: #ffd700;
+    letter-spacing: 2px;
+    padding: 8px 0 2px;
+    animation: goStakePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes goStakePulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .goStakeTx {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #22d3ee;
+    letter-spacing: 1px;
+    text-decoration: none;
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 6px;
+    padding: 6px 14px;
+    transition: all 0.2s;
+  }
+  .goStakeTx:hover { background: rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.7); }
+
   @media(max-width: 480px) {
     .dsDragonName { font-size: 20px; padding: 5px 20px; letter-spacing: 2px; }
     .dsDragonTier { font-size: 10px; padding: 3px 12px; }
@@ -526,6 +604,11 @@
     <div class="goStat"><div class="num" id="goKills">0</div><div class="lbl">KILLS</div></div>
     <div class="goStat"><div class="num" id="goDeaths">0</div><div class="lbl">DEATHS</div></div>
     <div class="goStat"><div class="num" id="goLives">0</div><div class="lbl">LIVES LEFT</div></div>
+  </div>
+  <div class="goStakeBox" id="goStakeBox" style="display:none;">
+    <div class="goStakeTitle" id="goStakeTitle">MATCH SETTLEMENT</div>
+    <div class="goStakeRows" id="goStakeRows"></div>
+    <a class="goStakeTx" id="goStakeTx" href="#" target="_blank" rel="noopener" style="display:none;"></a>
   </div>
   <div class="goActions">
     <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
