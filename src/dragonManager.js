@@ -126,7 +126,7 @@ export class DragonManager {
     for (let i = 0; i < startSegs * 10; i++) {
       dragon.history.push({
         x: headX - Math.cos(angle) * i * (spacing / 10),
-        y: headY - Math.sin(angle) * i * (spacing / 10)
+        y: headY - Math.sin(angle) * (i + 1) * spacing
       });
     }
   }
@@ -284,8 +284,15 @@ export class DragonManager {
       const seg = dragon.segments[i];
       const isTail = (i === segCount - 1);
 
+      // Progressive body taper: full width at the neck, narrowing toward
+      // the tail - matches the full-body reference art. The tail sprite
+      // keeps its own scale (the artwork is already pointed).
+      const taper = segCount > 1
+        ? 1 - (i / (segCount - 1)) * (1 - CONFIG.DRAGON_TAIL_TAPER_SCALE)
+        : 1;
+
       let partImg = assets.body;
-      let partScale = baseScale * (assets.display?.body?.scale || 1);
+      let partScale = baseScale * (assets.display?.body?.scale || 1) * taper;
 
       if (isTail && assets.tail) {
         partImg = assets.tail;
@@ -324,7 +331,10 @@ export class DragonManager {
 
     ctx.save();
     ctx.translate(dragon.head.x, dragon.head.y);
-    ctx.rotate(dragon.angle + Math.PI / 2);
+    // New front-facing heads point DOWN toward the camera in the image,
+    // so the sprite is offset by -90 degrees (was +90 for the old
+    // back-facing heads). This makes the dragon move stomach-first.
+    ctx.rotate(dragon.angle - Math.PI / 2);
 
     // Flash effect during immunity
     if (dragon.immunityTimer > 0) {
