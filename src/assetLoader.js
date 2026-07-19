@@ -1,5 +1,18 @@
 import CONFIG, { DRAGONS } from './config.js';
 
+// ==================== HEAD DISPLAY CALIBRATION ====================
+// The new front-facing heads have different pixel sizes per file, so each
+// dragon gets its own head scale. Calibrated so every head renders at the
+// EXACT same in-game width as the old 680px-wide heads:
+//   680 x DRAGON_DISPLAY_SCALE(0.08) x 0.95 x 1.5 = 77.5 world units
+// Formula: scale = 646 / headContentWidthPx
+const HEAD_DISPLAY_SCALE = {
+  aegis:     0.7645, // purple head - content 845px wide
+  ignis:     0.8065, // fire head   - content 801px wide
+  infinite:  0.9818, // blue head   - content 658px wide
+  magnetron: 0.9613  // pink head   - content 672px wide
+};
+
 class AssetLoader {
   constructor() {
     this.loadedDragons = [];
@@ -43,7 +56,7 @@ class AssetLoader {
           bodySrc,
           tailSrc,
           display: {
-            head: { scale: 0.95 },
+            head: { scale: HEAD_DISPLAY_SCALE[name] || 0.95 },
             body: { scale: 0.85 },
             tail: { scale: 0.8 }
           }
