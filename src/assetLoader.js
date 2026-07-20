@@ -3,11 +3,12 @@ import CONFIG, { DRAGONS } from './config.js';
 // ==================== DISPLAY CALIBRATION ====================
 // HEADS: all render at exactly 77.5 world units wide (= infinite's size,
 // which matches the old 680px heads). Formula: scale = 646 / headPixelWidth
+
 const HEAD_DISPLAY_SCALE = {
-  aegis:     0.6829, // new purple head - 946px wide
-  ignis:     0.95,
-  infinite:  0.9818,
-  magnetron: 0.9613
+  aegis:     0.95,   // 680px -> 77.5 wu
+  ignis:     0.95,   // 680px -> 77.5 wu
+  infinite:  0.9818, // 658px -> 77.5 wu
+  magnetron: 0.9613  // 672px -> 77.5 wu
 };
 
 // BODIES: all render at exactly 57.6 world units wide (= magnetron's body).
