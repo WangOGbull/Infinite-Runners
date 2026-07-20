@@ -667,11 +667,11 @@
     </div>
     <div id="walletConnectingView" style="display:none">
       <div class="wSpinner"></div>
-      <p>Approve the connection in Phantom...</p>
+      <p id="wConnectingText">Approve the connection in Phantom...</p>
     </div>
     <div id="walletConnectedView" style="display:none">
       <div class="wAccountRow">
-        <div class="wIcon" style="background:transparent; padding:0;"><img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;"></div>
+        <div class="wIcon" style="background:transparent; padding:0;"><img id="wWalletIcon" src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;"></div>
         <div class="wAccountInfo">
           <div class="wAddress" id="wAddressDisplay">-</div>
           <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
@@ -724,7 +724,7 @@
 <!-- ===== LOADING OVERLAY ===== -->
 <div id="loadingOverlay"><div class="loadSpin"></div><div class="loadText">Loading...</div></div>
 
-<script type="module" src="./src/main.js?v=27"></script>
+<script type="module" src="./src/main.js?v=28"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== -->
 <div id="dragonDetailModal" class="screen">
