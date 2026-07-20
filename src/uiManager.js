@@ -505,8 +505,20 @@ class UIManager {
     const baCancel = document.getElementById('baCancelBetting');
     if (baCancel) baCancel.addEventListener('click', () => this.eventBus.emit('betting:cancel'));
 
-    this.eventBus.on('wallet:connecting', () => this.setWalletModalState('connecting'));
+    // FIX: previously these only toggled the internal walletModal sub-view
+    // (setWalletModalState) without ever calling showScreen() to switch
+    // AWAY from walletSelectionModal (the Phantom/Solflare picker). So a
+    // successful connect updated wallet state correctly, but the picker
+    // stayed the active screen on top of it - looked like the connect
+    // "did nothing" and let a second wallet be clicked on top of the first.
+    // Guarded on currentScreen so this never yanks the user off titleScreen
+    // during a silent/background reconnect on page load.
+    this.eventBus.on('wallet:connecting', () => {
+      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
+      this.setWalletModalState('connecting');
+    });
     this.eventBus.on('wallet:connected', ({ address, balance }) => {
+      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance);
     });
