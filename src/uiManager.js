@@ -646,26 +646,43 @@ class UIManager {
   }
 
   updateHUD(score, timeStr, localDragon) {
-    const scoreEl = document.getElementById('scoreVal');
-    if (scoreEl && score !== undefined) scoreEl.textContent = score;
-    const timerEl = document.getElementById('timerDisplay');
-    if (timerEl && timeStr) timerEl.textContent = timeStr;
-    const livesHud = document.getElementById('livesHud');
-    if (livesHud && localDragon) {
-      livesHud.style.display = 'flex';
-      const lives = localDragon.lives || 0;
-      livesHud.innerHTML = lives > 0
-        ? Array.from({ length: lives }).map(() => '<i data-lucide="flame" style="color:#ff6b35;width:16px;height:16px;"></i>').join('')
-        : '<span style="color:#ff6b6b;font-size:11px;">No lives</span>';
-      if (typeof lucide !== 'undefined') lucide.createIcons();
+    // PERFORMANCE: this runs every frame. Only touch the DOM when a value
+    // actually changed - the old version rebuilt innerHTML and called
+    // lucide.createIcons() (full DOM scan + SVG re-render) 60x per second,
+    // which was a constant background lag source, worst on mobile.
+    if (score !== this._hudScore) {
+      this._hudScore = score;
+      const scoreEl = document.getElementById('scoreVal');
+      if (scoreEl && score !== undefined) scoreEl.textContent = score;
+    }
+    if (timeStr !== this._hudTime) {
+      this._hudTime = timeStr;
+      const timerEl = document.getElementById('timerDisplay');
+      if (timerEl && timeStr) timerEl.textContent = timeStr;
+    }
+    const lives = localDragon ? (localDragon.lives || 0) : null;
+    if (lives !== this._hudLives) {
+      this._hudLives = lives;
+      const livesHud = document.getElementById('livesHud');
+      if (livesHud && localDragon) {
+        livesHud.style.display = 'flex';
+        livesHud.innerHTML = lives > 0
+          ? Array.from({ length: lives }).map(() => '<i data-lucide="flame" style="color:#ff6b35;width:16px;height:16px;"></i>').join('')
+          : '<span style="color:#ff6b6b;font-size:11px;">No lives</span>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      }
     }
   }
 
   renderMinimap(canvas, camera, arenaManager, dragons, foods) {
     if (!canvas || !arenaManager) return;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width = canvas.clientWidth || 90;
-    const h = canvas.height = canvas.clientHeight || 90;
+    // Only reassign width/height when actually changed - assigning
+    // canvas.width every frame forces a full buffer reallocation.
+    const w = canvas.clientWidth || 90;
+    const h = canvas.clientHeight || 90;
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
     ctx.clearRect(0, 0, w, h);
     const bounds = arenaManager.getBounds();
     const worldW = bounds.maxX - bounds.minX;
