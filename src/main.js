@@ -234,8 +234,14 @@ class Game {
 
     this.eventBus.on('collision:eat', ({ dragon, food }) => {
       this.growthSystem.onEat(dragon, food);
+      this.dragonManager.addAttackCharge(dragon, food.value || 1);
       this.effectsSystem.spawnEatParticles(food.x, food.y, food.color);
       this.effectsSystem.playEatSound();
+    });
+
+    // Non-lethal tail bite (attacker not in attack mode)
+    this.eventBus.on('collision:tail-cut', ({ victim }) => {
+      this.growthSystem.onCollisionTailCut(victim, 0.2);
     });
 
     this.eventBus.on('collision:head-hit', ({ x, y }) => {
@@ -258,19 +264,31 @@ class Game {
       dragon.lives = (dragon.lives || 0) - 1;
 
       const isLocal = dragon === this.localDragon;
-      const deathColor = isLocal ? '#ff2222' : '#ff6600';
+      // Kill glow uses the KILLER's neon dragon color (not generic fire)
+      const neon = (killer && killer !== dragon && CONFIG.DRAGON_NEON)
+        ? (CONFIG.DRAGON_NEON[killer.type] || null)
+        : null;
+      const deathColor = neon || (isLocal ? '#ff2222' : '#ff6600');
       this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
       this.effectsSystem.addShake(isLocal ? 20 : 8, isLocal ? 500 : 300);
-      this.effectsSystem.flashVignette(isLocal ? '#ff0000' : '#ff4400', isLocal ? 0.5 : 0.25, 400);
+      this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
       this.effectsSystem.playDeathSound(isLocal);
+
+      // A death ends the victim's kill streak
+      dragon.killStreak = 0;
 
       // Track killer stats
       if (killer && killer !== dragon) {
         killer.kills = (killer.kills || 0) + 1;
+        // Kill reward: +2 body segments
+        this.growthSystem.grow(killer, CONFIG.KILL_SEGMENTS_GAIN || 2);
+        // Kill streak / combo announcements (full game: player, AI, MP)
+        killer.killStreak = (killer.killStreak || 0) + 1;
+        this._checkCombo(killer);
         const killerIsLocal = killer === this.localDragon;
         if (killerIsLocal) {
-          this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, '#ffd700');
-          this.effectsSystem.flashVignette('#ffd700', 0.35, 300);
+          this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, neon || '#ffd700');
+          this.effectsSystem.flashVignette(neon || '#ffd700', 0.35, 300);
           this.effectsSystem.playKillSound();
         }
       }
@@ -1038,6 +1056,15 @@ class Game {
     this.remotePositions = {};
   }
 
+  // Combo announcements: 3 / 7 / 15 kills, then every +5 (20, 25...).
+  _checkCombo(killer) {
+    const streak = killer.killStreak || 0;
+    const isMilestone = streak === 3 || streak === 7 || streak === 15 || (streak > 15 && streak % 5 === 0);
+    if (!isMilestone) return;
+    this.uiManager.showComboBanner(killer, streak);
+    this.effectsSystem.playTone(520 + Math.min(streak, 30) * 20, 'square', 0.18, 0.14);
+  }
+
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
     const now = Date.now();
@@ -1062,6 +1089,7 @@ class Game {
       // vanish on one client but not the other.
       lives: this.localDragon.lives,
       alive: this.localDragon.alive,
+      attackActive: !!this.localDragon.attackActive,
       t: now
     });
   }
@@ -1081,6 +1109,9 @@ class Game {
       if (!pos) continue;
       dragon.remoteTarget = { x: pos.x, y: pos.y };
       dragon.angle = pos.angle;
+      // Sync attack state (drives the open-mouth head + kill gate)
+      dragon.attackActive = !!pos.attackActive;
+      dragon.boostActive = dragon.attackActive;
       // Sync this dragon's actual size to the network's authoritative
       // segment count. broadcastPosition() already sends `segments`, but
       // nothing was ever reading it back - each client was instead letting
@@ -1196,6 +1227,11 @@ class Game {
         angle = dragon.angle;
       } else if (this.aiController) {
         angle = this.aiController.getInputAngle(dragon, allDragons);
+        // AI attack: fire when the meter is full and it has a live hunt target
+        if ((dragon.attackCharge || 0) >= CONFIG.ATTACK_METER_MAX &&
+            dragon.aiHuntTarget && dragon.aiHuntTarget.alive) {
+          this.dragonManager.activateAttack(dragon);
+        }
       } else {
         angle = dragon.angle || 0;
       }
@@ -1229,8 +1265,14 @@ class Game {
       return;
     }
 
+    // Local player attack activation (ATTACK button / Space / click)
+    if (this.localDragon && this.localDragon.alive && this.movementSystem.consumeAttackRequest()) {
+      this.dragonManager.activateAttack(this.localDragon);
+    }
+
     const score = this.localDragon ? this.localDragon.score : 0;
     this.uiManager.updateHUD(score, timeStr, this.localDragon);
+    this.uiManager.updateAttackMeter(this.localDragon);
 
     const minimap = document.getElementById('minimapCanvas');
     if (minimap) {
