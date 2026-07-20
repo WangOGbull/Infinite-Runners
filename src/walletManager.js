@@ -120,9 +120,43 @@ class WalletManager {
     const a = document.createElement('a');
     a.href = url;
     a.rel = 'noopener';
+    // FIX: index.html has <base target="_blank"> in <head>, which makes
+    // every <a> without an explicit target attribute default to opening in
+    // a NEW tab/window. On mobile, forcing this Universal Link open as a
+    // "new tab" is what silently broke the Phantom hand-off - the OS
+    // reliably intercepts a same-tab top-level navigation to a Universal
+    // Link, but not one launched via a new-window anchor click, so tapping
+    // "Phantom" appeared to do nothing at all.
+    a.target = '_self';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  }
+
+  // If a mobile deep link actually opens the wallet app, this tab gets
+  // backgrounded almost immediately. If it DOESN'T (app not installed, or
+  // the OS failed to intercept the link), the tab stays visible and
+  // `connecting` would otherwise stay stuck `true` forever - silently
+  // blocking every future tap on that wallet button with no feedback.
+  // This clears that stuck state and surfaces a real error instead.
+  _armMobileConnectFallback(walletLabel) {
+    const cleanup = () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', cleanup);
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === 'hidden') cleanup(); };
+    const timer = setTimeout(() => {
+      cleanup();
+      if (document.visibilityState === 'visible' && this.connecting) {
+        this.connecting = false;
+        this.eventBus.emit('wallet:error', {
+          message: `Couldn't open ${walletLabel}. Make sure the app is installed, then try again.`
+        });
+      }
+    }, 2500);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', cleanup, { once: true });
   }
 
   // FIX: now takes an explicit provider + walletType instead of always
@@ -563,6 +597,7 @@ class WalletManager {
       const url = this._buildMobileConnectUrl('phantom');
       this._debugLog(`connect: navigating (anchor-click)`);
       this._navigateToUniversalLink(url);
+      this._armMobileConnectFallback('Phantom');
       return { deepLinked: true };
     }
     window.open('https://phantom.app/', '_blank');
@@ -578,6 +613,7 @@ class WalletManager {
       const url = this._buildMobileConnectUrl('jupiter');
       this._debugLog(`connectJupiter: navigating (anchor-click)`);
       this._navigateToUniversalLink(url);
+      this._armMobileConnectFallback('Jupiter');
       return { deepLinked: true };
     }
     if (window?.jupiter?.solana) {
@@ -616,6 +652,7 @@ class WalletManager {
       const url = this._buildMobileConnectUrl('solflare');
       this._debugLog(`connectSolflare: navigating (anchor-click)`);
       this._navigateToUniversalLink(url);
+      this._armMobileConnectFallback('Solflare');
       return { deepLinked: true };
     }
     if (window?.solflare) {
