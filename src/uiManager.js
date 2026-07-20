@@ -1,4 +1,4 @@
-import { DRAGON_IMAGES, DRAGON_POWERS } from './config.js';
+import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS } from './config.js';
 
 // Icon shown in the connected-wallet panel - keyed by walletManager's
 // this.walletType values ('phantom' | 'solflare'). Reuses the same asset
@@ -673,6 +673,47 @@ class UIManager {
       btn.classList.toggle('active', btn.dataset.tier === tier);
       btn.disabled = isHost ? !!hostDeposited : true;
     });
+  }
+
+  // ATTACK button meter: liquid fill + neon glow in the dragon's color.
+  // Change-guarded so it only touches the DOM when something changed.
+  updateAttackMeter(dragon) {
+    const btn = document.getElementById('boostBtn');
+    if (!btn) return;
+    const charge = dragon ? (dragon.attackCharge || 0) : 0;
+    const active = !!(dragon && dragon.attackActive);
+    const max = CONFIG.ATTACK_METER_MAX || 20;
+    const full = charge >= max;
+    const neon = (dragon && CONFIG.DRAGON_NEON) ? (CONFIG.DRAGON_NEON[dragon.type] || '#ffd700') : '#ffd700';
+    const state = `${charge}|${active}|${neon}`;
+    if (state === this._meterState) return;
+    this._meterState = state;
+    const pct = Math.round((charge / max) * 100);
+    btn.style.setProperty('--fill', pct + '%');
+    btn.style.setProperty('--neon', neon);
+    btn.classList.toggle('attack-ready', full && !active);
+    btn.classList.toggle('attack-active', active);
+    const label = btn.querySelector('span');
+    if (label) label.textContent = active ? 'ATTACK!' : 'ATTACK';
+  }
+
+  // Kill-streak combo banner, glowing in the killer's neon color.
+  showComboBanner(killer, streak) {
+    const banner = document.getElementById('comboBanner');
+    if (!banner) return;
+    const neon = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[killer.type]) || '#ffd700';
+    const name = (killer.type || 'dragon').toUpperCase();
+    let title;
+    if (streak === 3) title = 'TRIPLE KILL';
+    else if (streak === 7) title = 'RAMPAGE';
+    else if (streak === 15) title = 'DRAGONSLAYER';
+    else title = `LEGENDARY x${streak}`;
+    banner.innerHTML =
+      `<div class="combo-title" style="color:${neon};text-shadow:0 0 18px ${neon},0 0 46px ${neon};">${title}</div>` +
+      `<div class="combo-sub">${name} &middot; ${streak} KILL STREAK</div>`;
+    banner.classList.remove('combo-show');
+    void banner.offsetWidth; // restart the animation
+    banner.classList.add('combo-show');
   }
 
   updateHUD(score, timeStr, localDragon) {
