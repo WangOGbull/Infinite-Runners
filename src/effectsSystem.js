@@ -121,6 +121,12 @@ class EffectsSystem {
   update(deltaTime) {
     const dt = Math.min(deltaTime, 50);
 
+    // Hard cap: never let particles pile up past 400 (multi-death bursts).
+    // Drops oldest first. Bounds worst-case render cost per frame.
+    if (this.particles.length > 400) {
+      this.particles.splice(0, this.particles.length - 400);
+    }
+
     // Particles
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -167,35 +173,65 @@ class EffectsSystem {
     return { x: this.shake.x, y: this.shake.y };
   }
 
+  // Pre-rendered glow sprites, one per color, created once and reused.
+  // This replaces ctx.shadowBlur (which forced a full blur render PER
+  // PARTICLE PER FRAME - the main cause of lag/hangs on collisions).
+  // drawImage of a tiny cached sprite is GPU-cheap and looks the same.
+  _getGlowSprite(color) {
+    if (!this._glowCache) this._glowCache = new Map();
+    let sprite = this._glowCache.get(color);
+    if (sprite) return sprite;
+    sprite = document.createElement('canvas');
+    sprite.width = 32;
+    sprite.height = 32;
+    const c = sprite.getContext('2d');
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    const grad = c.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+    grad.addColorStop(0.35, `rgba(${r},${g},${b},0.5)`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    c.fillStyle = grad;
+    c.fillRect(0, 0, 32, 32);
+    this._glowCache.set(color, sprite);
+    return sprite;
+  }
+
   renderParticles(ctx, camera) {
     for (const p of this.particles) {
       if (!camera.isInView(p.x, p.y, 30)) continue;
       const alpha = Math.max(0, p.life / p.maxLife);
-      ctx.save();
+      const sprite = this._getGlowSprite(p.color);
+      const drawSize = p.size * 4 * alpha + 4;
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      ctx.drawImage(sprite, p.x - drawSize / 2, p.y - drawSize / 2, drawSize, drawSize);
     }
+    ctx.globalAlpha = 1;
   }
 
   renderVignette(ctx, canvas) {
     if (!this.vignette.active || this.vignette.alpha <= 0) return;
+    // Cache the gradient per (color + canvas size) - creating a radial
+    // gradient every frame is wasteful. Fade is applied via globalAlpha
+    // so the cached gradient itself never needs rebuilding mid-flash.
+    const key = this.vignette.color + '|' + canvas.width + 'x' + canvas.height;
+    if (!this._vignetteCache) this._vignetteCache = { key: null, gradient: null };
+    if (this._vignetteCache.key !== key) {
+      const r = parseInt(this.vignette.color.slice(1, 3), 16);
+      const g = parseInt(this.vignette.color.slice(3, 5), 16);
+      const b = parseInt(this.vignette.color.slice(5, 7), 16);
+      const gradient = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.9
+      );
+      gradient.addColorStop(0, `rgba(${r},${g},${b},0)`);
+      gradient.addColorStop(1, `rgba(${r},${g},${b},1)`);
+      this._vignetteCache = { key, gradient };
+    }
     ctx.save();
-    const r = parseInt(this.vignette.color.slice(1, 3), 16);
-    const g = parseInt(this.vignette.color.slice(3, 5), 16);
-    const b = parseInt(this.vignette.color.slice(5, 7), 16);
-    const gradient = ctx.createRadialGradient(
-      canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
-      canvas.width / 2, canvas.height / 2, canvas.width * 0.9
-    );
-    gradient.addColorStop(0, `rgba(${r},${g},${b},0)`);
-    gradient.addColorStop(1, `rgba(${r},${g},${b},${this.vignette.alpha})`);
-    ctx.fillStyle = gradient;
+    ctx.globalAlpha = Math.min(1, this.vignette.alpha);
+    ctx.fillStyle = this._vignetteCache.gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
   }
