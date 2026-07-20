@@ -1,16 +1,23 @@
 import CONFIG, { DRAGONS } from './config.js';
 
-// ==================== HEAD DISPLAY CALIBRATION ====================
-// The new front-facing heads have different pixel sizes per file, so each
-// dragon gets its own head scale. Calibrated so every head renders at the
-// EXACT same in-game width as the old 680px-wide heads:
-//   680 x DRAGON_DISPLAY_SCALE(0.08) x 0.95 x 1.5 = 77.5 world units
-// Formula: scale = 646 / headContentWidthPx
+// ==================== DISPLAY CALIBRATION ====================
+// HEADS: all render at exactly 77.5 world units wide (= infinite's size,
+// which matches the old 680px heads). Formula: scale = 646 / headPixelWidth
 const HEAD_DISPLAY_SCALE = {
-  aegis:     0.7645, // purple head - content 845px wide
-  ignis:     0.8065, // fire head   - content 801px wide
-  infinite:  0.9818, // blue head   - content 658px wide
-  magnetron: 0.9613  // pink head   - content 672px wide
+  aegis:     0.95,   // 680px
+  ignis:     0.95,   // 680px
+  infinite:  0.9818, // 658px
+  magnetron: 0.9613  // 672px
+};
+
+// BODIES: all render at exactly 57.6 world units wide (= magnetron's body).
+// infinite_body.png is narrower (680px vs ~840px), so it gets a bigger
+// scale to match the others. Formula: scale = 57.6 / (bodyPixelWidth x 0.08)
+const BODY_DISPLAY_SCALE = {
+  aegis:     0.8581, // 839px
+  ignis:     0.8632, // 834px
+  infinite:  1.0588, // 680px <- boosted to match the others
+  magnetron: 0.85    // 847px
 };
 
 class AssetLoader {
@@ -57,7 +64,7 @@ class AssetLoader {
           tailSrc,
           display: {
             head: { scale: HEAD_DISPLAY_SCALE[name] || 0.95 },
-            body: { scale: 0.85 },
+            body: { scale: BODY_DISPLAY_SCALE[name] || 0.85 },
             tail: { scale: 0.8 }
           }
         });
