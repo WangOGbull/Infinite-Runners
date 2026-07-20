@@ -53,6 +53,14 @@ const JUPITER_PENDING_ACTION_KEY = 'jupiterPendingAction';
 
 const WALLET_SYNC_KEY = 'irWalletSync';
 
+// Remembers which DESKTOP EXTENSION wallet (phantom / solflare) the user
+// last connected with successfully, so a page reload's silent-reconnect
+// attempt (see _trySilentExtensionReconnect) tries that wallet first
+// instead of always assuming Phantom. Separate from the mobile-deeplink
+// 'irWalletType' key, which only applies to the ALT (Jupiter/Solflare)
+// mobile session slots.
+const EXT_WALLET_TYPE_KEY = 'irExtWalletType';
+
 class WalletManager {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -117,14 +125,21 @@ class WalletManager {
     document.body.removeChild(a);
   }
 
-  _bindProviderEvents() {
-    const provider = this.getProvider();
+  // FIX: now takes an explicit provider + walletType instead of always
+  // re-resolving via getProvider() (which ONLY ever looks for Phantom).
+  // Previously connectSolflare() called this with no args, which silently
+  // rebound this.provider back to the Phantom extension object (if
+  // installed) right after Solflare had just connected - leaving
+  // disconnect()/signMessage/sendTransaction all secretly targeting the
+  // wrong wallet. Defaults preserve the original Phantom-only call sites.
+  _bindProviderEvents(provider, walletType = 'phantom') {
+    provider = provider || this.getProvider();
     if (!provider || provider === this.provider) return;
     this.provider = provider;
     provider.on('connect', (publicKey) => {
       this.publicKey = publicKey || provider.publicKey;
       this.connected = true;
-      this.walletType = 'phantom';
+      this.walletType = walletType;
       this._broadcastWalletSync();
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
       this._refreshBalance().then(() => {
@@ -191,7 +206,8 @@ class WalletManager {
       else if (params.get('debug') === '0') localStorage.removeItem('wmDebug');
       if (params.get('resetWallet') === '1') {
         [PHANTOM_SESSION_KEY, PHANTOM_KEYPAIR_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
-         JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, WALLET_SYNC_KEY, 'irWalletType'].forEach(k => localStorage.removeItem(k));
+         JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, WALLET_SYNC_KEY,
+         'irWalletType', EXT_WALLET_TYPE_KEY].forEach(k => localStorage.removeItem(k));
         this.mobileSession = null; this.dappKeyPair = null; this.phantomWalletPublicKey = null;
         this.publicKey = null; this.connected = false; this.walletType = null;
       }
@@ -433,38 +449,86 @@ class WalletManager {
     }
   }
 
-  // Silently reconnect a browser-extension wallet (Phantom/Jupiter) on page
-  // load when the extension still trusts this dapp - no popup. Without this,
-  // only MOBILE sessions were restored (see _restoreMobileKeyPair), so on PC
-  // every reload left the manager thinking the wallet was disconnected: the
-  // UI showed stale state and clicking the wallet button re-opened the
-  // Phantom/Jupiter picker and re-triggered a connect prompt for a wallet
-  // that was, for all practical purposes, already connected.
+  // Silently reconnect a browser-extension wallet (Phantom or Solflare) on
+  // page load when the extension still trusts this dapp - no popup.
+  //
+  // FIX: previously this ONLY ever tried Phantom (via getProvider(), which
+  // is hardcoded to Phantom's isPhantom flag). If you last connected with
+  // Solflare, a refresh would find no trusted Phantom session, give up
+  // silently, and leave the UI showing "Connect Wallet" even though
+  // Solflare was still trusted by the extension - the "already connected
+  // but wallet button says disconnected" confusion after refresh.
+  //
+  // Now it checks EXT_WALLET_TYPE_KEY (set on every successful desktop
+  // extension connect) and tries THAT wallet first, falling back to the
+  // other extension if the preferred one isn't installed.
   _trySilentExtensionReconnect() {
     if (this.connected) return; // mobile session (or something else) already restored
-    const provider = this.getProvider();
-    if (!provider) return; // no extension present (mobile deep-link flow)
-    const finish = (pubkey) => {
-      if (!pubkey || this.connected) return;
-      this.provider = provider;
-      this.publicKey = pubkey;
-      this.connected = true;
-      this.walletType = 'phantom';
-      this._bindProviderEvents();
-      this._broadcastWalletSync();
-      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
-      this._refreshBalance().then(() => {
-        this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
-      });
+
+    let lastExtWallet = null;
+    try { lastExtWallet = localStorage.getItem(EXT_WALLET_TYPE_KEY); } catch (_) {}
+
+    const tryPhantom = () => {
+      const provider = this.getProvider();
+      if (!provider) return false;
+      const finish = (pubkey) => {
+        if (!pubkey || this.connected) return;
+        this.publicKey = pubkey;
+        this.connected = true;
+        this.walletType = 'phantom';
+        this._bindProviderEvents(provider, 'phantom');
+        try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
+        this._broadcastWalletSync();
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this._refreshBalance().then(() => {
+          this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        });
+      };
+      try {
+        if (provider.publicKey) { finish(provider.publicKey); return true; }
+        if (typeof provider.connect === 'function') {
+          provider.connect({ onlyIfTrusted: true })
+            .then((resp) => finish(resp && resp.publicKey))
+            .catch(() => { /* not trusted yet - user connects manually */ });
+        }
+      } catch (_) { /* silent-restore is best-effort only */ }
+      return true;
     };
-    try {
-      if (provider.publicKey) { finish(provider.publicKey); return; }
-      if (typeof provider.connect === 'function') {
-        provider.connect({ onlyIfTrusted: true })
-          .then((resp) => finish(resp && resp.publicKey))
-          .catch(() => { /* not trusted yet - user connects manually */ });
-      }
-    } catch (_) { /* silent-restore is best-effort only */ }
+
+    const trySolflare = () => {
+      const provider = window?.solflare;
+      if (!provider) return false;
+      const finish = (pubkey) => {
+        if (!pubkey || this.connected) return;
+        this.publicKey = pubkey;
+        this.connected = true;
+        this.walletType = 'solflare';
+        this._bindProviderEvents(provider, 'solflare');
+        try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
+        this._broadcastWalletSync();
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this._refreshBalance().then(() => {
+          this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        });
+      };
+      try {
+        if (provider.isConnected && provider.publicKey) { finish(provider.publicKey); return true; }
+        if (typeof provider.connect === 'function') {
+          provider.connect({ onlyIfTrusted: true })
+            .then((resp) => finish((resp && resp.publicKey) || provider.publicKey))
+            .catch(() => { /* not trusted yet - user connects manually */ });
+        }
+      } catch (_) { /* silent-restore is best-effort only */ }
+      return true;
+    };
+
+    // Try whichever wallet was used last time first; fall back to the other
+    // installed extension if that one isn't available.
+    if (lastExtWallet === 'solflare') {
+      if (!trySolflare()) tryPhantom();
+    } else {
+      if (!tryPhantom()) trySolflare();
+    }
   }
 
   _consumePendingAction(walletType) {
@@ -480,7 +544,11 @@ class WalletManager {
   // CONNECT
   // ------------------------------------------------------------------
   async connect(preferredWallet) {
-    if (this.connecting) return;
+    // FIX (bug 3): previously only guarded on `connecting`, so clicking a
+    // second wallet option while one was ALREADY connected (e.g. Solflare
+    // connected, then click Phantom) would kick off a second, independent
+    // connect flow and stomp whichever wallet's state resolved last.
+    if (this.connecting || this.connected) return;
     if (preferredWallet === 'jupiter') {
       return this.connectJupiter();
     }
@@ -503,7 +571,7 @@ class WalletManager {
   }
 
   async connectJupiter() {
-    if (this.connecting) return;
+    if (this.connecting || this.connected) return;
     this.connecting = true;
     this.eventBus.emit('wallet:connecting', { wallet: 'jupiter' });
     if (this.isMobile()) {
@@ -540,7 +608,8 @@ class WalletManager {
   // connect/sign/transaction flows work identically. Desktop uses the Solflare
   // browser extension when present.
   async connectSolflare() {
-    if (this.connecting) return;
+    // FIX (bug 3): guard against a duplicate/overlapping connect attempt.
+    if (this.connecting || this.connected) return;
     this.connecting = true;
     this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
     if (this.isMobile()) {
@@ -560,11 +629,19 @@ class WalletManager {
         // the wallet half-connected with no UI update.
         const pk = (resp && resp.publicKey) || window.solflare.publicKey || null;
         if (!pk) throw new Error('Solflare did not return a public key. Please try again.');
-        this.provider = window.solflare;
-        this._bindProviderEvents();
+        // FIX (bug 2): pass the Solflare provider + wallet type explicitly.
+        // The old call `this._bindProviderEvents()` took no args, which made
+        // it re-resolve via getProvider() - a function that ONLY ever
+        // recognizes Phantom. If the Phantom extension was also installed,
+        // this silently rebound this.provider (and its connect/disconnect
+        // listeners) to Phantom right after Solflare connected, so
+        // disconnect()/signMessage/sendTransaction all quietly targeted the
+        // wrong wallet and cross-wired state between the two providers.
+        this._bindProviderEvents(window.solflare, 'solflare');
         this.publicKey = pk;
         this.connected = true;
         this.walletType = 'solflare';
+        try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
         this._broadcastWalletSync();
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
         this._refreshBalance().then(() => {
@@ -589,10 +666,11 @@ class WalletManager {
     this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
     try {
       const resp = await provider.connect();
-      this._bindProviderEvents();
+      this._bindProviderEvents(provider, 'phantom');
       this.publicKey = resp.publicKey;
       this.connected = true;
       this.walletType = 'phantom';
+      try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
       this._broadcastWalletSync();
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
       this._refreshBalance().then(() => {
@@ -611,7 +689,8 @@ class WalletManager {
     this.connected = false; this.publicKey = null; this.balance = null;
     this.mobileSession = null; this.phantomWalletPublicKey = null; this.walletType = null;
     [PHANTOM_SESSION_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
-     JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, 'irWalletType'].forEach(k => localStorage.removeItem(k));
+     JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY,
+     'irWalletType', EXT_WALLET_TYPE_KEY].forEach(k => localStorage.removeItem(k));
     this._broadcastWalletSync();
     this.eventBus.emit('wallet:disconnected');
   }
