@@ -4,6 +4,7 @@ class MovementSystem {
   constructor() {
     this.inputAngles = new Map();
     this.boosting = new Map();
+    this.attackQueued = false; // edge-triggered attack request (button/Space/click)
 
     this.joystickActive = false;
     this.joystickCenter = { x: 0, y: 0 };
@@ -20,22 +21,18 @@ class MovementSystem {
       this.keys.add(e.code);
       if (e.code === 'Space') {
         e.preventDefault();
-        this.setBoost('local', true);
+        this.attackQueued = true;
       }
     });
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.code);
-      if (e.code === 'Space') {
-        this.setBoost('local', false);
-      }
     });
 
     window.addEventListener('mousemove', (e) => {
       this.mousePos.x = e.clientX;
       this.mousePos.y = e.clientY;
     });
-    window.addEventListener('mousedown', () => this.setBoost('local', true));
-    window.addEventListener('mouseup', () => this.setBoost('local', false));
+    window.addEventListener('mousedown', () => { this.attackQueued = true; });
 
     const joyArea = document.getElementById('joyArea');
     const boostBtn = document.getElementById('boostBtn');
@@ -71,14 +68,8 @@ class MovementSystem {
     if (boostBtn) {
       boostBtn.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        this.setBoost('local', true);
+        this.attackQueued = true;
       }, { passive: false });
-      const endBoost = (e) => {
-        e.preventDefault();
-        this.setBoost('local', false);
-      };
-      boostBtn.addEventListener('touchend', endBoost);
-      boostBtn.addEventListener('touchcancel', endBoost);
     }
   }
 
@@ -107,6 +98,14 @@ class MovementSystem {
     this.boosting.set(dragonId, active);
   }
 
+  // Returns true once if an attack was requested since the last call.
+  // The attack system (dragonManager.activateAttack) owns boostActive now.
+  consumeAttackRequest() {
+    const queued = this.attackQueued;
+    this.attackQueued = false;
+    return queued;
+  }
+
   getInputAngle(dragonId, headX, headY, camera) {
     if (this.joystickActive) {
       const dx = this.joystickCurrent.x - this.joystickCenter.x;
@@ -123,18 +122,10 @@ class MovementSystem {
     return Math.atan2(dy, dx);
   }
 
-  // FIXED: Only the local dragon gets the 'local' boost. AI dragons no longer
-  // receive free boost when the player presses Space / clicks.
+  // boostActive is owned by the attack system (dragonManager.activateAttack)
+  // and by network sync for remote dragons - this system only queues attack
+  // requests and feeds movement angles.
   update(dragonManager, camera, deltaTime) {
-    const localId = window.game?.localDragon?.id;
-    for (const dragon of dragonManager.getLivingDragons()) {
-      if (dragon.id === localId) {
-        dragon.boostActive = !!this.boosting.get('local') || !!this.boosting.get(dragon.id);
-      } else {
-        // AI dragons only boost if explicitly programmed to (currently none)
-        dragon.boostActive = !!this.boosting.get(dragon.id);
-      }
-    }
     this.updateJoystickVisual();
   }
 }
