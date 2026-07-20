@@ -1,5 +1,13 @@
 import { DRAGON_IMAGES, DRAGON_POWERS } from './config.js';
 
+// Icon shown in the connected-wallet panel - keyed by walletManager's
+// this.walletType values ('phantom' | 'solflare'). Reuses the same asset
+// URLs already referenced elsewhere in index.html.
+const WALLET_ICON_URLS = {
+  phantom: 'https://i.postimg.cc/44mrJ4My/phantom-logo.webp',
+  solflare: './Solflare.png'
+};
+
 class UIManager {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -20,6 +28,7 @@ class UIManager {
     this.playerCoins = 1000000;
     this.selectedDragonName = null;
     this._modalDragon = null;
+    this._connectedWalletType = null; // 'phantom' | 'solflare' | 'jupiter' - set from wallet:connected payload
     try {
       this.initScreens();
       this.createDynamicModals();
@@ -481,7 +490,10 @@ class UIManager {
     const signTest = document.getElementById('btnWalletSignTest');
     if (signTest) signTest.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
-      if (resultEl) resultEl.innerHTML = 'Waiting for approval in Phantom...';
+      // FIX: was hardcoded to "Phantom" regardless of which wallet actually
+      // connected - showed the wrong wallet name for Solflare users.
+      const walletLabel = this._connectedWalletType === 'solflare' ? 'Solflare' : 'Phantom';
+      if (resultEl) resultEl.innerHTML = `Waiting for approval in ${walletLabel}...`;
       this.eventBus.emit('wallet:signTestRequest');
     });
 
@@ -513,16 +525,22 @@ class UIManager {
     // "did nothing" and let a second wallet be clicked on top of the first.
     // Guarded on currentScreen so this never yanks the user off titleScreen
     // during a silent/background reconnect on page load.
-    this.eventBus.on('wallet:connecting', () => {
+    this.eventBus.on('wallet:connecting', ({ wallet } = {}) => {
       if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
       this.setWalletModalState('connecting');
+      // FIX: "Approve the connection in Phantom..." was static HTML text -
+      // always said Phantom even when connecting via Solflare.
+      const label = wallet === 'solflare' ? 'Solflare' : 'Phantom';
+      const connectingText = document.getElementById('wConnectingText');
+      if (connectingText) connectingText.textContent = `Approve the connection in ${label}...`;
     });
-    this.eventBus.on('wallet:connected', ({ address, balance }) => {
+    this.eventBus.on('wallet:connected', ({ address, balance, walletType }) => {
       if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
       this.setWalletModalState('connected');
-      this.updateWalletDisplay(address, balance);
+      this.updateWalletDisplay(address, balance, walletType);
     });
     this.eventBus.on('wallet:disconnected', () => {
+      this._connectedWalletType = null;
       this.updateWalletButton(null);
       // Close the wallet modal entirely on disconnect instead of leaving it
       // open on the (desktop fallback) Phantom/Jupiter list - that stray view
@@ -816,11 +834,20 @@ class UIManager {
     if (errEl && state !== 'disconnected') errEl.style.display = 'none';
   }
 
-  updateWalletDisplay(address, balance) {
+  updateWalletDisplay(address, balance, walletType) {
+    if (walletType) this._connectedWalletType = walletType;
     const addrEl = document.getElementById('wAddressDisplay');
     if (addrEl && address) addrEl.textContent = address.length > 12 ? `${address.slice(0,6)}...${address.slice(-4)}` : address;
     const balEl = document.getElementById('wBalanceDisplay');
     if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
+    // FIX: the connected-panel icon was a static Phantom <img> with no id,
+    // so it always showed Phantom's logo even when connected via Solflare.
+    const iconEl = document.getElementById('wWalletIcon');
+    if (iconEl) {
+      const isSolflare = this._connectedWalletType === 'solflare';
+      iconEl.src = isSolflare ? WALLET_ICON_URLS.solflare : WALLET_ICON_URLS.phantom;
+      iconEl.alt = isSolflare ? 'Solflare' : 'Phantom';
+    }
     this.updateWalletButton(address);
   }
 
