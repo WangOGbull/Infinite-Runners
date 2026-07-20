@@ -12,6 +12,26 @@ export class DragonManager {
     this.dragons = [];
   }
 
+  // Attack meter: charge it by eating. Returns true when it JUST became full.
+  addAttackCharge(dragon, amount = 1) {
+    if (!dragon || !dragon.alive || dragon.attackActive) return false;
+    const wasFull = (dragon.attackCharge || 0) >= CONFIG.ATTACK_METER_MAX;
+    dragon.attackCharge = Math.min(CONFIG.ATTACK_METER_MAX, (dragon.attackCharge || 0) + amount);
+    return !wasFull && dragon.attackCharge >= CONFIG.ATTACK_METER_MAX;
+  }
+
+  // Fire attack mode if the meter is full. Boost + open-mouth head +
+  // kill-enabled for CONFIG.ATTACK_DURATION_MS, then the meter empties.
+  activateAttack(dragon) {
+    if (!dragon || !dragon.alive || dragon.attackActive) return false;
+    if ((dragon.attackCharge || 0) < CONFIG.ATTACK_METER_MAX) return false;
+    dragon.attackCharge = 0;
+    dragon.attackActive = true;
+    dragon.attackTimer = CONFIG.ATTACK_DURATION_MS;
+    dragon.boostActive = true;
+    return true;
+  }
+
   createDragon(type, x, y, teamId = null) {
     const dragon = {
       id: 'dragon_' + (this.nextId++),
@@ -27,6 +47,10 @@ export class DragonManager {
       angle: Math.random() * Math.PI * 2,
       speed: CONFIG.DRAGON_BASE_SPEED,
       boostActive: false,
+      attackCharge: 0,
+      attackActive: false,
+      attackTimer: 0,
+      killStreak: 0,
       segments: [],
       history: [],
       invulnerable: 0,
@@ -96,6 +120,10 @@ export class DragonManager {
     dragon.head.y = y;
     dragon.angle = angle;
     dragon.alive = true;
+    dragon.attackActive = false;
+    dragon.attackTimer = 0;
+    dragon.attackCharge = 0;
+    dragon.boostActive = false;
     dragon.immunityTimer = CONFIG.SPAWN_IMMUNITY_MS;
     dragon.spawnTime = Date.now();
 
@@ -149,6 +177,16 @@ export class DragonManager {
 
     for (const dragon of this.dragons) {
       if (!dragon.alive) continue;
+
+      // Attack mode timer (remote dragons get this state synced instead)
+      if (dragon.attackActive && !dragon.isRemote) {
+        dragon.attackTimer -= deltaTime;
+        if (dragon.attackTimer <= 0) {
+          dragon.attackActive = false;
+          dragon.attackTimer = 0;
+          dragon.boostActive = false;
+        }
+      }
 
       // Decrement immunity timer
       if (dragon.immunityTimer > 0) {
@@ -327,7 +365,11 @@ export class DragonManager {
       ctx.restore();
     }
 
-    if (!assets.head || !assets.head.complete || assets.head.naturalWidth === 0) return;
+    // Attack-mode head swap: open-mouth frame while attacking,
+    // closed-mouth (default) frame otherwise.
+    const useOpen = !!(dragon.attackActive && assets.headOpen && assets.headOpen.complete && assets.headOpen.naturalWidth > 0);
+    const headImg = useOpen ? assets.headOpen : assets.head;
+    if (!headImg || !headImg.complete || headImg.naturalWidth === 0) return;
 
     ctx.save();
     ctx.translate(dragon.head.x, dragon.head.y);
@@ -342,10 +384,13 @@ export class DragonManager {
       ctx.globalAlpha = flash ? 0.5 : 1.0;
     }
 
-    const headScale = (baseScale * (assets.display?.head?.scale || 1)) * 1.5;
-    const w = assets.head.naturalWidth * headScale;
-    const h = assets.head.naturalHeight * headScale;
-    ctx.drawImage(assets.head, -w / 2, -h / 2, w, h);
+    const frameScale = useOpen
+      ? (assets.display?.headOpen?.scale || assets.display?.head?.scale || 1)
+      : (assets.display?.head?.scale || 1);
+    const headScale = (baseScale * frameScale) * 1.5;
+    const w = headImg.naturalWidth * headScale;
+    const h = headImg.naturalHeight * headScale;
+    ctx.drawImage(headImg, -w / 2, -h / 2, w, h);
 
     ctx.restore();
   }
