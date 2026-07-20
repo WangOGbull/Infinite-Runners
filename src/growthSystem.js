@@ -7,14 +7,14 @@ class GrowthSystem {
 
   grow(dragon, amount = 1) {
     if (!dragon || !dragon.alive) return;
-    
+
     // --- CHANGE 1: Define base and fat spacing ---
     const baseSpacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
     const fatSpacing = baseSpacing * 2; // Double size when fat
 
     for (let i = 0; i < amount; i++) {
       if (dragon.segments.length >= CONFIG.DRAGON_MAX_SEGMENTS) break;
-      
+
       // --- CHANGE 2: Check length and choose spacing ---
       // If current length is 25 or more, use fat spacing, otherwise use base
       const spacing = dragon.segments.length >= 25 ? fatSpacing : baseSpacing;
@@ -70,9 +70,8 @@ class GrowthSystem {
       this.eventBus.emit('dragon:cut', { victim: attacker, removeCount: attackerLost });
     }
 
-    // Defender gains 1 segment
-    // --- CHANGE 3: Use the new 35 max limit explicitly ---
-    if (defender.segments.length < 35) {
+    // Defender gains 1 segment (up to the shared max)
+    if (defender.segments.length < CONFIG.DRAGON_MAX_SEGMENTS) {
       this.grow(defender, 1);
     }
   }
