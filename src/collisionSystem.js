@@ -69,11 +69,19 @@ class CollisionSystem {
       // out via the network (see applyRemotePositions() in main.js, which
       // now syncs `lives`/`alive` the same way it already synced segments).
       if (len1 < len2) {
-        // d1 is shorter -> d1 dies
-        if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+        // d1 is shorter -> d1 dies, but ONLY if d2 is in attack mode
+        if (d2.attackActive) {
+          if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+        } else {
+          if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'head_clash' });
+        }
       } else if (len2 < len1) {
-        // d2 is shorter -> d2 dies
-        if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+        // d2 is shorter -> d2 dies, but ONLY if d1 is in attack mode
+        if (d1.attackActive) {
+          if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+        } else {
+          if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'head_clash' });
+        }
       } else {
         // Equal size -> both shrink to start size (NOT die)
         if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'equal_head' });
@@ -107,9 +115,13 @@ class CollisionSystem {
         const isTailHit = (i === lastIdx);
 
         if (isTailHit) {
-          // HEAD vs TAIL: instant kill of the dragon whose tail got hit,
-          // regardless of relative size.
-          if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+          // HEAD vs TAIL: instant kill ONLY in attack mode - otherwise
+          // the bite just cuts the tail instead of killing.
+          if (headDragon.attackActive) {
+            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+          } else {
+            if (!bodyDragon.isRemote) this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
+          }
         } else {
           // HEAD vs BODY (non-tail): the SMALLER dragon dies outright
           // (previously it only shrank). Equal size still shrinks both -
@@ -118,9 +130,19 @@ class CollisionSystem {
           const len2 = bodyDragon.segments.length;
 
           if (len1 < len2) {
-            if (!headDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: headDragon, killer: bodyDragon });
+            // headDragon is smaller: it dies ONLY if bodyDragon is attacking
+            if (bodyDragon.attackActive) {
+              if (!headDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: headDragon, killer: bodyDragon });
+            } else {
+              if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'body_hit' });
+            }
           } else if (len2 < len1) {
-            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+            // bodyDragon is smaller: it dies ONLY if headDragon is attacking
+            if (headDragon.attackActive) {
+              if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+            } else {
+              if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'body_hit' });
+            }
           } else {
             if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body' });
             if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body' });
