@@ -24,6 +24,22 @@
   #dragonSelectScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
   #dragonSelectScreen .dsInner { padding-bottom: 80px; min-height: 100vh; }
 
+  /* ==================== ATTACK BUTTON (kill meter) ==================== */
+  #boostBtn { --fill: 0%; --neon: #ffd700; position: relative; overflow: hidden; background: rgba(8,10,22,0.8); border: 2px solid rgba(255,255,255,0.18); }
+  #boostBtn::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: var(--fill); background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, var(--neon) 35%, var(--neon) 100%); opacity: 0.9; transition: height 0.25s ease; }
+  #boostBtn::after { content: ''; position: absolute; top: 8%; left: 16%; width: 34%; height: 24%; background: radial-gradient(ellipse at center, rgba(255,255,255,0.55), transparent 70%); border-radius: 50%; pointer-events: none; z-index: 1; }
+  #boostBtn span { position: relative; z-index: 2; font-family: 'Cinzel Decorative', serif; font-weight: 900; font-size: 13px; letter-spacing: 1.5px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+  #boostBtn.attack-ready { border-color: var(--neon); animation: attackPulse 1s ease-in-out infinite; }
+  #boostBtn.attack-active { border-color: var(--neon); box-shadow: 0 0 22px var(--neon), 0 0 55px var(--neon); }
+  @keyframes attackPulse { 0%, 100% { box-shadow: 0 0 10px var(--neon), 0 0 24px var(--neon); } 50% { box-shadow: 0 0 18px var(--neon), 0 0 46px var(--neon), 0 0 70px var(--neon); } }
+
+  /* ==================== COMBO BANNER ==================== */
+  #comboBanner { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); text-align: center; z-index: 150; opacity: 0; pointer-events: none; font-family: 'Cinzel Decorative', serif; }
+  #comboBanner.combo-show { animation: comboPop 2.4s ease forwards; }
+  #comboBanner .combo-title { font-size: 44px; font-weight: 900; letter-spacing: 5px; }
+  #comboBanner .combo-sub { font-family: 'Rajdhani', sans-serif; font-size: 14px; letter-spacing: 3px; color: #fff; opacity: 0.85; margin-top: 4px; }
+  @keyframes comboPop { 0% { opacity: 0; transform: translateX(-50%) scale(0.5); } 12% { opacity: 1; transform: translateX(-50%) scale(1.15); } 22% { transform: translateX(-50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) scale(1.05); } }
+
   #walletBtn.connected { background: rgba(0,180,216,0.15); border: 1px solid rgba(0,180,216,0.5); }
   .wHint { color: #8b93a6; font-size: 12px; text-align: center; margin-top: 12px; }
   .wSpinner { width: 32px; height: 32px; border: 3px solid rgba(171,159,242,0.2); border-top-color: #ab9ff2; border-radius: 50%; margin: 20px auto; animation: wSpin 0.8s linear infinite; }
@@ -314,6 +330,7 @@
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -585,8 +602,9 @@
   </div>
   <div id="mobileControls">
     <div id="joyArea"><div id="joyKnob"></div></div>
-    <div id="boostBtn"><i data-lucide="zap"></i><span>BOOST</span></div>
+    <div id="boostBtn"><span>ATTACK</span></div>
   </div>
+  <div id="comboBanner"></div>
   <div id="pauseOverlay" class="overlay">
     <h2>PAUSED</h2>
     <button class="pBtn pBtnRes" id="btnResume"><i data-lucide="play"></i> RESUME</button>
