@@ -1,19 +1,16 @@
 import CONFIG, { DRAGONS } from './config.js';
 
-// ==================== DISPLAY CALIBRATION ====================
-// HEADS: all render at exactly 77.5 world units wide (= infinite's size,
-// which matches the old 680px heads). Formula: scale = 646 / headPixelWidth
+// ==================== HEAD CALIBRATION ====================
+// Every head frame renders at exactly 77.5 world units wide, no matter
+// the PNG's pixel size (77.5 = naturalWidth x 0.08 x scale x 1.5, so
+// scale = 646 / naturalWidth). Auto-calibrated at load time - resizing
+// or re-exporting the art can never skew head sizes again.
+function headScaleFor(img) {
+  if (!img || !img.naturalWidth) return 0.95;
+  return 646 / img.naturalWidth;
+}
 
-const HEAD_DISPLAY_SCALE = {
-  aegis:     0.95,   // 680px -> 77.5 wu
-  ignis:     0.95,   // 680px -> 77.5 wu
-  infinite:  0.9818, // 658px -> 77.5 wu
-  magnetron: 0.9613  // 672px -> 77.5 wu
-};
-
-// BODIES: all render at exactly 57.6 world units wide (= magnetron's body).
-// infinite_body.png is narrower (680px vs ~840px), so it gets a bigger
-// scale to match the others. Formula: scale = 57.6 / (bodyPixelWidth x 0.08)
+// BODIES: all render at exactly 57.6 world units wide.
 const BODY_DISPLAY_SCALE = {
   aegis:     0.8581, // 839px
   ignis:     0.8632, // 834px
@@ -47,6 +44,8 @@ class AssetLoader {
     const dragons = [];
     for (const name of DRAGONS) {
       const headSrc = `${CONFIG.ASSET_BASE_URL}${name}_head.png`;
+      const headCloseSrc = `${CONFIG.ASSET_BASE_URL}${name}_head_close.png`;
+      const headOpenSrc = `${CONFIG.ASSET_BASE_URL}${name}_head_open.png`;
       const bodySrc = `${CONFIG.ASSET_BASE_URL}${name}_body.png`;
       const tailSrc = `${CONFIG.ASSET_BASE_URL}${name}_tail.png`;
       try {
@@ -55,16 +54,27 @@ class AssetLoader {
           this.loadImage(bodySrc),
           this.loadImage(tailSrc)
         ]);
+        // Attack-system head frames: _close = default (mouth closed),
+        // _open = attack mode. Both optional - they fall back to the
+        // plain {name}_head.png so a missing frame never breaks a dragon.
+        let headClose = null;
+        let headOpen = null;
+        try { headClose = await this.loadImage(headCloseSrc); } catch (e) { /* optional */ }
+        try { headOpen = await this.loadImage(headOpenSrc); } catch (e) { /* optional */ }
+        const defaultHead = (headClose && headClose.naturalWidth > 0) ? headClose : head;
+        const attackHead = (headOpen && headOpen.naturalWidth > 0) ? headOpen : null;
         dragons.push({
           name,
-          head,
+          head: defaultHead,
+          headOpen: attackHead,
           body,
           tail,
-          headSrc,
+          headSrc: headClose ? headCloseSrc : headSrc,
           bodySrc,
           tailSrc,
           display: {
-            head: { scale: HEAD_DISPLAY_SCALE[name] || 0.95 },
+            head: { scale: headScaleFor(defaultHead) },
+            headOpen: { scale: headScaleFor(attackHead || defaultHead) },
             body: { scale: BODY_DISPLAY_SCALE[name] || 0.85 },
             tail: { scale: 0.8 }
           }
