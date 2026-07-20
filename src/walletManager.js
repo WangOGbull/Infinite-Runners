@@ -141,7 +141,7 @@ class WalletManager {
       this.connected = true;
       this.walletType = walletType;
       this._broadcastWalletSync();
-      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
@@ -155,7 +155,7 @@ class WalletManager {
       if (publicKey) {
         this.publicKey = publicKey;
         this._refreshBalance().then(() => {
-          this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+          this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
         });
       } else {
         this.connected = false; this.publicKey = null; this.eventBus.emit('wallet:disconnected');
@@ -409,7 +409,7 @@ class WalletManager {
         this.connected = true;
         try { localStorage.setItem(addrKey, this.publicKey.toString()); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: null });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: null, walletType: this.walletType });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -442,7 +442,7 @@ class WalletManager {
 
   _notifyRestoredConnection() {
     if (this.connected && this.publicKey) {
-      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
@@ -479,7 +479,7 @@ class WalletManager {
         this._bindProviderEvents(provider, 'phantom');
         try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -506,7 +506,7 @@ class WalletManager {
         this._bindProviderEvents(provider, 'solflare');
         try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -587,7 +587,7 @@ class WalletManager {
         this.connected = true;
         this.walletType = 'jupiter';
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -643,7 +643,7 @@ class WalletManager {
         this.walletType = 'solflare';
         try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -672,7 +672,7 @@ class WalletManager {
       this.walletType = 'phantom';
       try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
       this._broadcastWalletSync();
-      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance });
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
