@@ -64,7 +64,19 @@ const CONFIG = {
 
   // ==================== DRAGON GROWTH ====================
   DRAGON_START_SEGMENTS: 5,
-  DRAGON_MAX_SEGMENTS: 35,
+  DRAGON_MAX_SEGMENTS: 50,
+
+  // ==================== ATTACK SYSTEM ====================
+  ATTACK_METER_MAX: 20,        // infinite food eaten to fully charge ATTACK
+  ATTACK_DURATION_MS: 5000,    // attack mode duration once triggered
+  KILL_SEGMENTS_GAIN: 2,       // body segments the killer gains per kill
+  // Neon kill-glow colors sampled from each dragon's head art
+  DRAGON_NEON: {
+    aegis: '#a800ff',
+    ignis: '#ff6c00',
+    infinite: '#007aff',
+    magnetron: '#ff00d5'
+  },
   DRAGON_SEGMENTS_PER_FOOD: 1,
   DRAGON_SEGMENT_SPACING: 0.65,
 
