@@ -525,19 +525,28 @@ class UIManager {
     // "did nothing" and let a second wallet be clicked on top of the first.
     // Guarded on currentScreen so this never yanks the user off titleScreen
     // during a silent/background reconnect on page load.
+    //
+    // FIX 2: setWalletModalState() now runs BEFORE showScreen(). walletModal
+    // has three sub-views (disconnected/connecting/connected) toggled via
+    // inline display styles - #walletDisconnectedView (the old Phantom +
+    // JUPITER picker, no longer used) has no default display:none in the
+    // HTML, so the instant showScreen('walletModal') made the modal visible
+    // BEFORE the correct sub-view was selected, briefly showing that old
+    // view (Jupiter logo included). Picking the sub-view first, then
+    // revealing the modal, removes that window entirely.
     this.eventBus.on('wallet:connecting', ({ wallet } = {}) => {
-      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
       this.setWalletModalState('connecting');
       // FIX: "Approve the connection in Phantom..." was static HTML text -
       // always said Phantom even when connecting via Solflare.
       const label = wallet === 'solflare' ? 'Solflare' : 'Phantom';
       const connectingText = document.getElementById('wConnectingText');
       if (connectingText) connectingText.textContent = `Approve the connection in ${label}...`;
+      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
     });
     this.eventBus.on('wallet:connected', ({ address, balance, walletType }) => {
-      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance, walletType);
+      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
     });
     this.eventBus.on('wallet:disconnected', () => {
       this._connectedWalletType = null;
