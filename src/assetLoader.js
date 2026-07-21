@@ -22,9 +22,11 @@ class AssetLoader {
   constructor() {
     this.loadedDragons = [];
     this.cache = new Map();
+    this.onProgress = null;       // set by preloadAll() during the boot load
+    this.failedRequired = [];     // required assets that failed every retry
   }
 
-  async loadImage(src) {
+  async _loadOnce(src) {
     if (this.cache.has(src)) {
       return this.cache.get(src);
     }
@@ -40,6 +42,65 @@ class AssetLoader {
     });
   }
 
+  // Loads an image with automatic retries - a hiccuping mobile network
+  // gets up to 3 chances per file before we call it a failure.
+  async loadImage(src, retries = 2) {
+    if (this.cache.has(src)) {
+      return this.cache.get(src);
+    }
+    let lastErr = src;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await this._loadOnce(src);
+      } catch (e) {
+        lastErr = e;
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
+        }
+      }
+    }
+    throw lastErr;
+  }
+
+  // Wraps a load so the boot progress bar counts it whether it
+  // succeeds or fails - the bar must never freeze waiting on one file.
+  _tracked(src) {
+    return this.loadImage(src).then(
+      img => { this._report(src); return img; },
+      err => { this._report(src); throw err; }
+    );
+  }
+
+  _report(src) {
+    if (this.onProgress) this.onProgress(src);
+  }
+
+  // Boots the whole game: every dragon sprite + every UI image the
+  // menus need, with real per-file progress. Throws if any REQUIRED
+  // asset failed all its retries, so the boot screen can offer a retry
+  // instead of letting the player in with broken images.
+  async preloadAll(progressCb, extraUrls = []) {
+    const total = (DRAGONS.length * 5) + extraUrls.length;
+    let done = 0;
+    this.failedRequired = [];
+    this.onProgress = (src) => {
+      done++;
+      if (progressCb) progressCb(done, total, src);
+    };
+    try {
+      const dragons = await this.loadDragons();
+      await Promise.all(extraUrls.map(u =>
+        this._tracked(u).catch(() => { /* extras are nice-to-have */ })
+      ));
+      if (this.failedRequired.length > 0) {
+        throw new Error('Required assets failed: ' + this.failedRequired.join(', '));
+      }
+      return dragons;
+    } finally {
+      this.onProgress = null;
+    }
+  }
+
   async loadDragons() {
     const dragons = [];
     for (const name of DRAGONS) {
@@ -50,17 +111,17 @@ class AssetLoader {
       const tailSrc = `${CONFIG.ASSET_BASE_URL}${name}_tail.png`;
       try {
         const [head, body, tail] = await Promise.all([
-          this.loadImage(headSrc),
-          this.loadImage(bodySrc),
-          this.loadImage(tailSrc)
+          this._tracked(headSrc),
+          this._tracked(bodySrc),
+          this._tracked(tailSrc)
         ]);
         // Attack-system head frames: _close = default (mouth closed),
         // _open = attack mode. Both optional - they fall back to the
         // plain {name}_head.png so a missing frame never breaks a dragon.
         let headClose = null;
         let headOpen = null;
-        try { headClose = await this.loadImage(headCloseSrc); } catch (e) { /* optional */ }
-        try { headOpen = await this.loadImage(headOpenSrc); } catch (e) { /* optional */ }
+        try { headClose = await this._tracked(headCloseSrc); } catch (e) { /* optional */ }
+        try { headOpen = await this._tracked(headOpenSrc); } catch (e) { /* optional */ }
         const defaultHead = (headClose && headClose.naturalWidth > 0) ? headClose : head;
         const attackHead = (headOpen && headOpen.naturalWidth > 0) ? headOpen : null;
         dragons.push({
@@ -81,6 +142,7 @@ class AssetLoader {
         });
       } catch (error) {
         console.warn(`Dragon asset failed: ${name}`);
+        this.failedRequired.push(name);
       }
     }
     this.loadedDragons = dragons;
