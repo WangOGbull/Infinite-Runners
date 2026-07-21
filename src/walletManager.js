@@ -376,6 +376,13 @@ class WalletManager {
     const urlParams = new URLSearchParams(window.location.search);
     const returnType = urlParams.get('walletReturn');
     const walletType = urlParams.get('walletType') || 'phantom';
+    // FIX: log this BEFORE the early return, not after - if the wallet's
+    // redirect never carried our query params at all (lost along the way,
+    // or the OS/app handled the hand-off differently than expected), the
+    // debug overlay used to show nothing whatsoever for that attempt,
+    // making it impossible to tell "no redirect happened" apart from
+    // "redirect happened but something else broke."
+    this._debugLog(`redirect check: raw search="${window.location.search}" returnType=${returnType || 'NONE'}`);
     if (!returnType) { this._notifyRestoredConnection(); return; }
 
     this._debugLog(`redirect: type=${returnType} walletType=${walletType} errorCode=${urlParams.get('errorCode') || 'none'} hasNonce=${!!urlParams.get('nonce')} hasData=${!!urlParams.get('data')} hasDsk=${!!urlParams.get('dsk')}`);
@@ -406,7 +413,19 @@ class WalletManager {
     const phantomPubKeyParam = urlParams.get('phantom_encryption_public_key');
     const nonceParam = urlParams.get('nonce');
     const dataParam = urlParams.get('data');
-    if (!nonceParam || !dataParam) return;
+    if (!nonceParam || !dataParam) {
+      // FIX: this used to just `return` here with zero feedback. If the
+      // wallet redirected back without these params - a cancelled/rejected
+      // connection some wallets signal by omitting params instead of
+      // setting errorCode, or a redirect that lost query params somewhere
+      // along the way - the user was left staring at "wallet not
+      // connected" with no explanation and no way to tell what happened.
+      this._debugLog(`=> INCOMPLETE RETURN: hasPhantomKey=${!!phantomPubKeyParam} hasNonce=${!!nonceParam} hasData=${!!dataParam}`);
+      this.eventBus.emit('wallet:error', {
+        message: 'The wallet connection response was incomplete. Please try connecting again.'
+      });
+      return;
+    }
 
     try {
       const dskParam = urlParams.get('dsk');
@@ -656,8 +675,23 @@ class WalletManager {
       return { deepLinked: true };
     }
     if (window?.solflare) {
+      // FIX: same class of bug as Phantom's _connectProvider - if
+      // Solflare's extension hangs (broken content-script injection, or
+      // any other extension-side stall), connect() never resolves or
+      // rejects, and `connecting` stays stuck true forever with no
+      // timeout, silently blocking every future wallet button click.
+      let timedOut = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        this.connecting = false;
+        this.eventBus.emit('wallet:error', {
+          message: "Solflare didn't respond. Try reloading the page, or check that the Solflare extension is enabled."
+        });
+      }, 25000);
       try {
         const resp = await window.solflare.connect();
+        clearTimeout(timeoutId);
+        if (timedOut) return; // already reset state and shown an error; ignore this late resolution
         // Solflare's extension does NOT reliably return { publicKey } from
         // connect() the way Phantom does - on several versions the promise
         // resolves empty and the key only appears on window.solflare.publicKey.
@@ -684,13 +718,17 @@ class WalletManager {
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
+        this.connecting = false;
         return { address: this.publicKey.toString(), balance: this.balance };
       } catch (err) {
+        clearTimeout(timeoutId);
+        if (timedOut) return;
         this.connected = false;
         this.publicKey = null;
+        this.connecting = false;
         this.eventBus.emit('wallet:error', { message: err?.message || 'Solflare connection rejected.' });
         throw err;
-      } finally { this.connecting = false; }
+      }
     }
     this.connecting = false;
     window.open('https://solflare.com/', '_blank');
@@ -701,8 +739,30 @@ class WalletManager {
   async _connectProvider(provider) {
     this.connecting = true;
     this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
+
+    // FIX: when the Phantom extension's own content script fails to inject
+    // (visible in the console as "[PHANTOM] error getting provider
+    // injection options" / "Receiving end does not exist" - a Phantom-side
+    // bug, usually from the extension being reloaded/updated while the tab
+    // was already open), provider.connect() can hang forever - it never
+    // resolves OR rejects. With no timeout, `connecting` stayed stuck true
+    // permanently, and every future wallet click - including a totally
+    // different wallet like Solflare - silently did nothing forever
+    // because of the duplicate-connect guard. This timeout guarantees
+    // `connecting` always gets released.
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      this.connecting = false;
+      this.eventBus.emit('wallet:error', {
+        message: "Phantom didn't respond. Try reloading the page, or check that the Phantom extension is enabled."
+      });
+    }, 25000);
+
     try {
       const resp = await provider.connect();
+      clearTimeout(timeoutId);
+      if (timedOut) return; // already reset state and shown an error; ignore this late resolution
       this._bindProviderEvents(provider, 'phantom');
       this.publicKey = resp.publicKey;
       this.connected = true;
@@ -713,12 +773,16 @@ class WalletManager {
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
+      this.connecting = false;
       return { address: this.publicKey.toString(), balance: this.balance };
     } catch (err) {
+      clearTimeout(timeoutId);
+      if (timedOut) return;
       const message = err?.code === 4001 ? 'Connection rejected.' : (err?.message || 'Connection failed.');
       this.eventBus.emit('wallet:error', { message });
+      this.connecting = false;
       throw err;
-    } finally { this.connecting = false; }
+    }
   }
 
   async disconnect() {
