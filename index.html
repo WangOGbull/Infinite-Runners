@@ -326,13 +326,111 @@
     .baBox { padding: 20px 16px; }
     .baTitle { font-size: 18px; }
   }
+
+  /* ==================== BOOT LOADER ==================== */
+  #bootScreen {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(0, 122, 255, 0.14), transparent 60%),
+      radial-gradient(ellipse at 50% 85%, rgba(168, 0, 255, 0.10), transparent 55%),
+      linear-gradient(180deg, #04060d 0%, #080d1c 50%, #04060d 100%);
+    opacity: 1; transition: opacity 0.7s ease;
+    font-family: 'Rajdhani', sans-serif;
+  }
+  #bootScreen.boot-done { opacity: 0; pointer-events: none; }
+  .bootInner { display: flex; flex-direction: column; align-items: center; width: min(420px, 86vw); text-align: center; }
+  .bootLogo {
+    font-size: 72px; line-height: 1; color: #00b4d8;
+    text-shadow: 0 0 30px rgba(0, 180, 216, 0.8), 0 0 80px rgba(0, 122, 255, 0.5);
+    animation: bootPulse 2.2s ease-in-out infinite;
+  }
+  @keyframes bootPulse {
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50% { transform: scale(1.12); opacity: 1; }
+  }
+  .bootTitle {
+    font-family: 'Cinzel Decorative', serif; font-weight: 900;
+    font-size: 30px; letter-spacing: 4px; color: #fff; margin: 18px 0 0;
+    text-shadow: 0 0 24px rgba(0, 180, 216, 0.55);
+  }
+  .bootSub {
+    font-family: 'Cinzel Decorative', serif; font-size: 13px; letter-spacing: 8px;
+    color: rgba(255, 255, 255, 0.55); margin: 6px 0 34px;
+  }
+  .bootBarWrap {
+    width: 100%; height: 10px; border-radius: 10px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(0, 180, 216, 0.35);
+    box-shadow: 0 0 18px rgba(0, 180, 216, 0.15) inset, 0 2px 12px rgba(0, 0, 0, 0.6);
+  }
+  #bootBarFill {
+    width: 0%; height: 100%; border-radius: 10px;
+    background: linear-gradient(90deg, #007aff, #00b4d8 55%, #22d3ee);
+    box-shadow: 0 0 14px rgba(0, 180, 216, 0.8);
+    transition: width 0.35s ease;
+  }
+  .bootRow { display: flex; justify-content: space-between; width: 100%; margin-top: 10px; }
+  #bootStatus { font-size: 13px; font-weight: 600; letter-spacing: 1px; color: rgba(255, 255, 255, 0.65); }
+  #bootPct { font-size: 13px; font-weight: 700; color: #22d3ee; text-shadow: 0 0 10px rgba(34, 211, 238, 0.6); }
+  #bootNetBox {
+    display: none; margin-top: 30px; padding: 18px 22px; width: 100%;
+    background: rgba(10, 16, 30, 0.85); border: 1px solid rgba(255, 180, 60, 0.35);
+    border-radius: 14px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px); box-sizing: border-box;
+  }
+  #bootNetBox.show { display: block; animation: bootNetIn 0.4s ease; }
+  @keyframes bootNetIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .bootNetSpin {
+    width: 26px; height: 26px; margin: 0 auto 10px;
+    border: 3px solid rgba(255, 180, 60, 0.2); border-top-color: #ffb43c;
+    border-radius: 50%; animation: bootSpin 0.9s linear infinite;
+  }
+  @keyframes bootSpin { to { transform: rotate(360deg); } }
+  .bootNetTitle {
+    font-family: 'Cinzel Decorative', serif; font-size: 14px; font-weight: 700;
+    letter-spacing: 1px; color: #ffb43c; margin-bottom: 6px;
+  }
+  .bootNetMsg { font-size: 13px; line-height: 1.5; color: rgba(255, 255, 255, 0.75); }
+  #bootRetryBtn {
+    display: none; margin-top: 14px; padding: 10px 34px;
+    font-family: 'Cinzel Decorative', serif; font-weight: 700; font-size: 12px;
+    letter-spacing: 2px; color: #fff; cursor: pointer;
+    background: linear-gradient(135deg, #007aff, #00b4d8);
+    border: 1px solid rgba(34, 211, 238, 0.5); border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(0, 122, 255, 0.4);
+  }
+  #bootRetryBtn:hover { filter: brightness(1.15); }
+  @media(max-width: 480px) {
+    .bootLogo { font-size: 56px; }
+    .bootTitle { font-size: 22px; letter-spacing: 3px; }
+    .bootSub { font-size: 11px; letter-spacing: 6px; margin-bottom: 26px; }
+  }
 </style>
+<base target="_blank">
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
 </head>
 <body>
+
+<!-- ===== BOOT LOADER (shown instantly, removed only when every asset has loaded) ===== -->
+<div id="bootScreen">
+  <div class="bootInner">
+    <div class="bootLogo">&#8734;</div>
+    <div class="bootTitle">INFINITE RUNNERS</div>
+    <div class="bootSub">DRAGONS ARENA</div>
+    <div class="bootBarWrap"><div id="bootBarFill"></div></div>
+    <div class="bootRow"><div id="bootStatus">Summoning dragons...</div><div id="bootPct">0%</div></div>
+    <div id="bootNetBox">
+      <div class="bootNetSpin"></div>
+      <div class="bootNetTitle">YOUR CONNECTION SEEMS A LITTLE WEAK</div>
+      <div class="bootNetMsg">Don't worry &mdash; we're still trying. The arena will open the moment every dragon has arrived safely.</div>
+      <button id="bootRetryBtn">TRY AGAIN NOW</button>
+    </div>
+  </div>
+</div>
 
 <canvas id="pCanvas"></canvas>
 
@@ -742,7 +840,7 @@
 <!-- ===== LOADING OVERLAY ===== -->
 <div id="loadingOverlay"><div class="loadSpin"></div><div class="loadText">Loading...</div></div>
 
-<script type="module" src="./src/main.js?v=28"></script>
+<script type="module" src="./src/main.js?v=29"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== -->
 <div id="dragonDetailModal" class="screen">
