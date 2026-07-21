@@ -1,4 +1,4 @@
-import CONFIG from './config.js';
+import CONFIG, { DRAGON_IMAGES } from './config.js';
 import AssetLoader from './assetLoader.js';
 import { DragonManager } from './dragonManager.js';
 import MovementSystem from './movementSystem.js';
@@ -43,6 +43,96 @@ class EventBus {
     const idx = arr.indexOf(callback);
     if (idx > -1) arr.splice(idx, 1);
   }
+}
+
+// ==================== BOOT LOADER ====================
+// Drives #bootScreen: the full-screen loader that appears the instant
+// the page opens and stays until EVERY image the menus and arena need
+// has actually arrived. Real per-file progress, a stall watchdog that
+// shows a polite weak-network message, and a retry path so a player is
+// never let into the game with broken images.
+class BootLoader {
+  constructor() {
+    this.el = document.getElementById('bootScreen');
+    this.fill = document.getElementById('bootBarFill');
+    this.pct = document.getElementById('bootPct');
+    this.status = document.getElementById('bootStatus');
+    this.netBox = document.getElementById('bootNetBox');
+    this.retryBtn = document.getElementById('bootRetryBtn');
+    this.lastTick = Date.now();
+    this.done = false;
+    // Stall watchdog: 10s without a single file finishing = weak network.
+    this.watchdog = setInterval(() => {
+      if (this.done) return;
+      if (Date.now() - this.lastTick > 10000) this.showNetWarning();
+    }, 1000);
+  }
+
+  setProgress(done, total) {
+    this.lastTick = Date.now();
+    const pct = Math.min(100, Math.round((done / Math.max(1, total)) * 100));
+    if (this.fill) this.fill.style.width = pct + '%';
+    if (this.pct) this.pct.textContent = pct + '%';
+    if (this.status) this.status.textContent = `Summoning dragons... ${done}/${total}`;
+    this.hideNetWarning();
+  }
+
+  showNetWarning() {
+    if (this.netBox) this.netBox.classList.add('show');
+  }
+
+  hideNetWarning() {
+    if (this.netBox) this.netBox.classList.remove('show');
+  }
+
+  // Everything arrived - fade the loader away and let the player in.
+  finish() {
+    this.done = true;
+    clearInterval(this.watchdog);
+    if (this.fill) this.fill.style.width = '100%';
+    if (this.pct) this.pct.textContent = '100%';
+    if (this.status) this.status.textContent = 'The arena awaits.';
+    this.hideNetWarning();
+    if (this.el) {
+      setTimeout(() => this.el.classList.add('boot-done'), 350);
+      setTimeout(() => { if (this.el.parentNode) this.el.parentNode.removeChild(this.el); }, 1100);
+    }
+  }
+
+  // A required asset failed every retry - keep the player here, explain
+  // politely, and hand them a working retry button (cached files skip
+  // instantly, so a retry only refetches what actually failed).
+  fail(retryFn) {
+    if (this.status) this.status.textContent = 'A few files could not make it through.';
+    this.showNetWarning();
+    if (this.retryBtn) {
+      this.retryBtn.style.display = 'inline-block';
+      this.retryBtn.onclick = async () => {
+        this.retryBtn.style.display = 'none';
+        this.hideNetWarning();
+        this.lastTick = Date.now();
+        if (this.status) this.status.textContent = 'Trying again...';
+        try {
+          await retryFn();
+        } catch (e) {
+          this.fail(retryFn);
+        }
+      };
+    }
+  }
+}
+
+// Every menu/arena image that is NOT a dragon sprite but still has to
+// be sitting in cache before we let the player past the boot screen.
+function bootExtraImages() {
+  return [
+    ...Object.values(DRAGON_IMAGES),           // select-screen portraits
+    '/arenas/arena_stone.png',
+    '/arenas/arena_grass.png',
+    '/arenas/arena_purple.png',
+    '/arenas/arena_fire.png',
+    './shadow-drake-bg.png'                    // title screen backdrop
+  ];
 }
 
 // ==================== MAIN GAME ====================
@@ -112,6 +202,7 @@ class Game {
   }
 
   async init() {
+    this.bootLoader = new BootLoader();
     this.setupEventListeners();
     await this.setupFirebase();
     this.effectsSystem.init();
@@ -162,14 +253,24 @@ class Game {
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
 
-    try {
-      await AssetLoader.loadDragons();
+    // Boot gate: load EVERY image with real progress, and only let the
+    // player past the boot screen once nothing is missing or broken.
+    const loadEverything = async () => {
+      await AssetLoader.preloadAll(
+        (done, total) => this.bootLoader.setProgress(done, total),
+        bootExtraImages()
+      );
       await this.arenaManager.preloadAll();
       this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
       this.assetsLoaded = true;
       console.log('[Assets] All dragon and arena assets loaded successfully');
+      this.bootLoader.finish();
+    };
+    try {
+      await loadEverything();
     } catch (e) {
       console.error('Asset load failed:', e);
+      this.bootLoader.fail(loadEverything);
     }
   }
 
