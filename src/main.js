@@ -1328,11 +1328,11 @@ class Game {
         angle = dragon.angle;
       } else if (this.aiController) {
         angle = this.aiController.getInputAngle(dragon, allDragons);
-        // AI attack: fire when the meter is full and it has a live hunt target
-        if ((dragon.attackCharge || 0) >= CONFIG.ATTACK_METER_MAX &&
-            dragon.aiHuntTarget && dragon.aiHuntTarget.alive) {
-          this.dragonManager.activateAttack(dragon);
-        }
+        // AI attack (magazine model): hold while it has charge and a live
+        // hunt target; the meter drains only during the hold, so the AI
+        // naturally saves leftover charge when it breaks off.
+        dragon.attackHeld = !!(dragon.aiHuntTarget && dragon.aiHuntTarget.alive &&
+                               (dragon.attackCharge || 0) > 0);
       } else {
         angle = dragon.angle || 0;
       }
@@ -1367,8 +1367,9 @@ class Game {
     }
 
     // Local player attack activation (ATTACK button / Space / click)
-    if (this.localDragon && this.localDragon.alive && this.movementSystem.consumeAttackRequest()) {
-      this.dragonManager.activateAttack(this.localDragon);
+    // Hold-to-attack: dragonManager drains the magazine only while held.
+    if (this.localDragon) {
+      this.localDragon.attackHeld = this.localDragon.alive && this.movementSystem.isAttackHeld();
     }
 
     const score = this.localDragon ? this.localDragon.score : 0;
