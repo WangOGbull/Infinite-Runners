@@ -113,6 +113,14 @@ class UIManager {
 
   buildModeSelect() {}
 
+  // Fires fn the INSTANT the finger/mouse goes down - no 300ms mobile
+  // tap delay, no waiting for the finger to lift. This is what makes the
+  // carousel feel responsive instead of "dead on click".
+  _tap(el, fn) {
+    if (!el) return;
+    el.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(e); });
+  }
+
   initDragonCarousel(dragons) {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
@@ -175,12 +183,9 @@ class UIManager {
     }
     if (leftArrow) leftArrow.style.display = 'flex';
     if (rightArrow) rightArrow.style.display = 'flex';
-    if (selectBtn) {
-      selectBtn.textContent = 'SELECT';
-      selectBtn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
-      selectBtn.style.boxShadow = '0 4px 20px rgba(34,197,94,0.3)';
-      selectBtn.style.color = '#fff';
-    }
+    // NOTE: no inline styles on selectBtn anymore - the stone-age look
+    // lives in CSS, and the label ("VIEW DRAGON" + dragon icon) lives in
+    // the HTML. Stamping styles here overrode both on every render.
     this.renderNavDots();
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
   }
@@ -280,7 +285,7 @@ class UIManager {
     });
     grid.innerHTML = html;
     grid.querySelectorAll('.dsUpgradeBtn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      this._tap(btn, (e) => {
         e.stopPropagation();
         this.upgradePower(btn.dataset.dragon, btn.dataset.stat, parseInt(btn.dataset.cost));
       });
@@ -316,7 +321,7 @@ class UIManager {
     this.dragonsData.forEach((_, i) => {
       const dot = document.createElement('div');
       dot.className = 'dsNavDot' + (i === this.carouselIndex ? ' active' : '');
-      dot.addEventListener('click', () => { this.carouselIndex = i; this.renderCarousel(); });
+      this._tap(dot, () => { this.carouselIndex = i; this.renderCarousel(); });
       dots.appendChild(dot);
     });
   }
@@ -380,17 +385,17 @@ class UIManager {
     const btnBack = document.getElementById('btnDsBack');
     if (btnBack) btnBack.addEventListener('click', () => this.showScreen('titleScreen'));
     const nextBtn = document.getElementById('dsNextBtn');
-    if (nextBtn) nextBtn.addEventListener('click', () => this.goToBattleMode());
+    this._tap(nextBtn, () => this.goToBattleMode());
     const ageBtn = document.getElementById('dsDragonAgeBtn');
-    if (ageBtn) ageBtn.addEventListener('click', () => this.goToBattleMode());
+    this._tap(ageBtn, () => this.goToBattleMode());
     const arrowLeft = document.getElementById('dsArrowLeft');
-    if (arrowLeft) arrowLeft.addEventListener('click', () => this.carouselPrev());
+    this._tap(arrowLeft, () => this.carouselPrev());
     const arrowRight = document.getElementById('dsArrowRight');
-    if (arrowRight) arrowRight.addEventListener('click', () => this.carouselNext());
+    this._tap(arrowRight, () => this.carouselNext());
     const selectBtn = document.getElementById('dsSelectBtn');
-    if (selectBtn) selectBtn.addEventListener('click', () => { const d = this.dragonsData[this.carouselIndex]; if (d) this.showDragonModal(d); });
+    this._tap(selectBtn, () => { const d = this.dragonsData[this.carouselIndex]; if (d) this.showDragonModal(d); });
     const modalSelect = document.getElementById('btnDdmSelect');
-    if (modalSelect) modalSelect.addEventListener('click', () => this.selectCurrentDragon());
+    this._tap(modalSelect, () => this.selectCurrentDragon());
     const modalClose = document.getElementById('btnDdmClose');
     if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
     const modeBack = document.getElementById('btnModeBack');
