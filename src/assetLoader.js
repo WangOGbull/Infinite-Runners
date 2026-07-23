@@ -110,27 +110,34 @@ class AssetLoader {
       const bodySrc = `${CONFIG.ASSET_BASE_URL}${name}_body.png`;
       const tailSrc = `${CONFIG.ASSET_BASE_URL}${name}_tail.png`;
       try {
-        const [head, body, tail] = await Promise.all([
-          this._tracked(headSrc),
+        // REQUIRED: body + tail only. The plain {name}_head.png is just
+        // one possible head frame now - it was removed from the repo when
+        // the _close/_open frames took over, so demanding it killed every
+        // dragon (a missing file returns the SPA fallback HTML page,
+        // which a browser cannot decode as an image).
+        const [body, tail] = await Promise.all([
           this._tracked(bodySrc),
           this._tracked(tailSrc)
         ]);
-        // Attack-system head frames: _close = default (mouth closed),
-        // _open = attack mode. Both optional - they fall back to the
-        // plain {name}_head.png so a missing frame never breaks a dragon.
+        // Head frames, each optional individually: _close = default
+        // (mouth closed), _open = attack mode, plain = legacy fallback.
+        // A dragon only fails if NONE of the three made it through.
         let headClose = null;
         let headOpen = null;
+        let head = null;
         try { headClose = await this._tracked(headCloseSrc); } catch (e) { /* optional */ }
         try { headOpen = await this._tracked(headOpenSrc); } catch (e) { /* optional */ }
-        const defaultHead = (headClose && headClose.naturalWidth > 0) ? headClose : head;
-        const attackHead = (headOpen && headOpen.naturalWidth > 0) ? headOpen : null;
+        try { head = await this._tracked(headSrc); } catch (e) { /* optional */ }
+        const defaultHead = headClose || head || headOpen;
+        const attackHead = headOpen || null;
+        if (!defaultHead) throw new Error(`No head frame for ${name}`);
         dragons.push({
           name,
           head: defaultHead,
           headOpen: attackHead,
           body,
           tail,
-          headSrc: headClose ? headCloseSrc : headSrc,
+          headSrc: headClose ? headCloseSrc : (head ? headSrc : headOpenSrc),
           bodySrc,
           tailSrc,
           display: {
