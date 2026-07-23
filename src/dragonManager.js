@@ -12,24 +12,13 @@ export class DragonManager {
     this.dragons = [];
   }
 
-  // Attack meter: charge it by eating. Returns true when it JUST became full.
+  // Attack meter (gun-magazine model): eating loads the magazine.
+  // Returns true when it JUST became full.
   addAttackCharge(dragon, amount = 1) {
-    if (!dragon || !dragon.alive || dragon.attackActive) return false;
+    if (!dragon || !dragon.alive) return false;
     const wasFull = (dragon.attackCharge || 0) >= CONFIG.ATTACK_METER_MAX;
     dragon.attackCharge = Math.min(CONFIG.ATTACK_METER_MAX, (dragon.attackCharge || 0) + amount);
     return !wasFull && dragon.attackCharge >= CONFIG.ATTACK_METER_MAX;
-  }
-
-  // Fire attack mode if the meter is full. Boost + open-mouth head +
-  // kill-enabled for CONFIG.ATTACK_DURATION_MS, then the meter empties.
-  activateAttack(dragon) {
-    if (!dragon || !dragon.alive || dragon.attackActive) return false;
-    if ((dragon.attackCharge || 0) < CONFIG.ATTACK_METER_MAX) return false;
-    dragon.attackCharge = 0;
-    dragon.attackActive = true;
-    dragon.attackTimer = CONFIG.ATTACK_DURATION_MS;
-    dragon.boostActive = true;
-    return true;
   }
 
   createDragon(type, x, y, teamId = null) {
@@ -49,7 +38,7 @@ export class DragonManager {
       boostActive: false,
       attackCharge: 0,
       attackActive: false,
-      attackTimer: 0,
+      attackHeld: false,
       killStreak: 0,
       segments: [],
       history: [],
@@ -121,7 +110,7 @@ export class DragonManager {
     dragon.angle = angle;
     dragon.alive = true;
     dragon.attackActive = false;
-    dragon.attackTimer = 0;
+    dragon.attackHeld = false;
     dragon.attackCharge = 0;
     dragon.boostActive = false;
     dragon.immunityTimer = CONFIG.SPAWN_IMMUNITY_MS;
@@ -178,12 +167,25 @@ export class DragonManager {
     for (const dragon of this.dragons) {
       if (!dragon.alive) continue;
 
-      // Attack mode timer (remote dragons get this state synced instead)
-      if (dragon.attackActive && !dragon.isRemote) {
-        dragon.attackTimer -= deltaTime;
-        if (dragon.attackTimer <= 0) {
+      // Attack, gun-magazine model (remote dragons get this state synced):
+      // holding ATTACK opens the mouth + boosts + enables kills, and drains
+      // the meter ONLY while held. Releasing keeps the remaining charge for
+      // the next burst. A full magazine lasts CONFIG.ATTACK_DURATION_MS.
+      if (!dragon.isRemote) {
+        const wantsAttack = !!dragon.attackHeld && (dragon.attackCharge || 0) > 0;
+        if (wantsAttack) {
+          dragon.attackActive = true;
+          dragon.boostActive = true;
+          const drain = (CONFIG.ATTACK_METER_MAX / CONFIG.ATTACK_DURATION_MS) * deltaTime;
+          dragon.attackCharge = Math.max(0, dragon.attackCharge - drain);
+          if (dragon.attackCharge <= 0) {
+            // Magazine's dry - mouth closes until the player reloads by eating.
+            dragon.attackHeld = false;
+            dragon.attackActive = false;
+            dragon.boostActive = false;
+          }
+        } else if (dragon.attackActive) {
           dragon.attackActive = false;
-          dragon.attackTimer = 0;
           dragon.boostActive = false;
         }
       }
