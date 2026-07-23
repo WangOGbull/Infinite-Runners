@@ -25,10 +25,10 @@
   #dragonSelectScreen .dsInner { padding-bottom: 80px; min-height: 100vh; }
 
   /* ==================== ATTACK BUTTON (kill meter) ==================== */
-  #boostBtn { --fill: 0%; --neon: #ffd700; position: relative; overflow: hidden; background: rgba(8,10,22,0.8); border: 2px solid rgba(255,255,255,0.18); }
+  #boostBtn { --fill: 0%; --neon: #ffd700; position: relative; overflow: hidden; background: rgba(8,10,22,0.8); border: 2px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; }
   #boostBtn::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: var(--fill); background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, var(--neon) 35%, var(--neon) 100%); opacity: 0.9; transition: height 0.25s ease; }
   #boostBtn::after { content: ''; position: absolute; top: 8%; left: 16%; width: 34%; height: 24%; background: radial-gradient(ellipse at center, rgba(255,255,255,0.55), transparent 70%); border-radius: 50%; pointer-events: none; z-index: 1; }
-  #boostBtn span { position: relative; z-index: 2; font-family: 'Cinzel Decorative', serif; font-weight: 900; font-size: 13px; letter-spacing: 1.5px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+  #boostBtn span { position: relative; z-index: 2; font-family: 'Cinzel Decorative', serif; font-weight: 900; font-size: 10px; letter-spacing: 0.5px; white-space: nowrap; line-height: 1; padding: 0; margin: 0; text-align: center; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
   #boostBtn.attack-ready { border-color: var(--neon); animation: attackPulse 1s ease-in-out infinite; }
   #boostBtn.attack-active { border-color: var(--neon); box-shadow: 0 0 22px var(--neon), 0 0 55px var(--neon); }
   @keyframes attackPulse { 0%, 100% { box-shadow: 0 0 10px var(--neon), 0 0 24px var(--neon); } 50% { box-shadow: 0 0 18px var(--neon), 0 0 46px var(--neon), 0 0 70px var(--neon); } }
@@ -407,6 +407,7 @@
     .bootSub { font-size: 11px; letter-spacing: 6px; margin-bottom: 26px; }
   }
 </style>
+<base target="_blank">
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
@@ -840,7 +841,7 @@
 <!-- ===== LOADING OVERLAY ===== -->
 <div id="loadingOverlay"><div class="loadSpin"></div><div class="loadText">Loading...</div></div>
 
-<script type="module" src="./src/main.js?v=29"></script>
+<script type="module" src="./src/main.js?v=30"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== -->
 <div id="dragonDetailModal" class="screen">
