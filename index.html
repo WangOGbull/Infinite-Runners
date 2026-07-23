@@ -16,13 +16,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="./src/styles.css?v=26">
+<link rel="stylesheet" href="./src/styles.css?v=27">
 
 <style>
   html, body { overflow-x: hidden; max-width: 100vw; }
   *, *::before, *::after { box-sizing: border-box; }
-  #dragonSelectScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
-  #dragonSelectScreen .dsInner { padding-bottom: 80px; min-height: 100vh; }
+  /* Select screen fits ONE viewport - no scrolling, phone or PC */
+  #dragonSelectScreen { overflow: hidden !important; }
+  #dragonSelectScreen .dsInner { height: 100dvh; }
 
   /* ==================== ATTACK BUTTON (kill meter) ==================== */
   #boostBtn { --fill: 0%; --neon: #ffd700; position: relative; overflow: hidden; background: rgba(8,10,22,0.8); border: 2px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; }
@@ -88,16 +89,16 @@
       url('./scene_bg_night.png') center bottom / cover no-repeat;
   }
   #dsDragonImg, #ddmImg { mix-blend-mode: normal !important; }
-  .dsCarouselWrap { position: relative; width: 100%; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 6px; padding-bottom: 20px; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; -ms-overflow-style: none; }
+  .dsCarouselWrap { position: relative; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding-top: 4px; padding-bottom: 8px; overflow: hidden; scrollbar-width: none; -ms-overflow-style: none; }
   .dsCarouselWrap::-webkit-scrollbar { display: none; width: 0; height: 0; }
   .dsTopBar { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 2px; margin-bottom: 2px; }
-  .dsBackBtn { padding: 7px 16px; border-radius: 50px; border: 1px solid rgba(255,255,255,0.28); background: rgba(8,18,36,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: #fff; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 12px; cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 6px; }
-  .dsBackBtn:hover { background: rgba(8,18,36,0.75); border-color: rgba(255,255,255,0.5); }
+  .dsBackBtn { padding: 8px 18px; border-radius: 10px; border: 2px solid rgba(201,168,106,0.5); background: linear-gradient(180deg, rgba(138,107,63,0.55), rgba(62,47,28,0.7)); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: #f6e7c1; font-family: 'Cinzel Decorative', cursive; font-weight: 700; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 6px; box-shadow: inset 0 1px 0 rgba(255,230,170,0.25), 0 3px 10px rgba(0,0,0,0.4); text-shadow: 0 1px 3px rgba(0,0,0,0.7); touch-action: manipulation; }
+  .dsBackBtn:hover { background: rgba(62,47,28,0.75); border-color: rgba(232,207,154,0.7); color: #ffd98a; }
   .dsCoinDisplay { display: flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 50px; background: rgba(8,18,36,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,215,0,0.35); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 14px; color: #ffd700; }
   .dsCoinDisplay i, .dsCoinDisplay svg { color: #ffd700; }
-  .dsDragonStage { position: relative; width: 100%; max-width: 680px; height: 44vh; min-height: 260px; display: flex; align-items: center; justify-content: center; margin-top: 4px; }
-  .dsArrow { position: absolute; top: 50%; transform: translateY(-50%); width: 58px; height: 58px; border-radius: 18px; border: 2px solid rgba(255,255,255,0.6); background: linear-gradient(180deg, #4ade80 0%, #22c55e 50%, #16a34a 100%); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; z-index: 10; font-size: 18px; box-shadow: 0 6px 18px rgba(22,163,74,0.5), inset 0 2px 0 rgba(255,255,255,0.4); }
-  .dsArrow:hover { transform: translateY(-50%) scale(1.1); box-shadow: 0 8px 24px rgba(22,163,74,0.6), inset 0 2px 0 rgba(255,255,255,0.4); }
+  .dsDragonStage { position: relative; width: 100%; max-width: 680px; height: clamp(150px, 30vh, 380px); min-height: 0; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  .dsArrow { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 14px; border: 2px solid rgba(201,168,106,0.6); background: linear-gradient(180deg, rgba(138,107,63,0.85) 0%, rgba(92,69,42,0.9) 55%, rgba(62,47,28,0.95) 100%); color: #f6e7c1; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; z-index: 10; font-size: 18px; box-shadow: 0 6px 18px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,230,170,0.35); touch-action: manipulation; }
+  .dsArrow:hover { transform: translateY(-50%) scale(1.08); border-color: #e8cf9a; color: #ffd98a; box-shadow: 0 8px 24px rgba(201,168,106,0.4), inset 0 2px 0 rgba(255,230,170,0.35); }
   .dsArrow:active { transform: translateY(-50%) scale(0.95); }
   .dsArrow svg { width: 30px; height: 30px; stroke-width: 3; }
   .dsArrowLeft { left: 16px; }
@@ -124,16 +125,18 @@
   .dsPowerLevel { font-family: 'Cinzel Decorative', cursive; font-size: 18px; color: #fff; }
   .dsPowerBar { flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.16); margin: 0 10px; overflow: hidden; }
   .dsPowerBarFill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #a855f7, #22d3ee); transition: width 0.4s ease; }
-  .dsUpgradeBtn { padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35); background: linear-gradient(180deg, #4ade80, #16a34a); color: #fff; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 4px; box-shadow: 0 3px 10px rgba(22,163,74,0.35); }
-  .dsUpgradeBtn:hover { transform: scale(1.06); box-shadow: 0 5px 14px rgba(22,163,74,0.45); }
+  .dsUpgradeBtn { padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(201,168,106,0.5); background: linear-gradient(180deg, rgba(138,107,63,0.7), rgba(92,69,42,0.8)); color: #f6e7c1; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 4px; box-shadow: 0 3px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,230,170,0.25); touch-action: manipulation; }
+  .dsUpgradeBtn:hover { transform: scale(1.06); border-color: #e8cf9a; color: #ffd98a; box-shadow: 0 5px 14px rgba(201,168,106,0.35); }
   .dsUpgradeBtn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
-  .dsUpgradeBtn.maxed { border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.15); color: #4ade80; box-shadow: none; }
-  .dsSelectRow { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 4px; margin-bottom: 12px; }
+  .dsUpgradeBtn.maxed { border-color: rgba(230,207,159,0.5); background: rgba(201,168,106,0.15); color: #ffd98a; box-shadow: none; }
+  .dsSelectRow { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 0; margin-bottom: 0; }
   .dsSelectBadge { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 1px; padding: 6px 14px; border-radius: 20px; background: rgba(8,18,36,0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,107,107,0.5); color: #ff6b6b; }
-  .dsSelectBadge.selected { border-color: rgba(74,222,128,0.5); color: #4ade80; }
-  .dsSelectBtn { padding: 14px 56px; border-radius: 50px; border: 2px solid rgba(255,255,255,0.6); background: linear-gradient(180deg, #4ade80 0%, #22c55e 50%, #16a34a 100%); color: #fff; font-family: 'Cinzel Decorative', cursive; font-weight: 700; font-size: 16px; letter-spacing: 3px; cursor: pointer; transition: all 0.15s; box-shadow: 0 6px 22px rgba(22,163,74,0.5), inset 0 2px 0 rgba(255,255,255,0.35); }
-  .dsSelectBtn:hover { transform: scale(1.06); box-shadow: 0 8px 30px rgba(22,163,74,0.6), inset 0 2px 0 rgba(255,255,255,0.35); }
+  .dsSelectBadge.selected { border-color: rgba(230,207,159,0.6); color: #ffd98a; }
+  /* ===== STONE-AGE BUTTON (bronze/gold, matches ATTACK + boot screen) ===== */
+  .dsSelectBtn { padding: 13px 38px; border-radius: 14px; border: 2px solid #c9a86a; background: linear-gradient(180deg, #8a6b3f 0%, #5c452a 55%, #3e2f1c 100%); color: #f6e7c1; font-family: 'Cinzel Decorative', cursive; font-weight: 900; font-size: 14px; letter-spacing: 2px; cursor: pointer; transition: all 0.15s; box-shadow: 0 6px 22px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,230,170,0.35), inset 0 -3px 6px rgba(0,0,0,0.45); text-shadow: 0 2px 4px rgba(0,0,0,0.7); display: flex; align-items: center; gap: 10px; touch-action: manipulation; }
+  .dsSelectBtn:hover { transform: scale(1.05); border-color: #e8cf9a; box-shadow: 0 8px 30px rgba(201,168,106,0.35), inset 0 2px 0 rgba(255,230,170,0.35); }
   .dsSelectBtn:active { transform: scale(0.96); }
+  .dsSelectBtn i { font-size: 17px; color: #ffd98a; text-shadow: 0 0 10px rgba(255,180,60,0.55); }
   .dsNavDots { display: flex; gap: 8px; justify-content: center; margin-bottom: 10px; }
   .dsNavDot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,0.45); border: 1px solid rgba(0,0,0,0.15); cursor: pointer; transition: all 0.2s; }
   .dsNavDot.active { background: #fff; box-shadow: 0 0 10px rgba(255,255,255,0.8); width: 24px; border-radius: 5px; }
@@ -316,13 +319,14 @@
     .dsDragonName { font-size: 20px; padding: 5px 20px; letter-spacing: 2px; }
     .dsDragonTier { font-size: 10px; padding: 3px 12px; }
     .dsPowersGrid { grid-template-columns: 1fr 1fr; gap: 8px; width: 94%; }
-    .dsPowerCard { padding: 8px 10px; }
-    .dsDragonStage { height: 36vh; min-height: 210px; }
+    .dsPowerCard { padding: 6px 8px; }
+    .dsDragonStage { height: 27vh; min-height: 150px; }
     .dsArrow { width: 46px; height: 46px; font-size: 14px; border-radius: 14px; }
     .dsArrow svg { width: 24px; height: 24px; }
     .dsArrowLeft { left: 8px; }
     .dsArrowRight { right: 8px; }
-    .dsSelectBtn { padding: 12px 40px; font-size: 13px; }
+    .dsSelectBtn { padding: 11px 26px; font-size: 12px; gap: 8px; }
+    .dsSelectBtn i { font-size: 14px; }
     .baBox { padding: 20px 16px; }
     .baTitle { font-size: 18px; }
   }
@@ -413,6 +417,7 @@
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -482,7 +487,7 @@
       <div class="dsPowersGrid" id="dsPowersGrid"></div>
       <div class="dsSelectRow">
         <span class="dsSelectBadge" id="dsSelectBadge">NOT SELECTED</span>
-        <button class="dsSelectBtn" id="dsSelectBtn">SELECT</button>
+        <button class="dsSelectBtn" id="dsSelectBtn"><i class="fa-solid fa-dragon"></i> VIEW DRAGON</button>
         <button class="dsDragonAgeBtn" id="dsDragonAgeBtn" style="display:none;"><i data-lucide="swords"></i> ENTER BATTLE</button>
       </div>
       <div class="dsNavDots" id="dsNavDots"></div>
@@ -865,7 +870,7 @@
       </div>
     </div>
     <div class="ddmActions">
-      <button class="ddmSelectBtn" id="btnDdmSelect"><i data-lucide="check-circle"></i> SELECT DRAGON</button>
+      <button class="ddmSelectBtn" id="btnDdmSelect"><i class="fa-solid fa-dragon"></i> SELECT DRAGON</button>
     </div>
   </div>
 </div>
