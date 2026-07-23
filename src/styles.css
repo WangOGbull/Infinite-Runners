@@ -39,17 +39,17 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 #dragonSelectScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
 #dragonSelectScreen .dsInner{width:100%;height:100%;display:flex;flex-direction:column}
 
-.dsCarouselWrap{position:relative;width:100%;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:20px;padding-bottom:16px;overflow-y:auto;overflow-x:hidden}
+.dsCarouselWrap{position:relative;width:100%;flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;padding-top:4px;padding-bottom:8px;overflow:hidden}
 
 .dsTopBar{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 20px;margin-bottom:10px}
 
-.dsBackBtn{padding:6px 14px;border-radius:50px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.5);font-family:'Rajdhani',sans-serif;font-weight:600;font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
-.dsBackBtn:hover{color:#fff;border-color:rgba(255,255,255,0.2)}
+.dsBackBtn{padding:7px 16px;border-radius:10px;border:2px solid rgba(201,168,106,0.45);background:linear-gradient(180deg,rgba(92,69,42,0.5),rgba(62,47,28,0.6));color:#e6cf9f;font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:10px;letter-spacing:1px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;box-shadow:inset 0 1px 0 rgba(255,230,170,0.25),0 3px 10px rgba(0,0,0,0.4);touch-action:manipulation}
+.dsBackBtn:hover{color:#ffd98a;border-color:rgba(232,207,154,0.7);box-shadow:0 0 14px rgba(201,168,106,0.3),inset 0 1px 0 rgba(255,230,170,0.25)}
 
 .dsCoinDisplay{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:50px;background:rgba(0,0,0,0.4);border:1px solid rgba(0,180,216,0.2);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;color:#00b4d8}
 .dsCoinDisplay i{color:#ffd700}
 
-.dsDragonStage{position:relative;width:100%;max-width:500px;height:36vh;min-height:220px;display:flex;align-items:center;justify-content:center;border-radius:20px;overflow:hidden}
+.dsDragonStage{position:relative;width:100%;max-width:500px;height:clamp(150px,27vh,320px);min-height:0;display:flex;align-items:center;justify-content:center;border-radius:20px;overflow:hidden}
 
 /* Ground shadow beneath the dragon — this + the float animation on
    .dsDragonImgWrap below is what mainly kills the "flat 2D" look */
@@ -68,8 +68,8 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
   pointer-events:none;
 }
 
-.dsArrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:1px solid rgba(0,180,216,0.25);background:rgba(0,0,0,0.4);color:#00b4d8;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;z-index:10;font-size:18px}
-.dsArrow:hover{border-color:rgba(0,180,216,0.6);background:rgba(0,180,216,0.1);box-shadow:0 0 16px rgba(0,180,216,0.2)}
+.dsArrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:12px;border:2px solid rgba(201,168,106,0.5);background:linear-gradient(180deg,rgba(92,69,42,0.65),rgba(62,47,28,0.75));color:#e6cf9f;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;z-index:10;font-size:18px;box-shadow:inset 0 1px 0 rgba(255,230,170,0.25),0 4px 14px rgba(0,0,0,0.5);touch-action:manipulation}
+.dsArrow:hover{border-color:rgba(232,207,154,0.8);color:#ffd98a;box-shadow:0 0 16px rgba(201,168,106,0.35),inset 0 1px 0 rgba(255,230,170,0.25)}
 .dsArrowLeft{left:12px}
 .dsArrowRight{right:12px}
 
@@ -86,7 +86,7 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .dsDragonTier{font-family:'Rajdhani',sans-serif;font-size:11px;letter-spacing:2px;color:rgba(255,255,255,0.4);margin-top:4px}
 .dsDragonTier span{color:#00b4d8;font-weight:600}
 
-.dsXpBarWrap{width:80%;max-width:320px;margin:0 auto 16px}
+.dsXpBarWrap{width:80%;max-width:320px;margin:0 auto 6px}
 
 .dsXpBarTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 
@@ -114,13 +114,13 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 .dsPowerBarFill{height:100%;border-radius:3px;background:linear-gradient(90deg,#9b4dff,#00b4d8);transition:width 0.4s ease}
 
-.dsUpgradeBtn{padding:4px 10px;border-radius:6px;border:1px solid rgba(0,180,216,0.3);background:rgba(0,180,216,0.08);color:#00b4d8;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.dsUpgradeBtn{padding:4px 10px;border-radius:8px;border:1px solid rgba(201,168,106,0.45);background:linear-gradient(180deg,rgba(92,69,42,0.45),rgba(62,47,28,0.55));color:#e6cf9f;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:10px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;white-space:nowrap;display:flex;align-items:center;gap:4px;box-shadow:inset 0 1px 0 rgba(255,230,170,0.2);touch-action:manipulation}
 
-.dsUpgradeBtn:hover{background:rgba(0,180,216,0.15);border-color:rgba(0,180,216,0.5);box-shadow:0 0 10px rgba(0,180,216,0.15)}
+.dsUpgradeBtn:hover{border-color:rgba(232,207,154,0.7);color:#ffd98a;box-shadow:0 0 10px rgba(201,168,106,0.25)}
 
 .dsUpgradeBtn:disabled{opacity:0.3;cursor:not-allowed}
 
-.dsUpgradeBtn.maxed{border-color:rgba(74,222,128,0.3);background:rgba(74,222,128,0.08);color:#4ade80}
+.dsUpgradeBtn.maxed{border-color:rgba(230,207,159,0.5);background:rgba(201,168,106,0.15);color:#ffd98a}
 
 .dsSelectRow{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px}
 
@@ -128,9 +128,9 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 .dsSelectBadge.selected{background:rgba(74,222,128,0.1);border-color:rgba(74,222,128,0.3);color:#4ade80}
 
-.dsSelectBtn{padding:12px 48px;border-radius:50px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:14px;letter-spacing:3px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(34,197,94,0.3)}
+.dsSelectBtn{padding:13px 38px;border-radius:14px;border:2px solid #c9a86a;background:linear-gradient(180deg,#8a6b3f 0%,#5c452a 55%,#3e2f1c 100%);color:#f6e7c1;font-family:'Cinzel Decorative',cursive;font-weight:900;font-size:14px;letter-spacing:2px;cursor:pointer;transition:all 0.15s;box-shadow:0 6px 22px rgba(0,0,0,0.55),inset 0 2px 0 rgba(255,230,170,0.35),inset 0 -3px 6px rgba(0,0,0,0.45);text-shadow:0 2px 4px rgba(0,0,0,0.7);display:flex;align-items:center;gap:10px;touch-action:manipulation}
 
-.dsSelectBtn:hover{transform:scale(1.05);box-shadow:0 6px 28px rgba(34,197,94,0.4)}
+.dsSelectBtn:hover{transform:scale(1.05);border-color:#e8cf9a;box-shadow:0 8px 30px rgba(201,168,106,0.35),inset 0 2px 0 rgba(255,230,170,0.35)}
 
 .dsSelectBtn:active{transform:scale(0.97)}
 
@@ -390,9 +390,9 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
   /* Dragon select mobile */
   .dsDragonName{font-size:18px}
-  .dsPowersGrid{grid-template-columns:1fr;gap:8px}
-  .dsDragonStage{height:35vh;min-height:200px}
-  .dsArrow{width:36px;height:36px;font-size:14px}
+  .dsPowersGrid{grid-template-columns:1fr 1fr;gap:6px;width:94%}
+  .dsDragonStage{height:26vh;min-height:140px}
+  .dsArrow{width:38px;height:38px;font-size:14px}
   .dsSelectBtn{padding:10px 36px;font-size:12px}
   .dsDragonAgeBtn{padding:10px 28px;font-size:11px}
 }
@@ -485,9 +485,10 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 .ddmActions{display:flex;justify-content:center;margin-top:8px}
 
-.ddmSelectBtn{padding:12px 40px;border-radius:50px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:13px;letter-spacing:3px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(34,197,94,0.3);display:flex;align-items:center;gap:8px}
-.ddmSelectBtn:hover{transform:scale(1.05);box-shadow:0 6px 28px rgba(34,197,94,0.4)}
+.ddmSelectBtn{padding:12px 40px;border-radius:14px;border:2px solid #c9a86a;background:linear-gradient(180deg,#8a6b3f 0%,#5c452a 55%,#3e2f1c 100%);color:#f6e7c1;font-family:'Cinzel Decorative',cursive;font-weight:900;font-size:13px;letter-spacing:2px;cursor:pointer;transition:all 0.2s;box-shadow:0 6px 22px rgba(0,0,0,0.55),inset 0 2px 0 rgba(255,230,170,0.35),inset 0 -3px 6px rgba(0,0,0,0.45);text-shadow:0 2px 4px rgba(0,0,0,0.7);display:flex;align-items:center;gap:8px;touch-action:manipulation}
+.ddmSelectBtn:hover{transform:scale(1.05);border-color:#e8cf9a;box-shadow:0 8px 30px rgba(201,168,106,0.35),inset 0 2px 0 rgba(255,230,170,0.35)}
 .ddmSelectBtn:active{transform:scale(0.97)}
+.ddmSelectBtn i{color:#ffd98a;text-shadow:0 0 10px rgba(255,180,60,0.55)}
 
 @media(max-width:480px){
   .ddmBox{padding:22px 16px 18px;border-radius:16px}
