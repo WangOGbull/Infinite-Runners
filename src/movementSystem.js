@@ -4,7 +4,7 @@ class MovementSystem {
   constructor() {
     this.inputAngles = new Map();
     this.boosting = new Map();
-    this.attackQueued = false; // edge-triggered attack request (button/Space/click)
+    this.attackHeld = false; // hold-to-attack: true while button/Space/mouse is DOWN
 
     this.joystickActive = false;
     this.joystickCenter = { x: 0, y: 0 };
@@ -21,18 +21,22 @@ class MovementSystem {
       this.keys.add(e.code);
       if (e.code === 'Space') {
         e.preventDefault();
-        this.attackQueued = true;
+        this.attackHeld = true;
       }
     });
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.code);
+      if (e.code === 'Space') this.attackHeld = false;
     });
+    // Safety: tab losing focus mid-hold must not leave the mouth stuck open.
+    window.addEventListener('blur', () => { this.attackHeld = false; });
 
     window.addEventListener('mousemove', (e) => {
       this.mousePos.x = e.clientX;
       this.mousePos.y = e.clientY;
     });
-    window.addEventListener('mousedown', () => { this.attackQueued = true; });
+    window.addEventListener('mousedown', () => { this.attackHeld = true; });
+    window.addEventListener('mouseup', () => { this.attackHeld = false; });
 
     const joyArea = document.getElementById('joyArea');
     const boostBtn = document.getElementById('boostBtn');
@@ -68,8 +72,14 @@ class MovementSystem {
     if (boostBtn) {
       boostBtn.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        this.attackQueued = true;
+        this.attackHeld = true;
       }, { passive: false });
+      const releaseAttack = (e) => {
+        e.preventDefault();
+        this.attackHeld = false;
+      };
+      boostBtn.addEventListener('touchend', releaseAttack, { passive: false });
+      boostBtn.addEventListener('touchcancel', releaseAttack, { passive: false });
     }
   }
 
@@ -98,12 +108,10 @@ class MovementSystem {
     this.boosting.set(dragonId, active);
   }
 
-  // Returns true once if an attack was requested since the last call.
-  // The attack system (dragonManager.activateAttack) owns boostActive now.
-  consumeAttackRequest() {
-    const queued = this.attackQueued;
-    this.attackQueued = false;
-    return queued;
+  // Level-based attack input: true for as long as the player keeps the
+  // button held. dragonManager drains the meter only while this is true.
+  isAttackHeld() {
+    return this.attackHeld;
   }
 
   getInputAngle(dragonId, headX, headY, camera) {
@@ -122,9 +130,9 @@ class MovementSystem {
     return Math.atan2(dy, dx);
   }
 
-  // boostActive is owned by the attack system (dragonManager.activateAttack)
-  // and by network sync for remote dragons - this system only queues attack
-  // requests and feeds movement angles.
+  // boostActive is owned by the attack system (dragonManager's magazine
+  // drain) and by network sync for remote dragons - this system only tracks
+  // whether the attack button is held and feeds movement angles.
   update(dragonManager, camera, deltaTime) {
     this.updateJoystickVisual();
   }
