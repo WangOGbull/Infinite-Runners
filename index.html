@@ -147,25 +147,6 @@
   @keyframes dsFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
   .dsDragonImgWrap img { max-width: 100%; max-height: 88%; object-fit: contain; position: relative; z-index: 2; filter: drop-shadow(0 0 26px color-mix(in srgb, var(--neon, #00b4d8) 40%, transparent)); }
 
-  /* ---- summoning-circle pedestal: ring + pooled base glow + flame tongues, all keyed
-         to the per-dragon --neon color, sitting where the dragon's tail meets the temple ---- */
-  .dsPedestal { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 72%; height: 60px; z-index: 1; pointer-events: none; }
-  .dsPedestal::before { content: ''; position: absolute; left: 0; right: 0; bottom: 26px; height: 34px; border-radius: 50%; border: 2px solid var(--neon, #00b4d8); box-shadow: 0 0 18px var(--neon, #00b4d8), inset 0 0 14px var(--neon, #00b4d8); opacity: 0.75; animation: dsRingPulse 2.4s ease-in-out infinite; }
-  .dsPedestal::after { content: ''; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); width: 52%; height: 20px; border-radius: 50%; background: radial-gradient(ellipse at center, var(--neon, #00b4d8) 0%, color-mix(in srgb, var(--neon, #00b4d8) 55%, transparent) 45%, transparent 75%); filter: blur(3px); animation: dsFireFlicker 0.9s ease-in-out infinite alternate; }
-  @keyframes dsRingPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 0.95; } }
-  @keyframes dsFireFlicker { from { transform: translateX(-50%) scale(1); opacity: 0.75; } to { transform: translateX(-50%) scale(1.18); opacity: 1; } }
-
-  /* individual flame tongues licking up from the pedestal, color-matched per dragon */
-  .dsFlame { position: absolute; bottom: 4px; width: 12px; height: 30px; border-radius: 50% 50% 50% 50% / 65% 65% 35% 35%; background: linear-gradient(0deg, var(--neon, #00b4d8) 0%, color-mix(in srgb, var(--neon, #00b4d8) 65%, #fff 35%) 45%, transparent 92%); filter: blur(0.5px) drop-shadow(0 0 8px var(--neon, #00b4d8)); opacity: 0.85; mix-blend-mode: screen; transform-origin: bottom center; }
-  .dsFlame.f1 { left: 26%; height: 26px; animation: dsFlameFlicker 1.05s ease-in-out infinite; }
-  .dsFlame.f2 { left: 50%; margin-left: -6px; height: 38px; width: 14px; animation: dsFlameFlicker 0.8s ease-in-out infinite 0.12s; }
-  .dsFlame.f3 { left: 72%; height: 24px; animation: dsFlameFlicker 1.25s ease-in-out infinite 0.28s; }
-  @keyframes dsFlameFlicker {
-    0%, 100% { transform: scaleY(1) scaleX(1) rotate(-3deg); opacity: 0.7; }
-    30% { transform: scaleY(1.18) scaleX(0.88) rotate(4deg); opacity: 1; }
-    60% { transform: scaleY(0.88) scaleX(1.08) rotate(-5deg); opacity: 0.6; }
-  }
-
   .dsArrow { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border: none; cursor: pointer; z-index: 10; font-size: 20px; color: #f6e7c1; background: linear-gradient(180deg, #f0d9a0, #6e5226); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); display: flex; align-items: center; justify-content: center; transition: filter .15s; touch-action: manipulation; }
   .dsArrow i { position: relative; z-index: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
   .dsArrow::before { content: ''; position: absolute; inset: 3px; background: linear-gradient(180deg, #3d2d17, #1d1409); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
@@ -610,11 +591,6 @@
         <button class="dsArrow dsArrowLeft" id="dsArrowLeft"><i class="fa-solid fa-chevron-left"></i></button>
         <div class="dsDragonImgWrap" id="dsDragonImgWrap">
           <img id="dsDragonImg" src="" alt="Dragon">
-          <div class="dsPedestal">
-            <span class="dsFlame f1"></span>
-            <span class="dsFlame f2"></span>
-            <span class="dsFlame f3"></span>
-          </div>
         </div>
         <button class="dsArrow dsArrowRight" id="dsArrowRight"><i class="fa-solid fa-chevron-right"></i></button>
       </div>
