@@ -83,23 +83,13 @@
   .lobbyBox, #lobbyTierSelector, #lobbyArenaSelector, #tierBtns, #lobbyArenaThumbs { max-width: 100%; }
 
   /* ===== DRAGON SELECT — ORNATE ARENA EDITION (mockup build) ===== */
-  #dragonSelectScreen { position: fixed; inset: 0; background: #04060d; overflow: hidden; }
-
-  /* ---- scene frame: locked to the artwork's native 1536:1024 aspect ratio and
-         always shown in FULL (never cropped by background-size:cover), so the
-         moon icon top-left and the temple platform bottom-center are guaranteed
-         to be on screen no matter the device. min() picks whichever dimension
-         (viewport width vs height) is the tighter fit, exactly like object-fit:contain. ---- */
-  .dsSceneFrame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(100vw, 100dvh * 1.5); aspect-ratio: 1536 / 1024; z-index: 0; }
-  .dsSceneImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; }
-  .dsSceneFrame::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4,10,24,0.55) 0%, rgba(4,10,24,0.12) 25%, rgba(4,10,24,0.00) 50%, rgba(4,10,24,0.45) 100%); pointer-events: none; }
-
-  /* ---- dragon anchor: pinned to the temple platform's exact (x,y) position inside
-         the artwork (49.9%, 72.9%), measured from the reference image. Because the
-         frame above is never cropped, this coordinate lines up with the platform on
-         EVERY screen size — phone, tablet, ultrawide desktop — with no per-device
-         tuning needed. Only touch these two numbers if the background art changes. ---- */
-  .dsDragonAnchor { position: absolute; left: 49.9%; bottom: 27.1%; width: min(34%, 340px, 25dvh); aspect-ratio: 1 / 1.2; min-height: 120px; z-index: 1; pointer-events: none; animation: dsFloat 4s ease-in-out infinite; }
+  #dragonSelectScreen {
+    position: fixed; inset: 0; overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(4,10,24,0.55) 0%, rgba(4,10,24,0.12) 25%, rgba(4,10,24,0.00) 50%, rgba(4,10,24,0.45) 100%),
+      url('./scene_bg_night.png') center 62% / cover no-repeat;
+    background-color: #04060d;
+  }
   #dsDragonImg, #ddmImg { mix-blend-mode: normal !important; }
   .dsCarouselWrap { position: relative; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 2px 0 6px; overflow: hidden; }
   .dsCarouselWrap::-webkit-scrollbar { display: none; }
@@ -148,13 +138,14 @@
   .dsXpBar { width: 100%; height: 10px; border-radius: 6px; background: rgba(6,14,28,0.75); border: 1px solid rgba(72,224,255,0.25); overflow: hidden; }
   .dsXpBarFill { height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #22d3ee, #48e0ff); box-shadow: 0 0 12px rgba(72,224,255,0.7); transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
 
-  /* ---- stage row: now only houses the prev/next arrows; the dragon itself lives
-         in .dsDragonAnchor above, pinned to the temple platform ---- */
-  .dsDragonStage { position: relative; width: 100%; max-width: 640px; height: clamp(150px, 28vh, 340px); min-height: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-  .dsDragonStage > * { pointer-events: auto; }
-  @keyframes dsFloat { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-10px); } }
-  .dsDragonImgWrap { width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; position: relative; }
-  .dsDragonImgWrap img { max-width: 100%; max-height: 92%; object-fit: contain; position: relative; z-index: 2; filter: drop-shadow(0 0 26px color-mix(in srgb, var(--neon, #00b4d8) 40%, transparent)); }
+  /* ---- stage: dragon + arrows, laid out normally (no absolute image-anchoring) so
+         it can never end up off-screen or letterboxed — the glowing ring/flames
+         under the dragon are CSS, not part of the photo, so they're always
+         correctly aligned to the dragon regardless of the background crop ---- */
+  .dsDragonStage { position: relative; width: 100%; max-width: 640px; height: clamp(150px, 28vh, 340px); min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .dsDragonImgWrap { width: min(58%, 340px); height: 100%; display: flex; align-items: center; justify-content: center; position: relative; animation: dsFloat 4s ease-in-out infinite; }
+  @keyframes dsFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  .dsDragonImgWrap img { max-width: 100%; max-height: 88%; object-fit: contain; position: relative; z-index: 2; filter: drop-shadow(0 0 26px color-mix(in srgb, var(--neon, #00b4d8) 40%, transparent)); }
 
   /* ---- summoning-circle pedestal: ring + pooled base glow + flame tongues, all keyed
          to the per-dragon --neon color, sitting where the dragon's tail meets the temple ---- */
@@ -600,24 +591,6 @@
 
 <!-- ===== DRAGON SELECT ===== -->
 <div id="dragonSelectScreen" class="screen">
-
-  <!-- Artwork: always shown in full at its native aspect ratio (never cropped),
-       so the moon icon and the temple platform are on screen on every device.
-       The dragon is pinned to the platform's exact coordinates in the image. -->
-  <div class="dsSceneFrame" id="dsSceneFrame">
-    <img class="dsSceneImg" src="./scene_bg_night.png" alt="">
-    <div class="dsDragonAnchor" id="dsDragonAnchor">
-      <div class="dsDragonImgWrap" id="dsDragonImgWrap">
-        <img id="dsDragonImg" src="" alt="Dragon">
-        <div class="dsPedestal">
-          <span class="dsFlame f1"></span>
-          <span class="dsFlame f2"></span>
-          <span class="dsFlame f3"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="dsInner" style="width:100%;height:100%;display:flex;flex-direction:column;">
     <div class="dsTopBar">
       <button class="dsBackBtn" id="btnDsBack"><span><i class="fa-solid fa-arrow-left"></i> BACK</span></button>
@@ -635,6 +608,14 @@
       </div>
       <div class="dsDragonStage">
         <button class="dsArrow dsArrowLeft" id="dsArrowLeft"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="dsDragonImgWrap" id="dsDragonImgWrap">
+          <img id="dsDragonImg" src="" alt="Dragon">
+          <div class="dsPedestal">
+            <span class="dsFlame f1"></span>
+            <span class="dsFlame f2"></span>
+            <span class="dsFlame f3"></span>
+          </div>
+        </div>
         <button class="dsArrow dsArrowRight" id="dsArrowRight"><i class="fa-solid fa-chevron-right"></i></button>
       </div>
       <div class="dsPowersGrid" id="dsPowersGrid" style="display:none;"></div>
