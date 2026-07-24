@@ -83,7 +83,7 @@
   .lobbyBox, #lobbyTierSelector, #lobbyArenaSelector, #tierBtns, #lobbyArenaThumbs { max-width: 100%; }
 
   /* ===== DRAGON SELECT — ORNATE ARENA EDITION (mockup build) ===== */
-  #dragonSelectScreen { position: relative; background: #04060d; overflow: hidden; }
+  #dragonSelectScreen { position: fixed; inset: 0; background: #04060d; overflow: hidden; }
 
   /* ---- scene frame: locked to the artwork's native 1536:1024 aspect ratio and
          always shown in FULL (never cropped by background-size:cover), so the
@@ -99,7 +99,7 @@
          frame above is never cropped, this coordinate lines up with the platform on
          EVERY screen size — phone, tablet, ultrawide desktop — with no per-device
          tuning needed. Only touch these two numbers if the background art changes. ---- */
-  .dsDragonAnchor { position: absolute; left: 49.9%; bottom: 27.1%; width: 34%; max-width: 340px; aspect-ratio: 1 / 1.2; min-height: 150px; z-index: 1; pointer-events: none; animation: dsFloat 4s ease-in-out infinite; }
+  .dsDragonAnchor { position: absolute; left: 49.9%; bottom: 27.1%; width: min(34%, 340px, 25dvh); aspect-ratio: 1 / 1.2; min-height: 120px; z-index: 1; pointer-events: none; animation: dsFloat 4s ease-in-out infinite; }
   #dsDragonImg, #ddmImg { mix-blend-mode: normal !important; }
   .dsCarouselWrap { position: relative; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 2px 0 6px; overflow: hidden; }
   .dsCarouselWrap::-webkit-scrollbar { display: none; }
