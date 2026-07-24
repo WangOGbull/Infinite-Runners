@@ -138,11 +138,14 @@ class UIManager {
     const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
     const key = name.toLowerCase();
     const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
+    // Theme the whole screen in this dragon's color (name glow, wings,
+    // pedestal fire, image aura) via one CSS variable.
+    const screen = document.getElementById('dragonSelectScreen');
+    if (screen) screen.style.setProperty('--neon', color);
     const imgEl = document.getElementById('dsDragonImg');
     const newHeadUrl = DRAGON_IMAGES[key];
     if (imgEl) {
       imgEl.src = newHeadUrl || (typeof d.head === 'string' ? d.head : (d.head && d.head.src ? d.head.src : ''));
-      imgEl.style.filter = `drop-shadow(0 0 30px ${color}25)`;
     }
     const imgWrap = document.getElementById('dsDragonImgWrap');
     if (imgWrap) {
@@ -150,7 +153,7 @@ class UIManager {
       imgWrap.onclick = (e) => { e.stopPropagation(); const currentD = this.dragonsData[this.carouselIndex]; if (currentD) this.showDragonModal(currentD); };
     }
     const nameEl = document.getElementById('dsDragonName');
-    if (nameEl) { nameEl.textContent = name.toUpperCase(); nameEl.style.color = color; nameEl.style.textShadow = `0 0 20px ${color}40`; }
+    if (nameEl) nameEl.textContent = name.toUpperCase();
     const powers = this.getDragonPowers(key);
     const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
     const tierEl = document.getElementById('dsDragonTierNum');
@@ -163,7 +166,16 @@ class UIManager {
     const xpStart = document.getElementById('dsXpLevelStart');
     const xpEnd = document.getElementById('dsXpLevelEnd');
     if (xpText) xpText.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
-    if (xpFill) xpFill.style.width = `${(xpCurrent / 5200) * 100}%`;
+    // XP bar sweeps from 0 to its value every time a dragon is shown.
+    if (xpFill) {
+      const pct = Math.min(100, (xpCurrent / 5200) * 100);
+      xpFill.style.transition = 'none';
+      xpFill.style.width = '0%';
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        xpFill.style.transition = '';
+        xpFill.style.width = pct + '%';
+      }));
+    }
     if (xpStart) xpStart.textContent = avgLevel;
     if (xpEnd) xpEnd.textContent = avgLevel + 1;
     this.renderPowersGrid(key, color);
@@ -199,29 +211,53 @@ class UIManager {
     const powers = this.getDragonPowers(key);
     const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
     const img = document.getElementById('ddmImg');
-    if (img) { img.src = DRAGON_IMAGES[key] || dragon.head || ''; img.style.filter = `drop-shadow(0 0 40px ${color}40)`; }
+    if (img) img.src = DRAGON_IMAGES[key] || dragon.head || '';
     const nameEl = document.getElementById('ddmName');
-    if (nameEl) { nameEl.textContent = name.toUpperCase(); nameEl.style.color = color; nameEl.style.textShadow = `0 0 20px ${color}40`; }
+    if (nameEl) nameEl.textContent = name.toUpperCase();
     const tierEl = document.getElementById('ddmTierNum');
     const levelEl = document.getElementById('ddmDragonLevel');
     if (tierEl) tierEl.textContent = avgLevel;
     if (levelEl) levelEl.textContent = avgLevel;
+    // Theme the whole modal (border, portrait ring, section titles, glows)
     const box = document.getElementById('ddmBox');
-    if (box) { box.style.borderColor = color + '60'; box.style.boxShadow = `0 0 60px ${color}15, inset 0 0 40px ${color}08`; }
+    if (box) box.style.setProperty('--neon', color);
+    // XP row: hexagon badges + sweeping bar, same as the carousel
+    const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
+    const xpS = document.getElementById('ddmXpStart');
+    const xpE = document.getElementById('ddmXpEnd');
+    const xpT = document.getElementById('ddmXpText');
+    const xpF = document.getElementById('ddmXpFill');
+    if (xpS) xpS.textContent = avgLevel;
+    if (xpE) xpE.textContent = avgLevel + 1;
+    if (xpT) xpT.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
+    if (xpF) {
+      const pct = Math.min(100, (xpCurrent / 5200) * 100);
+      xpF.style.transition = 'none';
+      xpF.style.width = '0%';
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        xpF.style.transition = '';
+        xpF.style.width = pct + '%';
+      }));
+    }
     const statsContainer = document.getElementById('ddmStats');
     if (statsContainer) {
       const stats = [
-        { label: 'Defense', value: powers.defense, max: 10 },
-        { label: 'Speed', value: powers.speed, max: 10 },
-        { label: 'Rush', value: powers.rush, max: 10 },
-        { label: 'Attack', value: powers.attack, max: 10 }
+        { label: 'Defense', value: powers.defense, max: 10, icon: 'fa-shield-halved', c: '#38bdf8' },
+        { label: 'Speed', value: powers.speed, max: 10, icon: 'fa-feather', c: '#a855f7' },
+        { label: 'Rush', value: powers.rush, max: 10, icon: 'fa-bolt', c: '#4ade80' },
+        { label: 'Attack', value: powers.attack, max: 10, icon: 'fa-khanda', c: '#ef4444' }
       ];
       statsContainer.innerHTML = stats.map(s => `
-        <div class="ddmStatRow">
+        <div class="ddmStatRow" style="--stat:${s.c}">
+          <span class="ddmStatIcon"><i class="fa-solid ${s.icon}"></i></span>
           <span class="ddmStatLabel">${s.label}</span>
-          <div class="ddmStatBarWrap"><div class="ddmStatBar" style="width:${(s.value / s.max) * 100}%; background:linear-gradient(90deg, ${color}, ${color}80);"></div></div>
-          <span class="ddmStatValue" style="color:${color}">${s.value}</span>
+          <div class="ddmStatBarWrap"><div class="ddmStatBar" data-w="${(s.value / s.max) * 100}" style="background:linear-gradient(90deg, ${s.c}, ${s.c}90); box-shadow:0 0 10px ${s.c}80;"></div></div>
+          <span class="ddmStatValue" style="color:${s.c}">${s.value}</span>
         </div>`).join('');
+      // Stat bars sweep from 0 to their value as the modal opens.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        statsContainer.querySelectorAll('.ddmStatBar').forEach(b => { b.style.width = b.dataset.w + '%'; });
+      }));
     }
     const powersContainer = document.getElementById('ddmPowers');
     if (powersContainer) {
@@ -234,7 +270,7 @@ class UIManager {
       const dragonPowers = specialPowers[key] || specialPowers.aegis;
       powersContainer.innerHTML = dragonPowers.map(p => `
         <div class="ddmPowerSlot locked">
-          <div class="ddmPowerIcon"><i data-lucide="lock"></i></div>
+          <div class="ddmPowerIcon"><i class="fa-solid fa-lock"></i></div>
           <div class="ddmPowerInfo"><div class="ddmPowerName">${p.name}</div><div class="ddmPowerDesc">${p.desc}</div></div>
         </div>`).join('');
     }
@@ -263,6 +299,7 @@ class UIManager {
     const powers = this.getDragonPowers(dragonKey);
     const costs = { defense: 500, speed: 600, rush: 800, attack: 1000 };
     const labels = { defense: 'Defense', speed: 'Speed', rush: 'Rush Ability', attack: 'Attack' };
+    const icons = { defense: 'fa-shield-halved', speed: 'fa-feather', rush: 'fa-bolt', attack: 'fa-khanda' };
     const maxLevel = 10;
     let html = '';
     Object.keys(labels).forEach(stat => {
@@ -272,18 +309,22 @@ class UIManager {
       const isMaxed = level >= maxLevel;
       const barPct = (level / maxLevel) * 100;
       html += `
-        <div class="dsPowerCard" id="powerCard-${stat}">
-          <div class="dsPowerName">${labels[stat]}</div>
+        <div class="dsPowerCard stat-${stat}" id="powerCard-${stat}">
+          <div class="dsPowerHead"><span class="dsPowerIcon"><i class="fa-solid ${icons[stat]}"></i></span><div class="dsPowerName">${labels[stat]}</div></div>
           <div class="dsPowerLevelRow">
             <span class="dsPowerLevel">${level}</span>
-            <div class="dsPowerBar"><div class="dsPowerBarFill" style="width:${barPct}%;"></div></div>
-            <button class="dsUpgradeBtn ${isMaxed ? 'maxed' : ''}" data-stat="${stat}" data-cost="${cost}" data-dragon="${dragonKey}" ${isMaxed || !canAfford ? 'disabled' : ''}>
-              ${isMaxed ? '<i data-lucide="check"></i> MAX' : `<i data-lucide="arrow-up"></i> ${cost.toLocaleString()}`}
-            </button>
+            <div class="dsPowerBar"><div class="dsPowerBarFill" data-w="${barPct}"></div></div>
           </div>
+          <button class="dsUpgradeBtn ${isMaxed ? 'maxed' : ''}" data-stat="${stat}" data-cost="${cost}" data-dragon="${dragonKey}" ${isMaxed || !canAfford ? 'disabled' : ''}>
+            <span>${isMaxed ? '<i class="fa-solid fa-check"></i> MAX' : `<i class="fa-solid fa-arrow-up"></i> ${cost.toLocaleString()}`}</span>
+          </button>
         </div>`;
     });
     grid.innerHTML = html;
+    // Power bars sweep from 0 to their level every render.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      grid.querySelectorAll('.dsPowerBarFill').forEach(f => { f.style.width = f.dataset.w + '%'; });
+    }));
     grid.querySelectorAll('.dsUpgradeBtn').forEach(btn => {
       this._tap(btn, (e) => {
         e.stopPropagation();
