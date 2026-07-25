@@ -320,6 +320,13 @@ class Game {
 
     this.eventBus.on('ui:arenaSelected', ({ mode, difficulty, arenaIndex }) => {
       this.pendingArenaIndex = arenaIndex;
+      // FIX: these were never stored anywhere before. restartGame() (Play
+      // Again) reads this.selectedMode / this.aiDifficulty, which without
+      // this line were stuck at their constructor defaults ('FFA' /
+      // 'advanced') forever - so Play Again silently replayed a DIFFERENT
+      // mode/dragon-count than whatever the player actually just played.
+      this.selectedMode = mode;
+      this.aiDifficulty = difficulty;
       this.startLocalGame(mode, difficulty, arenaIndex);
     });
 
@@ -764,7 +771,7 @@ class Game {
           return;
         }
         this._persistLobbyContext();
-        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
+        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum });
         if (result?.deepLinked) return;
         await this._markDeposited('opponent', this.lobbyTier, result.signature);
       }
@@ -1484,6 +1491,24 @@ class Game {
       // For staked matches, show the settlement panel in its pending state
       // until the backend writes rooms/{code}/settlement.
       if (this.lobbyTier) this.uiManager.showStakeBreakdown({ pending: true });
+    } else if (this.winner === this.localDragon) {
+      // AI wave progression: only fires for solo play, and only when the
+      // LOCAL player actually won. Clearing your current frontier wave
+      // unlocks the next one (unlockNextWave() is a no-op if this was a
+      // replay of an already-passed wave, or if mode isn't a wave at all).
+      const mode = this.gameModeManager.getMode();
+      if (typeof mode === 'string' && mode.startsWith('wave')) {
+        const unlocked = this.uiManager.unlockNextWave(mode);
+        if (unlocked) {
+          // TODO: no dedicated "Wave Cleared - X unlocked!" banner exists
+          // yet on the game-over screen - that needs an index.html change
+          // I don't have visibility into right now (you've likely edited
+          // it since the last version I saw). Logging for now so this is
+          // at least verifiable; flag it if you want a proper on-screen
+          // banner and send me the current gameOverScreen markup.
+          console.log(`[Waves] Cleared ${mode} - unlocked "${unlocked.name}" (${unlocked.players} dragons)`);
+        }
+      }
     }
   }
 
