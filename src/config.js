@@ -35,6 +35,19 @@ export const POWER_UPGRADE_COSTS = {
 // Max power level per stat
 export const MAX_POWER_LEVEL = 10;
 
+// Progressive "vs AI" wave system, replacing the old explicit
+// Beginner/Easy/Advanced/Master/Legendary difficulty picker. Clearing your
+// current frontier wave unlocks the next one (see uiManager.js
+// unlockNextWave() / _getUnlockedWaveIndex(), persisted in localStorage).
+// These reuse the exact same CONFIG.MAX_PLAYERS / CONFIG.ARENA /
+// CONFIG.GAME_DURATION lookup mechanism every other mode already uses
+// (see gameModeManager.js) - no special-casing needed there.
+export const AI_WAVES = [
+  { id: 'wave1', name: 'The Hatchling Grounds', players: 3 },
+  { id: 'wave2', name: 'The Ember Trials', players: 7 },
+  { id: 'wave3', name: 'The Void Gauntlet', players: 10 }
+];
+
 const CONFIG = {
 
   // ==================== ARENA ====================
@@ -43,7 +56,13 @@ const CONFIG = {
     '1v1AI': { width: 2200, height: 2200 },
     '2v2': { width: 2600, height: 2600 },
     '4v4': { width: 3200, height: 3200 },
-    'FFA': { width: 3600, height: 3600 }
+    'FFA': { width: 3600, height: 3600 },
+    // AI wave sizes - rough interpolation off the existing player-count/arena
+    // pattern above. Untested at these player counts; tune if crowding or
+    // empty-feeling space shows up in play.
+    'wave1': { width: 2400, height: 2400 },
+    'wave2': { width: 3500, height: 3500 },
+    'wave3': { width: 4200, height: 4200 }
   },
 
   ARENA_BOUNDARY_THICKNESS: 12,
@@ -75,6 +94,16 @@ const CONFIG = {
   // at or below 5 would be permanently unreachable and this rule would
   // silently never fire. See collisionSystem.js checkDragonCollisions().
   SMALL_DRAGON_DEATH_THRESHOLD: 8,
+
+  // AI skill per wave - my own placeholder mapping, not something we
+  // actually discussed (only dragon count was agreed). Change freely -
+  // must be one of aiController.js's difficultySettings keys (beginner,
+  // easy, advanced, master, legendary).
+  WAVE_DIFFICULTY: {
+    wave1: 'easy',
+    wave2: 'advanced',
+    wave3: 'legendary'
+  },
 
   // ==================== ATTACK SYSTEM ====================
   ATTACK_METER_MAX: 20,        // infinite food eaten to fully charge ATTACK
@@ -121,21 +150,27 @@ const CONFIG = {
     '1v1AI': 2,
     '2v2': 4,
     '4v4': 8,
-    'FFA': 8
+    'FFA': 8,
+    'wave1': 3,
+    'wave2': 7,
+    'wave3': 10
   },
 
   PLAYER_SPAWN_MARGIN: 250,
   PLAYER_SPAWN_MIN_DISTANCE: 450,
 
   // ==================== GAME MODES ====================
-  GAME_MODES: ['1v1', '1v1AI', '2v2', '4v4', 'FFA'],
+  GAME_MODES: ['1v1', '1v1AI', '2v2', '4v4', 'FFA', 'wave1', 'wave2', 'wave3'],
 
   GAME_DURATION: {
     '1v1': 180000,
     '1v1AI': 180000,
     '2v2': 240000,
     '4v4': 300000,
-    'FFA': 300000
+    'FFA': 300000,
+    'wave1': 180000,
+    'wave2': 300000,
+    'wave3': 420000
   },
 
   // ==================== LIVES & RESPAWN ====================
