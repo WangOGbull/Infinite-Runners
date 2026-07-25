@@ -1,28 +1,60 @@
 // stakingManager.js
 //
-// Talks directly to the infinite_arena Anchor program using @solana/web3.js only
-// (no Anchor JS client, since this project loads solanaWeb3 via a plain <script>
-// tag with no bundler). Instructions are built by hand: 8-byte sha256-based
-// discriminators + manual borsh-style arg encoding, matching what `anchor build`
-// generates on the Rust side.
+// FIX: staking no longer goes through the infinite_arena on-chain program.
+// That program's account types only understand the legacy SPL Token
+// standard, but INFINITE is a Token-2022 mint (confirmed directly from its
+// raw account data - Owner: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb,
+// 414 bytes, not the fixed 82-byte legacy layout) - incompatible, and the
+// program's upgrade authority is separately, permanently unrecoverable, so
+// it can never be fixed or redeployed under that same address either.
 //
-// IMPORTANT: fill in PROGRAM_ID and TREASURY_TOKEN_ACCOUNT below after you run
-// `anchor keys sync` + `initialize_config` on your deployed program. Nothing
-// here will work against placeholder values.
+// Staking now works as a plain wallet-to-wallet transfer: the player's own
+// wallet sends their stake directly to a dedicated HOT WALLET (public
+// address only, below - safe to know publicly, unlike its private key).
+// The backend (watchMatches.js + hotWalletSettlement.js) holds the
+// matching private key and pays out winners / refunds draws automatically
+// once a match is decided.
+//
+// KNOWN GAP, on purpose, not an oversight: the old on-chain program had
+// automatic, code-enforced deposit-timeout and settle-timeout refunds -
+// "anyone can trigger this, funds always come back, no one can get stuck
+// waiting on a person." None of that exists anymore. If a match never
+// resolves normally right now, getting a stuck stake back requires manual
+// backend intervention, not an automatic on-chain claim. This is an
+// accepted tradeoff for shipping staking sooner, not something quietly
+// dropped - flag if you want this rebuilt as a backend feature later.
 
-const PROGRAM_ID_STR = 'HezS1VfaBjg4FHatf9UrYbjmt14kyPyBQhQUiU6ojLAA';
-const TREASURY_TOKEN_ACCOUNT_STR = 'AeHeRAGnJ9gprjqX4VtbPxw6oHUC7Q9vsqF7vMX1VALK';
-const INFINITE_MINT = new solanaWeb3.PublicKey('5B3WSHvvSSdcHcitSe9ihisoaUEEjRgJdvRy9J638r85'); // DEVNET TEST TOKEN - swap back to the real mint before Mainnet
-const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const INFINITE_MINT = new solanaWeb3.PublicKey('C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump');
+// Confirmed directly from the mint's raw on-chain data (byte 44 = 0x06).
+const DECIMALS = 6;
+
+// Public address only - safe to embed in frontend code that every player's
+// browser downloads. The matching PRIVATE key lives ONLY in the backend's
+// HOT_WALLET_SECRET_KEY environment variable and must never appear here.
+const HOT_WALLET = new solanaWeb3.PublicKey('4oxApVuuCi5QnUMELbi5bJ33L4BD6KxDb7D2YHYn8ww6');
+
+// INFINITE is a Token-2022 mint, not legacy SPL Token - every account and
+// instruction below has to be built against this program ID specifically,
+// or the transaction will simply fail (the two token programs are not
+// interchangeable, confirmed the hard way earlier tonight).
+const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
-const SYSVAR_RENT_PUBKEY = new solanaWeb3.PublicKey('SysvarRent111111111111111111111111111111111');
+
+// Stake tiers, in human INFINITE units. No on-chain Config account exists
+// anymore to source these from - this IS the source of truth now. Keep
+// this in sync manually with the matching TIER_AMOUNTS in the backend's
+// hotWalletSettlement.js - if you change one, change both.
+export const TIER_AMOUNTS = {
+  Small: 500000,
+  Medium: 2000000,
+  High: 5000000,
+};
+export const TIER_NAMES = ['Small', 'Medium', 'High'];
 
 // ---------------------------------------------------------------------
-// TEMPORARY diagnostic aid: times every RPC round-trip in the staking flow
-// and prints it to the console, so we can see exactly which call the
-// multi-minute delay is coming from (our RPC calls before handing off to
-// Phantom, vs Phantom's own simulation after that). Safe to remove once
-// the delay is tracked down.
+// TEMPORARY diagnostic aid, carried over from the old version: times every
+// RPC round-trip so a slow step shows up in the console instead of just
+// "this is taking forever" with no clue why.
 // ---------------------------------------------------------------------
 async function _timed(label, promiseFactory) {
   const start = performance.now();
@@ -39,99 +71,34 @@ async function _timed(label, promiseFactory) {
   }
 }
 
-// PROGRAM_ID and the treasury account are only parsed the first time they're
-// actually needed (not at module load) - so the rest of the page keeps working
-// normally even before you've deployed the program and filled these in. Trying
-// to use any staking feature before then throws a clear error instead of a
-// cryptic "Non-base58 character" crash on page load.
-let _programId = null;
-function PROGRAM_ID() {
-  if (!_programId) {
-    if (PROGRAM_ID_STR.startsWith('REPLACE_')) {
-      throw new Error('Staking is not configured yet: set PROGRAM_ID_STR in stakingManager.js to your deployed program address.');
-    }
-    _programId = new solanaWeb3.PublicKey(PROGRAM_ID_STR);
-  }
-  return _programId;
+function tierAmount(tier) {
+  const amount = TIER_AMOUNTS[tier];
+  if (!amount) throw new Error(`Unknown stake tier: "${tier}"`);
+  return amount;
 }
 
-let _treasuryAccount = null;
-function TREASURY_TOKEN_ACCOUNT() {
-  if (!_treasuryAccount) {
-    if (TREASURY_TOKEN_ACCOUNT_STR.startsWith('REPLACE_')) {
-      throw new Error('Staking is not configured yet: set TREASURY_TOKEN_ACCOUNT_STR in stakingManager.js to your treasury ATA.');
-    }
-    _treasuryAccount = new solanaWeb3.PublicKey(TREASURY_TOKEN_ACCOUNT_STR);
-  }
-  return _treasuryAccount;
+function toBaseUnits(humanAmount) {
+  return BigInt(Math.round(humanAmount * 10 ** DECIMALS));
 }
 
-export const TIER = { Small: 0, Medium: 1, High: 2 };
-export const TIER_NAMES = ['Small', 'Medium', 'High'];
-
-// ---- byte helpers (no Buffer dependency - works in a plain browser tab) ----
-
-function u8enc(str) {
-  return new TextEncoder().encode(str);
-}
-
-function concatBytes(...arrays) {
-  const total = arrays.reduce((n, a) => n + a.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const a of arrays) {
-    out.set(a, offset);
-    offset += a.length;
-  }
-  return out;
-}
-
-function u64LE(value) {
-  const buf = new Uint8Array(8);
-  new DataView(buf.buffer).setBigUint64(0, BigInt(value), true);
-  return buf;
-}
-
-function i64LE(value) {
-  const buf = new Uint8Array(8);
-  new DataView(buf.buffer).setBigInt64(0, BigInt(value), true);
-  return buf;
-}
-
-function readU64LE(view, offset) {
-  return view.getBigUint64(offset, true);
-}
-
-async function discriminator(instructionName) {
-  const hash = await crypto.subtle.digest('SHA-256', u8enc('global:' + instructionName));
-  return new Uint8Array(hash).slice(0, 8);
-}
-
-function findPda(seeds) {
-  return solanaWeb3.PublicKey.findProgramAddressSync(seeds, PROGRAM_ID())[0];
-}
-
-function configPda() {
-  return findPda([u8enc('config')]);
-}
-
-function roomPda(roomId) {
-  return findPda([u8enc('room'), u64LE(roomId)]);
-}
-
-function vaultPda(roomId) {
-  return findPda([u8enc('vault'), u64LE(roomId)]);
+/** Human-readable "500,000" style formatting - no chain call needed anymore. */
+export function formatTierAmount(tier) {
+  return tierAmount(tier).toLocaleString();
 }
 
 function getAssociatedTokenAddress(owner, mint = INFINITE_MINT) {
   return solanaWeb3.PublicKey.findProgramAddressSync(
-    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    [owner.toBuffer(), TOKEN_2022_PROGRAM_ID.toBuffer(), mint.toBuffer()],
     ASSOCIATED_TOKEN_PROGRAM_ID
   )[0];
 }
 
-function buildCreateAtaIx(payer, owner, ata, mint = INFINITE_MINT) {
-  // The legacy zero-data "Create" instruction on the Associated Token Program.
+// Idempotent "create this ATA if it doesn't already exist" - instruction
+// index 1 on the Associated Token Account program (index 0 / empty data is
+// the older, non-idempotent "Create", which errors if the account already
+// exists; idempotent is the safer default here since we can't always know
+// in advance whether an account exists without an extra RPC round-trip).
+function buildCreateAtaIdempotentIx(payer, owner, ata, mint = INFINITE_MINT) {
   return new solanaWeb3.TransactionInstruction({
     programId: ASSOCIATED_TOKEN_PROGRAM_ID,
     keys: [
@@ -140,17 +107,15 @@ function buildCreateAtaIx(payer, owner, ata, mint = INFINITE_MINT) {
       { pubkey: owner, isSigner: false, isWritable: false },
       { pubkey: mint, isSigner: false, isWritable: false },
       { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
-    data: new Uint8Array(0),
+    data: new Uint8Array([1]),
   });
 }
 
-// Session-level cache: once we've confirmed a wallet's Associated Token
-// Account exists, it will always exist (accounts don't get deleted), so
-// there's no reason to spend an RPC round-trip re-checking it on every
-// single stake attempt. Keyed by "ownerPubkey:mintPubkey".
+// Session-level cache: once an ATA is confirmed to exist, it always will,
+// so there's no reason to spend an RPC round-trip re-checking it on every
+// single stake attempt.
 const _knownAtaCache = new Map();
 
 async function ensureAtaInstructions(connection, payer, owner, mint = INFINITE_MINT) {
@@ -164,115 +129,31 @@ async function ensureAtaInstructions(connection, payer, owner, mint = INFINITE_M
     _knownAtaCache.set(cacheKey, true);
     return { ata, instructions: [] };
   }
-  return { ata, instructions: [buildCreateAtaIx(payer, owner, ata, mint)] };
+  // Idempotent, so this is safe even if the ATA gets created by someone/
+  // something else in the moment between our check and our tx landing.
+  return { ata, instructions: [buildCreateAtaIdempotentIx(payer, owner, ata, mint)] };
 }
 
-// ---- reading on-chain config so the UI never shows stale tier amounts ----
-
-export async function fetchConfig(connection) {
-  const info = await connection.getAccountInfo(configPda());
-  if (!info) throw new Error('Config account not found - has initialize_config been run?');
-  const view = new DataView(info.data.buffer, info.data.byteOffset, info.data.byteLength);
-  // layout: 8 disc + 32*5 pubkeys + 2 fee_bps + 8*3 tiers + 1 bump
-  const feeBpsOffset = 8 + 32 * 5;
-  const tiersOffset = feeBpsOffset + 2;
-  return {
-    feeBps: view.getUint16(feeBpsOffset, true),
-    tierSmall: readU64LE(view, tiersOffset),
-    tierMedium: readU64LE(view, tiersOffset + 8),
-    tierHigh: readU64LE(view, tiersOffset + 16),
-  };
-}
-
-export async function fetchMintDecimals(connection, mint = INFINITE_MINT) {
-  const info = await connection.getAccountInfo(mint);
-  if (!info) throw new Error('Mint account not found');
-  // SPL Mint layout: decimals is the single byte at offset 44.
-  return info.data[44];
-}
-
-/** Human-readable "12.5 INFINITE" style formatting for a raw on-chain tier amount. */
-export function formatTierAmount(rawAmount, decimals) {
-  const value = Number(rawAmount) / Math.pow(10, decimals);
-  return value.toLocaleString(undefined, { maximumFractionDigits: decimals });
-}
-
-// ---- instruction builders ----
-
-async function buildCreateRoomIx({ hostPubkey, hostAta, roomId, tier, depositTimeoutSecs, settleTimeoutSecs }) {
-  const data = concatBytes(
-    await discriminator('create_room'),
-    u64LE(roomId),
-    new Uint8Array([TIER[tier]]),
-    i64LE(depositTimeoutSecs),
-    i64LE(settleTimeoutSecs)
-  );
-  const keys = [
-    { pubkey: hostPubkey, isSigner: true, isWritable: true },
-    { pubkey: configPda(), isSigner: false, isWritable: false },
-    { pubkey: roomPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: vaultPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: INFINITE_MINT, isSigner: false, isWritable: false },
-    { pubkey: hostAta, isSigner: false, isWritable: true },
-    { pubkey: TREASURY_TOKEN_ACCOUNT(), isSigner: false, isWritable: true },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-    { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-    { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-  ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
-}
-
-async function buildJoinRoomIx({ opponentPubkey, opponentAta, roomId }) {
-  const data = concatBytes(await discriminator('join_room'), u64LE(roomId));
-  const keys = [
-    { pubkey: opponentPubkey, isSigner: true, isWritable: true },
-    { pubkey: configPda(), isSigner: false, isWritable: false },
-    { pubkey: roomPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: vaultPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: opponentAta, isSigner: false, isWritable: true },
-    { pubkey: TREASURY_TOKEN_ACCOUNT(), isSigner: false, isWritable: true },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-  ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
-}
-
-async function buildMutualCancelIx({ hostPubkey, opponentPubkey, hostAta, opponentAta, roomId }) {
-  const data = concatBytes(await discriminator('mutual_cancel_room'), u64LE(roomId));
-  const keys = [
-    { pubkey: hostPubkey, isSigner: true, isWritable: true },
-    { pubkey: opponentPubkey, isSigner: true, isWritable: false },
-    { pubkey: roomPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: vaultPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: hostAta, isSigner: false, isWritable: true },
-    { pubkey: opponentAta, isSigner: false, isWritable: true },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-  ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
-}
-
-async function buildClaimDepositTimeoutIx({ hostPubkey, hostAta, roomId }) {
-  const data = concatBytes(await discriminator('claim_deposit_timeout'), u64LE(roomId));
-  const keys = [
-    { pubkey: roomPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: vaultPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: hostAta, isSigner: false, isWritable: true },
-    { pubkey: hostPubkey, isSigner: false, isWritable: true },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-  ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
-}
-
-async function buildClaimSettleTimeoutIx({ hostPubkey, hostAta, opponentAta, roomId }) {
-  const data = concatBytes(await discriminator('claim_settle_timeout'), u64LE(roomId));
-  const keys = [
-    { pubkey: roomPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: vaultPda(roomId), isSigner: false, isWritable: true },
-    { pubkey: hostAta, isSigner: false, isWritable: true },
-    { pubkey: opponentAta, isSigner: false, isWritable: true },
-    { pubkey: hostPubkey, isSigner: false, isWritable: true },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-  ];
-  return new solanaWeb3.TransactionInstruction({ keys, programId: PROGRAM_ID(), data });
+// Token-2022's TransferChecked (instruction index 12). "Checked" transfers
+// require passing the mint + decimals explicitly, which the token program
+// verifies against - the correct, safer choice here over a plain unchecked
+// Transfer, and required for some Token-2022 extensions to work correctly
+// even when not strictly enforced.
+function buildTransferCheckedIx({ source, destination, owner, amountBaseUnits, mint = INFINITE_MINT, decimals = DECIMALS }) {
+  const data = new Uint8Array(1 + 8 + 1);
+  data[0] = 12;
+  new DataView(data.buffer).setBigUint64(1, BigInt(amountBaseUnits), true);
+  data[9] = decimals;
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_2022_PROGRAM_ID,
+    keys: [
+      { pubkey: source, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: destination, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
 }
 
 // ---- high-level actions used by main.js ----
@@ -295,160 +176,120 @@ class StakingManager {
       () => connection.getLatestBlockhash('confirmed')
     );
 
-    const tx = new solanaWeb3.Transaction({
-      feePayer,
-      blockhash,
-      lastValidBlockHeight,
-    });
+    const tx = new solanaWeb3.Transaction({ feePayer, blockhash, lastValidBlockHeight });
     instructions.forEach((ix) => tx.add(ix));
 
-    // On mobile without an injected provider, this redirects away to Phantom and
-    // never resolves in this page load - completion is picked up later via the
-    // 'wallet:txConfirmed' event once Phantom redirects back (see walletManager.js
-    // and Game._restoreLobbyContext in main.js).
-    //
-    // On desktop (extension present), this is where the Phantom popup actually
-    // opens. Everything above this line ran in OUR code first - if Phantom takes
-    // a long time to even appear, check the timing logs above this one: if
-    // getAccountInfo/getLatestBlockhash already took minutes, the delay is our
-    // RPC, not Phantom. If those were fast and Phantom still took forever to
-    // pop up, the delay is inside Phantom/the browser extension itself.
+    // On mobile without an injected provider, this redirects away to the
+    // wallet app and never resolves in this page load - completion is
+    // picked up later via 'wallet:txConfirmed' once it redirects back.
     const result = await _timed(
-      'walletManager.sendTransaction (opens Phantom, waits for user + simulation)',
+      'walletManager.sendTransaction (opens wallet, waits for user + simulation)',
       () => this.walletManager.sendTransaction(tx, pendingAction)
     );
     if (result?.deepLinked) return result;
 
     await _timed(
       'connection.confirmTransaction',
-      () => connection.confirmTransaction(
-        { signature: result.signature, blockhash, lastValidBlockHeight },
-        'confirmed'
-      )
+      () => connection.confirmTransaction({ signature: result.signature, blockhash, lastValidBlockHeight }, 'confirmed')
     );
     return result;
   }
 
-  /** Host locks in a tier and deposits into a new escrow room. roomId = the 6-digit Firebase room code. */
-  async createStakedRoom({ roomId, tier, depositTimeoutSecs = 300, settleTimeoutSecs = 900 }) {
+  /**
+   * Host locks in a tier and sends their FULL stake directly to the hot
+   * wallet - no fee is taken at this step. The 2.5% fee is split off only
+   * when the winner is actually paid (see hotWalletSettlement.js on the
+   * backend). Simpler than the old two-transfer on-chain deposit, and it
+   * means a draw refund can just return the exact amount sent, with no fee
+   * math to reverse.
+   */
+  async createStakedRoom({ roomId, tier }) {
     const connection = this.connection;
     const hostPubkey = this.walletManager.publicKey;
-    // These two calls don't depend on each other's results - running them
-    // in parallel instead of one after another roughly halves the wait
-    // before we even get to redirecting to Phantom.
+    const amount = tierAmount(tier);
+
     const [{ ata: hostAta, instructions: ataIxs }, blockhashInfo] = await Promise.all([
       ensureAtaInstructions(connection, hostPubkey, hostPubkey),
       _timed('connection.getLatestBlockhash (parallel)', () => connection.getLatestBlockhash('confirmed')),
     ]);
 
-    const createIx = await buildCreateRoomIx({
-      hostPubkey,
-      hostAta,
-      roomId,
-      tier,
-      depositTimeoutSecs,
-      settleTimeoutSecs,
+    const hotWalletAta = getAssociatedTokenAddress(HOT_WALLET);
+    // The hot wallet's own ATA might not exist yet the very first time
+    // anyone ever stakes - the depositing player covers creating it if so.
+    // Idempotent, so a no-op on every deposit after the first.
+    const ensureHotWalletAtaIx = buildCreateAtaIdempotentIx(hostPubkey, HOT_WALLET, hotWalletAta);
+
+    const transferIx = buildTransferCheckedIx({
+      source: hostAta,
+      destination: hotWalletAta,
+      owner: hostPubkey,
+      amountBaseUnits: toBaseUnits(amount),
     });
 
-    return this._sendTx([...ataIxs, createIx], { type: 'createRoom', roomId, tier }, blockhashInfo);
+    return this._sendTx(
+      [...ataIxs, ensureHotWalletAtaIx, transferIx],
+      { type: 'createRoom', roomId, tier },
+      blockhashInfo
+    );
   }
 
-  /** Opponent deposits the exact tier amount already locked in by the host. */
-  async joinStakedRoom({ roomId }) {
+  /** Opponent sends the exact same tier amount the host already staked. */
+  async joinStakedRoom({ roomId, tier }) {
     const connection = this.connection;
     const opponentPubkey = this.walletManager.publicKey;
+    const amount = tierAmount(tier);
+
     const [{ ata: opponentAta, instructions: ataIxs }, blockhashInfo] = await Promise.all([
       ensureAtaInstructions(connection, opponentPubkey, opponentPubkey),
       _timed('connection.getLatestBlockhash (parallel)', () => connection.getLatestBlockhash('confirmed')),
     ]);
 
-    const joinIx = await buildJoinRoomIx({ opponentPubkey, opponentAta, roomId });
-    return this._sendTx([...ataIxs, joinIx], { type: 'joinRoom', roomId }, blockhashInfo);
+    const hotWalletAta = getAssociatedTokenAddress(HOT_WALLET);
+    const ensureHotWalletAtaIx = buildCreateAtaIdempotentIx(opponentPubkey, HOT_WALLET, hotWalletAta);
+
+    const transferIx = buildTransferCheckedIx({
+      source: opponentAta,
+      destination: hotWalletAta,
+      owner: opponentPubkey,
+      amountBaseUnits: toBaseUnits(amount),
+    });
+
+    return this._sendTx(
+      [...ataIxs, ensureHotWalletAtaIx, transferIx],
+      { type: 'joinRoom', roomId, tier },
+      blockhashInfo
+    );
   }
 
-  /** Both players back out after both deposited but before the match starts. Needs both wallets connected. */
-  async mutualCancel({ roomId, hostPubkey, opponentPubkey }) {
-    const hostAta = getAssociatedTokenAddress(hostPubkey);
-    const opponentAta = getAssociatedTokenAddress(opponentPubkey);
-    const ix = await buildMutualCancelIx({ hostPubkey, opponentPubkey, hostAta, opponentAta, roomId });
-    return this._sendTx([ix], { type: 'mutualCancel', roomId });
-  }
-
-  /** Permissionless: reclaim the host's stake once the deposit deadline has passed with no opponent. */
-  async claimDepositTimeout({ roomId, hostPubkey }) {
-    const hostAta = getAssociatedTokenAddress(hostPubkey);
-    const ix = await buildClaimDepositTimeoutIx({ hostPubkey, hostAta, roomId });
-    return this._sendTx([ix], { type: 'claimDepositTimeout', roomId });
-  }
-
-  /** Permissionless: split refund once both deposited but the server never settled in time. */
-  async claimSettleTimeout({ roomId, hostPubkey, opponentPubkey }) {
-    const hostAta = getAssociatedTokenAddress(hostPubkey);
-    const opponentAta = getAssociatedTokenAddress(opponentPubkey);
-    const ix = await buildClaimSettleTimeoutIx({ hostPubkey, hostAta, opponentAta, roomId });
-    return this._sendTx([ix], { type: 'claimSettleTimeout', roomId });
-  }
-
+  /**
+   * No on-chain Config account exists anymore to read tiers/fee from -
+   * this just returns the hardcoded values. Kept async (even with nothing
+   * to await) so main.js's existing `.then(tiers => ...)` call site works
+   * unchanged.
+   */
   async getDisplayTiers() {
-    const [config, decimals] = await Promise.all([
-      fetchConfig(this.connection),
-      fetchMintDecimals(this.connection),
-    ]);
     return {
-      Small: formatTierAmount(config.tierSmall, decimals),
-      Medium: formatTierAmount(config.tierMedium, decimals),
-      High: formatTierAmount(config.tierHigh, decimals),
-      feePercent: config.feeBps / 100,
+      Small: formatTierAmount('Small'),
+      Medium: formatTierAmount('Medium'),
+      High: formatTierAmount('High'),
+      feePercent: 2.5,
     };
   }
 
   /**
-   * Reads a Room account directly from chain, bypassing Firebase entirely.
-   * This exists specifically to self-heal the case where a mobile Phantom
-   * redirect drops its confirmation data before our own app ever sees it
-   * (a real Android/Chrome behavior, not something JS can prevent) - the
-   * on-chain deposit can succeed even though our app never found out and
-   * Firebase's staking flags stay wrong forever.
-   *
-   * Byte layout matches Room in state.rs exactly:
-   *   0-8    discriminator
-   *   8-16   room_id (u64 LE)
-   *   16-48  host (Pubkey, 32 bytes)
-   *   48-80  opponent (Pubkey, 32 bytes - all zero until someone joins)
-   *   80-81  tier (borsh enum = 1 byte variant index: 0=Small,1=Medium,2=High)
-   *   81-89  stake_amount (u64)
-   *   89-97  net_amount (u64)
-   *   97-98  status (borsh enum = 1 byte: 0=AwaitingOpponent,1=Ready,2=Settled,3=Refunded,4=Cancelled)
-   * (remaining fields aren't needed for this check)
-   *
-   * The room existing at all means create_room succeeded (host deposit is
-   * atomic with room creation) - so existence + status alone tell us
-   * everything Firebase's staking.hostDeposited/opponentDeposited flags
-   * are supposed to represent, straight from ground truth.
+   * FIX: previously read a Room PDA directly from chain to self-heal
+   * Firebase's staking flags if a mobile redirect dropped confirmation
+   * data. There is no on-chain Room account anymore to read - this now
+   * always reports "nothing to reconcile," which main.js's
+   * _syncStakeFromChain() already treats as a safe no-op (its existing
+   * `if (!onChain.exists) return;` check). Not a crash, just a real,
+   * known gap: mobile deposits that get dropped mid-redirect no longer
+   * self-heal automatically. Worth rebuilding later by having this check
+   * the hot wallet's own recent transaction history instead, if it turns
+   * out to matter in practice.
    */
-  async getRoomAccount(roomId) {
-    const pda = roomPda(roomId);
-    const info = await this.connection.getAccountInfo(pda);
-    if (!info) return { exists: false };
-
-    const data = info.data;
-    const hostBytes = data.slice(16, 48);
-    const opponentBytes = data.slice(48, 80);
-    const tierByte = data[80];
-    const statusByte = data[97];
-    const isDefaultOpponent = opponentBytes.every((b) => b === 0);
-    const TIER_BYTE_NAMES = ['Small', 'Medium', 'High'];
-    const ROOM_STATUS = ['AwaitingOpponent', 'Ready', 'Settled', 'Refunded', 'Cancelled'];
-
-    return {
-      exists: true,
-      hostPubkey: new solanaWeb3.PublicKey(hostBytes).toString(),
-      opponentPubkey: isDefaultOpponent ? null : new solanaWeb3.PublicKey(opponentBytes).toString(),
-      tier: TIER_BYTE_NAMES[tierByte] || null,
-      status: ROOM_STATUS[statusByte] || null,
-      hostDeposited: true,
-      opponentDeposited: !isDefaultOpponent,
-    };
+  async getRoomAccount(_roomId) {
+    return { exists: false };
   }
 }
 
