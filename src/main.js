@@ -6,7 +6,7 @@ import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
 import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
-import CollisionSystem from './collisionSystem.js';
+import CollisionSystem, { ATTACK_TAIL_DAMAGE_PERCENT } from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js';
 import EffectsSystem from './effectsSystem.js';
@@ -340,9 +340,23 @@ class Game {
       this.effectsSystem.playEatSound();
     });
 
-    // Non-lethal tail bite (attacker not in attack mode)
+    // Non-lethal tail bite (attacker not in attack mode, or attacker
+    // isn't the smaller dragon's case where bite is just a minor nibble)
     this.eventBus.on('collision:tail-cut', ({ victim }) => {
       this.growthSystem.onCollisionTailCut(victim, 0.2);
+    });
+
+    // Small dragon lands a tail bite on a BIGGER dragon WITH Attack
+    // charged: doesn't kill, but takes a real, meaningful bite out of the
+    // bigger dragon (ATTACK_TAIL_DAMAGE_PERCENT, currently 30%) - this is
+    // the actual comeback/threat tool for a small dragon against a big
+    // one. See collisionSystem.js checkHeadVsBody() for when this fires.
+    this.eventBus.on('dragon:tailDamage', ({ victim, attacker }) => {
+      this.growthSystem.onCollisionTailCut(victim, ATTACK_TAIL_DAMAGE_PERCENT);
+      const neon = (attacker && CONFIG.DRAGON_NEON) ? (CONFIG.DRAGON_NEON[attacker.type] || '#ffffff') : '#ffffff';
+      this.effectsSystem.spawnImpactSparks(victim.head.x, victim.head.y, neon);
+      this.effectsSystem.addShake(victim === this.localDragon ? 14 : 6, 220);
+      this.effectsSystem.playTone(260, 'sawtooth', 0.22, 0.16);
     });
 
     this.eventBus.on('collision:head-hit', ({ x, y }) => {
