@@ -1,5 +1,17 @@
 import CONFIG from './config.js';
 
+// Below this segment count, a small dragon can't survive a head-on hit
+// from a bigger dragon even if the bigger one isn't using Attack - it just
+// dies instead of shrinking. Hardcoded here (not in CONFIG) because
+// config.js wasn't available when this was written - move it there
+// (e.g. CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) if you want it centralized.
+const SMALL_DRAGON_DEATH_THRESHOLD = 5;
+
+// Tail-hit damage a smaller dragon does to a bigger one when it lands the
+// bite WITH Attack charged - a percentage of the victim's segments above
+// starting size, same shape as the existing minor tail-cut nibble.
+const ATTACK_TAIL_DAMAGE_PERCENT = 0.30;
+
 class CollisionSystem {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -69,21 +81,30 @@ class CollisionSystem {
       // out via the network (see applyRemotePositions() in main.js, which
       // now syncs `lives`/`alive` the same way it already synced segments).
       if (len1 < len2) {
-        // d1 is shorter -> d1 dies, but ONLY if d2 is in attack mode
+        // d1 is shorter.
         if (d2.attackActive) {
+          // d2 attacking: d1 dies outright, no exceptions.
+          if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+        } else if (len1 < SMALL_DRAGON_DEATH_THRESHOLD) {
+          // d2 not attacking, but d1 is too small to survive the hit at all.
           if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else {
+          // d2 not attacking, d1 big enough to survive - shrinks to start size instead.
           if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'head_clash' });
         }
       } else if (len2 < len1) {
-        // d2 is shorter -> d2 dies, but ONLY if d1 is in attack mode
+        // Mirrored: d2 is shorter.
         if (d1.attackActive) {
+          if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+        } else if (len2 < SMALL_DRAGON_DEATH_THRESHOLD) {
           if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
         } else {
           if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'head_clash' });
         }
       } else {
-        // Equal size -> both shrink to start size (NOT die)
+        // Equal size -> both shrink to start size (NOT die). Untouched by
+        // the small-vs-big rules above - neither dragon is "the small one"
+        // in an equal clash.
         if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'equal_head' });
         if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'equal_head' });
       }
@@ -115,17 +136,30 @@ class CollisionSystem {
         const isTailHit = (i === lastIdx);
 
         if (isTailHit) {
-          // HEAD vs TAIL: instant kill ONLY in attack mode - otherwise
-          // the bite just cuts the tail instead of killing.
-          if (headDragon.attackActive) {
+          // HEAD vs TAIL - size decides the outcome first, Attack only
+          // matters for the underdog case:
+          const headLen = headDragon.segments.length;
+          const bodyLen = bodyDragon.segments.length;
+
+          if (headLen >= bodyLen) {
+            // Attacker is bigger or equal: a tail bite is always lethal,
+            // Attack button or not - big/equal dragon dominance holds.
             if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+          } else if (headDragon.attackActive) {
+            // Attacker is the SMALLER dragon, but landed the bite with
+            // Attack charged: doesn't kill, but takes a real bite out of
+            // the bigger dragon - this is the small dragon's actual threat.
+            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:tailDamage', { victim: bodyDragon, attacker: headDragon });
           } else {
+            // Smaller dragon nibbling without Attack: just the existing
+            // minor cut, no real threat.
             if (!bodyDragon.isRemote) this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
           }
         } else {
           // HEAD vs BODY (non-tail): the SMALLER dragon dies outright
           // (previously it only shrank). Equal size still shrinks both -
           // "smaller dies" doesn't apply when there's no smaller one.
+          // (Unchanged - not part of the small-vs-big tail/head-on rules.)
           const len1 = headDragon.segments.length;
           const len2 = bodyDragon.segments.length;
 
@@ -155,3 +189,4 @@ class CollisionSystem {
 }
 
 export default CollisionSystem;
+export { SMALL_DRAGON_DEATH_THRESHOLD, ATTACK_TAIL_DAMAGE_PERCENT };
