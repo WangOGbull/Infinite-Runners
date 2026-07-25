@@ -6,7 +6,7 @@ import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
 import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
-import CollisionSystem, { ATTACK_TAIL_DAMAGE_PERCENT } from './collisionSystem.js';
+import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js';
 import EffectsSystem from './effectsSystem.js';
@@ -352,7 +352,7 @@ class Game {
     // the actual comeback/threat tool for a small dragon against a big
     // one. See collisionSystem.js checkHeadVsBody() for when this fires.
     this.eventBus.on('dragon:tailDamage', ({ victim, attacker }) => {
-      this.growthSystem.onCollisionTailCut(victim, ATTACK_TAIL_DAMAGE_PERCENT);
+      this.growthSystem.onCollisionTailCut(victim, CONFIG.ATTACK_TAIL_DAMAGE_PERCENT);
       const neon = (attacker && CONFIG.DRAGON_NEON) ? (CONFIG.DRAGON_NEON[attacker.type] || '#ffffff') : '#ffffff';
       this.effectsSystem.spawnImpactSparks(victim.head.x, victim.head.y, neon);
       this.effectsSystem.addShake(victim === this.localDragon ? 14 : 6, 220);
