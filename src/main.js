@@ -764,7 +764,7 @@ class Game {
           return;
         }
         this._persistLobbyContext();
-        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum });
+        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
         if (result?.deepLinked) return;
         await this._markDeposited('opponent', this.lobbyTier, result.signature);
       }
