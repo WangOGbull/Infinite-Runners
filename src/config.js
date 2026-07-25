@@ -66,10 +66,25 @@ const CONFIG = {
   DRAGON_START_SEGMENTS: 5,
   DRAGON_MAX_SEGMENTS: 50,
 
+  // Below this segment count, a dragon is considered "small" for combat
+  // purposes: it dies outright on a head-to-head clash with a bigger
+  // dragon even if that dragon isn't using Attack, instead of just
+  // shrinking. Must be set ABOVE DRAGON_START_SEGMENTS (5) - nothing in
+  // the game can ever shrink/cut a dragon below DRAGON_START_SEGMENTS
+  // (onCollisionTailCut and shrinkDragon both floor there), so a threshold
+  // at or below 5 would be permanently unreachable and this rule would
+  // silently never fire. See collisionSystem.js checkDragonCollisions().
+  SMALL_DRAGON_DEATH_THRESHOLD: 8,
+
   // ==================== ATTACK SYSTEM ====================
   ATTACK_METER_MAX: 20,        // infinite food eaten to fully charge ATTACK
   ATTACK_DURATION_MS: 5000,    // attack mode duration once triggered
   KILL_SEGMENTS_GAIN: 2,       // body segments the killer gains per kill
+  // Segments a SMALLER dragon strips off a BIGGER one by landing a tail
+  // bite with Attack charged - the smaller dragon's real threat/comeback
+  // tool. Doesn't kill; see collisionSystem.js checkHeadVsBody() and
+  // main.js's 'dragon:tailDamage' handler.
+  ATTACK_TAIL_DAMAGE_PERCENT: 0.30,
   // Neon kill-glow colors sampled from each dragon's head art
   DRAGON_NEON: {
     aegis: '#a800ff',
