@@ -1,17 +1,5 @@
 import CONFIG from './config.js';
 
-// Below this segment count, a small dragon can't survive a head-on hit
-// from a bigger dragon even if the bigger one isn't using Attack - it just
-// dies instead of shrinking. Hardcoded here (not in CONFIG) because
-// config.js wasn't available when this was written - move it there
-// (e.g. CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) if you want it centralized.
-const SMALL_DRAGON_DEATH_THRESHOLD = 5;
-
-// Tail-hit damage a smaller dragon does to a bigger one when it lands the
-// bite WITH Attack charged - a percentage of the victim's segments above
-// starting size, same shape as the existing minor tail-cut nibble.
-const ATTACK_TAIL_DAMAGE_PERCENT = 0.30;
-
 class CollisionSystem {
   constructor(eventBus) {
     this.eventBus = eventBus;
@@ -85,7 +73,7 @@ class CollisionSystem {
         if (d2.attackActive) {
           // d2 attacking: d1 dies outright, no exceptions.
           if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
-        } else if (len1 < SMALL_DRAGON_DEATH_THRESHOLD) {
+        } else if (len1 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
           // d2 not attacking, but d1 is too small to survive the hit at all.
           if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else {
@@ -96,7 +84,7 @@ class CollisionSystem {
         // Mirrored: d2 is shorter.
         if (d1.attackActive) {
           if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
-        } else if (len2 < SMALL_DRAGON_DEATH_THRESHOLD) {
+        } else if (len2 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
           if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
         } else {
           if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'head_clash' });
@@ -189,4 +177,3 @@ class CollisionSystem {
 }
 
 export default CollisionSystem;
-export { SMALL_DRAGON_DEATH_THRESHOLD, ATTACK_TAIL_DAMAGE_PERCENT };
