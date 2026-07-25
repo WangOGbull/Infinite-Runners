@@ -1,4 +1,4 @@
-import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS } from './config.js';
+import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS, AI_WAVES } from './config.js';
 
 // Icon shown in the connected-wallet panel - keyed by walletManager's
 // this.walletType values ('phantom' | 'solflare'). Reuses the same asset
@@ -7,6 +7,12 @@ const WALLET_ICON_URLS = {
   phantom: 'https://i.postimg.cc/44mrJ4My/phantom-logo.webp',
   solflare: './Solflare.png'
 };
+
+// Persists which wave the player has unlocked up to (0-indexed into
+// AI_WAVES). Clearing your current frontier wave advances this by one -
+// see unlockNextWave(). Separate localStorage key from dragonPowers/
+// playerCoins, same pattern as those.
+const WAVE_PROGRESS_KEY = 'aiWaveProgress';
 
 class UIManager {
   constructor(eventBus) {
@@ -44,6 +50,63 @@ class UIManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
+  // ==================== AI WAVE PROGRESSION ====================
+  // Which wave (0-indexed into AI_WAVES) the player has unlocked up to.
+  // Defaults to 0 (Wave 1) for anyone with no saved progress.
+  _getUnlockedWaveIndex() {
+    try {
+      const raw = localStorage.getItem(WAVE_PROGRESS_KEY);
+      const idx = raw !== null ? parseInt(raw, 10) : 0;
+      if (!Number.isFinite(idx)) return 0;
+      return Math.max(0, Math.min(idx, AI_WAVES.length - 1));
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  // Called from main.js when the LOCAL player wins a wave match. If the
+  // wave just cleared is the player's current frontier (not a replay of an
+  // already-passed wave), advances progress and returns the newly-unlocked
+  // wave object - returns null/undefined otherwise (nothing to announce).
+  unlockNextWave(clearedWaveId) {
+    const clearedIndex = AI_WAVES.findIndex(w => w.id === clearedWaveId);
+    if (clearedIndex === -1) return null;
+    const current = this._getUnlockedWaveIndex();
+    if (clearedIndex !== current) return null; // replay of an earlier wave, or unknown state - no change
+    if (current >= AI_WAVES.length - 1) return null; // already at the final wave
+    try { localStorage.setItem(WAVE_PROGRESS_KEY, String(current + 1)); } catch (_) {}
+    return AI_WAVES[current + 1];
+  }
+
+  // Entry point for the "vs AI" mode card - replaces the old explicit
+  // Beginner/Easy/Advanced/Master/Legendary difficulty picker entirely.
+  // Always starts at the player's current unlocked frontier wave.
+  enterWaveMode() {
+    const wave = AI_WAVES[this._getUnlockedWaveIndex()];
+    this.selectedMode = wave.id;
+    this.selectedDifficulty = (CONFIG.WAVE_DIFFICULTY && CONFIG.WAVE_DIFFICULTY[wave.id]) || 'advanced';
+    this.showWaveIntro(wave);
+  }
+
+  // Brief "ENTERING <wave name>" transition, then straight into arena
+  // selection (unchanged - only the difficulty step was removed).
+  // Reuses the difficultyModal DOM node created in createDynamicModals()
+  // rather than adding new screens/CSS.
+  showWaveIntro(wave) {
+    const modal = this.screens['difficultyModal'];
+    if (!modal) { this.showScreen('arenaSelectModal'); return; }
+    modal.innerHTML = `
+      <div class="difficultyBox" style="text-align:center;">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:4px;color:rgba(255,255,255,0.45);margin-bottom:10px;">ENTERING</div>
+        <h2 style="margin-bottom:8px;">${wave.name}</h2>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:1px;color:#48cae4;">${wave.players} Dragons Await</div>
+      </div>`;
+    this.showScreen('difficultyModal');
+    setTimeout(() => {
+      if (this.currentScreen === 'difficultyModal') this.showScreen('arenaSelectModal');
+    }, 1500);
+  }
+
   initScreens() {
     const ids = [
       'titleScreen','dragonSelectScreen','modeSelectScreen','mpMenuScreen',
@@ -59,21 +122,14 @@ class UIManager {
   }
 
   createDynamicModals() {
+    // NOTE: this used to be pre-filled with the Beginner/Easy/Advanced/
+    // Master/Legendary button list. That picker is retired - showWaveIntro()
+    // now overwrites this node's innerHTML at runtime every time it's
+    // shown, so the initial content here is just an empty shell.
     const diffModal = document.createElement('div');
     diffModal.id = 'difficultyModal';
     diffModal.className = 'screen';
-    diffModal.innerHTML = `
-      <div class="difficultyBox">
-        <h2>Select Difficulty</h2>
-        <div class="difficultyGrid">
-          <button class="diffBtn" data-diff="beginner">Beginner</button>
-          <button class="diffBtn" data-diff="easy">Easy</button>
-          <button class="diffBtn" data-diff="advanced">Advanced</button>
-          <button class="diffBtn" data-diff="master">Master</button>
-          <button class="diffBtn" data-diff="legendary">Legendary</button>
-        </div>
-        <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>`;
+    diffModal.innerHTML = `<div class="difficultyBox"></div>`;
     document.body.appendChild(diffModal);
     this.screens['difficultyModal'] = diffModal;
 
@@ -441,24 +497,23 @@ class UIManager {
     if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
     const modeBack = document.getElementById('btnModeBack');
     if (modeBack) modeBack.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
+    // "vs AI" now skips the old difficulty picker entirely and goes
+    // straight into the current wave's intro -> arena select.
     const btn1v1 = document.getElementById('btn1v1AI');
-    if (btn1v1) btn1v1.addEventListener('click', () => { this.selectedMode = '1v1AI'; this.showScreen('difficultyModal'); });
+    if (btn1v1) btn1v1.addEventListener('click', () => this.enterWaveMode());
     const btnMp = document.getElementById('btnMpMultiplayer');
     if (btnMp) btnMp.addEventListener('click', () => this.showScreen('mpMenuScreen'));
 
-    document.querySelectorAll('#difficultyModal .diffBtn').forEach(btn => {
-      btn.addEventListener('click', () => { this.selectedDifficulty = btn.dataset.diff; this.showScreen('arenaSelectModal'); });
-    });
-    const diffBack = document.getElementById('btnDiffBack');
-    if (diffBack) diffBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
     document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
       btn.addEventListener('click', () => {
         this.selectedArena = parseInt(btn.dataset.arena);
         this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, arenaIndex: this.selectedArena });
       });
     });
+    // Arena select's Back used to go to the difficulty picker - that step
+    // no longer exists, so it goes straight back to mode select now.
     const arenaBack = document.getElementById('btnArenaBack');
-    if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('difficultyModal'));
+    if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
     const mpCreate = document.getElementById('btnMpCreate');
     if (mpCreate) mpCreate.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.eventBus.emit('mp:createRoom', { mode: 'FFA' }); });
     const mpSearchBattle = document.getElementById('btnMpSearchBattle');
