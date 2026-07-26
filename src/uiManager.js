@@ -1,17 +1,10 @@
 import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS, AI_WAVES } from './config.js';
 
-// Icon shown in the connected-wallet panel - keyed by walletManager's
-// this.walletType values ('phantom' | 'solflare'). Reuses the same asset
-// URLs already referenced elsewhere in index.html.
 const WALLET_ICON_URLS = {
   phantom: 'https://i.postimg.cc/44mrJ4My/phantom-logo.webp',
   solflare: './Solflare.png'
 };
 
-// Persists which wave the player has unlocked up to (0-indexed into
-// AI_WAVES). Clearing your current frontier wave advances this by one -
-// see unlockNextWave(). Separate localStorage key from dragonPowers/
-// playerCoins, same pattern as those.
 const WAVE_PROGRESS_KEY = 'aiWaveProgress';
 
 class UIManager {
@@ -34,7 +27,16 @@ class UIManager {
     this.playerCoins = 1000000;
     this.selectedDragonName = null;
     this._modalDragon = null;
-    this._connectedWalletType = null; // 'phantom' | 'solflare' | 'jupiter' - set from wallet:connected payload
+    this._connectedWalletType = null;
+
+    // FIX: clear stale room data on every fresh load so old "resume room"
+    // banners don't appear after a new deploy.
+    try {
+      localStorage.removeItem('currentRoom');
+      localStorage.removeItem('roomCode');
+      localStorage.removeItem('resumeRoomCode');
+    } catch (_) {}
+
     try {
       this.initScreens();
       this.createDynamicModals();
@@ -50,9 +52,6 @@ class UIManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
-  // ==================== AI WAVE PROGRESSION ====================
-  // Which wave (0-indexed into AI_WAVES) the player has unlocked up to.
-  // Defaults to 0 (Wave 1) for anyone with no saved progress.
   _getUnlockedWaveIndex() {
     try {
       const raw = localStorage.getItem(WAVE_PROGRESS_KEY);
@@ -64,23 +63,16 @@ class UIManager {
     }
   }
 
-  // Called from main.js when the LOCAL player wins a wave match. If the
-  // wave just cleared is the player's current frontier (not a replay of an
-  // already-passed wave), advances progress and returns the newly-unlocked
-  // wave object - returns null/undefined otherwise (nothing to announce).
   unlockNextWave(clearedWaveId) {
     const clearedIndex = AI_WAVES.findIndex(w => w.id === clearedWaveId);
     if (clearedIndex === -1) return null;
     const current = this._getUnlockedWaveIndex();
-    if (clearedIndex !== current) return null; // replay of an earlier wave, or unknown state - no change
-    if (current >= AI_WAVES.length - 1) return null; // already at the final wave
+    if (clearedIndex !== current) return null;
+    if (current >= AI_WAVES.length - 1) return null;
     try { localStorage.setItem(WAVE_PROGRESS_KEY, String(current + 1)); } catch (_) {}
     return AI_WAVES[current + 1];
   }
 
-  // Entry point for the "vs AI" mode card - replaces the old explicit
-  // Beginner/Easy/Advanced/Master/Legendary difficulty picker entirely.
-  // Always starts at the player's current unlocked frontier wave.
   enterWaveMode() {
     const wave = AI_WAVES[this._getUnlockedWaveIndex()];
     this.selectedMode = wave.id;
@@ -88,10 +80,6 @@ class UIManager {
     this.showWaveIntro(wave);
   }
 
-  // Brief "ENTERING <wave name>" transition, then straight into arena
-  // selection (unchanged - only the difficulty step was removed).
-  // Reuses the difficultyModal DOM node created in createDynamicModals()
-  // rather than adding new screens/CSS.
   showWaveIntro(wave) {
     const modal = this.screens['difficultyModal'];
     if (!modal) { this.showScreen('arenaSelectModal'); return; }
@@ -122,10 +110,6 @@ class UIManager {
   }
 
   createDynamicModals() {
-    // NOTE: this used to be pre-filled with the Beginner/Easy/Advanced/
-    // Master/Legendary button list. That picker is retired - showWaveIntro()
-    // now overwrites this node's innerHTML at runtime every time it's
-    // shown, so the initial content here is just an empty shell.
     const diffModal = document.createElement('div');
     diffModal.id = 'difficultyModal';
     diffModal.className = 'screen';
@@ -169,9 +153,6 @@ class UIManager {
 
   buildModeSelect() {}
 
-  // Fires fn the INSTANT the finger/mouse goes down - no 300ms mobile
-  // tap delay, no waiting for the finger to lift. This is what makes the
-  // carousel feel responsive instead of "dead on click".
   _tap(el, fn) {
     if (!el) return;
     el.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(e); });
@@ -194,8 +175,6 @@ class UIManager {
     const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
     const key = name.toLowerCase();
     const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
-    // Theme the whole screen in this dragon's color (name glow, wings,
-    // pedestal fire, image aura) via one CSS variable.
     const screen = document.getElementById('dragonSelectScreen');
     if (screen) screen.style.setProperty('--neon', color);
     const imgEl = document.getElementById('dsDragonImg');
@@ -222,7 +201,6 @@ class UIManager {
     const xpStart = document.getElementById('dsXpLevelStart');
     const xpEnd = document.getElementById('dsXpLevelEnd');
     if (xpText) xpText.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
-    // XP bar sweeps from 0 to its value every time a dragon is shown.
     if (xpFill) {
       const pct = Math.min(100, (xpCurrent / 5200) * 100);
       xpFill.style.transition = 'none';
@@ -251,9 +229,6 @@ class UIManager {
     }
     if (leftArrow) leftArrow.style.display = 'flex';
     if (rightArrow) rightArrow.style.display = 'flex';
-    // NOTE: no inline styles on selectBtn anymore - the stone-age look
-    // lives in CSS, and the label ("VIEW DRAGON" + dragon icon) lives in
-    // the HTML. Stamping styles here overrode both on every render.
     this.renderNavDots();
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
   }
@@ -274,10 +249,8 @@ class UIManager {
     const levelEl = document.getElementById('ddmDragonLevel');
     if (tierEl) tierEl.textContent = avgLevel;
     if (levelEl) levelEl.textContent = avgLevel;
-    // Theme the whole modal (border, portrait ring, section titles, glows)
     const box = document.getElementById('ddmBox');
     if (box) box.style.setProperty('--neon', color);
-    // XP row: hexagon badges + sweeping bar, same as the carousel
     const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
     const xpS = document.getElementById('ddmXpStart');
     const xpE = document.getElementById('ddmXpEnd');
@@ -310,7 +283,6 @@ class UIManager {
           <div class="ddmStatBarWrap"><div class="ddmStatBar" data-w="${(s.value / s.max) * 100}" style="background:linear-gradient(90deg, ${s.c}, ${s.c}90); box-shadow:0 0 10px ${s.c}80;"></div></div>
           <span class="ddmStatValue" style="color:${s.c}">${s.value}</span>
         </div>`).join('');
-      // Stat bars sweep from 0 to their value as the modal opens.
       requestAnimationFrame(() => requestAnimationFrame(() => {
         statsContainer.querySelectorAll('.ddmStatBar').forEach(b => { b.style.width = b.dataset.w + '%'; });
       }));
@@ -377,7 +349,6 @@ class UIManager {
         </div>`;
     });
     grid.innerHTML = html;
-    // Power bars sweep from 0 to their level every render.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       grid.querySelectorAll('.dsPowerBarFill').forEach(f => { f.style.width = f.dataset.w + '%'; });
     }));
@@ -497,8 +468,6 @@ class UIManager {
     if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
     const modeBack = document.getElementById('btnModeBack');
     if (modeBack) modeBack.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-    // "vs AI" now skips the old difficulty picker entirely and goes
-    // straight into the current wave's intro -> arena select.
     const btn1v1 = document.getElementById('btn1v1AI');
     if (btn1v1) btn1v1.addEventListener('click', () => this.enterWaveMode());
     const btnMp = document.getElementById('btnMpMultiplayer');
@@ -510,8 +479,6 @@ class UIManager {
         this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, arenaIndex: this.selectedArena });
       });
     });
-    // Arena select's Back used to go to the difficulty picker - that step
-    // no longer exists, so it goes straight back to mode select now.
     const arenaBack = document.getElementById('btnArenaBack');
     if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
     const mpCreate = document.getElementById('btnMpCreate');
@@ -570,12 +537,9 @@ class UIManager {
     if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('titleScreen'); });
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
+
     const walletBtn = document.getElementById('walletBtn');
     if (walletBtn) walletBtn.addEventListener('click', () => {
-      // Connected -> open the wallet PANEL (address/balance/sign/disconnect
-      // live in walletModal's connected view). Not connected -> wallet picker.
-      // Previously this ALWAYS opened the picker, which is why the picker
-      // appeared to "block" the panel for connected wallets.
       if (walletBtn.classList.contains('connected')) {
         this.setWalletModalState('connected');
         this.showScreen('walletModal');
@@ -591,23 +555,32 @@ class UIManager {
     const signTest = document.getElementById('btnWalletSignTest');
     if (signTest) signTest.addEventListener('click', () => {
       const resultEl = document.getElementById('wSignResult');
-      // FIX: was hardcoded to "Phantom" regardless of which wallet actually
-      // connected - showed the wrong wallet name for Solflare users.
       const walletLabel = this._connectedWalletType === 'solflare' ? 'Solflare' : 'Phantom';
       if (resultEl) resultEl.innerHTML = `Waiting for approval in ${walletLabel}...`;
       this.eventBus.emit('wallet:signTestRequest');
     });
 
+    // FIX: wallet selection buttons now use _tap (pointerdown) for instant
+    // mobile response instead of delayed click events. Also calls window.game
+    // directly as fallback so no main.js changes needed.
     const btnSelectPhantom = document.getElementById('btnSelectPhantom');
-    if (btnSelectPhantom) btnSelectPhantom.addEventListener('click', () => {
-      const wm = window.game?.walletManager;
-      if (wm) wm.connect();
-    });
+    if (btnSelectPhantom) {
+      this._tap(btnSelectPhantom, () => {
+        console.log('[UI] Phantom selected');
+        this.eventBus.emit('wallet:selectPhantom');
+        const wm = window.game?.walletManager;
+        if (wm) wm.connect();
+      });
+    }
     const btnSelectSolflare = document.getElementById('btnSelectSolflare');
-    if (btnSelectSolflare) btnSelectSolflare.addEventListener('click', () => {
-      const wm = window.game?.walletManager;
-      if (wm) wm.connectSolflare();
-    });
+    if (btnSelectSolflare) {
+      this._tap(btnSelectSolflare, () => {
+        console.log('[UI] Solflare selected');
+        this.eventBus.emit('wallet:selectSolflare');
+        const wm = window.game?.walletManager;
+        if (wm) wm.connectSolflare();
+      });
+    }
     const btnWalletSelBack = document.getElementById('btnWalletSelBack');
     if (btnWalletSelBack) btnWalletSelBack.addEventListener('click', () => this.showScreen('titleScreen'));
 
@@ -618,27 +591,8 @@ class UIManager {
     const baCancel = document.getElementById('baCancelBetting');
     if (baCancel) baCancel.addEventListener('click', () => this.eventBus.emit('betting:cancel'));
 
-    // FIX: previously these only toggled the internal walletModal sub-view
-    // (setWalletModalState) without ever calling showScreen() to switch
-    // AWAY from walletSelectionModal (the Phantom/Solflare picker). So a
-    // successful connect updated wallet state correctly, but the picker
-    // stayed the active screen on top of it - looked like the connect
-    // "did nothing" and let a second wallet be clicked on top of the first.
-    // Guarded on currentScreen so this never yanks the user off titleScreen
-    // during a silent/background reconnect on page load.
-    //
-    // FIX 2: setWalletModalState() now runs BEFORE showScreen(). walletModal
-    // has three sub-views (disconnected/connecting/connected) toggled via
-    // inline display styles - #walletDisconnectedView (the old Phantom +
-    // JUPITER picker, no longer used) has no default display:none in the
-    // HTML, so the instant showScreen('walletModal') made the modal visible
-    // BEFORE the correct sub-view was selected, briefly showing that old
-    // view (Jupiter logo included). Picking the sub-view first, then
-    // revealing the modal, removes that window entirely.
     this.eventBus.on('wallet:connecting', ({ wallet } = {}) => {
       this.setWalletModalState('connecting');
-      // FIX: "Approve the connection in Phantom..." was static HTML text -
-      // always said Phantom even when connecting via Solflare.
       const label = wallet === 'solflare' ? 'Solflare' : 'Phantom';
       const connectingText = document.getElementById('wConnectingText');
       if (connectingText) connectingText.textContent = `Approve the connection in ${label}...`;
@@ -652,14 +606,9 @@ class UIManager {
     this.eventBus.on('wallet:disconnected', () => {
       this._connectedWalletType = null;
       this.updateWalletButton(null);
-      // Close the wallet modal entirely on disconnect instead of leaving it
-      // open on the (desktop fallback) Phantom/Jupiter list - that stray view
-      // is what confused the flow after disconnecting.
       if (this.currentScreen === 'walletModal') this.showScreen('titleScreen');
       else this.setWalletModalState('disconnected');
     });
-    // Balance arrives asynchronously AFTER wallet:connected - without this
-    // listener the panel stayed stuck on "Balance unavailable" forever.
     this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
       const balEl = document.getElementById('wBalanceDisplay');
       if (balEl && balance !== undefined && balance !== null) balEl.textContent = `${balance} SOL`;
@@ -785,8 +734,6 @@ class UIManager {
     });
   }
 
-  // ATTACK button meter: liquid fill + neon glow in the dragon's color.
-  // Change-guarded so it only touches the DOM when something changed.
   updateAttackMeter(dragon) {
     const btn = document.getElementById('boostBtn');
     if (!btn) return;
@@ -807,7 +754,6 @@ class UIManager {
     if (label) label.textContent = active ? 'ATTACK!' : 'ATTACK';
   }
 
-  // Kill-streak combo banner, glowing in the killer's neon color.
   showComboBanner(killer, streak) {
     const banner = document.getElementById('comboBanner');
     if (!banner) return;
@@ -822,15 +768,11 @@ class UIManager {
       `<div class="combo-title" style="color:${neon};text-shadow:0 0 18px ${neon},0 0 46px ${neon};">${title}</div>` +
       `<div class="combo-sub">${name} &middot; ${streak} KILL STREAK</div>`;
     banner.classList.remove('combo-show');
-    void banner.offsetWidth; // restart the animation
+    void banner.offsetWidth;
     banner.classList.add('combo-show');
   }
 
   updateHUD(score, timeStr, localDragon) {
-    // PERFORMANCE: this runs every frame. Only touch the DOM when a value
-    // actually changed - the old version rebuilt innerHTML and called
-    // lucide.createIcons() (full DOM scan + SVG re-render) 60x per second,
-    // which was a constant background lag source, worst on mobile.
     if (score !== this._hudScore) {
       this._hudScore = score;
       const scoreEl = document.getElementById('scoreVal');
@@ -858,8 +800,6 @@ class UIManager {
   renderMinimap(canvas, camera, arenaManager, dragons, foods) {
     if (!canvas || !arenaManager) return;
     const ctx = canvas.getContext('2d');
-    // Only reassign width/height when actually changed - assigning
-    // canvas.width every frame forces a full buffer reallocation.
     const w = canvas.clientWidth || 90;
     const h = canvas.clientHeight || 90;
     if (canvas.width !== w) canvas.width = w;
@@ -930,9 +870,6 @@ class UIManager {
 
   hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
 
-  // Dragon Age settlement breakdown panel on the game-over screen.
-  // States: pending (waiting for backend settle), draw, and final (won/lost
-  // with stake/pot/fee/payout + explorer tx link).
   showStakeBreakdown({ pending = false, draw = false, won = false, stakeText = null, potText = null, feeText = null, payoutText = null, feePct = 2.5, signature = null, cluster = 'devnet' } = {}) {
     const box = document.getElementById('goStakeBox');
     if (!box) return;
@@ -991,8 +928,6 @@ class UIManager {
     if (addrEl && address) addrEl.textContent = address.length > 12 ? `${address.slice(0,6)}...${address.slice(-4)}` : address;
     const balEl = document.getElementById('wBalanceDisplay');
     if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
-    // FIX: the connected-panel icon was a static Phantom <img> with no id,
-    // so it always showed Phantom's logo even when connected via Solflare.
     const iconEl = document.getElementById('wWalletIcon');
     if (iconEl) {
       const isSolflare = this._connectedWalletType === 'solflare';
