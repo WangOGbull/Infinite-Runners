@@ -245,9 +245,17 @@ class Game {
         // entirely (a real behavior, not something JS can prevent), this
         // is the actual way back into the room instead of a dead end.
         const lastRoom = this._getLastRoom();
-        if (lastRoom) this.uiManager.showResumeRoomBanner(lastRoom.roomCode);
+if (lastRoom) {
+  firebase.database().ref(`rooms/${lastRoom.roomCode}/status`).get()
+    .then(snap => {
+      const status = snap.val();
+      const stillResumable = status && status !== 'playing' && status !== 'finished';
+      if (stillResumable) {
+        this.uiManager.showResumeRoomBanner(lastRoom.roomCode);
       }
-    }
+    })
+    .catch(() => {});
+}
 
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
