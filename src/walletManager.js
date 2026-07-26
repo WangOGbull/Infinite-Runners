@@ -1,5 +1,11 @@
 // walletManager.js
-const RPC_ENDPOINT = 'https://devnet.helius-rpc.com/?api-key=de2fb44b-73e1-4ee5-aa9d-b1134825a8b0';
+// FIX: this was pointing at DEVNET while the INFINITE mint, the hot
+// wallet, and every player's actual tokens live on MAINNET. Solflare
+// refused to sign outright ("network mismatch"); Phantom signed anyway
+// and submitted to mainnet, where a devnet blockhash can never land -
+// which is what every "expired: block height exceeded" failure actually
+// was. Same Helius API key works on both clusters.
+const RPC_ENDPOINT = 'https://mainnet.helius-rpc.com/?api-key=de2fb44b-73e1-4ee5-aa9d-b1134825a8b0';
 
 function clusterFromEndpoint(endpoint) {
   if (endpoint.includes('devnet')) return 'devnet';
