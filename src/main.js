@@ -240,27 +240,13 @@ class Game {
             this.uiManager.showScreen('titleScreen');
           }
         }, 6000);
-      } else {
-        // No redirect data at all this load - if Android dropped it
-        // entirely (a real behavior, not something JS can prevent), this
-        // is the actual way back into the room instead of a dead end.
-        const lastRoom = this._getLastRoom();
-        if (lastRoom) {
-          // FIX: previously showed this banner purely because a local
-          // reference existed, with no check on whether that room was
-          // still actually resumable - so it kept reappearing forever
-          // after a bet was placed and the match played out or finished.
-          firebase.database().ref(`rooms/${lastRoom.roomCode}/status`).get()
-            .then(snap => {
-              const status = snap.val();
-              const stillResumable = status && status !== 'playing' && status !== 'finished';
-              if (stillResumable) {
-                this.uiManager.showResumeRoomBanner(lastRoom.roomCode);
-              }
-            })
-            .catch(() => {});
-        }
       }
+      // REMOVED: the "Resume Room" banner that used to appear here when a
+      // lastRoomInfo entry existed. It was a workaround for Android
+      // dropping Phantom's redirect data during the old encrypted
+      // deep-link flow - now that wallet flows run inside the wallet's
+      // own in-app browser with no redirect at all, that failure mode is
+      // gone and the banner had become a recurring nuisance on refresh.
     }
 
     this.stakingManager.getDisplayTiers()
@@ -502,13 +488,11 @@ class Game {
 
     this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
 
-    this.eventBus.on('ui:resumeRoom', () => {
-      const lastRoom = this._getLastRoom();
-      if (lastRoom && this.db) {
-        this.uiManager.hideResumeRoomBanner();
-        this._rejoinRoom(lastRoom);
-      }
-    });
+    // REMOVED: the 'ui:resumeRoom' handler (Resume Room banner) - obsolete
+    // now that wallet flows run inside the wallet's in-app browser. Any
+    // stale lastRoomInfo still sitting in a player's localStorage from the
+    // old flow is cleared here once so nothing can ever act on it again.
+    this._clearLastRoom();
 
     // ===== SEARCH BATTLE (Photon matchmaking, tier-first) =====
     // Player picks a stake tier BEFORE searching; Photon only matches them
