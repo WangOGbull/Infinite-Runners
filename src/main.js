@@ -261,6 +261,7 @@ class Game {
             .catch(() => {});
         }
       }
+    }
 
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
