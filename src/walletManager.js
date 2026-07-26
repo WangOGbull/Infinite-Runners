@@ -95,46 +95,22 @@ class WalletManager {
     return null;
   }
 
+  // FIX: added Solflare provider detection for when game opens inside Solflare browser
+  getSolflareProvider() {
+    if (window?.solflare?.isSolflare) return window.solflare;
+    return null;
+  }
+
   isPhantomInstalled() { return !!this.getProvider(); }
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
-  _buildBrowseUrl(walletType, targetUrl) {
-    const encodedUrl = encodeURIComponent(targetUrl);
-    const encodedRef = encodeURIComponent(window.location.origin);
-    if (walletType === 'solflare') {
-      return `https://solflare.com/ul/v1/browse/${encodedUrl}?ref=${encodedRef}`;
-    }
-    return `https://phantom.app/ul/browse/${encodedUrl}?ref=${encodedRef}`;
-  }
+  // FIX: removed broken browse-url methods. The "browse" deep link opens the
+  // wallet's WEBSITE instead of the app from Telegram/Chrome. Reverted to
+  // the proper encrypted /ul/v1/connect deep link which opens the app directly.
 
-  openInWalletBrowser(walletType) {
-    const currentUrl = new URL(window.location.href.split('?')[0].split('#')[0]);
-    currentUrl.searchParams.set('autoConnectWallet', walletType);
-    const browseUrl = this._buildBrowseUrl(walletType, currentUrl.toString());
-    this._debugLog(`openInWalletBrowser: relaunching inside ${walletType}'s browser`);
-    this._navigateToUniversalLink(browseUrl);
-  }
-
-  _checkAutoConnectQueryParam() {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const autoConnectWallet = params.get('autoConnectWallet');
-      if (!autoConnectWallet) return;
-      const cleanUrl = new URL(window.location.href);
-      cleanUrl.searchParams.delete('autoConnectWallet');
-      window.history.replaceState({}, document.title, cleanUrl.toString());
-      setTimeout(() => {
-        if (this.connected || this.connecting) return;
-        if (autoConnectWallet === 'solflare') {
-          this.connectSolflare().catch(() => {});
-        } else {
-          this.connect().catch(() => {});
-        }
-      }, 400);
-    } catch (_) { /* best-effort only */ }
-  }
-
+  // FIX: script-invoked window.location.replace()/href to a Universal Link is
+  // handled less reliably by iOS/Android than a real user-gesture anchor click.
   _navigateToUniversalLink(url) {
     const a = document.createElement('a');
     a.href = url;
@@ -157,7 +133,7 @@ class WalletManager {
       if (document.visibilityState === 'visible' && this.connecting) {
         this.connecting = false;
         this.eventBus.emit('wallet:error', {
-          message: `Couldn't open ${walletLabel}. Make sure the app is installed, then try again.`
+          message: `Couldn\'t open ${walletLabel}. Make sure the app is installed, then try again.`
         });
       }
     }, 2500);
@@ -172,6 +148,7 @@ class WalletManager {
     provider.on('connect', (publicKey) => {
       this.publicKey = publicKey || provider.publicKey;
       this.connected = true;
+      this.connecting = false; // FIX: clear stuck connecting flag
       this.walletType = walletType;
       this._broadcastWalletSync();
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
@@ -396,6 +373,7 @@ class WalletManager {
           this.mobileSession = response.session;
           this.publicKey = new solanaWeb3.PublicKey(response.public_key);
           this.connected = true;
+          this.connecting = false; // FIX: clear stuck connecting flag
           this.walletType = walletType;
 
           const sessionKey = walletType === 'phantom' ? PHANTOM_SESSION_KEY : JUPITER_SESSION_KEY;
@@ -446,39 +424,50 @@ class WalletManager {
       window.history.replaceState({}, document.title, cleanUrl.toString());
     } catch (err) {
       console.error('[WalletManager] Mobile redirect handling failed:', err);
+      this.connecting = false; // FIX: clear stuck connecting flag on error
       this.eventBus.emit('wallet:error', { message: 'Failed to process wallet redirect.' });
     }
   }
 
+  // ---------------------------------------------------------------------
+  // FIX: reverted from broken "browse" deep links back to proper encrypted
+  // /ul/v1/connect deep links. The "browse" URLs open the wallet WEBSITE
+  // instead of the app when opened from Telegram/Chrome.
+  // ---------------------------------------------------------------------
   async connect() {
     if (this.connected) return;
     if (this.connecting) return;
     this.connecting = true;
 
     try {
+      // FIX: if we're already inside Phantom's in-app browser, provider is injected
+      const provider = this.getProvider();
+      if (provider) {
+        this._bindProviderEvents(provider, 'phantom');
+        const resp = await provider.connect();
+        this.publicKey = resp.publicKey;
+        this.connected = true;
+        this.connecting = false;
+        this.walletType = 'phantom';
+        try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
+        this._broadcastWalletSync();
+        this._refreshBalance().then(() => {
+          this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+        });
+        return;
+      }
+
       if (this.isMobile()) {
-        this.openInWalletBrowser('phantom');
+        // FIX: use proper encrypted connect deep link, not broken browse link
+        const url = this._buildMobileConnectUrl('phantom');
+        this._navigateToUniversalLink(url);
         this._armMobileConnectFallback('Phantom');
         return;
       }
 
-      const provider = this.getProvider();
-      if (!provider) {
-        this.connecting = false;
-        this.eventBus.emit('wallet:error', { message: 'Phantom wallet not found. Please install the Phantom extension.' });
-        return;
-      }
-
-      this._bindProviderEvents(provider, 'phantom');
-      const resp = await provider.connect();
-      this.publicKey = resp.publicKey;
-      this.connected = true;
-      this.walletType = 'phantom';
-      try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
-      this._broadcastWalletSync();
-      this._refreshBalance().then(() => {
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
-      });
+      // Desktop: no extension installed
+      this.connecting = false;
+      this.eventBus.emit('wallet:error', { message: 'Phantom wallet not found. Please install the Phantom extension.' });
     } catch (err) {
       this.connecting = false;
       this.eventBus.emit('wallet:error', { message: err?.message || 'Failed to connect Phantom wallet.' });
@@ -491,30 +480,34 @@ class WalletManager {
     this.connecting = true;
 
     try {
+      // FIX: if we're already inside Solflare's in-app browser, provider is injected
+      const solflareProvider = this.getSolflareProvider();
+      if (solflareProvider) {
+        this._bindProviderEvents(solflareProvider, 'solflare');
+        const resp = await solflareProvider.connect();
+        this.publicKey = resp.publicKey;
+        this.connected = true;
+        this.connecting = false;
+        this.walletType = 'solflare';
+        try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
+        this._broadcastWalletSync();
+        this._refreshBalance().then(() => {
+          this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+        });
+        return;
+      }
+
       if (this.isMobile()) {
-        this.openInWalletBrowser('solflare');
+        // FIX: use proper encrypted connect deep link, not broken browse link
+        const url = this._buildMobileConnectUrl('solflare');
+        this._navigateToUniversalLink(url);
         this._armMobileConnectFallback('Solflare');
         return;
       }
 
-      let provider = null;
-      if (window?.solflare?.isSolflare) provider = window.solflare;
-      if (!provider) {
-        this.connecting = false;
-        this.eventBus.emit('wallet:error', { message: 'Solflare wallet not found. Please install the Solflare extension.' });
-        return;
-      }
-
-      this._bindProviderEvents(provider, 'solflare');
-      const resp = await provider.connect();
-      this.publicKey = resp.publicKey;
-      this.connected = true;
-      this.walletType = 'solflare';
-      try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
-      this._broadcastWalletSync();
-      this._refreshBalance().then(() => {
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
-      });
+      // Desktop: no extension installed
+      this.connecting = false;
+      this.eventBus.emit('wallet:error', { message: 'Solflare wallet not found. Please install the Solflare extension.' });
     } catch (err) {
       this.connecting = false;
       this.eventBus.emit('wallet:error', { message: err?.message || 'Failed to connect Solflare wallet.' });
@@ -545,11 +538,15 @@ class WalletManager {
   async _trySilentExtensionReconnect() {
     try {
       const extType = localStorage.getItem(EXT_WALLET_TYPE_KEY);
-      if (extType === 'solflare' && window?.solflare?.isSolflare) {
-        if (window.solflare.isConnected && window.solflare.publicKey) {
-          this._bindProviderEvents(window.solflare, 'solflare');
-          this.publicKey = window.solflare.publicKey;
+
+      // FIX: try Solflare first if it was last used
+      if (extType === 'solflare') {
+        const solflareProvider = this.getSolflareProvider();
+        if (solflareProvider && solflareProvider.isConnected && solflareProvider.publicKey) {
+          this._bindProviderEvents(solflareProvider, 'solflare');
+          this.publicKey = solflareProvider.publicKey;
           this.connected = true;
+          this.connecting = false;
           this.walletType = 'solflare';
           this._broadcastWalletSync();
           this._refreshBalance().then(() => {
@@ -558,11 +555,13 @@ class WalletManager {
           return;
         }
       }
+
       const provider = this.getProvider();
       if (provider && provider.isConnected && provider.publicKey) {
         this._bindProviderEvents(provider, 'phantom');
         this.publicKey = provider.publicKey;
         this.connected = true;
+        this.connecting = false;
         this.walletType = 'phantom';
         this._broadcastWalletSync();
         this._refreshBalance().then(() => {
@@ -585,7 +584,7 @@ class WalletManager {
     try {
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
         this.publicKey,
-        { programId: TOKEN_2022_PROGRAM_ID }
+        { programId: new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb') }
       );
       const balances = {};
       for (const { account } of tokenAccounts.value) {
