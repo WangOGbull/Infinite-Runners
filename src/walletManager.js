@@ -74,7 +74,8 @@ class WalletManager {
     this._restoreMobileKeyPair();
     this._checkDebugQueryParam();
     this._bindCrossTabSync();
-    this._checkAutoConnectQueryParam();
+    // FIX: removed broken _checkAutoConnectQueryParam() call that crashed
+    // the game on load because the method no longer exists in this version.
     setTimeout(() => this._trySilentExtensionReconnect(), 0);
 
     this.eventBus.on('wallet:scanRequest', () => { this.scanBalances(); });
@@ -95,7 +96,6 @@ class WalletManager {
     return null;
   }
 
-  // FIX: added Solflare provider detection for when game opens inside Solflare browser
   getSolflareProvider() {
     if (window?.solflare?.isSolflare) return window.solflare;
     return null;
@@ -105,12 +105,6 @@ class WalletManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
-  // FIX: removed broken browse-url methods. The "browse" deep link opens the
-  // wallet's WEBSITE instead of the app from Telegram/Chrome. Reverted to
-  // the proper encrypted /ul/v1/connect deep link which opens the app directly.
-
-  // FIX: script-invoked window.location.replace()/href to a Universal Link is
-  // handled less reliably by iOS/Android than a real user-gesture anchor click.
   _navigateToUniversalLink(url) {
     const a = document.createElement('a');
     a.href = url;
@@ -148,7 +142,7 @@ class WalletManager {
     provider.on('connect', (publicKey) => {
       this.publicKey = publicKey || provider.publicKey;
       this.connected = true;
-      this.connecting = false; // FIX: clear stuck connecting flag
+      this.connecting = false;
       this.walletType = walletType;
       this._broadcastWalletSync();
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
@@ -373,7 +367,7 @@ class WalletManager {
           this.mobileSession = response.session;
           this.publicKey = new solanaWeb3.PublicKey(response.public_key);
           this.connected = true;
-          this.connecting = false; // FIX: clear stuck connecting flag
+          this.connecting = false;
           this.walletType = walletType;
 
           const sessionKey = walletType === 'phantom' ? PHANTOM_SESSION_KEY : JUPITER_SESSION_KEY;
@@ -424,23 +418,17 @@ class WalletManager {
       window.history.replaceState({}, document.title, cleanUrl.toString());
     } catch (err) {
       console.error('[WalletManager] Mobile redirect handling failed:', err);
-      this.connecting = false; // FIX: clear stuck connecting flag on error
+      this.connecting = false;
       this.eventBus.emit('wallet:error', { message: 'Failed to process wallet redirect.' });
     }
   }
 
-  // ---------------------------------------------------------------------
-  // FIX: reverted from broken "browse" deep links back to proper encrypted
-  // /ul/v1/connect deep links. The "browse" URLs open the wallet WEBSITE
-  // instead of the app when opened from Telegram/Chrome.
-  // ---------------------------------------------------------------------
   async connect() {
     if (this.connected) return;
     if (this.connecting) return;
     this.connecting = true;
 
     try {
-      // FIX: if we're already inside Phantom's in-app browser, provider is injected
       const provider = this.getProvider();
       if (provider) {
         this._bindProviderEvents(provider, 'phantom');
@@ -458,14 +446,12 @@ class WalletManager {
       }
 
       if (this.isMobile()) {
-        // FIX: use proper encrypted connect deep link, not broken browse link
         const url = this._buildMobileConnectUrl('phantom');
         this._navigateToUniversalLink(url);
         this._armMobileConnectFallback('Phantom');
         return;
       }
 
-      // Desktop: no extension installed
       this.connecting = false;
       this.eventBus.emit('wallet:error', { message: 'Phantom wallet not found. Please install the Phantom extension.' });
     } catch (err) {
@@ -480,7 +466,6 @@ class WalletManager {
     this.connecting = true;
 
     try {
-      // FIX: if we're already inside Solflare's in-app browser, provider is injected
       const solflareProvider = this.getSolflareProvider();
       if (solflareProvider) {
         this._bindProviderEvents(solflareProvider, 'solflare');
@@ -498,14 +483,12 @@ class WalletManager {
       }
 
       if (this.isMobile()) {
-        // FIX: use proper encrypted connect deep link, not broken browse link
         const url = this._buildMobileConnectUrl('solflare');
         this._navigateToUniversalLink(url);
         this._armMobileConnectFallback('Solflare');
         return;
       }
 
-      // Desktop: no extension installed
       this.connecting = false;
       this.eventBus.emit('wallet:error', { message: 'Solflare wallet not found. Please install the Solflare extension.' });
     } catch (err) {
@@ -539,7 +522,6 @@ class WalletManager {
     try {
       const extType = localStorage.getItem(EXT_WALLET_TYPE_KEY);
 
-      // FIX: try Solflare first if it was last used
       if (extType === 'solflare') {
         const solflareProvider = this.getSolflareProvider();
         if (solflareProvider && solflareProvider.isConnected && solflareProvider.publicKey) {
