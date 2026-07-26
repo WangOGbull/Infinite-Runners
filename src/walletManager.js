@@ -154,28 +154,57 @@ class WalletManager {
   // wallet's own in-app browser, provider injection imminent), this
   // auto-triggers the actual connect - no second tap needed from the
   // player. Harmless no-op on every normal page load without that param.
+  //
+  // FIX: a single fixed 400ms delay raced the wallet's provider
+  // injection. On the first-ever load of the in-app browser, injection
+  // routinely takes longer than that - connect() then found no provider,
+  // saw isMobile()===true, and relaunched the browse link, looping the
+  // page forever. This now POLLS for the expected provider (up to 12s)
+  // and only fires connect once it's actually there. It also records
+  // _arrivedInWalletBrowser so no code path can ever build another
+  // browse link from inside the wallet's own browser.
   _checkAutoConnectQueryParam() {
     try {
       const params = new URLSearchParams(window.location.search);
       const autoConnectWallet = params.get('autoConnectWallet');
       if (!autoConnectWallet) return;
+      // We are now INSIDE this wallet's in-app browser. Remember that for
+      // the whole session - openInWalletBrowser() must never fire again
+      // from in here, or the page relaunches itself in a loop.
+      this._arrivedInWalletBrowser = autoConnectWallet;
       // Strip immediately so refreshing or sharing this URL later doesn't
       // re-trigger an unwanted auto-connect prompt.
       const cleanUrl = new URL(window.location.href);
       cleanUrl.searchParams.delete('autoConnectWallet');
       window.history.replaceState({}, document.title, cleanUrl.toString());
-      // Deferred: gives the injected provider a brief moment to actually
-      // appear after the in-app browser finishes loading the page, and
-      // (per the setTimeout(0) comment above) ensures the EventBus is
-      // already wired up before anything tries to emit through it.
-      setTimeout(() => {
-        if (this.connected || this.connecting) return;
-        if (autoConnectWallet === 'solflare') {
-          this.connectSolflare().catch(() => {});
-        } else {
-          this.connect().catch(() => {});
+
+      const startedAt = Date.now();
+      const providerPresent = () => autoConnectWallet === 'solflare'
+        ? !!window?.solflare
+        : !!this.getProvider();
+      const poll = () => {
+        if (this.connected || this.connecting) return; // silent-reconnect beat us to it
+        if (providerPresent()) {
+          this._debugLog(`autoConnect: ${autoConnectWallet} provider injected after ${Date.now() - startedAt}ms - connecting`);
+          if (autoConnectWallet === 'solflare') {
+            this.connectSolflare().catch(() => {});
+          } else {
+            this.connect().catch(() => {});
+          }
+          return;
         }
-      }, 400);
+        if (Date.now() - startedAt > 12000) {
+          this._debugLog('autoConnect: provider never injected after 12s');
+          this.eventBus.emit('wallet:error', {
+            message: 'The wallet is still starting up. Tap "Connect Wallet" to finish connecting.'
+          });
+          return;
+        }
+        setTimeout(poll, 250);
+      };
+      // Small initial delay: (per the setTimeout(0) comment above) ensures
+      // the EventBus is already wired up before anything emits through it.
+      setTimeout(poll, 300);
     } catch (_) { /* best-effort only */ }
   }
 
@@ -682,6 +711,16 @@ class WalletManager {
     const provider = this.getProvider();
     if (provider) return this._connectProvider(provider);
     if (this.isMobile()) {
+      // Never relaunch from INSIDE a wallet's own in-app browser - if the
+      // provider isn't injected yet, relaunching just loops the page. The
+      // auto-connect poller is already waiting for injection; tell the
+      // player to give it a moment instead.
+      if (this._arrivedInWalletBrowser) {
+        this.eventBus.emit('wallet:error', {
+          message: 'The wallet is still starting up. Wait a moment, then tap "Connect Wallet" again.'
+        });
+        throw new Error('Wallet provider not injected yet');
+      }
       // FIX: previously built an encrypted /ul/v1/connect deep link here -
       // the exact mechanism behind nearly every mobile wallet bug tonight.
       // Phantom's own docs are explicit that connecting only reliably
@@ -737,17 +776,18 @@ class WalletManager {
   async connectSolflare() {
     // FIX (bug 3): guard against a duplicate/overlapping connect attempt.
     if (this.connecting || this.connected) return;
-    if (this.isMobile()) {
-      // FIX: same reasoning as connect() above - relaunch inside
-      // Solflare's own in-app browser instead of the old encrypted
-      // deep-link round-trip. Checked before setting `connecting`/emitting
-      // 'wallet:connecting' since the page is about to unload regardless.
-      this.openInWalletBrowser('solflare');
-      return { openedInWalletBrowser: true };
-    }
-    this.connecting = true;
-    this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
+    // FIX: the injected-provider check MUST come before the isMobile()
+    // branch. window.solflare exists in TWO places: the desktop extension
+    // AND Solflare's own in-app browser - and inside that in-app browser
+    // isMobile() is still true. With the old order (mobile first), a
+    // player already inside Solflare's browser never reached the injected
+    // provider sitting right there; the code built ANOTHER browse link
+    // and relaunched the page in a loop. Injected-first fixes both
+    // environments with one flow and makes staking a native in-app
+    // confirmation sheet with no redirect at all.
     if (window?.solflare) {
+      this.connecting = true;
+      this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
       // FIX: same class of bug as Phantom's _connectProvider - if
       // Solflare's extension hangs (broken content-script injection, or
       // any other extension-side stall), connect() never resolves or
@@ -803,7 +843,20 @@ class WalletManager {
         throw err;
       }
     }
-    this.connecting = false;
+    if (this.isMobile()) {
+      // No injected provider and we're in a regular mobile browser -
+      // relaunch this page inside Solflare's own in-app browser (same
+      // reasoning as connect() above). Guarded so it can never fire from
+      // INSIDE a wallet in-app browser and loop the page.
+      if (this._arrivedInWalletBrowser) {
+        this.eventBus.emit('wallet:error', {
+          message: 'The wallet is still starting up. Wait a moment, then tap "Connect Wallet" again.'
+        });
+        throw new Error('Wallet provider not injected yet');
+      }
+      this.openInWalletBrowser('solflare');
+      return { openedInWalletBrowser: true };
+    }
     window.open('https://solflare.com/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Solflare wallet not installed.' });
     throw new Error('Solflare not installed');
