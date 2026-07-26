@@ -130,12 +130,43 @@ class StakingManager {
     return this.walletManager.connection;
   }
 
-  async _sendTx(instructions, pendingAction) {
+  // Polls getSignatureStatus directly to find out whether a transaction
+  // whose CONFIRMATION WATCHER expired actually landed on-chain anyway.
+  // This distinction is critical: "block height exceeded" only means the
+  // confirmTransaction() strategy gave up waiting - the transaction itself
+  // may still have been included in a block moments earlier. Treating that
+  // as a failure (and retrying) would double-charge the player; treating a
+  // genuine miss as success would record a deposit that never happened.
+  // searchTransactionHistory:true is required so a tx that already slipped
+  // out of the recent-status cache is still found.
+  async _didTxLand(signature) {
+    for (let i = 0; i < 4; i++) {
+      try {
+        const res = await this.connection.getSignatureStatus(signature, {
+          searchTransactionHistory: true,
+        });
+        const st = res && res.value;
+        if (st) {
+          if (st.err) return false; // included but FAILED on-chain - funds not moved
+          if (st.confirmationStatus === 'confirmed' || st.confirmationStatus === 'finalized') {
+            return true;
+          }
+          // Seen but only 'processed' - give it a moment to reach confirmed.
+        }
+      } catch (_) { /* transient RPC error - just poll again */ }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return false;
+  }
+
+  // Builds, sends, and confirms one attempt with a blockhash fetched at
+  // the last possible moment (immediately before the wallet prompt), so
+  // the ~60-90s validity window is spent almost entirely on the user's
+  // approval instead of being partially burned beforehand.
+  async _sendTxOnce(instructions, pendingAction) {
     const connection = this.connection;
     const feePayer = this.walletManager.publicKey;
 
-    // FIX: Fetch blockhash HERE, right before building — not earlier.
-    // This minimizes the time between fetch and user approval in Phantom.
     const { blockhash, lastValidBlockHeight } = await _timed(
       'connection.getLatestBlockhash',
       () => connection.getLatestBlockhash('confirmed')
@@ -143,7 +174,7 @@ class StakingManager {
 
     const tx = new solanaWeb3.Transaction({ feePayer, blockhash, lastValidBlockHeight });
 
-    // FIX: Add compute budget first so Phantom simulation succeeds.
+    // Compute budget first so Phantom simulation succeeds.
     tx.add(COMPUTE_BUDGET_IX);
     instructions.forEach((ix) => tx.add(ix));
 
@@ -153,11 +184,63 @@ class StakingManager {
     );
     if (result?.deepLinked) return result;
 
-    await _timed(
-      'connection.confirmTransaction',
-      () => connection.confirmTransaction({ signature: result.signature, blockhash, lastValidBlockHeight }, 'confirmed')
-    );
-    return result;
+    try {
+      await _timed(
+        'connection.confirmTransaction',
+        () => connection.confirmTransaction({ signature: result.signature, blockhash, lastValidBlockHeight }, 'confirmed')
+      );
+      return result;
+    } catch (err) {
+      const expired =
+        err?.name === 'TransactionExpiredBlockheightExceededError' ||
+        /block height exceeded/i.test(err?.message || '');
+      if (!expired) throw err;
+
+      // The watcher gave up - find out what ACTUALLY happened on-chain.
+      console.log('[Staking] confirmation window expired - checking whether the tx landed anyway…');
+      const landed = await _timed(
+        'connection.getSignatureStatus (post-expiry check)',
+        () => this._didTxLand(result.signature)
+      );
+      if (landed) {
+        // The deposit is real - only the watcher timed out. Success.
+        console.log('[Staking] tx DID land on-chain - treating as confirmed:', result.signature);
+        return result;
+      }
+      // Provably never included AND its blockhash is now past
+      // lastValidBlockHeight, so it can never be included in the future
+      // either. A retry with a fresh blockhash is therefore SAFE - the
+      // expired signature and the retry's signature can never both land.
+      const e = new Error('TX_EXPIRED_RETRYABLE');
+      e._retryable = true;
+      e._expiredSignature = result.signature;
+      throw e;
+    }
+  }
+
+  // A slow wallet approval (50s+ is common when the user is reading the
+  // Phantom prompt, or on mobile after an app switch) can push the
+  // transaction past its blockhash validity window. When that happens and
+  // the tx provably never landed, rebuild it with a fresh blockhash and
+  // give the player one automatic second attempt instead of a dead end.
+  async _sendTx(instructions, pendingAction) {
+    try {
+      return await this._sendTxOnce(instructions, pendingAction);
+    } catch (err) {
+      if (!err?._retryable) throw err;
+      console.log('[Staking] first attempt expired unused - retrying with a fresh blockhash');
+      this.eventBus.emit('staking:pending', {
+        label: 'That approval took a little too long and the transaction expired unused — no funds moved. Retrying: please approve again in your wallet.',
+      });
+      try {
+        return await this._sendTxOnce(instructions, pendingAction);
+      } catch (err2) {
+        if (err2?._retryable) {
+          throw new Error('The transaction expired before it could reach the network (twice). No funds were moved. Please approve the wallet prompt a bit more quickly, or check your connection and try again.');
+        }
+        throw err2;
+      }
+    }
   }
 
   async createStakedRoom({ roomId, tier }) {
