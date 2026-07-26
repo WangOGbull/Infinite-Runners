@@ -563,23 +563,30 @@ class UIManager {
     // FIX: wallet selection buttons now use _tap (pointerdown) for instant
     // mobile response instead of delayed click events. Also calls window.game
     // directly as fallback so no main.js changes needed.
+    // FIX: _tap uses pointerdown + preventDefault() which breaks on mobile
+    // for modal buttons (OS suppresses the activation). Wallet buttons
+    // use standard click + passive touchstart for instant mobile response.
     const btnSelectPhantom = document.getElementById('btnSelectPhantom');
     if (btnSelectPhantom) {
-      this._tap(btnSelectPhantom, () => {
+      const onPhantom = () => {
         console.log('[UI] Phantom selected');
         this.eventBus.emit('wallet:selectPhantom');
         const wm = window.game?.walletManager;
         if (wm) wm.connect();
-      });
+      };
+      btnSelectPhantom.addEventListener('click', onPhantom);
+      btnSelectPhantom.addEventListener('touchstart', onPhantom, { passive: true });
     }
     const btnSelectSolflare = document.getElementById('btnSelectSolflare');
     if (btnSelectSolflare) {
-      this._tap(btnSelectSolflare, () => {
+      const onSolflare = () => {
         console.log('[UI] Solflare selected');
         this.eventBus.emit('wallet:selectSolflare');
         const wm = window.game?.walletManager;
         if (wm) wm.connectSolflare();
-      });
+      };
+      btnSelectSolflare.addEventListener('click', onSolflare);
+      btnSelectSolflare.addEventListener('touchstart', onSolflare, { passive: true });
     }
     const btnWalletSelBack = document.getElementById('btnWalletSelBack');
     if (btnWalletSelBack) btnWalletSelBack.addEventListener('click', () => this.showScreen('titleScreen'));
