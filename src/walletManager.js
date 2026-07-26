@@ -74,8 +74,6 @@ class WalletManager {
     this._restoreMobileKeyPair();
     this._checkDebugQueryParam();
     this._bindCrossTabSync();
-    // FIX: removed broken _checkAutoConnectQueryParam() call that crashed
-    // the game on load because the method no longer exists in this version.
     setTimeout(() => this._trySilentExtensionReconnect(), 0);
 
     this.eventBus.on('wallet:scanRequest', () => { this.scanBalances(); });
@@ -105,14 +103,13 @@ class WalletManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
+  // FIX: use window.location.assign() instead of anchor click. Anchor clicks
+  // with target="_self" are less reliable on mobile for universal links -
+  // the OS sometimes treats them as "open in new tab" intent rather than
+  // intercepting the wallet URL scheme. A direct location assign is a
+  // committed navigation that the OS reliably intercepts.
   _navigateToUniversalLink(url) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.rel = 'noopener';
-    a.target = '_self';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    window.location.assign(url);
   }
 
   _armMobileConnectFallback(walletLabel) {
