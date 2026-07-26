@@ -81,6 +81,7 @@ class WalletManager {
     this._restoreMobileKeyPair();
     this._checkDebugQueryParam();
     this._bindCrossTabSync();
+    this._checkAutoConnectQueryParam();
     // Deferred to the next tick: Game's constructor creates this manager
     // BEFORE setupEventListeners() runs, so a 'wallet:connected' emitted
     // synchronously here would fire into an empty EventBus and be lost.
@@ -107,6 +108,76 @@ class WalletManager {
   isPhantomInstalled() { return !!this.getProvider(); }
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
+
+  // Builds the official "Browse" deeplink for either wallet - opens the
+  // given URL directly INSIDE that wallet app's own in-app browser, rather
+  // than the encrypted /ul/v1/connect round-trip. Confirmed directly from
+  // each wallet's own developer docs:
+  //   Phantom:  https://phantom.app/ul/browse/<url>?ref=<ref>
+  //   Solflare: https://solflare.com/ul/v1/browse/<url>?ref=<ref>
+  // Both require url-encoded `url` (page to open) and `ref` (this site).
+  _buildBrowseUrl(walletType, targetUrl) {
+    const encodedUrl = encodeURIComponent(targetUrl);
+    const encodedRef = encodeURIComponent(window.location.origin);
+    if (walletType === 'solflare') {
+      return `https://solflare.com/ul/v1/browse/${encodedUrl}?ref=${encodedRef}`;
+    }
+    return `https://phantom.app/ul/browse/${encodedUrl}?ref=${encodedRef}`;
+  }
+
+  // FIX: relaunches the CURRENT page inside the chosen wallet's own in-app
+  // browser instead of doing the old encrypted deep-link round-trip. Both
+  // Phantom's and Solflare's own docs are explicit that this is the
+  // reliable way to connect on mobile ("connecting only works inside
+  // Phantom's in-app browser - you can't connect from Safari, Chrome, or
+  // other mobile browsers"). Once the page reloads inside the wallet's
+  // browser, the wallet injects itself just like a desktop extension -
+  // connect() and every later stake transaction then happen as a native
+  // in-app confirmation sheet, with NO redirect at all, because
+  // sendTransaction() already prefers an injected provider over any deep
+  // link (see below) - this fixes the connect step, and staking inherits
+  // the no-redirect behavior automatically, no other code needed.
+  //
+  // A marker query param travels along so the page can auto-trigger
+  // connect() the instant it reloads there, instead of requiring the
+  // player to tap "Connect Wallet" a second time once they arrive.
+  openInWalletBrowser(walletType) {
+    const currentUrl = new URL(window.location.href.split('?')[0].split('#')[0]);
+    currentUrl.searchParams.set('autoConnectWallet', walletType);
+    const browseUrl = this._buildBrowseUrl(walletType, currentUrl.toString());
+    this._debugLog(`openInWalletBrowser: relaunching inside ${walletType}'s browser`);
+    this._navigateToUniversalLink(browseUrl);
+  }
+
+  // Runs once on every page load. If we just arrived here via
+  // openInWalletBrowser() above (i.e. we're now running inside the
+  // wallet's own in-app browser, provider injection imminent), this
+  // auto-triggers the actual connect - no second tap needed from the
+  // player. Harmless no-op on every normal page load without that param.
+  _checkAutoConnectQueryParam() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const autoConnectWallet = params.get('autoConnectWallet');
+      if (!autoConnectWallet) return;
+      // Strip immediately so refreshing or sharing this URL later doesn't
+      // re-trigger an unwanted auto-connect prompt.
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('autoConnectWallet');
+      window.history.replaceState({}, document.title, cleanUrl.toString());
+      // Deferred: gives the injected provider a brief moment to actually
+      // appear after the in-app browser finishes loading the page, and
+      // (per the setTimeout(0) comment above) ensures the EventBus is
+      // already wired up before anything tries to emit through it.
+      setTimeout(() => {
+        if (this.connected || this.connecting) return;
+        if (autoConnectWallet === 'solflare') {
+          this.connectSolflare().catch(() => {});
+        } else {
+          this.connect().catch(() => {});
+        }
+      }, 400);
+    } catch (_) { /* best-effort only */ }
+  }
 
   // FIX (bug 2): script-invoked window.location.replace()/href to a
   // Universal Link is handled less reliably by iOS/Android than a real
@@ -611,13 +682,14 @@ class WalletManager {
     const provider = this.getProvider();
     if (provider) return this._connectProvider(provider);
     if (this.isMobile()) {
-      this.connecting = true;
-      this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
-      const url = this._buildMobileConnectUrl('phantom');
-      this._debugLog(`connect: navigating (anchor-click)`);
-      this._navigateToUniversalLink(url);
-      this._armMobileConnectFallback('Phantom');
-      return { deepLinked: true };
+      // FIX: previously built an encrypted /ul/v1/connect deep link here -
+      // the exact mechanism behind nearly every mobile wallet bug tonight.
+      // Phantom's own docs are explicit that connecting only reliably
+      // works inside Phantom's own in-app browser. Relaunching there
+      // instead means connect (and every later stake transaction) happens
+      // as a native in-app sheet with no redirect at all.
+      this.openInWalletBrowser('phantom');
+      return { openedInWalletBrowser: true };
     }
     window.open('https://phantom.app/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Phantom not installed.' });
@@ -665,15 +737,16 @@ class WalletManager {
   async connectSolflare() {
     // FIX (bug 3): guard against a duplicate/overlapping connect attempt.
     if (this.connecting || this.connected) return;
+    if (this.isMobile()) {
+      // FIX: same reasoning as connect() above - relaunch inside
+      // Solflare's own in-app browser instead of the old encrypted
+      // deep-link round-trip. Checked before setting `connecting`/emitting
+      // 'wallet:connecting' since the page is about to unload regardless.
+      this.openInWalletBrowser('solflare');
+      return { openedInWalletBrowser: true };
+    }
     this.connecting = true;
     this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
-    if (this.isMobile()) {
-      const url = this._buildMobileConnectUrl('solflare');
-      this._debugLog(`connectSolflare: navigating (anchor-click)`);
-      this._navigateToUniversalLink(url);
-      this._armMobileConnectFallback('Solflare');
-      return { deepLinked: true };
-    }
     if (window?.solflare) {
       // FIX: same class of bug as Phantom's _connectProvider - if
       // Solflare's extension hangs (broken content-script injection, or
