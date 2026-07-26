@@ -245,17 +245,22 @@ class Game {
         // entirely (a real behavior, not something JS can prevent), this
         // is the actual way back into the room instead of a dead end.
         const lastRoom = this._getLastRoom();
-if (lastRoom) {
-  firebase.database().ref(`rooms/${lastRoom.roomCode}/status`).get()
-    .then(snap => {
-      const status = snap.val();
-      const stillResumable = status && status !== 'playing' && status !== 'finished';
-      if (stillResumable) {
-        this.uiManager.showResumeRoomBanner(lastRoom.roomCode);
+        if (lastRoom) {
+          // FIX: previously showed this banner purely because a local
+          // reference existed, with no check on whether that room was
+          // still actually resumable - so it kept reappearing forever
+          // after a bet was placed and the match played out or finished.
+          firebase.database().ref(`rooms/${lastRoom.roomCode}/status`).get()
+            .then(snap => {
+              const status = snap.val();
+              const stillResumable = status && status !== 'playing' && status !== 'finished';
+              if (stillResumable) {
+                this.uiManager.showResumeRoomBanner(lastRoom.roomCode);
+              }
+            })
+            .catch(() => {});
+        }
       }
-    })
-    .catch(() => {});
-}
 
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
