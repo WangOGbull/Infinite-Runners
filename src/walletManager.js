@@ -276,7 +276,14 @@ class WalletManager {
     provider = provider || this.getProvider();
     if (!provider || provider === this.provider) return;
     this.provider = provider;
+    // Every handler below checks it still belongs to the ACTIVE provider
+    // at fire time. Listeners can't be reliably removed when the player
+    // switches wallets (each extension keeps its own emitter), so without
+    // this guard the OTHER wallet firing a late 'connect' event would
+    // silently flip walletType - Phantom logo appearing on a Solflare
+    // session and Place Bet opening the wrong wallet.
     provider.on('connect', (publicKey) => {
+      if (this.provider !== provider) return; // stale listener from a previous wallet
       this.publicKey = publicKey || provider.publicKey;
       this.connected = true;
       this.walletType = walletType;
@@ -287,11 +294,13 @@ class WalletManager {
       });
     });
     provider.on('disconnect', () => {
+      if (this.provider !== provider) return; // stale listener from a previous wallet
       this.connected = false; this.publicKey = null; this.balance = null; this.walletType = null;
       this._broadcastWalletSync();
       this.eventBus.emit('wallet:disconnected');
     });
     provider.on('accountChanged', (publicKey) => {
+      if (this.provider !== provider) return; // stale listener from a previous wallet
       if (publicKey) {
         this.publicKey = publicKey;
         this._refreshBalance().then(() => {
@@ -301,6 +310,15 @@ class WalletManager {
         this.connected = false; this.publicKey = null; this.eventBus.emit('wallet:disconnected');
       }
     });
+  }
+
+  // The ONE authority on which extension object signs things: strictly
+  // derived from this.walletType, so the wallet shown on the logo and the
+  // wallet that opens for a stake can never diverge again.
+  _activeProvider() {
+    if (this.walletType === 'solflare') return window?.solflare || null;
+    if (this.walletType === 'phantom') return this.getProvider();
+    return this.provider || null;
   }
 
   _bindCrossTabSync() {
@@ -384,7 +402,21 @@ class WalletManager {
 
   _debugLog(msg) {
     try {
-      if (localStorage.getItem('wmDebug') !== '1') return;
+      // On-screen overlay is gated on the URL ONLY (?debug=1). The old
+      // localStorage switch ('wmDebug') is deliberately ignored AND
+      // scrubbed below, because phones that had it enabled during earlier
+      // debugging kept showing the green overlay forever in normal play.
+      if (this._debugOverlayEnabled === undefined) {
+        try {
+          this._debugOverlayEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
+          if (!this._debugOverlayEnabled) {
+            localStorage.removeItem('wmDebug');
+            const stale = document.getElementById('wmDebugOverlay');
+            if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+          }
+        } catch (_) { this._debugOverlayEnabled = false; }
+      }
+      if (!this._debugOverlayEnabled) return;
       let box = document.getElementById('wmDebugOverlay');
       if (!box) {
         box = document.createElement('div');
@@ -683,13 +715,16 @@ class WalletManager {
       return true;
     };
 
-    // Try whichever wallet was used last time first; fall back to the other
-    // installed extension if that one isn't available.
-    if (lastExtWallet === 'solflare') {
-      if (!trySolflare()) tryPhantom();
-    } else {
-      if (!tryPhantom()) trySolflare();
-    }
+    // STRICT: silently reconnect ONLY to the wallet the player explicitly
+    // connected last time - never guess, never fall back to the other
+    // installed extension. Falling back is exactly how the identity
+    // mix-up happened on PC: last session was Solflare, its silent
+    // restore wasn't possible, so the old code quietly connected PHANTOM
+    // instead - wrong logo, and Place Bet opened a wallet the player
+    // never chose. No saved choice (or restore not possible) = stay
+    // disconnected; the player picks their wallet with one tap.
+    if (lastExtWallet === 'solflare') trySolflare();
+    else if (lastExtWallet === 'phantom') tryPhantom();
   }
 
   _consumePendingAction(walletType) {
@@ -920,7 +955,10 @@ class WalletManager {
   }
 
   async disconnect() {
-    if (this.provider) { try { await this.provider.disconnect(); } catch (_) {} }
+    // Disconnect the provider matching the active walletType (falling
+    // back to whatever was bound), so the RIGHT extension drops the session.
+    const provider = this._activeProvider() || this.provider;
+    if (provider) { try { await provider.disconnect(); } catch (_) {} }
     this.connected = false; this.publicKey = null; this.balance = null;
     this.mobileSession = null; this.phantomWalletPublicKey = null; this.walletType = null;
     [PHANTOM_SESSION_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
@@ -980,19 +1018,26 @@ class WalletManager {
     if (!this.connected) throw new Error('Wallet not connected.');
     const message = `Infinite Runners — verify wallet ownership\nAddress: ${this.publicKey.toString()}\nTimestamp: ${new Date().toISOString()}`;
     const encoded = new TextEncoder().encode(message);
-    if (this.isMobile() && !this.provider) {
+    // Same rule as sendTransaction: sign strictly through the provider
+    // matching the connected walletType.
+    const signProvider = this._activeProvider();
+    if (this.isMobile() && !signProvider) {
       this._navigateToUniversalLink(this._buildMobileSignMessageUrl(encoded));
       return { deepLinked: true };
     }
-    if (!this.provider) throw new Error('Wallet not connected.');
-    const { signature, publicKey } = await this.provider.signMessage(encoded, 'utf8');
+    if (!signProvider) throw new Error('Wallet not connected.');
+    const { signature, publicKey } = await signProvider.signMessage(encoded, 'utf8');
     return { message, signatureHex: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''), publicKey: publicKey.toString() };
   }
 
   async sendTransaction(transaction, pendingAction) {
     if (!this.connected) throw new Error('Wallet not connected.');
-    if (this.provider && this.provider.signAndSendTransaction) {
-      const { signature } = await this.provider.signAndSendTransaction(transaction);
+    // Sign strictly through the provider matching the CONNECTED walletType
+    // - never through whatever this.provider happens to hold. This is the
+    // guarantee that Place Bet opens the same wallet whose logo is shown.
+    const provider = this._activeProvider();
+    if (provider && provider.signAndSendTransaction) {
+      const { signature } = await provider.signAndSendTransaction(transaction);
       return { signature };
     }
     if (this.isMobile()) {
