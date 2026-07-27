@@ -680,15 +680,22 @@ class UIManager {
       if (countEl) countEl.textContent = `${players.length} / ${maxPlayers}`;
       const slotsEl = document.getElementById('lobbySlots');
       if (slotsEl && Array.isArray(players)) {
-        slotsEl.innerHTML = players.map(p => `
-          <div class="lobbyPlayerCard ${p.isLocal ? 'local' : ''}">
-            <div class="lobbyPlayerIcon">DRAGON</div>
-            <div class="lobbyPlayerInfo">
-              <div class="lobbyPlayerName">${p.isHost ? 'Host' : (p.name || 'Player')}</div>
+        slotsEl.innerHTML = players.map(p => {
+          const dragonKey = (p.dragon || '').toLowerCase();
+          const imgUrl = DRAGON_IMAGES[dragonKey];
+          const icon = imgUrl
+            ? `<img src="${imgUrl}" alt="${dragonKey}" style="width:44px;height:44px;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 0 6px rgba(0,180,216,0.45));">`
+            : `<div class="lobbyPlayerIcon" style="flex:0 0 auto;">🐉</div>`;
+          return `
+          <div class="lobbyPlayerCard ${p.isLocal ? 'local' : ''}" style="display:flex;align-items:center;gap:10px;min-width:0;">
+            ${icon}
+            <div class="lobbyPlayerInfo" style="flex:1;min-width:0;">
+              <div class="lobbyPlayerName">${p.isHost ? 'Host' : (p.name || 'Player')}${p.isLocal ? ' (You)' : ''}</div>
               <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
             </div>
             ${p.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span> Staked</span>' : ''}
-          </div>`).join('');
+          </div>`;
+        }).join('');
       }
       const startBtn = document.getElementById('lobbyStartBtn');
       const waitingText = document.getElementById('lobbyWaitingText');
@@ -726,8 +733,22 @@ class UIManager {
     const depositBtn = document.getElementById('lobbyDepositBtn');
     const label = document.getElementById('depositBtnLabel');
     const statusText = document.getElementById('depositStatusText');
-    if (depositBtn) { depositBtn.style.display = tier ? 'flex' : 'none'; depositBtn.disabled = !canDeposit || !!myDeposited; }
-    if (label) label.textContent = myDeposited ? 'Bet Placed' : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join');
+    if (depositBtn) {
+      depositBtn.style.display = tier ? 'flex' : 'none';
+      // FIX: previously also disabled when the wallet wasn't connected -
+      // which made the button silently do NOTHING for a disconnected
+      // player, with no hint why. Now it stays tappable: handleDeposit()
+      // already shows "Connect your wallet first" and opens the wallet
+      // modal, which is exactly the flow a disconnected player needs.
+      depositBtn.disabled = !!myDeposited;
+    }
+    if (label) {
+      label.textContent = myDeposited
+        ? 'Bet Placed'
+        : (!canDeposit
+          ? 'Connect Wallet to Stake'
+          : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join'));
+    }
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn) startBtn.disabled = !(hostDeposited && opponentDeposited);
     if (statusText) {
