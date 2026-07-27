@@ -901,6 +901,42 @@ class UIManager {
     else { titleEl.textContent = 'DEFEATED'; titleEl.style.color = '#ff4d4d'; }
   }
 
+  // Winner's forfeit screen: opponent quit or dropped. Shown on top of the
+  // normal settlement panel (they still get their full payout).
+  showForfeitVictory() {
+    const titleEl = document.getElementById('goTitle');
+    const subEl = document.getElementById('goSubtitle');
+    if (titleEl) { titleEl.textContent = 'VICTORY!'; titleEl.style.color = '#4ade80'; }
+    if (subEl) {
+      subEl.textContent = 'Your opponent left the arena — the pot is yours.';
+      subEl.style.color = '#8ee9b0';
+      subEl.style.display = 'block';
+    }
+    this.showScreen('gameOverScreen');
+  }
+
+  // Quitter's forfeit screen: THIS player lost their connection to the
+  // arena. Only Main Menu is offered (no Play Again on a forfeited stake).
+  // Best-effort - only renders if this client is still alive to show it.
+  showForfeitDefeat() {
+    if (this._forfeitDefeatShown) return; // don't stack if fired twice
+    this._forfeitDefeatShown = true;
+    const titleEl = document.getElementById('goTitle');
+    const subEl = document.getElementById('goSubtitle');
+    if (titleEl) { titleEl.textContent = 'MATCH ENDED'; titleEl.style.color = '#ff6e6e'; }
+    if (subEl) {
+      subEl.textContent = 'You lost your connection to the arena. The match went to your opponent.';
+      subEl.style.color = '#e0a3a3';
+      subEl.style.display = 'block';
+    }
+    // Forfeited stake - no rematch shortcut, just the way out.
+    const playAgain = document.getElementById('btnPlayAgain');
+    if (playAgain) playAgain.style.display = 'none';
+    const stakeBox = document.getElementById('goStakeBox');
+    if (stakeBox) stakeBox.style.display = 'none';
+    this.showScreen('gameOverScreen');
+  }
+
   showCountdown(seconds, onComplete) {
     const overlay = document.getElementById('countdownOverlay');
     const textEl = document.getElementById('countdownText');
@@ -1019,8 +1055,7 @@ class UIManager {
 
   hideResumeRoomBanner() { const banner = document.getElementById('resumeRoomBanner'); if (banner) banner.style.display = 'none'; }
 
-  showScreen(screenId) {
-    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
+  showScreen(screenId) {    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
     // Mark the switch time and, once, install a capture-phase guard that
