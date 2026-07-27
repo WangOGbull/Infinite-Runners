@@ -162,16 +162,21 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .dsPowerCard.flash{animation:powerFlash 0.5s ease}
 
 /* ==================== MODE SELECT ==================== */
-#modeSelectScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
-#modeSelectScreen .modeBox{width:92%;max-width:420px;border-radius:20px;padding:32px 24px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.18);box-shadow:0 8px 32px rgba(0,0,0,0.45),0 0 60px rgba(0,180,216,0.06) inset;text-align:center}
-#modeSelectScreen h2{font-family:'Cinzel Decorative',cursive;font-size:20px;letter-spacing:3px;color:#48cae4;margin-bottom:6px;text-shadow:0 0 12px rgba(72,202,228,0.35)}
-#modeSelectScreen .sub{font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(200,220,240,0.6);margin-bottom:24px;letter-spacing:1px}
+/* ==================== MODE SELECT — DRAGON AGE ==================== */
+#modeSelectScreen{background:linear-gradient(180deg,rgba(4,8,18,0.72),rgba(4,8,18,0.45) 45%,rgba(4,8,18,0.85)),url('./scene_bg_night.png') center 60%/cover no-repeat;background-color:#05070f}
+#modeSelectScreen .modeBox{width:min(440px,calc(100vw - 24px));padding:26px 20px 22px;background:linear-gradient(180deg,rgba(15,24,44,0.95),rgba(8,13,26,0.97));border:2px solid transparent;border-image:linear-gradient(180deg,#f0d9a0 0%,#a97f45 50%,#6e5226 100%) 1;box-shadow:0 0 40px rgba(0,0,0,0.6),0 0 60px rgba(169,127,69,0.05) inset;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px);text-align:center}
+#modeSelectScreen h2{font-family:'Cinzel Decorative',cursive;font-weight:900;font-size:clamp(19px,5.4vw,26px);letter-spacing:3px;background:linear-gradient(180deg,#ffe9b8,#e8c887 45%,#a97f45);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.8)) drop-shadow(0 0 16px rgba(201,168,106,0.3));display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:6px}
+#modeSelectScreen h2::before,#modeSelectScreen h2::after{content:'';flex:0 0 26px;height:2px;background:linear-gradient(90deg,transparent,#c9a86a);-webkit-text-fill-color:initial}
+#modeSelectScreen h2::after{background:linear-gradient(270deg,transparent,#c9a86a)}
+#modeSelectScreen .sub{font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8fa3c4;margin-bottom:22px}
 .modeCards{display:flex;flex-direction:column;gap:14px;margin-bottom:20px}
-.modeCard{width:100%;padding:18px 16px;border-radius:14px;border:1px solid rgba(0,180,216,0.15);background:linear-gradient(135deg,rgba(0,119,182,0.18) 0%,rgba(0,180,216,0.08) 100%);color:#fff;cursor:pointer;transition:all .25s ease;font-family:'Rajdhani',sans-serif;text-align:center;position:relative;overflow:hidden}
-.modeCard:hover{border-color:rgba(0,180,216,0.45);box-shadow:0 4px 20px rgba(0,180,216,0.18),0 0 30px rgba(0,180,216,0.08) inset;transform:translateY(-2px)}
-.modeCard .mIcon{font-size:26px;line-height:1;margin-bottom:4px;filter:drop-shadow(0 0 6px rgba(72,202,228,0.4));display:flex;justify-content:center}
-.modeCard .mLabel{font-family:'Cinzel Decorative',cursive;font-size:15px;letter-spacing:2px;color:#caf0f8}
-.modeCard .mDesc{font-size:11px;color:rgba(200,220,240,0.55);letter-spacing:.5px;margin-top:4px}
+.modeCard{width:100%;padding:18px 16px;background:linear-gradient(180deg,rgba(16,26,48,0.9),rgba(9,15,30,0.95));border:1px solid rgba(169,127,69,0.45);color:#fff;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .12s;font-family:'Rajdhani',sans-serif;text-align:center;position:relative;overflow:hidden;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.modeCard:hover{border-color:#e8c887;transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,0.4),0 0 26px rgba(201,168,106,0.18),0 0 20px rgba(201,168,106,0.08) inset}
+.modeCard .mIcon{font-size:26px;line-height:1;margin-bottom:6px;color:#e8c887;filter:drop-shadow(0 0 8px rgba(232,200,135,0.5));display:flex;justify-content:center}
+.modeCard .mLabel{font-family:'Cinzel Decorative',cursive;font-size:15px;letter-spacing:2px;color:#ffe9b8}
+.modeCard .mDesc{font-size:11px;color:#7e8aa2;letter-spacing:.5px;margin-top:5px}
+#modeSelectScreen #btnModeBack{margin:14px auto 0;border:none;background:linear-gradient(180deg,#f0d9a0 0%,#a97f45 50%,#6e5226 100%);padding:9px 22px;cursor:pointer;clip-path:polygon(16px 0,100% 0,calc(100% - 12px) 100%,0 100%,0 16px);font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:12px;letter-spacing:2px;color:#241a0c;display:inline-flex;align-items:center;gap:8px;transition:filter .15s}
+#modeSelectScreen #btnModeBack:hover{filter:brightness(1.2)}
 
 /* ==================== DIFFICULTY MODAL ==================== */
 #difficultyModal{background:rgba(3,8,20,0.92)}
@@ -189,21 +194,27 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .mpModeGrid{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
 
 /* ==================== MULTIPLAYER MENU ==================== */
-#mpMenuScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
-#mpMenuScreen .mpBox{width:92%;max-width:420px;border-radius:20px;padding:32px 24px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.18);text-align:center}
-#mpMenuScreen h2{font-family:'Cinzel Decorative',cursive;font-size:20px;letter-spacing:3px;color:#48cae4;margin-bottom:6px;text-shadow:0 0 12px rgba(72,202,228,0.35)}
-.mpJoinSection{width:100%;padding:18px 16px 14px;border-radius:14px;border:1px solid rgba(0,180,216,0.12);background:linear-gradient(135deg,rgba(0,119,182,0.1) 0%,rgba(10,25,50,0.4) 100%);margin-bottom:14px}
-.mpJoinSection .joinTitle{font-family:'Cinzel Decorative',cursive;font-size:14px;letter-spacing:2px;color:#caf0f8;margin-bottom:4px}
+#mpMenuScreen{background:linear-gradient(180deg,rgba(4,8,18,0.72),rgba(4,8,18,0.45) 45%,rgba(4,8,18,0.85)),url('./scene_bg_night.png') center 60%/cover no-repeat;background-color:#05070f}
+#mpMenuScreen .mpBox{width:min(440px,calc(100vw - 24px));padding:26px 20px 22px;background:linear-gradient(180deg,rgba(15,24,44,0.95),rgba(8,13,26,0.97));border:2px solid transparent;border-image:linear-gradient(180deg,#f0d9a0 0%,#a97f45 50%,#6e5226 100%) 1;box-shadow:0 0 40px rgba(0,0,0,0.6),0 0 60px rgba(169,127,69,0.05) inset;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px);text-align:center}
+#mpMenuScreen h2{font-family:'Cinzel Decorative',cursive;font-weight:900;font-size:clamp(19px,5.4vw,26px);letter-spacing:3px;background:linear-gradient(180deg,#ffe9b8,#e8c887 45%,#a97f45);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.8)) drop-shadow(0 0 16px rgba(201,168,106,0.3));display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:6px}
+#mpMenuScreen h2::before,#mpMenuScreen h2::after{content:'';flex:0 0 26px;height:2px;background:linear-gradient(90deg,transparent,#c9a86a);-webkit-text-fill-color:initial}
+#mpMenuScreen h2::after{background:linear-gradient(270deg,transparent,#c9a86a)}
+#mpMenuScreen .sub,#mpMenuScreen .mpSub{font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8fa3c4;margin-bottom:22px}
+.mpJoinSection{width:100%;padding:18px 16px 16px;border:1px solid rgba(169,127,69,0.4);background:linear-gradient(180deg,rgba(16,26,48,0.85),rgba(9,15,30,0.92));margin-bottom:14px;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.mpJoinSection .joinTitle{font-family:'Cinzel Decorative',cursive;font-size:14px;letter-spacing:2px;color:#ffe9b8;margin-bottom:4px}
 .mpJoinSection .joinSub{font-size:11px;color:rgba(200,220,240,0.5);margin:0 0 10px}
-.mpJoinRow{display:flex;gap:8px;width:100%}
-.mpRoomInput{flex:1;padding:10px 14px;border-radius:10px;border:1px solid rgba(0,180,216,0.2);background:rgba(3,8,20,0.6);color:#caf0f8;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:13px;letter-spacing:1.5px;outline:none;transition:border-color .2s,box-shadow .2s}
-.mpRoomInput::placeholder{color:rgba(200,220,240,0.35);font-weight:500;letter-spacing:.8px}
-.mpRoomInput:focus{border-color:rgba(0,180,216,0.55);box-shadow:0 0 12px rgba(0,180,216,0.12)}
-.mpJoinBtn{padding:10px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,#00b4d8,#0077b6);color:#fff;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;letter-spacing:1px;cursor:pointer;transition:all .2s ease;box-shadow:0 2px 10px rgba(0,180,216,0.25);white-space:nowrap;display:flex;align-items:center;gap:6px}
-.mpJoinBtn:hover{background:linear-gradient(135deg,#00c8e8,#0088c8);box-shadow:0 4px 16px rgba(0,180,216,0.35);transform:translateY(-1px)}
+.mpJoinRow{display:flex;flex-wrap:wrap;gap:10px;width:100%}
+.mpRoomInput{flex:1 1 100%;min-width:0;padding:12px 14px;border:1px solid rgba(169,127,69,0.4);background:rgba(4,9,20,0.7);color:#ffe9b8;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:16px;letter-spacing:4px;text-align:center;outline:none;transition:border-color .2s,box-shadow .2s;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.mpRoomInput::placeholder{color:rgba(200,220,240,0.3);font-weight:500;letter-spacing:4px}
+.mpRoomInput:focus{border-color:#e8c887;box-shadow:0 0 14px rgba(201,168,106,0.25)}
+.mpJoinBtn{flex:1 1 100%;justify-content:center;min-height:46px;padding:0 18px;border:none;background:linear-gradient(180deg,#f0d9a0 0%,#c9a86a 45%,#8a6a34 100%);color:#241a0c;font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:13px;letter-spacing:2px;cursor:pointer;transition:filter .15s,transform .15s;text-shadow:0 1px 1px rgba(255,244,214,0.5);box-shadow:0 0 18px rgba(201,168,106,0.3);white-space:nowrap;display:flex;align-items:center;gap:6px;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,14px 100%,0 50%)}
+.mpJoinBtn:hover{filter:brightness(1.1);transform:translateY(-1px)}
 .mpJoinBtn:active{transform:translateY(0) scale(0.97)}
 .mpJoinBtn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .mpJoinError{font-family:'Rajdhani',sans-serif;font-size:11px;color:#ff6b6b;margin:8px 0 0;min-height:16px;letter-spacing:.5px}
+@media(min-width:440px){.mpJoinRow .mpRoomInput{flex:1 1 auto}.mpJoinRow .mpJoinBtn{flex:0 0 auto;padding:0 26px}}
+#mpMenuScreen #btnMpBack{margin:14px auto 0;border:none;background:linear-gradient(180deg,#f0d9a0 0%,#a97f45 50%,#6e5226 100%);padding:9px 22px;cursor:pointer;clip-path:polygon(16px 0,100% 0,calc(100% - 12px) 100%,0 100%,0 16px);font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:12px;letter-spacing:2px;color:#241a0c;display:inline-flex;align-items:center;gap:8px;transition:filter .15s}
+#mpMenuScreen #btnMpBack:hover{filter:brightness(1.2)}
 
 /* ==================== LOBBY ==================== */
 #lobbyScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
