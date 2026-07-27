@@ -1,1119 +1,1620 @@
-import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS, AI_WAVES } from './config.js';
+import CONFIG, { DRAGON_IMAGES } from './config.js';
+import AssetLoader from './assetLoader.js';
+import { DragonManager } from './dragonManager.js';
+import MovementSystem from './movementSystem.js';
+import GrowthSystem from './growthSystem.js';
+import CameraSystem from './cameraSystem.js';
+import ArenaManager from './arenaManager.js';
+import FoodSystem from './foodSystem.js';
+import CollisionSystem from './collisionSystem.js';
+import GameModeManager from './gameModeManager.js';
+import UIManager from './uiManager.js';
+import EffectsSystem from './effectsSystem.js';
+import WalletManager from './walletManager.js';
+import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
+import AIController from './aiController.js';
+import PhotonMatchmaking from './photonMatchmaking.js';
 
-const WALLET_ICON_URLS = {
-  phantom: 'https://i.postimg.cc/44mrJ4My/phantom-logo.webp',
-  solflare: './Solflare.png'
-};
+const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
+// Separate from LOBBY_CONTEXT_KEY (which is ephemeral - consumed the moment
+// a deposit confirms) - this one persists as long as you're plausibly still
+// in a room, specifically so a bare title screen (Android dropping Phantom's
+// redirect data entirely, which is a real OS-level behavior JS can't
+// prevent) still gives you a way back into your room instead of a dead end.
+const LAST_ROOM_KEY = 'lastRoomInfo';
 
-const WAVE_PROGRESS_KEY = 'aiWaveProgress';
-
-class UIManager {
-  constructor(eventBus) {
-    this.eventBus = eventBus;
-    this.screens = {};
-    this.currentScreen = 'title';
-    this.selectedDragon = null;
-    this.selectedMode = 'FFA';
-    this.isHost = false;
-    this.roomCode = '';
-    this.selectedDifficulty = 'advanced';
-    this.selectedMpMode = 'FFA';
-    this.selectedArena = 0;
-    this.selectedTier = null;
-    this.tierAmounts = null;
-    this.carouselIndex = 0;
-    this.dragonsData = [];
-    this.dragonPowers = {};
-    this.playerCoins = 1000000;
-    this.selectedDragonName = null;
-    this._modalDragon = null;
-    this._connectedWalletType = null;
-
-    // FIX: clear stale room data on every fresh load so old "resume room"
-    // banners don't appear after a new deploy.
-    try {
-      localStorage.removeItem('currentRoom');
-      localStorage.removeItem('roomCode');
-      localStorage.removeItem('resumeRoomCode');
-    } catch (_) {}
-
-    try {
-      this.initScreens();
-      this.createDynamicModals();
-      this.buildModeSelect();
-      this.initLucide();
-      this.initParticles();
-      this.bindEvents();
-      console.log("UIManager loaded.");
-    } catch (e) {
-      console.error("UI Manager Crash:", e);
+// ==================== EVENT BUS ====================
+class EventBus {
+  constructor() {
+    this.listeners = new Map();
+  }
+  on(event, callback) {
+    if (!this.listeners.has(event)) this.listeners.set(event, []);
+    this.listeners.get(event).push(callback);
+  }
+  emit(event, data) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event).forEach(cb => cb(data));
     }
   }
-
-  isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
-
-  _getUnlockedWaveIndex() {
-    try {
-      const raw = localStorage.getItem(WAVE_PROGRESS_KEY);
-      const idx = raw !== null ? parseInt(raw, 10) : 0;
-      if (!Number.isFinite(idx)) return 0;
-      return Math.max(0, Math.min(idx, AI_WAVES.length - 1));
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  unlockNextWave(clearedWaveId) {
-    const clearedIndex = AI_WAVES.findIndex(w => w.id === clearedWaveId);
-    if (clearedIndex === -1) return null;
-    const current = this._getUnlockedWaveIndex();
-    if (clearedIndex !== current) return null;
-    if (current >= AI_WAVES.length - 1) return null;
-    try { localStorage.setItem(WAVE_PROGRESS_KEY, String(current + 1)); } catch (_) {}
-    return AI_WAVES[current + 1];
-  }
-
-  enterWaveMode() {
-    const wave = AI_WAVES[this._getUnlockedWaveIndex()];
-    this.selectedMode = wave.id;
-    this.selectedDifficulty = (CONFIG.WAVE_DIFFICULTY && CONFIG.WAVE_DIFFICULTY[wave.id]) || 'advanced';
-    this.showWaveIntro(wave);
-  }
-
-  showWaveIntro(wave) {
-    const modal = this.screens['difficultyModal'];
-    if (!modal) { this.showScreen('arenaSelectModal'); return; }
-    modal.innerHTML = `
-      <div class="difficultyBox" style="text-align:center;">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:4px;color:rgba(255,255,255,0.45);margin-bottom:10px;">ENTERING</div>
-        <h2 style="margin-bottom:8px;">${wave.name}</h2>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:1px;color:#48cae4;">${wave.players} Dragons Await</div>
-      </div>`;
-    this.showScreen('difficultyModal');
-    setTimeout(() => {
-      if (this.currentScreen === 'difficultyModal') this.showScreen('arenaSelectModal');
-    }, 1500);
-  }
-
-  initScreens() {
-    const ids = [
-      'titleScreen','dragonSelectScreen','modeSelectScreen','mpMenuScreen',
-      'matchmakingTierScreen','matchmakingSearchScreen','opponentFoundScreen',
-      'bettingArenaScreen','lobbyScreen','loadingScreen','gameScreen',
-      'gameOverScreen','howToPlayScreen','walletModal','walletSelectionModal',
-      'mpGameOver','loadingOverlay','dragonDetailModal'
-    ];
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) this.screens[id] = el;
-    });
-  }
-
-  createDynamicModals() {
-    const diffModal = document.createElement('div');
-    diffModal.id = 'difficultyModal';
-    diffModal.className = 'screen';
-    diffModal.innerHTML = `<div class="difficultyBox"></div>`;
-    document.body.appendChild(diffModal);
-    this.screens['difficultyModal'] = diffModal;
-
-    const arenaModal = document.createElement('div');
-    arenaModal.id = 'arenaSelectModal';
-    arenaModal.className = 'screen';
-    arenaModal.innerHTML = `
-      <div class="arenaSelectInner">
-        <h2>Select Arena</h2>
-        <div class="arenaGrid">
-          <div class="arenaCard" data-arena="0"><div class="arenaPreview" style="background-image:url(/arenas/arena_stone.png)"></div><div class="arenaName">Stone Castle</div></div>
-          <div class="arenaCard" data-arena="1"><div class="arenaPreview" style="background-image:url(/arenas/arena_grass.png)"></div><div class="arenaName">Grass Field</div></div>
-          <div class="arenaCard" data-arena="2"><div class="arenaPreview" style="background-image:url(/arenas/arena_purple.png)"></div><div class="arenaName">Purple Magic</div></div>
-          <div class="arenaCard" data-arena="3"><div class="arenaPreview" style="background-image:url(/arenas/arena_fire.png)"></div><div class="arenaName">Fire Arena</div></div>
-        </div>
-        <button id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>`;
-    document.body.appendChild(arenaModal);
-    this.screens['arenaSelectModal'] = arenaModal;
-
-    const mpModeSelect = document.createElement('div');
-    mpModeSelect.id = 'mpModeSelect';
-    mpModeSelect.className = 'screen';
-    mpModeSelect.innerHTML = `
-      <div class="mpModeBox">
-        <h2>Multiplayer Mode</h2>
-        <div class="mpModeGrid">
-          <div class="modeCard" data-mpmode="1v1"><div class="mIcon"><i data-lucide="swords"></i></div><div class="mLabel">1v1 Duel</div><div class="mDesc">One on one battle.</div></div>
-          <div class="modeCard" data-mpmode="2v2"><div class="mIcon"><i data-lucide="users"></i></div><div class="mLabel">2v2 Teams</div><div class="mDesc">Team up and fight together.</div></div>
-          <div class="modeCard" data-mpmode="FFA"><div class="mIcon"><i data-lucide="globe"></i></div><div class="mLabel">Free For All</div><div class="mDesc">Every dragon for itself.</div></div>
-        </div>
-        <button class="menuBtn" id="btnMpModeBack"><i data-lucide="arrow-left"></i> Back</button>
-      </div>`;
-    document.body.appendChild(mpModeSelect);
-    this.screens['mpModeSelect'] = mpModeSelect;
-  }
-
-  buildModeSelect() {}
-
-  _tap(el, fn) {
-    if (!el) return;
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(e); });
-  }
-
-  initDragonCarousel(dragons) {
-    this.dragonsData = dragons;
-    this.carouselIndex = 0;
-    try { const saved = localStorage.getItem('dragonPowers'); if (saved) this.dragonPowers = JSON.parse(saved); }
-    catch (e) { this.dragonPowers = {}; }
-    try { const savedCoins = localStorage.getItem('playerCoins'); if (savedCoins) this.playerCoins = parseInt(savedCoins); }
-    catch (e) {}
-    this.renderCarousel();
-    this.updateCoinDisplay();
-  }
-
-  renderCarousel() {
-    const d = this.dragonsData[this.carouselIndex];
-    if (!d) return;
-    const name = (typeof d === 'string' ? d : (d.name || d.type)) || 'Unknown';
-    const key = name.toLowerCase();
-    const color = d.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
-    const screen = document.getElementById('dragonSelectScreen');
-    if (screen) screen.style.setProperty('--neon', color);
-    const imgEl = document.getElementById('dsDragonImg');
-    const newHeadUrl = DRAGON_IMAGES[key];
-    if (imgEl) {
-      imgEl.src = newHeadUrl || (typeof d.head === 'string' ? d.head : (d.head && d.head.src ? d.head.src : ''));
-    }
-    const imgWrap = document.getElementById('dsDragonImgWrap');
-    if (imgWrap) {
-      imgWrap.style.cursor = 'pointer';
-      imgWrap.onclick = (e) => { e.stopPropagation(); const currentD = this.dragonsData[this.carouselIndex]; if (currentD) this.showDragonModal(currentD); };
-    }
-    const nameEl = document.getElementById('dsDragonName');
-    if (nameEl) nameEl.textContent = name.toUpperCase();
-    const powers = this.getDragonPowers(key);
-    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
-    const tierEl = document.getElementById('dsDragonTierNum');
-    const levelEl = document.getElementById('dsDragonLevel');
-    if (tierEl) tierEl.textContent = avgLevel;
-    if (levelEl) levelEl.textContent = avgLevel;
-    const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
-    const xpText = document.getElementById('dsXpText');
-    const xpFill = document.getElementById('dsXpBarFill');
-    const xpStart = document.getElementById('dsXpLevelStart');
-    const xpEnd = document.getElementById('dsXpLevelEnd');
-    if (xpText) xpText.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
-    if (xpFill) {
-      const pct = Math.min(100, (xpCurrent / 5200) * 100);
-      xpFill.style.transition = 'none';
-      xpFill.style.width = '0%';
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        xpFill.style.transition = '';
-        xpFill.style.width = pct + '%';
-      }));
-    }
-    if (xpStart) xpStart.textContent = avgLevel;
-    if (xpEnd) xpEnd.textContent = avgLevel + 1;
-    this.renderPowersGrid(key, color);
-    const badge = document.getElementById('dsSelectBadge');
-    const isSelected = this.selectedDragonName === name;
-    if (badge) { badge.textContent = isSelected ? 'SELECTED' : 'NOT SELECTED'; badge.classList.toggle('selected', isSelected); }
-    const leftArrow = document.getElementById('dsArrowLeft');
-    const rightArrow = document.getElementById('dsArrowRight');
-    const ageBtn = document.getElementById('dsDragonAgeBtn');
-    const selectBtn = document.getElementById('dsSelectBtn');
-    if (isSelected) {
-      if (selectBtn) selectBtn.style.display = 'none';
-      if (ageBtn) ageBtn.style.display = 'flex';
-    } else {
-      if (selectBtn) selectBtn.style.display = 'flex';
-      if (ageBtn) ageBtn.style.display = 'none';
-    }
-    if (leftArrow) leftArrow.style.display = 'flex';
-    if (rightArrow) rightArrow.style.display = 'flex';
-    this.renderNavDots();
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
-  }
-
-  showDragonModal(dragon) {
-    const modal = document.getElementById('dragonDetailModal');
-    if (!modal) return;
-    const name = (typeof dragon === 'string' ? dragon : (dragon.name || dragon.type)) || 'Unknown';
-    const key = name.toLowerCase();
-    const color = dragon.color || (DRAGON_POWERS[key] && DRAGON_POWERS[key].color) || '#00b4d8';
-    const powers = this.getDragonPowers(key);
-    const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
-    const img = document.getElementById('ddmImg');
-    if (img) img.src = DRAGON_IMAGES[key] || dragon.head || '';
-    const nameEl = document.getElementById('ddmName');
-    if (nameEl) nameEl.textContent = name.toUpperCase();
-    const tierEl = document.getElementById('ddmTierNum');
-    const levelEl = document.getElementById('ddmDragonLevel');
-    if (tierEl) tierEl.textContent = avgLevel;
-    if (levelEl) levelEl.textContent = avgLevel;
-    const box = document.getElementById('ddmBox');
-    if (box) box.style.setProperty('--neon', color);
-    const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
-    const xpS = document.getElementById('ddmXpStart');
-    const xpE = document.getElementById('ddmXpEnd');
-    const xpT = document.getElementById('ddmXpText');
-    const xpF = document.getElementById('ddmXpFill');
-    if (xpS) xpS.textContent = avgLevel;
-    if (xpE) xpE.textContent = avgLevel + 1;
-    if (xpT) xpT.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
-    if (xpF) {
-      const pct = Math.min(100, (xpCurrent / 5200) * 100);
-      xpF.style.transition = 'none';
-      xpF.style.width = '0%';
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        xpF.style.transition = '';
-        xpF.style.width = pct + '%';
-      }));
-    }
-    const statsContainer = document.getElementById('ddmStats');
-    if (statsContainer) {
-      const stats = [
-        { label: 'Defense', value: powers.defense, max: 10, icon: 'fa-shield-halved', c: '#38bdf8' },
-        { label: 'Speed', value: powers.speed, max: 10, icon: 'fa-feather', c: '#a855f7' },
-        { label: 'Rush', value: powers.rush, max: 10, icon: 'fa-bolt', c: '#4ade80' },
-        { label: 'Attack', value: powers.attack, max: 10, icon: 'fa-khanda', c: '#ef4444' }
-      ];
-      statsContainer.innerHTML = stats.map(s => `
-        <div class="ddmStatRow" style="--stat:${s.c}">
-          <span class="ddmStatIcon"><i class="fa-solid ${s.icon}"></i></span>
-          <span class="ddmStatLabel">${s.label}</span>
-          <div class="ddmStatBarWrap"><div class="ddmStatBar" data-w="${(s.value / s.max) * 100}" style="background:linear-gradient(90deg, ${s.c}, ${s.c}90); box-shadow:0 0 10px ${s.c}80;"></div></div>
-          <span class="ddmStatValue" style="color:${s.c}">${s.value}</span>
-        </div>`).join('');
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        statsContainer.querySelectorAll('.ddmStatBar').forEach(b => { b.style.width = b.dataset.w + '%'; });
-      }));
-    }
-    const powersContainer = document.getElementById('ddmPowers');
-    if (powersContainer) {
-      const specialPowers = {
-        aegis: [{ name: 'Aegis Shield', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Iron Fortress', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
-        ignis: [{ name: 'Inferno Breath', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Phoenix Rebirth', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
-        infinite: [{ name: 'Time Warp', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Eternal Loop', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
-        magnetron: [{ name: 'Magnetic Pull', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Gravity Crush', desc: 'Unlock at Dragon Level 10', unlock: 10 }]
-      };
-      const dragonPowers = specialPowers[key] || specialPowers.aegis;
-      powersContainer.innerHTML = dragonPowers.map(p => `
-        <div class="ddmPowerSlot locked">
-          <div class="ddmPowerIcon"><i class="fa-solid fa-lock"></i></div>
-          <div class="ddmPowerInfo"><div class="ddmPowerName">${p.name}</div><div class="ddmPowerDesc">${p.desc}</div></div>
-        </div>`).join('');
-    }
-    this._modalDragon = dragon;
-    modal.classList.add('active');
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-  }
-
-  hideDragonModal() {
-    const modal = document.getElementById('dragonDetailModal');
-    if (modal) modal.classList.remove('active');
-    this._modalDragon = null;
-  }
-
-  getDragonPowers(dragonKey) {
-    if (!this.dragonPowers[dragonKey]) {
-      const defaults = { aegis: { defense: 3, speed: 2, rush: 2, attack: 2 }, ignis: { defense: 1, speed: 4, rush: 3, attack: 3 }, infinite: { defense: 2, speed: 2, rush: 1, attack: 4 }, magnetron: { defense: 4, speed: 1, rush: 2, attack: 2 } };
-      this.dragonPowers[dragonKey] = { ...(defaults[dragonKey] || { defense: 2, speed: 2, rush: 2, attack: 2 }) };
-    }
-    return this.dragonPowers[dragonKey];
-  }
-
-  renderPowersGrid(dragonKey, color) {
-    const grid = document.getElementById('dsPowersGrid');
-    if (!grid) return;
-    const powers = this.getDragonPowers(dragonKey);
-    const costs = { defense: 500, speed: 600, rush: 800, attack: 1000 };
-    const labels = { defense: 'Defense', speed: 'Speed', rush: 'Rush Ability', attack: 'Attack' };
-    const icons = { defense: 'fa-shield-halved', speed: 'fa-feather', rush: 'fa-bolt', attack: 'fa-khanda' };
-    const maxLevel = 10;
-    let html = '';
-    Object.keys(labels).forEach(stat => {
-      const level = powers[stat] || 1;
-      const cost = costs[stat];
-      const canAfford = this.playerCoins >= cost;
-      const isMaxed = level >= maxLevel;
-      const barPct = (level / maxLevel) * 100;
-      html += `
-        <div class="dsPowerCard stat-${stat}" id="powerCard-${stat}">
-          <div class="dsPowerHead"><span class="dsPowerIcon"><i class="fa-solid ${icons[stat]}"></i></span><div class="dsPowerName">${labels[stat]}</div></div>
-          <div class="dsPowerLevelRow">
-            <span class="dsPowerLevel">${level}</span>
-            <div class="dsPowerBar"><div class="dsPowerBarFill" data-w="${barPct}"></div></div>
-          </div>
-          <button class="dsUpgradeBtn ${isMaxed ? 'maxed' : ''}" data-stat="${stat}" data-cost="${cost}" data-dragon="${dragonKey}" ${isMaxed || !canAfford ? 'disabled' : ''}>
-            <span>${isMaxed ? '<i class="fa-solid fa-check"></i> MAX' : `<i class="fa-solid fa-arrow-up"></i> ${cost.toLocaleString()}`}</span>
-          </button>
-        </div>`;
-    });
-    grid.innerHTML = html;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      grid.querySelectorAll('.dsPowerBarFill').forEach(f => { f.style.width = f.dataset.w + '%'; });
-    }));
-    grid.querySelectorAll('.dsUpgradeBtn').forEach(btn => {
-      this._tap(btn, (e) => {
-        e.stopPropagation();
-        this.upgradePower(btn.dataset.dragon, btn.dataset.stat, parseInt(btn.dataset.cost));
-      });
-    });
-  }
-
-  upgradePower(dragonKey, stat, cost) {
-    if (this.playerCoins < cost) return;
-    const powers = this.getDragonPowers(dragonKey);
-    if (powers[stat] >= 10) return;
-    this.playerCoins -= cost;
-    powers[stat] = (powers[stat] || 1) + 1;
-    try {
-      localStorage.setItem('dragonPowers', JSON.stringify(this.dragonPowers));
-      localStorage.setItem('playerCoins', this.playerCoins.toString());
-    } catch (e) {}
-    const card = document.getElementById(`powerCard-${stat}`);
-    if (card) { card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 500); }
-    this.updateCoinDisplay();
-    this.renderCarousel();
-    this.eventBus.emit('ui:powerUpgraded', { dragon: dragonKey, stat, level: powers[stat] });
-  }
-
-  updateCoinDisplay() {
-    const el = document.getElementById('dsCoinAmount');
-    if (el) el.textContent = this.playerCoins.toLocaleString();
-  }
-
-  renderNavDots() {
-    const dots = document.getElementById('dsNavDots');
-    if (!dots) return;
-    dots.innerHTML = '';
-    this.dragonsData.forEach((_, i) => {
-      const dot = document.createElement('div');
-      dot.className = 'dsNavDot' + (i === this.carouselIndex ? ' active' : '');
-      this._tap(dot, () => { this.carouselIndex = i; this.renderCarousel(); });
-      dots.appendChild(dot);
-    });
-  }
-
-  carouselPrev() { this.carouselIndex = (this.carouselIndex - 1 + this.dragonsData.length) % this.dragonsData.length; this.renderCarousel(); }
-  carouselNext() { this.carouselIndex = (this.carouselIndex + 1) % this.dragonsData.length; this.renderCarousel(); }
-
-  selectCurrentDragon() {
-    const d = this._modalDragon || this.dragonsData[this.carouselIndex];
-    if (!d) return;
-    const dragonName = typeof d === 'string' ? d : (d.name || d.type);
-    this.selectedDragon = dragonName;
-    this.selectedDragonName = dragonName;
-    this.hideDragonModal();
-    this.carouselIndex = this.dragonsData.findIndex(dr => {
-      const drName = typeof dr === 'string' ? dr : (dr.name || dr.type);
-      return drName === dragonName;
-    });
-    if (this.carouselIndex < 0) this.carouselIndex = 0;
-    this.renderCarousel();
-    this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
-  }
-
-  goToBattleMode() { this.showScreen('modeSelectScreen'); }
-  buildDragonSelect(dragons) { this.initDragonCarousel(dragons); }
-  initLucide() { if (typeof lucide !== 'undefined') lucide.createIcons(); }
-
-  initParticles() {
-    const canvas = document.getElementById('pCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    const particles = [];
-    for (let i = 0; i < 60; i++) {
-      particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: Math.random() * 2 + 0.5, dx: (Math.random() - 0.5) * 0.3, dy: (Math.random() - 0.5) * 0.3, alpha: Math.random() * 0.5 + 0.1 });
-    }
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => {
-        p.x += p.dx; p.y += p.dy;
-        if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0, 180, 216, ${p.alpha})`; ctx.fill();
-      });
-      requestAnimationFrame(animate);
-    };
-    animate();
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
-  }
-
-  bindEvents() {
-    const btnPlay = document.getElementById('btnPlayNow');
-    if (btnPlay) btnPlay.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-    const btnStart = document.getElementById('btnStartGame');
-    if (btnStart) btnStart.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-    const btnLeader = document.getElementById('btnLeaderboard');
-    if (btnLeader) btnLeader.addEventListener('click', () => { this.showScreen('loadingScreen'); setTimeout(() => this.showScreen('titleScreen'), 1000); });
-    const btnHow = document.getElementById('btnHowToPlay');
-    if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
-    const btnBack = document.getElementById('btnDsBack');
-    if (btnBack) btnBack.addEventListener('click', () => this.showScreen('titleScreen'));
-    const nextBtn = document.getElementById('dsNextBtn');
-    this._tap(nextBtn, () => this.goToBattleMode());
-    const ageBtn = document.getElementById('dsDragonAgeBtn');
-    this._tap(ageBtn, () => this.goToBattleMode());
-    const arrowLeft = document.getElementById('dsArrowLeft');
-    this._tap(arrowLeft, () => this.carouselPrev());
-    const arrowRight = document.getElementById('dsArrowRight');
-    this._tap(arrowRight, () => this.carouselNext());
-    const selectBtn = document.getElementById('dsSelectBtn');
-    this._tap(selectBtn, () => { const d = this.dragonsData[this.carouselIndex]; if (d) this.showDragonModal(d); });
-    const modalSelect = document.getElementById('btnDdmSelect');
-    this._tap(modalSelect, () => this.selectCurrentDragon());
-    const modalClose = document.getElementById('btnDdmClose');
-    if (modalClose) modalClose.addEventListener('click', () => this.hideDragonModal());
-    const modeBack = document.getElementById('btnModeBack');
-    if (modeBack) modeBack.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
-    const btn1v1 = document.getElementById('btn1v1AI');
-    if (btn1v1) btn1v1.addEventListener('click', () => this.enterWaveMode());
-    const btnMp = document.getElementById('btnMpMultiplayer');
-    if (btnMp) btnMp.addEventListener('click', () => this.showScreen('mpMenuScreen'));
-
-    document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.selectedArena = parseInt(btn.dataset.arena);
-        this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, arenaIndex: this.selectedArena });
-      });
-    });
-    const arenaBack = document.getElementById('btnArenaBack');
-    if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
-    const mpCreate = document.getElementById('btnMpCreate');
-    if (mpCreate) mpCreate.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.eventBus.emit('mp:createRoom', { mode: 'FFA' }); });
-    const mpSearchBattle = document.getElementById('btnMpSearchBattle');
-    if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.showScreen('matchmakingTierScreen'); });
-
-    document.querySelectorAll('.daTierBtn').forEach(btn => {
-      btn.addEventListener('click', () => { this.eventBus.emit('ui:searchBattleTierSelected', { tier: btn.dataset.tier }); });
-    });
-    const btnMmTierBack = document.getElementById('btnMmTierBack');
-    if (btnMmTierBack) btnMmTierBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
-    const btnCancelSearch = document.getElementById('btnCancelSearch');
-    if (btnCancelSearch) btnCancelSearch.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
-    const btnProceed = document.getElementById('btnProceedToLobby');
-    if (btnProceed) btnProceed.addEventListener('click', () => this.eventBus.emit('matchmaking:proceed'));
-    const btnCancelOpp = document.getElementById('btnCancelOppFound');
-    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
-    const mpJoin = document.getElementById('btnMpJoin');
-    if (mpJoin) mpJoin.addEventListener('click', () => {
-      const input = document.getElementById('mpRoomInput');
-      const code = input?.value.trim();
-      if (code && code.length === 6) { this.eventBus.emit('mp:joinRoom', { code }); }
-      else { const err = document.getElementById('mpJoinError'); if (err) err.textContent = 'Enter a valid 6-digit code'; }
-    });
-    const mpBack = document.getElementById('btnMpBack');
-    if (mpBack) mpBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
-    document.querySelectorAll('#mpModeSelect .modeCard').forEach(btn => {
-      btn.addEventListener('click', () => { this.selectedMpMode = btn.dataset.mpmode; this.eventBus.emit('mp:createRoom', { mode: this.selectedMpMode }); });
-    });
-    const mpModeBack = document.getElementById('btnMpModeBack');
-    if (mpModeBack) mpModeBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
-    const startBtn = document.getElementById('lobbyStartBtn');
-    if (startBtn) startBtn.addEventListener('click', () => this.eventBus.emit('mp:startGame'));
-    const leaveBtn = document.getElementById('btnLeaveRoom');
-    if (leaveBtn) leaveBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); this.showScreen('titleScreen'); });
-    document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
-      btn.addEventListener('click', () => { this.eventBus.emit('lobby:arenaSelected', { arenaIndex: parseInt(btn.dataset.arena) }); });
-    });
-    document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
-      btn.addEventListener('click', () => { if (btn.disabled) return; this.selectedTier = btn.dataset.tier; this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier }); });
-    });
-    const depositBtn = document.getElementById('lobbyDepositBtn');
-    if (depositBtn) depositBtn.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
-    const pauseBtn = document.getElementById('pauseBtn');
-    if (pauseBtn) pauseBtn.addEventListener('click', () => this.eventBus.emit('game:pause'));
-    const resumeBtn = document.getElementById('btnResume');
-    if (resumeBtn) resumeBtn.addEventListener('click', () => this.eventBus.emit('game:resume'));
-    const quitBtn = document.getElementById('btnQuit');
-    if (quitBtn) quitBtn.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('titleScreen'); });
-    const changeDragon = document.getElementById('btnChangeDragon');
-    if (changeDragon) changeDragon.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
-    const playAgain = document.getElementById('btnPlayAgain');
-    if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
-    const mainMenu = document.getElementById('btnMainMenu');
-    if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('titleScreen'); });
-    const resumeRoomBtn = document.getElementById('btnResumeRoom');
-    if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
-
-    const walletBtn = document.getElementById('walletBtn');
-    if (walletBtn) walletBtn.addEventListener('click', () => {
-      if (walletBtn.classList.contains('connected')) {
-        this.setWalletModalState('connected');
-        this.showScreen('walletModal');
-      } else {
-        this.showScreen('walletSelectionModal');
-      }
-    });
-    const walletClose = document.getElementById('btnWalletClose');
-    if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
-    const wOpt = document.getElementById('wOptPhantom');
-    if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
-    document.addEventListener('click', (e) => { if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest'); });
-    const signTest = document.getElementById('btnWalletSignTest');
-    if (signTest) signTest.addEventListener('click', () => {
-      const resultEl = document.getElementById('wSignResult');
-      const walletLabel = this._connectedWalletType === 'solflare' ? 'Solflare' : 'Phantom';
-      if (resultEl) resultEl.innerHTML = `Waiting for approval in ${walletLabel}...`;
-      this.eventBus.emit('wallet:signTestRequest');
-    });
-
-    // FIX: wallet selection buttons now use _tap (pointerdown) for instant
-    // mobile response instead of delayed click events. Also calls window.game
-    // directly as fallback so no main.js changes needed.
-    // FIX: _tap uses pointerdown + preventDefault() which breaks on mobile
-    // for modal buttons (OS suppresses the activation). Wallet buttons
-    // use standard click + passive touchstart for instant mobile response.
-    const btnSelectPhantom = document.getElementById('btnSelectPhantom');
-    if (btnSelectPhantom) {
-      const onPhantom = () => {
-        console.log('[UI] Phantom selected');
-        this.eventBus.emit('wallet:selectPhantom');
-        const wm = window.game?.walletManager;
-        if (wm) wm.connect();
-      };
-      btnSelectPhantom.addEventListener('click', onPhantom);
-      btnSelectPhantom.addEventListener('touchstart', onPhantom, { passive: true });
-    }
-    const btnSelectSolflare = document.getElementById('btnSelectSolflare');
-    if (btnSelectSolflare) {
-      const onSolflare = () => {
-        console.log('[UI] Solflare selected');
-        this.eventBus.emit('wallet:selectSolflare');
-        const wm = window.game?.walletManager;
-        if (wm) wm.connectSolflare();
-      };
-      btnSelectSolflare.addEventListener('click', onSolflare);
-      btnSelectSolflare.addEventListener('touchstart', onSolflare, { passive: true });
-    }
-    const btnWalletSelBack = document.getElementById('btnWalletSelBack');
-    if (btnWalletSelBack) btnWalletSelBack.addEventListener('click', () => this.showScreen('titleScreen'));
-
-    const baPlaceBet = document.getElementById('baPlaceBetBtn');
-    if (baPlaceBet) baPlaceBet.addEventListener('click', () => this.eventBus.emit('betting:depositRequested'));
-    const baStart = document.getElementById('baStartBtn');
-    if (baStart) baStart.addEventListener('click', () => this.eventBus.emit('betting:startGame'));
-    const baCancel = document.getElementById('baCancelBetting');
-    if (baCancel) baCancel.addEventListener('click', () => this.eventBus.emit('betting:cancel'));
-
-    this.eventBus.on('wallet:connecting', ({ wallet } = {}) => {
-      this.setWalletModalState('connecting');
-      const label = wallet === 'solflare' ? 'Solflare' : 'Phantom';
-      const connectingText = document.getElementById('wConnectingText');
-      if (connectingText) connectingText.textContent = `Approve the connection in ${label}...`;
-      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
-    });
-    this.eventBus.on('wallet:connected', ({ address, balance, walletType }) => {
-      this.setWalletModalState('connected');
-      this.updateWalletDisplay(address, balance, walletType);
-      if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
-    });
-    this.eventBus.on('wallet:disconnected', () => {
-      this._connectedWalletType = null;
-      this.updateWalletButton(null);
-      if (this.currentScreen === 'walletModal') this.showScreen('titleScreen');
-      else this.setWalletModalState('disconnected');
-    });
-    this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
-      const balEl = document.getElementById('wBalanceDisplay');
-      if (balEl && balance !== undefined && balance !== null) balEl.textContent = `${balance} SOL`;
-    });
-    this.eventBus.on('wallet:error', ({ message }) => {
-      this.setWalletModalState('disconnected');
-      const errEl = document.getElementById('walletError');
-      if (errEl) { errEl.textContent = message; errEl.style.display = 'block'; }
-    });
-    this.eventBus.on('wallet:signTestResult', (result) => {
-      const resultEl = document.getElementById('wSignResult');
-      if (resultEl) resultEl.innerHTML = `<span class="wSignOk"><i class="fa-solid fa-check-circle"></i> Signature verified</span><div class="wSignHash">${result.signatureHex.slice(0,24)}...</div>`;
-    });
-    this.eventBus.on('wallet:signTestError', ({ message }) => {
-      const resultEl = document.getElementById('wSignResult');
-      if (resultEl) resultEl.innerHTML = `<span class="wSignFail"><i class="fa-solid fa-circle-xmark"></i> ${message}</span>`;
-    });
-    this.eventBus.on('staking:pending', ({ label }) => {
-      const statusText = document.getElementById('depositStatusText');
-      if (statusText) { statusText.textContent = label || 'Processing your bet...'; statusText.className = 'depositStatusText pending'; }
-      const baStatus = document.getElementById('baYourStatus');
-      if (baStatus) { baStatus.textContent = 'Placing bet...'; baStatus.style.color = '#eab308'; }
-    });
-    this.eventBus.on('staking:confirmed', ({ label }) => {
-      const statusText = document.getElementById('depositStatusText');
-      if (statusText) { statusText.textContent = label || 'Bet placed!'; statusText.className = 'depositStatusText confirmed'; }
-      const baStatus = document.getElementById('baYourStatus');
-      if (baStatus) { baStatus.textContent = 'Bet Placed'; baStatus.style.color = '#4ade80'; }
-    });
-    this.eventBus.on('staking:error', ({ message }) => {
-      const statusText = document.getElementById('depositStatusText');
-      if (statusText) { statusText.textContent = message || 'Bet failed.'; statusText.className = 'depositStatusText error'; }
-      const baStatus = document.getElementById('baYourStatus');
-      if (baStatus) { baStatus.textContent = 'Failed'; baStatus.style.color = '#ef4444'; }
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (this.currentScreen === 'gameScreen') this.eventBus.emit('game:pause');
-        else if (document.getElementById('dragonDetailModal')?.classList.contains('active')) this.hideDragonModal();
-      }
-      if (e.key === 'Tab') { e.preventDefault(); this.toggleScoreboard(); }
-    });
-    const htpClose = document.getElementById('btnHtpClose');
-    if (htpClose) htpClose.addEventListener('click', () => this.showScreen('titleScreen'));
-    const gotIt = document.getElementById('btnGotIt');
-    if (gotIt) gotIt.addEventListener('click', () => this.showScreen('titleScreen'));
-    document.querySelectorAll('.htpTab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.htpTab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        document.querySelectorAll('.htpPanel').forEach(p => p.classList.remove('active'));
-        document.getElementById('htp' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1))?.classList.add('active');
-      });
-    });
-  }
-
-  updateLobby(players = [], maxPlayers = 4, roomCode = '', isHost = false) {
-    try {
-      const codeEl = document.getElementById('roomCodeDisplay');
-      if (codeEl && roomCode) codeEl.textContent = roomCode;
-      const countEl = document.getElementById('lobbyPlayerCount');
-      if (countEl) countEl.textContent = `${players.length} / ${maxPlayers}`;
-      const slotsEl = document.getElementById('lobbySlots');
-      if (slotsEl && Array.isArray(players)) {
-        slotsEl.innerHTML = players.map(p => {
-          const dragonKey = (p.dragon || '').toLowerCase();
-          const imgUrl = DRAGON_IMAGES[dragonKey];
-          const icon = imgUrl
-            ? `<img src="${imgUrl}" alt="${dragonKey}" style="width:44px;height:44px;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 0 6px rgba(0,180,216,0.45));">`
-            : `<div class="lobbyPlayerIcon" style="flex:0 0 auto;">🐉</div>`;
-          return `
-          <div class="lobbyPlayerCard ${p.isLocal ? 'local' : ''}" style="display:flex;align-items:center;gap:10px;min-width:0;">
-            ${icon}
-            <div class="lobbyPlayerInfo" style="flex:1;min-width:0;">
-              <div class="lobbyPlayerName">${p.isHost ? 'Host' : (p.name || 'Player')}${p.isLocal ? ' (You)' : ''}</div>
-              <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
-            </div>
-            ${p.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span> Staked</span>' : ''}
-          </div>`;
-        }).join('');
-      }
-      const startBtn = document.getElementById('lobbyStartBtn');
-      const waitingText = document.getElementById('lobbyWaitingText');
-      // Start Game only ever appears for the HOST and only once BOTH
-      // players have staked (tracked by updateStakingUI, which runs right
-      // after this on every snapshot). Until then the button slot belongs
-      // to Place Bet.
-      if (startBtn) startBtn.style.display = (isHost && this._stakingBothDeposited) ? 'flex' : 'none';
-      if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
-      if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
-    } catch (e) { console.warn('updateLobby error:', e); }
-  }
-
-  updateLobbyArena(arenaIndex, isHost) {
-    document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
-      btn.classList.toggle('active', parseInt(btn.dataset.arena) === arenaIndex);
-      btn.disabled = !isHost;
-    });
-  }
-
-  updateTierAmounts(tiers) {
-    if (!tiers) return;
-    const map = {};
-    if (Array.isArray(tiers)) { tiers.forEach(t => { if (t && t.tier) map[t.tier] = t.amount ?? t.label ?? t.display; }); }
-    else if (typeof tiers === 'object') Object.assign(map, tiers);
-    ['Small','Medium','High'].forEach(tier => {
-      const btn = document.getElementById('tier' + tier);
-      if (!btn) return;
-      const amtEl = btn.querySelector('.tierAmt');
-      if (amtEl && map[tier] !== undefined) amtEl.textContent = map[tier];
-      const mmAmt = document.getElementById('tierAmt' + tier);
-      if (mmAmt && map[tier] !== undefined) mmAmt.textContent = map[tier];
-    });
-  }
-
-  updateStakingUI(state = {}) {
-    const { isHost, tier, hostDeposited, opponentDeposited, canDeposit } = state;
-    const myDeposited = isHost ? hostDeposited : opponentDeposited;
-    const bothStaked = !!(hostDeposited && opponentDeposited);
-    // Remembered so updateLobby (which re-runs on every room snapshot)
-    // never re-shows Start before both stakes are locked.
-    this._stakingBothDeposited = bothStaked;
-    const depositBtn = document.getElementById('lobbyDepositBtn');
-    const label = document.getElementById('depositBtnLabel');
-    const statusText = document.getElementById('depositStatusText');
-    const startBtn = document.getElementById('lobbyStartBtn');
-    const waitingText = document.getElementById('lobbyWaitingText');
-    // ONE morphing button slot: Place Bet occupies it from the moment a
-    // tier exists, and only once BOTH players have staked successfully
-    // does it swap out for Start Game (host) / "host is starting" (guest).
-    if (depositBtn) {
-      depositBtn.style.display = (tier && !bothStaked) ? 'flex' : 'none';
-      depositBtn.disabled = !!myDeposited;
-    }
-    if (label) {
-      label.textContent = myDeposited
-        ? 'Bet Placed'
-        : (!canDeposit
-          ? 'Connect Wallet to Stake'
-          : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join'));
-    }
-    if (startBtn) {
-      startBtn.style.display = (bothStaked && isHost) ? 'flex' : 'none';
-      startBtn.disabled = !bothStaked;
-    }
-    if (waitingText) {
-      waitingText.style.display = (bothStaked && !isHost) ? 'block' : (isHost ? 'none' : waitingText.style.display);
-      if (bothStaked && !isHost) waitingText.textContent = 'Both stakes locked — waiting for host to start...';
-    }
-    if (statusText) {
-      if (bothStaked) { statusText.textContent = 'Both players staked - ready!'; statusText.className = 'depositStatusText confirmed'; }
-      else if (myDeposited) { statusText.textContent = 'Waiting for opponent to stake...'; statusText.className = 'depositStatusText pending'; }
-      else { statusText.textContent = ''; statusText.className = 'depositStatusText'; }
-    }
-    document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.tier === tier);
-      btn.disabled = isHost ? !!hostDeposited : true;
-    });
-  }
-
-  updateAttackMeter(dragon) {
-    const btn = document.getElementById('boostBtn');
-    if (!btn) return;
-    const charge = dragon ? (dragon.attackCharge || 0) : 0;
-    const active = !!(dragon && dragon.attackActive);
-    const max = CONFIG.ATTACK_METER_MAX || 20;
-    const full = charge >= max;
-    const neon = (dragon && CONFIG.DRAGON_NEON) ? (CONFIG.DRAGON_NEON[dragon.type] || '#ffd700') : '#ffd700';
-    const state = `${charge}|${active}|${neon}`;
-    if (state === this._meterState) return;
-    this._meterState = state;
-    const pct = Math.round((charge / max) * 100);
-    btn.style.setProperty('--fill', pct + '%');
-    btn.style.setProperty('--neon', neon);
-    btn.classList.toggle('attack-ready', full && !active);
-    btn.classList.toggle('attack-active', active);
-    const label = btn.querySelector('span');
-    if (label) label.textContent = active ? 'ATTACK!' : 'ATTACK';
-  }
-
-  showComboBanner(killer, streak) {
-    const banner = document.getElementById('comboBanner');
-    if (!banner) return;
-    const neon = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[killer.type]) || '#ffd700';
-    const name = (killer.type || 'dragon').toUpperCase();
-    let title;
-    if (streak === 3) title = 'TRIPLE KILL';
-    else if (streak === 7) title = 'RAMPAGE';
-    else if (streak === 15) title = 'DRAGONSLAYER';
-    else title = `LEGENDARY x${streak}`;
-    banner.innerHTML =
-      `<div class="combo-title" style="color:${neon};text-shadow:0 0 18px ${neon},0 0 46px ${neon};">${title}</div>` +
-      `<div class="combo-sub">${name} &middot; ${streak} KILL STREAK</div>`;
-    banner.classList.remove('combo-show');
-    void banner.offsetWidth;
-    banner.classList.add('combo-show');
-  }
-
-  updateHUD(score, timeStr, localDragon) {
-    if (score !== this._hudScore) {
-      this._hudScore = score;
-      const scoreEl = document.getElementById('scoreVal');
-      if (scoreEl && score !== undefined) scoreEl.textContent = score;
-    }
-    if (timeStr !== this._hudTime) {
-      this._hudTime = timeStr;
-      const timerEl = document.getElementById('timerDisplay');
-      if (timerEl && timeStr) timerEl.textContent = timeStr;
-    }
-    const lives = localDragon ? (localDragon.lives || 0) : null;
-    if (lives !== this._hudLives) {
-      this._hudLives = lives;
-      const livesHud = document.getElementById('livesHud');
-      if (livesHud && localDragon) {
-        livesHud.style.display = 'flex';
-        livesHud.innerHTML = lives > 0
-          ? Array.from({ length: lives }).map(() => '<i data-lucide="flame" style="color:#ff6b35;width:16px;height:16px;"></i>').join('')
-          : '<span style="color:#ff6b6b;font-size:11px;">No lives</span>';
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-      }
-    }
-  }
-
-  renderMinimap(canvas, camera, arenaManager, dragons, foods) {
-    if (!canvas || !arenaManager) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.clientWidth || 90;
-    const h = canvas.clientHeight || 90;
-    if (canvas.width !== w) canvas.width = w;
-    if (canvas.height !== h) canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
-    const bounds = arenaManager.getBounds();
-    const worldW = bounds.maxX - bounds.minX;
-    const worldH = bounds.maxY - bounds.minY;
-    if (!worldW || !worldH) return;
-    const scaleX = w / worldW;
-    const scaleY = h / worldH;
-    const toMini = (wx, wy) => ({ x: (wx - bounds.minX) * scaleX, y: (wy - bounds.minY) * scaleY });
-    ctx.fillStyle = 'rgba(0,180,216,0.7)';
-    (foods || []).forEach(f => { const p = toMini(f.x, f.y); ctx.fillRect(p.x, p.y, 1.5, 1.5); });
-    (dragons || []).forEach(d => {
-      if (!d.alive) return;
-      const p = toMini(d.head.x, d.head.y);
-      ctx.beginPath(); ctx.fillStyle = '#ff6666'; ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2); ctx.fill();
-    });
-    if (camera) {
-      const viewW = (canvas.parentElement ? canvas.parentElement.clientWidth : w * camera.zoom) / camera.zoom;
-      const viewH = (canvas.parentElement ? canvas.parentElement.clientHeight : h * camera.zoom) / camera.zoom;
-      const topLeft = toMini(camera.x - viewW / 2, camera.y - viewH / 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
-      ctx.strokeRect(topLeft.x, topLeft.y, viewW * scaleX, viewH * scaleY);
-    }
-  }
-
-  updateGameOver(stats = {}) {
-    const map = { goTime: stats.time, goCollect: stats.collected, goKills: stats.kills, goDeaths: stats.deaths, goLives: stats.lives };
-    Object.entries(map).forEach(([id, val]) => { const el = document.getElementById(id); if (el && val !== undefined) el.textContent = val; });
-  }
-
-  showMatchStats(stats = [], winner) {
-    const titleEl = document.getElementById('goTitle');
-    if (!titleEl) return;
-    const localStat = Array.isArray(stats) ? stats.find(s => s.isLocal) : null;
-    const localWon = winner && localStat && winner.id === localStat.id;
-    if (!winner) { titleEl.textContent = 'DRAW'; titleEl.style.color = '#48cae4'; }
-    else if (localWon) { titleEl.textContent = 'VICTORY!'; titleEl.style.color = '#4ade80'; }
-    else { titleEl.textContent = 'DEFEATED'; titleEl.style.color = '#ff4d4d'; }
-  }
-
-  showCountdown(seconds, onComplete) {
-    const overlay = document.getElementById('countdownOverlay');
-    const textEl = document.getElementById('countdownText');
-    let count = typeof seconds === 'number' ? seconds : 3;
-    if (!overlay || !textEl) { if (typeof onComplete === 'function') onComplete(); return; }
-    overlay.classList.add('active');
-    textEl.textContent = count;
-    const tick = () => {
-      count--;
-      if (count > 0) { textEl.textContent = count; setTimeout(tick, 1000); }
-      else if (count === 0) { textEl.textContent = 'GO!'; setTimeout(tick, 700); }
-      else { overlay.classList.remove('active'); if (typeof onComplete === 'function') onComplete(); }
-    };
-    setTimeout(tick, 1000);
-  }
-
-  hideCountdown() { const overlay = document.getElementById('countdownOverlay'); if (overlay) overlay.classList.remove('active'); }
-
-  showPauseOverlay(visible = true, isMultiplayer = false) {
-    const el = document.getElementById('pauseOverlay');
-    if (el) el.classList.toggle('active', !!visible);
-    const changeDragonBtn = document.getElementById('btnChangeDragon');
-    if (changeDragonBtn) changeDragonBtn.style.display = isMultiplayer ? 'none' : 'flex';
-  }
-
-  hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
-
-  showStakeBreakdown({ pending = false, draw = false, won = false, stakeText = null, potText = null, feeText = null, payoutText = null, feePct = 2.5, signature = null, cluster = 'devnet' } = {}) {
-    const box = document.getElementById('goStakeBox');
-    if (!box) return;
-    const title = document.getElementById('goStakeTitle');
-    const rows = document.getElementById('goStakeRows');
-    const tx = document.getElementById('goStakeTx');
-    box.style.display = 'block';
-
-    if (pending) {
-      title.textContent = 'SETTLING ON-CHAIN…';
-      rows.innerHTML = `<div class="goStakeRow pending"><span>The Treasury is weighing the stakes…</span></div>`;
-      tx.style.display = 'none';
-      return;
-    }
-
-    if (draw) {
-      title.textContent = 'MATCH DRAWN';
-      rows.innerHTML = `<div class="goStakeRow"><span>Result</span><span class="val">Draw</span></div>
-        <div class="goStakeRow pending"><span>Stakes return via Treasury multisig dispute resolution.</span></div>`;
-      tx.style.display = 'none';
-      return;
-    }
-
-    title.textContent = won ? 'SPOILS OF VICTORY' : 'MATCH SETTLEMENT';
-    const row = (label, val, cls = '') => val ? `<div class="goStakeRow ${cls}"><span>${label}</span><span class="val">${val}</span></div>` : '';
-    rows.innerHTML =
-      row('Your Stake', stakeText) +
-      row('Opponent Stake', stakeText) +
-      row('Total Pot', potText) +
-      row(`Treasury Fee (${feePct}%)`, feeText, 'fee') +
-      row(won ? 'YOU RECEIVE' : 'WINNER RECEIVES', payoutText, 'payout');
-
-    if (signature) {
-      tx.href = `https://explorer.solana.com/tx/${signature}?cluster=${cluster}`;
-      tx.textContent = `View payout transaction (tx ${String(signature).slice(0, 8)}…)`;
-      tx.style.display = 'block';
-    } else {
-      tx.style.display = 'none';
-    }
-  }
-
-  setWalletModalState(state) {
-    const views = {
-      disconnected: document.getElementById('walletDisconnectedView'),
-      connecting: document.getElementById('walletConnectingView'),
-      connected: document.getElementById('walletConnectedView')
-    };
-    Object.entries(views).forEach(([key, el]) => { if (el) el.style.display = key === state ? 'block' : 'none'; });
-    const errEl = document.getElementById('walletError');
-    if (errEl && state !== 'disconnected') errEl.style.display = 'none';
-  }
-
-  updateWalletDisplay(address, balance, walletType) {
-    if (walletType) this._connectedWalletType = walletType;
-    const addrEl = document.getElementById('wAddressDisplay');
-    if (addrEl && address) addrEl.textContent = address.length > 12 ? `${address.slice(0,6)}...${address.slice(-4)}` : address;
-    const balEl = document.getElementById('wBalanceDisplay');
-    if (balEl) balEl.textContent = (balance !== undefined && balance !== null) ? `${balance} SOL` : 'Balance unavailable';
-    const iconEl = document.getElementById('wWalletIcon');
-    if (iconEl) {
-      const isSolflare = this._connectedWalletType === 'solflare';
-      iconEl.src = isSolflare ? WALLET_ICON_URLS.solflare : WALLET_ICON_URLS.phantom;
-      iconEl.alt = isSolflare ? 'Solflare' : 'Phantom';
-    }
-    this.updateWalletButton(address);
-  }
-
-  updateWalletButton(address) {
-    const btn = document.getElementById('walletBtn');
-    if (!btn) return;
-    const label = btn.querySelector('span');
-    if (address) { btn.classList.add('connected'); if (label) label.textContent = `${address.slice(0,4)}...${address.slice(-4)}`; }
-    else { btn.classList.remove('connected'); if (label) label.textContent = 'Connect Wallet'; }
-  }
-
-  toggleScoreboard() {
-    const el = document.getElementById('scoreboardOverlay');
-    if (!el) return;
-    el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
-  }
-
-  showResumeRoomBanner(roomCode) {
-    const banner = document.getElementById('resumeRoomBanner');
-    const codeSpan = document.getElementById('resumeRoomCode');
-    if (codeSpan) codeSpan.textContent = roomCode;
-    if (banner) banner.style.display = 'block';
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
-  }
-
-  hideResumeRoomBanner() { const banner = document.getElementById('resumeRoomBanner'); if (banner) banner.style.display = 'none'; }
-
-  showScreen(screenId) {
-    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
-    if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
-  }
-
-  showOpponentFoundModal(tier) {
-    const tierName = (tier || 'Unknown').toLowerCase();
-    const displayTier = tierName.charAt(0).toUpperCase() + tierName.slice(1);
-    const tierDisplay = document.getElementById('oppFoundTierDisplay');
-    if (tierDisplay) tierDisplay.textContent = `${displayTier} Stake`;
-    this.showScreen('opponentFoundScreen');
-  }
-
-  hideOpponentFoundModal() {
-    const screen = document.getElementById('opponentFoundScreen');
-    if (screen) screen.classList.remove('active');
-  }
-
-  showLobbyCountdown(seconds) {
-    const el = document.getElementById('lobbyCountdown');
-    const numEl = document.getElementById('lobbyCountdownNum');
-    const fillEl = document.getElementById('lobbyCountdownFill');
-    if (el) el.style.display = 'block';
-    if (numEl) numEl.textContent = seconds;
-    if (fillEl) fillEl.style.width = '100%';
-  }
-  updateLobbyCountdown(seconds) {
-    const numEl = document.getElementById('lobbyCountdownNum');
-    const fillEl = document.getElementById('lobbyCountdownFill');
-    if (numEl) numEl.textContent = seconds;
-    if (fillEl) fillEl.style.width = `${(seconds / 10) * 100}%`;
-  }
-  hideLobbyCountdown() { const el = document.getElementById('lobbyCountdown'); if (el) el.style.display = 'none'; }
-
-  showBettingArena({ roomCode, tier, isHost, yourDragon }) {
-    this.showScreen('bettingArenaScreen');
-    const rcEl = document.getElementById('baRoomCode');
-    if (rcEl) rcEl.textContent = roomCode || '------';
-    const tierEl = document.getElementById('baStakeValue');
-    if (tierEl) tierEl.textContent = tier ? `${tier} Stake` : '-- INFINITE';
-    const yourDragonEl = document.getElementById('baYourDragon');
-    if (yourDragonEl) yourDragonEl.textContent = yourDragon || '???';
-    const oppDragonEl = document.getElementById('baOppDragon');
-    if (oppDragonEl) oppDragonEl.textContent = '???';
-    const oppStatus = document.getElementById('baOppStatus');
-    if (oppStatus) { oppStatus.textContent = 'Waiting...'; oppStatus.style.color = '#8b93a6'; }
-    const yourStatus = document.getElementById('baYourStatus');
-    if (yourStatus) { yourStatus.textContent = 'Not staked'; yourStatus.style.color = '#8b93a6'; }
-    const startBtn = document.getElementById('baStartBtn');
-    if (startBtn) { startBtn.disabled = true; startBtn.style.opacity = '0.4'; }
-    const countdown = document.getElementById('baCountdown');
-    if (countdown) countdown.style.display = 'none';
-  }
-
-  updateBettingArena({ players, roomMax, hostDeposited, opponentDeposited, tier, isHost }) {
-    const playerList = players || [];
-    const host = playerList.find(p => p.isHost);
-    const opponent = playerList.find(p => !p.isHost);
-    const yourStatus = document.getElementById('baYourStatus');
-    const oppStatus = document.getElementById('baOppStatus');
-    const oppDragon = document.getElementById('baOppDragon');
-    const startBtn = document.getElementById('baStartBtn');
-
-    if (host) {
-      if (yourStatus) {
-        if (isHost) {
-          yourStatus.textContent = hostDeposited ? 'Bet Placed' : 'Not staked';
-          yourStatus.style.color = hostDeposited ? '#4ade80' : '#8b93a6';
-        } else {
-          const you = playerList.find(p => p.isLocal);
-          const youDeposited = you ? you.deposited : opponentDeposited;
-          yourStatus.textContent = youDeposited ? 'Bet Placed' : 'Not staked';
-          yourStatus.style.color = youDeposited ? '#4ade80' : '#8b93a6';
-        }
-      }
-    }
-    if (opponent) {
-      if (oppDragon) oppDragon.textContent = opponent.dragon || '???';
-      if (oppStatus) {
-        oppStatus.textContent = opponent.deposited ? 'Bet Placed' : 'Not staked';
-        oppStatus.style.color = opponent.deposited ? '#4ade80' : '#8b93a6';
-      }
-    }
-    if (startBtn) {
-      const bothStaked = hostDeposited && opponentDeposited;
-      startBtn.disabled = !bothStaked;
-      startBtn.style.opacity = bothStaked ? '1' : '0.4';
-    }
-  }
-
-  showBettingCountdown(seconds) {
-    const el = document.getElementById('baCountdown');
-    const numEl = document.getElementById('baCountdownNum');
-    const fillEl = document.getElementById('baCountdownFill');
-    if (el) el.style.display = 'block';
-    if (numEl) numEl.textContent = seconds;
-    if (fillEl) fillEl.style.width = '100%';
-  }
-
-  updateBettingCountdown(seconds) {
-    const numEl = document.getElementById('baCountdownNum');
-    const fillEl = document.getElementById('baCountdownFill');
-    if (numEl) numEl.textContent = seconds;
-    if (fillEl) fillEl.style.width = `${(seconds / 10) * 100}%`;
-  }
-
-  hideBettingArena() {
-    const el = document.getElementById('bettingArenaScreen');
-    if (el) el.classList.remove('active');
+  off(event, callback) {
+    if (!this.listeners.has(event)) return;
+    const arr = this.listeners.get(event);
+    const idx = arr.indexOf(callback);
+    if (idx > -1) arr.splice(idx, 1);
   }
 }
 
-export default UIManager;
+// ==================== BOOT LOADER ====================
+// Drives #bootScreen: the full-screen loader that appears the instant
+// the page opens and stays until EVERY image the menus and arena need
+// has actually arrived. Real per-file progress, a stall watchdog that
+// shows a polite weak-network message, and a retry path so a player is
+// never let into the game with broken images.
+class BootLoader {
+  constructor() {
+    this.el = document.getElementById('bootScreen');
+    this.fill = document.getElementById('bootBarFill');
+    this.pct = document.getElementById('bootPct');
+    this.status = document.getElementById('bootStatus');
+    this.netBox = document.getElementById('bootNetBox');
+    this.retryBtn = document.getElementById('bootRetryBtn');
+    this.lastTick = Date.now();
+    this.done = false;
+    // Stall watchdog: 10s without a single file finishing = weak network.
+    this.watchdog = setInterval(() => {
+      if (this.done) return;
+      if (Date.now() - this.lastTick > 10000) this.showNetWarning();
+    }, 1000);
+  }
+
+  setProgress(done, total) {
+    this.lastTick = Date.now();
+    const pct = Math.min(100, Math.round((done / Math.max(1, total)) * 100));
+    if (this.fill) this.fill.style.width = pct + '%';
+    if (this.pct) this.pct.textContent = pct + '%';
+    if (this.status) this.status.textContent = `Summoning dragons... ${done}/${total}`;
+    this.hideNetWarning();
+  }
+
+  showNetWarning() {
+    if (this.netBox) this.netBox.classList.add('show');
+  }
+
+  hideNetWarning() {
+    if (this.netBox) this.netBox.classList.remove('show');
+  }
+
+  // Everything arrived - fade the loader away and let the player in.
+  finish() {
+    this.done = true;
+    clearInterval(this.watchdog);
+    if (this.fill) this.fill.style.width = '100%';
+    if (this.pct) this.pct.textContent = '100%';
+    if (this.status) this.status.textContent = 'The arena awaits.';
+    this.hideNetWarning();
+    if (this.el) {
+      setTimeout(() => this.el.classList.add('boot-done'), 350);
+      setTimeout(() => { if (this.el.parentNode) this.el.parentNode.removeChild(this.el); }, 1100);
+    }
+  }
+
+  // A required asset failed every retry - keep the player here, explain
+  // politely, and hand them a working retry button (cached files skip
+  // instantly, so a retry only refetches what actually failed).
+  fail(retryFn) {
+    if (this.status) this.status.textContent = 'A few files could not make it through.';
+    this.showNetWarning();
+    if (this.retryBtn) {
+      this.retryBtn.style.display = 'inline-block';
+      this.retryBtn.onclick = async () => {
+        this.retryBtn.style.display = 'none';
+        this.hideNetWarning();
+        this.lastTick = Date.now();
+        if (this.status) this.status.textContent = 'Trying again...';
+        try {
+          await retryFn();
+        } catch (e) {
+          this.fail(retryFn);
+        }
+      };
+    }
+  }
+}
+
+// Every menu/arena image that is NOT a dragon sprite but still has to
+// be sitting in cache before we let the player past the boot screen.
+function bootExtraImages() {
+  return [
+    ...Object.values(DRAGON_IMAGES),           // select-screen portraits
+    '/arenas/arena_stone.png',
+    '/arenas/arena_grass.png',
+    '/arenas/arena_purple.png',
+    '/arenas/arena_fire.png',
+    './shadow-drake-bg.png'                    // title screen backdrop
+  ];
+}
+
+// ==================== MAIN GAME ====================
+class Game {
+  constructor() {
+    this.eventBus = new EventBus();
+    this.state = 'MENU';
+
+    this.dragonManager = new DragonManager();
+    this.movementSystem = new MovementSystem();
+    this.growthSystem = new GrowthSystem(this.eventBus);
+    this.cameraSystem = new CameraSystem(document.getElementById('gameCanvas'));
+    this.arenaManager = new ArenaManager();
+    this.foodSystem = new FoodSystem(this.eventBus);
+    this.collisionSystem = new CollisionSystem(this.eventBus);
+    this.gameModeManager = new GameModeManager();
+    this.uiManager = new UIManager(this.eventBus);
+    this.effectsSystem = new EffectsSystem();
+    // NOTE: WalletManager's constructor no longer processes a Phantom mobile
+    // redirect on its own. It used to call _handleMobileRedirect() here,
+    // synchronously, which meant 'wallet:txConfirmed' / 'wallet:txError'
+    // could fire before Game.setupEventListeners() (called from init(),
+    // further down) had registered any listeners - the event fired into
+    // an empty EventBus and was lost. That's why staking on mobile bounced
+    // back to the title screen with the wallet looking disconnected instead
+    // of resuming the lobby. We now call walletManager.processMobileRedirect()
+    // explicitly from init(), after listeners and Firebase are ready.
+    this.walletManager = new WalletManager(this.eventBus);
+    this.stakingManager = new StakingManager(this.eventBus, this.walletManager);
+    this.matchmaking = new PhotonMatchmaking(this.eventBus);
+    this.aiController = null;
+
+    this.localDragon = null;
+    this.gameStartTime = 0;
+    this.gameTimer = 0;
+    this.isPaused = false;
+    this.lastTime = 0;
+    this.animationFrame = null;
+
+    this.firebaseApp = null;
+    this.db = null;
+    this.roomRef = null;
+    this.isMultiplayer = false;
+    this.aiDifficulty = 'advanced';
+    this.selectedMpMode = 'FFA';
+    this.pendingArenaIndex = null;
+    this.lobbyArenaIndex = 0;
+
+    this.lobbyTier = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+
+    this.localPlayerId = null;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this.remotePositions = {};
+    this.positionsRef = null;
+    this.lastBroadcast = 0;
+    this.positionsListenerSet = false;
+
+    this.assetsLoaded = false;
+
+    // Match statistics
+    this.matchStats = {};
+    this.winner = null;
+
+    this.init();
+  }
+
+  async init() {
+    this.bootLoader = new BootLoader();
+    this.setupEventListeners();
+    await this.setupFirebase();
+    this.effectsSystem.init();
+
+    // Process any pending Phantom mobile redirect now that listeners
+    // (setupEventListeners) and Firebase (setupFirebase) are both ready.
+    // This can synchronously emit 'wallet:connected' / 'wallet:txConfirmed' /
+    // 'wallet:txError', which in turn can call showScreen('lobbyScreen') via
+    // _rejoinRoom() - so we only default to the title screen if that didn't
+    // already happen.
+    this.walletManager.processMobileRedirect();
+
+    if (!this.roomRef) {
+      // Only show the loading screen if we're ACTUALLY processing a
+      // redirect right now (the URL literally has ?walletReturn=... on
+      // it) - not just because a lobby context happens to exist in
+      // localStorage. That key only gets cleared on a SUCCESSFUL deposit;
+      // any abandoned attempt (tab closed mid-flow, browser killed,
+      // anything) leaves it sitting there indefinitely. Using its mere
+      // presence as the signal meant every future normal page load -
+      // typing the URL fresh, no redirect involved at all - would show
+      // the loading screen and then get stuck on it forever, since
+      // nothing was ever going to transition it away. This is exactly
+      // what caused the permanent "Entering the Arena..." freeze.
+      let urlHasWalletReturn = false;
+      try { urlHasWalletReturn = !!new URLSearchParams(window.location.search).get('walletReturn'); } catch (_) { /* ignore */ }
+      this.uiManager.showScreen(urlHasWalletReturn ? 'loadingScreen' : 'titleScreen');
+
+      // Safety net: even if a redirect IS genuinely in flight, don't ever
+      // strand the user here forever if restoration fails silently for
+      // some future, unforeseen reason. Fall back to the title screen.
+      if (urlHasWalletReturn) {
+        setTimeout(() => {
+          if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
+            this.uiManager.showScreen('titleScreen');
+          }
+        }, 6000);
+      }
+      // REMOVED: the "Resume Room" banner that used to appear here when a
+      // lastRoomInfo entry existed. It was a workaround for Android
+      // dropping Phantom's redirect data during the old encrypted
+      // deep-link flow - now that wallet flows run inside the wallet's
+      // own in-app browser with no redirect at all, that failure mode is
+      // gone and the banner had become a recurring nuisance on refresh.
+    }
+
+    this.stakingManager.getDisplayTiers()
+      .then(tiers => this.uiManager.updateTierAmounts(tiers))
+      .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
+
+    // Boot gate: load EVERY image with real progress, and only let the
+    // player past the boot screen once nothing is missing or broken.
+    const loadEverything = async () => {
+      await AssetLoader.preloadAll(
+        (done, total) => this.bootLoader.setProgress(done, total),
+        bootExtraImages()
+      );
+      await this.arenaManager.preloadAll();
+      this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
+      this.assetsLoaded = true;
+      console.log('[Assets] All dragon and arena assets loaded successfully');
+      this.bootLoader.finish();
+    };
+    try {
+      await loadEverything();
+    } catch (e) {
+      console.error('Asset load failed:', e);
+      this.bootLoader.fail(loadEverything);
+    }
+  }
+
+  async setupFirebase() {
+    try {
+      const firebaseConfig = {
+        apiKey: "AIzaSyAI0oDj8ZyjQzvdAWS-3CxbHCbJHU5R62s",
+        authDomain: "infinite-runners-dragonsarena.firebaseapp.com",
+        databaseURL: "https://infinite-runners-dragonsarena-default-rtdb.firebaseio.com",
+        projectId: "infinite-runners-dragonsarena",
+        storageBucket: "infinite-runners-dragonsarena.firebasestorage.app",
+        messagingSenderId: "729310578893",
+        appId: "1:729310578893:web:5a369465bb831f3cd8c184",
+        measurementId: "G-K39Z0L2K2X"
+      };
+      if (typeof firebase !== 'undefined') {
+        this.firebaseApp = firebase.initializeApp(firebaseConfig);
+        this.db = firebase.database();
+        // Anonymous auth DISABLED for now. Database rules are currently
+        // wide open (.read: true, .write: true), so no write actually
+        // requires an auth token right now - and this has repeatedly been
+        // a real point of failure on networks that block Google's auth
+        // domains (identitytoolkit.googleapis.com earlier, oauth2.googleapis.com
+        // in WSL, now securetoken.googleapis.com). When the token refresh
+        // fails, the Realtime Database SDK enters an endless reconnect
+        // loop trying to attach a token it can't get - which can make the
+        // ENTIRE database connection hang, breaking room creation/joining
+        // even though nothing about them actually needed auth. Removing
+        // this dependency removes that entire failure mode. Re-enable
+        // once real database rules (requiring auth) are restored - see
+        // firebase-database-rules.json for the version that needs it.
+        this.authUid = null;
+      }
+    } catch (e) {
+      console.log('Firebase not available, running in local mode');
+    }
+  }
+
+  setupEventListeners() {
+    this.eventBus.on('ui:showDragonSelect', () => {
+      this.uiManager.showScreen('dragonSelectScreen');
+    });
+
+    this.eventBus.on('ui:dragonSelected', ({ name }) => {
+      this.selectedDragon = name;
+    });
+
+    this.eventBus.on('ui:arenaSelected', ({ mode, difficulty, arenaIndex }) => {
+      this.pendingArenaIndex = arenaIndex;
+      // FIX: these were never stored anywhere before. restartGame() (Play
+      // Again) reads this.selectedMode / this.aiDifficulty, which without
+      // this line were stuck at their constructor defaults ('FFA' /
+      // 'advanced') forever - so Play Again silently replayed a DIFFERENT
+      // mode/dragon-count than whatever the player actually just played.
+      this.selectedMode = mode;
+      this.aiDifficulty = difficulty;
+      this.startLocalGame(mode, difficulty, arenaIndex);
+    });
+
+    this.eventBus.on('mp:createRoom', ({ mode }) => this.createRoom(mode));
+    this.eventBus.on('mp:joinRoom', ({ code }) => this.joinRoom(code));
+    this.eventBus.on('mp:leaveRoom', () => this.leaveRoom());
+    this.eventBus.on('mp:startGame', () => this.startMpGame());
+
+    this.eventBus.on('game:pause', () => this.pauseGame());
+    this.eventBus.on('game:resume', () => this.resumeGame());
+    this.eventBus.on('game:quit', () => this.quitGame());
+    this.eventBus.on('game:restart', () => this.restartGame());
+
+    this.eventBus.on('collision:eat', ({ dragon, food }) => {
+      this.growthSystem.onEat(dragon, food);
+      this.dragonManager.addAttackCharge(dragon, food.value || 1);
+      this.effectsSystem.spawnEatParticles(food.x, food.y, food.color);
+      this.effectsSystem.playEatSound();
+    });
+
+    // Non-lethal tail bite (attacker not in attack mode, or attacker
+    // isn't the smaller dragon's case where bite is just a minor nibble)
+    this.eventBus.on('collision:tail-cut', ({ victim }) => {
+      this.growthSystem.onCollisionTailCut(victim, 0.2);
+    });
+
+    // Small dragon lands a tail bite on a BIGGER dragon WITH Attack
+    // charged: doesn't kill, but takes a real, meaningful bite out of the
+    // bigger dragon (ATTACK_TAIL_DAMAGE_PERCENT, currently 30%) - this is
+    // the actual comeback/threat tool for a small dragon against a big
+    // one. See collisionSystem.js checkHeadVsBody() for when this fires.
+    this.eventBus.on('dragon:tailDamage', ({ victim, attacker }) => {
+      this.growthSystem.onCollisionTailCut(victim, CONFIG.ATTACK_TAIL_DAMAGE_PERCENT);
+      const neon = (attacker && CONFIG.DRAGON_NEON) ? (CONFIG.DRAGON_NEON[attacker.type] || '#ffffff') : '#ffffff';
+      this.effectsSystem.spawnImpactSparks(victim.head.x, victim.head.y, neon);
+      this.effectsSystem.addShake(victim === this.localDragon ? 14 : 6, 220);
+      this.effectsSystem.playTone(260, 'sawtooth', 0.22, 0.16);
+    });
+
+    this.eventBus.on('collision:head-hit', ({ x, y }) => {
+      this.effectsSystem.spawnImpactSparks(x, y, '#ffffff');
+      this.effectsSystem.addShake(12, 250);
+      this.effectsSystem.playHeadCollisionSound();
+    });
+
+    // NEW: Dragon shrink event (head-to-body collision, equal head collision)
+    this.eventBus.on('dragon:shrink', ({ dragon, reason, other }) => {
+      this.dragonManager.shrinkDragon(dragon);
+      this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#ffaa00', CONFIG.EFFECTS.SHRINK_PARTICLES || 15, CONFIG.EFFECTS.SHRINK_PARTICLE_SPEED || 4, CONFIG.EFFECTS.SHRINK_PARTICLE_LIFE || 500);
+      this.effectsSystem.addShake(8, 200);
+      this.effectsSystem.playTone(200, 'sawtooth', 0.3, 0.15);
+    });
+
+    // UPDATED: Dragon death with lives/respawn system
+    this.eventBus.on('dragon:death', ({ dragon, killer }) => {
+      dragon.deaths = (dragon.deaths || 0) + 1;
+      dragon.lives = (dragon.lives || 0) - 1;
+
+      const isLocal = dragon === this.localDragon;
+      // Kill glow uses the KILLER's neon dragon color (not generic fire)
+      const neon = (killer && killer !== dragon && CONFIG.DRAGON_NEON)
+        ? (CONFIG.DRAGON_NEON[killer.type] || null)
+        : null;
+      const deathColor = neon || (isLocal ? '#ff2222' : '#ff6600');
+      this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
+      this.effectsSystem.addShake(isLocal ? 20 : 8, isLocal ? 500 : 300);
+      this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
+      this.effectsSystem.playDeathSound(isLocal);
+
+      // A death ends the victim's kill streak
+      dragon.killStreak = 0;
+
+      // Track killer stats
+      if (killer && killer !== dragon) {
+        killer.kills = (killer.kills || 0) + 1;
+        // Kill reward: +2 body segments
+        this.growthSystem.grow(killer, CONFIG.KILL_SEGMENTS_GAIN || 2);
+        // Kill streak / combo announcements (full game: player, AI, MP)
+        killer.killStreak = (killer.killStreak || 0) + 1;
+        this._checkCombo(killer);
+        const killerIsLocal = killer === this.localDragon;
+        if (killerIsLocal) {
+          this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, neon || '#ffd700');
+          this.effectsSystem.flashVignette(neon || '#ffd700', 0.35, 300);
+          this.effectsSystem.playKillSound();
+        }
+      }
+
+      // Drop food from dead dragon
+      for (const seg of dragon.segments) {
+        this.foodSystem.spawnFoodAt(seg.x, seg.y);
+      }
+      this.foodSystem.spawnFoodAt(dragon.head.x, dragon.head.y, true);
+
+      // Check if dragon has lives remaining
+      if (dragon.lives > 0) {
+        // Respawn after delay
+        dragon.alive = false;
+        setTimeout(() => {
+          if (this.state === 'PLAYING') {
+            this.dragonManager.respawnDragon(dragon, this.arenaManager);
+            this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
+          }
+        }, CONFIG.RESPAWN_DELAY_MS);
+      } else {
+        // Eliminated - no lives left
+        dragon.alive = false;
+        // MULTIPLAYER CRITICAL: flush this final death state to Firebase
+        // BEFORE checkMatchEnd() can end the game and stopNetworkSync().
+        // The per-frame broadcast runs before the collision phase, so
+        // without this forced send the loser's client ended its game and
+        // stopped syncing while the last state the opponent ever received
+        // still showed lives > 0 - the WINNER's client then never saw the
+        // elimination, its win-check never fired, and it kept playing
+        // forever with no VICTORY screen and no settlement trigger.
+        if (this.isMultiplayer && dragon === this.localDragon && this.positionsRef) {
+          this.lastBroadcast = 0; // bypass the 50ms throttle for this one send
+          this.broadcastPosition();
+        }
+        this.checkMatchEnd();
+      }
+    });
+
+    this.eventBus.on('wallet:connectRequest', () => {
+      this.walletManager.connect().catch(() => {});
+    });
+
+    this.eventBus.on('wallet:disconnectRequest', () => {
+      this.walletManager.disconnect();
+    });
+
+    this.eventBus.on('wallet:refreshRequest', () => {
+      this.walletManager.refreshBalance();
+    });
+
+    this.eventBus.on('wallet:signTestRequest', () => {
+      this.walletManager.signTestMessage()
+        .then(result => this.eventBus.emit('wallet:signTestResult', result))
+        .catch(err => this.eventBus.emit('wallet:signTestError', {
+          message: err?.message || 'Signing failed.'
+        }));
+    });
+
+    this.eventBus.on('lobby:arenaSelected', ({ arenaIndex }) => {
+      if (this.isHost && this.roomRef) {
+        this.lobbyArenaIndex = arenaIndex;
+        this.roomRef.child('arenaIndex').set(arenaIndex);
+        this.uiManager.updateLobbyArena(arenaIndex, true);
+      }
+    });
+
+    this.eventBus.on('lobby:tierSelected', ({ tier }) => {
+      if (this.isHost && this.roomRef && !this.stakingState.hostDeposited) {
+        this.lobbyTier = tier;
+        this.roomRef.child('tier').set(tier);
+        this._refreshStakingUI();
+      }
+    });
+
+    this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
+
+    // REMOVED: the 'ui:resumeRoom' handler (Resume Room banner) - obsolete
+    // now that wallet flows run inside the wallet's in-app browser. Any
+    // stale lastRoomInfo still sitting in a player's localStorage from the
+    // old flow is cleared here once so nothing can ever act on it again.
+    this._clearLastRoom();
+
+    // ===== SEARCH BATTLE (Photon matchmaking, tier-first) =====
+    // Player picks a stake tier BEFORE searching; Photon only matches them
+    // with someone who picked the same tier (native Photon room-property
+    // filtering, not something checked after the fact). The moment two
+    // players are matched, this hands off entirely to the existing,
+    // already-working Firebase createRoom()/joinRoom() flow with that tier
+    // already locked in - no separate "Proceed" confirmation step, since
+    // picking a tier and starting the search already is the commitment.
+    this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
+      this.uiManager.showScreen('matchmakingSearchScreen');
+      try {
+        // The old pre-search checkConnectionQuality() gate has been removed.
+        // It spun up a THROWAWAY Photon client and force-disconnected it if
+        // the Master handshake took longer than 5s - that mid-handshake kill
+        // is exactly what produced the "WebSocket is closed before the
+        // connection is established" / Master peer 1001+1004 errors, after
+        // which the UI bounced straight back to the menu ("opens then
+        // closes"). The real search client below has its own onError path,
+        // so the gate added failure modes without adding safety.
+        this.matchmaking.startSearch(tier);
+      } catch (err) {
+        this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
+      }
+    });
+
+    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
+      if (isInitiator) {
+        // Create the real Firebase room using the EXACT same path as
+        // tapping "Create Room" manually, with the agreed tier already
+        // locked in, then tell the matched opponent the code via Photon.
+        this.createRoom(this.selectedMpMode || 'FFA', tier);
+        if (this.roomCode) this.matchmaking.announceRoomReady(this.roomCode);
+      } else {
+        // roomCode arrives via Photon's onEvent - join it exactly as if
+        // typed in manually. Tier is already set on the room itself.
+        this.joinRoom(roomCode);
+      }
+    });
+
+    this.eventBus.on('ui:cancelSearch', () => {
+      this.matchmaking.cancelSearch();
+    });
+    this.eventBus.on('matchmaking:cancelled', () => {
+      this.uiManager.showScreen('mpMenuScreen');
+    });
+    this.eventBus.on('matchmaking:error', ({ message }) => {
+      this.matchmaking.cancelSearch();
+      this.uiManager.showScreen('mpMenuScreen');
+      const err = document.getElementById('mpJoinError');
+      if (err) err.textContent = message || 'Matchmaking failed.';
+    });
+
+    this.eventBus.on('wallet:txConfirmed', ({ signature, pendingAction }) => {
+      this._resumeStakingAction(pendingAction, signature);
+    });
+    this.eventBus.on('wallet:txError', ({ message, pendingAction }) => {
+      this._restoreLobbyContextIfPresent();
+      this.eventBus.emit('staking:error', { message: message || 'Staking transaction failed.' });
+    });
+  }
+
+  checkMatchEnd() {
+    const allDragons = this.dragonManager.getAllDragons();
+    const withLives = allDragons.filter(d => d.lives > 0);
+
+    // If only one dragon has lives left, they win
+    if (withLives.length === 1 && allDragons.length > 1) {
+      this.winner = withLives[0];
+      this.endGame(true);
+      return;
+    }
+
+    // If no one has lives left, it is a draw
+    if (withLives.length === 0 && allDragons.length > 0) {
+      this.winner = null;
+      this.endGame(true);
+      return;
+    }
+
+    // If local dragon is eliminated, check if match still ongoing
+    if (this.localDragon && this.localDragon.lives <= 0 && !this.localDragon.alive) {
+      const living = this.dragonManager.getLivingDragons();
+      const othersAlive = living.filter(d => d !== this.localDragon);
+      if (othersAlive.length === 0) {
+        this.endGame(true);
+      }
+    }
+  }
+
+  _persistLobbyContext() {
+    try {
+      localStorage.setItem(LOBBY_CONTEXT_KEY, JSON.stringify({
+        roomCode: this.roomCode,
+        isHost: this.isHost,
+        localPlayerId: this.localPlayerId,
+        selectedDragon: this.selectedDragon,
+        selectedMpMode: this.selectedMpMode,
+        lobbyTier: this.lobbyTier,
+      }));
+    } catch (_) {}
+  }
+
+  _persistLastRoom() {
+    try {
+      localStorage.setItem(LAST_ROOM_KEY, JSON.stringify({
+        roomCode: this.roomCode,
+        isHost: this.isHost,
+        localPlayerId: this.localPlayerId,
+        selectedDragon: this.selectedDragon,
+        selectedMpMode: this.selectedMpMode,
+        lobbyTier: this.lobbyTier,
+        savedAt: Date.now(),
+      }));
+    } catch (_) {}
+  }
+
+  _getLastRoom() {
+    try {
+      const raw = localStorage.getItem(LAST_ROOM_KEY);
+      if (!raw) return null;
+      const ctx = JSON.parse(raw);
+      // Ignore anything older than 2 hours - a stale "resume?" prompt for a
+      // long-dead room would just be confusing, not helpful.
+      if (!ctx.savedAt || Date.now() - ctx.savedAt > 2 * 60 * 60 * 1000) return null;
+      return ctx;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _clearLastRoom() {
+    try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
+  }
+
+  // Reconciles Firebase's staking flags against the actual on-chain Room
+  // account. Called whenever we (re)enter a room - catches the case where a
+  // deposit genuinely succeeded on-chain but our app never found out
+  // (Android dropping Phantom's redirect data), which would otherwise leave
+  // the room showing "not staked" forever even though the player paid.
+  async _syncStakeFromChain() {
+    if (!this.roomRef || !this.roomCode) return;
+    const roomIdNum = parseInt(this.roomCode, 10);
+    if (!roomIdNum) return;
+    try {
+      const onChain = await this.stakingManager.getRoomAccount(roomIdNum);
+      if (!onChain.exists) return; // host hasn't actually deposited on-chain yet - nothing to reconcile
+
+      const updates = {};
+      if (!this.stakingState.hostDeposited && onChain.hostDeposited) {
+        updates['staking/hostDeposited'] = true;
+        if (onChain.hostPubkey) updates.hostPubkey = onChain.hostPubkey;
+        if (onChain.tier) updates.tier = onChain.tier;
+      }
+      if (!this.stakingState.opponentDeposited && onChain.opponentDeposited) {
+        updates['staking/opponentDeposited'] = true;
+        if (onChain.opponentPubkey) updates.opponentPubkey = onChain.opponentPubkey;
+      }
+      if (Object.keys(updates).length > 0) {
+        await this.roomRef.update(updates);
+        this.eventBus.emit('staking:confirmed', { label: 'Synced your stake status from the blockchain.' });
+      }
+    } catch (err) {
+      console.warn('[Staking] on-chain sync check failed (non-fatal):', err?.message || err);
+    }
+  }
+
+  _consumeLobbyContext() {
+    try {
+      const raw = localStorage.getItem(LOBBY_CONTEXT_KEY);
+      localStorage.removeItem(LOBBY_CONTEXT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _restoreLobbyContextIfPresent() {
+    if (this.roomRef) return;
+    const ctx = this._consumeLobbyContext();
+    if (ctx && this.db) this._rejoinRoom(ctx);
+  }
+
+  _rejoinRoom(ctx) {
+    this.roomCode = ctx.roomCode;
+    this.isHost = ctx.isHost;
+    this.localPlayerId = ctx.localPlayerId;
+    this.selectedDragon = ctx.selectedDragon;
+    this.selectedMpMode = ctx.selectedMpMode || this.selectedMpMode;
+    this.lobbyTier = ctx.lobbyTier;
+    this.roomRef = this.db.ref('rooms/' + this.roomCode);
+    this.uiManager.showScreen('lobbyScreen');
+    this._attachRoomListener();
+    this._ensurePresence();
+    this._persistLastRoom();
+    this._syncStakeFromChain();
+  }
+
+  // Self-heals by re-adding this player's own entry if it's ever missing
+  // from the room (e.g. after resuming from a Phantom redirect).
+  //
+  // This USED to also arm Firebase onDisconnect().remove() here, on the
+  // theory that a player who truly leaves (closes the tab, loses signal)
+  // shouldn't linger forever as a ghost entry. That backfired badly: any
+  // WebSocket disconnect fires onDisconnect, and backgrounding a mobile
+  // browser tab - e.g. switching to Telegram to share the room code, which
+  // is completely normal, expected behavior - can itself drop the
+  // connection. That deleted the HOST's own entry while they'd never
+  // actually left, showing "0/N players" when they came back. Kicking an
+  // active player out of their own room for switching apps for a second is
+  // a much worse failure than a rare stale entry from someone who
+  // genuinely abandoned a room, so onDisconnect cleanup has been removed
+  // entirely. leaveRoom() (Leave Room button) remains the way entries get
+  // cleaned up.
+  _ensurePresence() {
+    if (!this.roomRef) return;
+    if (this.isHost) {
+      const hostRef = this.roomRef.child('players/local');
+      hostRef.once('value').then(snap => {
+        if (!snap.exists()) {
+          hostRef.set({ name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true });
+        }
+      }).catch(() => {});
+    } else if (this.localPlayerId) {
+      const meRef = this.roomRef.child('players/' + this.localPlayerId);
+      meRef.once('value').then(snap => {
+        if (!snap.exists()) {
+          meRef.set({ name: 'Player', dragon: this.selectedDragon || 'ignis', ready: true });
+        }
+      }).catch(() => {});
+    }
+  }
+
+  async _resumeStakingAction(pendingAction, signature) {
+    if (!pendingAction) return;
+    if (!this.roomRef) {
+      const ctx = this._consumeLobbyContext();
+      if (ctx && this.db) this._rejoinRoom(ctx);
+    }
+    if (pendingAction.type === 'createRoom') {
+      await this._markDeposited('host', pendingAction.tier, signature);
+    } else if (pendingAction.type === 'joinRoom') {
+      await this._markDeposited('opponent', this.lobbyTier, signature);
+    } else if (['mutualCancel', 'claimDepositTimeout', 'claimSettleTimeout'].includes(pendingAction.type)) {
+      this.eventBus.emit('staking:confirmed', { label: 'Refund transaction confirmed on-chain.' });
+    }
+  }
+
+  // Pre-flight before opening the wallet: does this wallet actually hold
+  // the stake plus a little SOL for the network fee? Without this, a
+  // player with INFINITE but zero SOL (or vice versa) just sees a scary
+  // "simulation failed" inside their wallet with no explanation - exactly
+  // what happened on the first mobile test. Fail-open: if the CHECK
+  // itself errors (RPC hiccup), staking proceeds normally.
+  async _preflightStakeCheck(tier) {
+    try {
+      const needed = TIER_AMOUNTS[tier];
+      if (!needed) return true;
+      const { sol, infinite } = await this.walletManager.getSpendableBalances();
+      if (infinite < needed) {
+        this.eventBus.emit('staking:error', {
+          message: `You need ${needed.toLocaleString()} INFINITE for this tier, but this wallet holds ${Math.floor(infinite).toLocaleString()}.`
+        });
+        return false;
+      }
+      if (sol < 0.0015) {
+        this.eventBus.emit('staking:error', {
+          message: 'This wallet needs a small amount of SOL (~0.005) to pay the network fee. Send it some SOL and try again.'
+        });
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('[Staking] pre-flight balance check failed (non-fatal, proceeding):', err?.message || err);
+      return true;
+    }
+  }
+
+  async handleDeposit() {
+    if (!this.walletManager.connected) {
+      this.eventBus.emit('staking:error', { message: 'Connect your wallet first.' });
+      this.uiManager.showScreen('walletModal');
+      return;
+    }
+    const roomIdNum = parseInt(this.roomCode, 10);
+    if (!roomIdNum) {
+      this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
+      return;
+    }
+    this.eventBus.emit('staking:pending', { label: 'Forging your stake into the arena…' });
+    try {
+      if (this.isHost) {
+        if (!this.lobbyTier) {
+          this.eventBus.emit('staking:error', { message: 'Pick a stake tier first.' });
+          return;
+        }
+        if (!(await this._preflightStakeCheck(this.lobbyTier))) return;
+        this._persistLobbyContext();
+        const result = await this.stakingManager.createStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
+        if (result?.deepLinked) return;
+        await this._markDeposited('host', this.lobbyTier, result.signature);
+      } else {
+        if (!this.lobbyTier) {
+          this.eventBus.emit('staking:error', { message: 'Waiting for the host to lock in a tier.' });
+          return;
+        }
+        if (!(await this._preflightStakeCheck(this.lobbyTier))) return;
+        this._persistLobbyContext();
+        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
+        if (result?.deepLinked) return;
+        await this._markDeposited('opponent', this.lobbyTier, result.signature);
+      }
+    } catch (err) {
+      console.error('[Staking] deposit failed:', err);
+      this.eventBus.emit('staking:error', { message: err?.message || 'Deposit failed. Your funds were not moved.' });
+    }
+  }
+
+  async _markDeposited(role, tier, signature) {
+    if (!this.roomRef) return;
+    const updates = {};
+    // Stash the depositing wallet's own public key in Firebase so the backend
+    // knows where to send a payout later - nothing wrote this before, and
+    // settle_match cannot function without it.
+    const myPubkey = this.walletManager.publicKey.toString();
+    if (role === 'host') {
+      updates.tier = tier;
+      updates.hostPubkey = myPubkey;
+      updates['staking/hostDeposited'] = true;
+      updates['staking/hostTx'] = signature;
+    } else {
+      updates.opponentPubkey = myPubkey;
+      // Records which authenticated visitor actually claimed the opponent
+      // slot for staking, at the moment they stake - this is what the
+      // rules use to stop a THIRD person (in an FFA room with more than 2
+      // players) from being able to overwrite someone else's stake status.
+      updates.opponentAuthUid = this.authUid || null;
+      updates['staking/opponentDeposited'] = true;
+      updates['staking/opponentTx'] = signature;
+    }
+    await this.roomRef.update(updates);
+    this._consumeLobbyContext();
+    this.eventBus.emit('staking:confirmed', { label: `Deposit confirmed on-chain (tx ${String(signature).slice(0, 8)}…).` });
+  }
+
+  _refreshStakingUI() {
+    // Staking isn't limited to 1v1 - FFA and 2v2 rooms also show stake
+    // tiers and a deposit button in the lobby. The old
+    // `selectedMpMode === '1v1'` check meant updateStakingUI() was never
+    // called for any other mode, so the deposit button on the joining
+    // player's screen just kept whatever disabled state it had at page
+    // load and never unlocked - that's why staking looked "locked" in an
+    // FFA room. Gate on whether a tier has actually been picked instead,
+    // since that applies the same way in every mode.
+    const stakingApplies = !!this.lobbyTier;
+    const tierSelector = document.getElementById('lobbyTierSelector');
+    if (tierSelector) tierSelector.style.display = 'flex';
+    if (!stakingApplies) {
+      // Staking is MANDATORY and the button slot is a single morphing
+      // control: before both players stake, only Place Bet may occupy it.
+      // With no tier picked yet, Start stays hidden and locked.
+      const startBtn = document.getElementById('lobbyStartBtn');
+      if (startBtn) { startBtn.disabled = true; startBtn.style.display = 'none'; }
+      // Also clear any leftover status text from a PREVIOUS room (e.g.
+      // "Both players staked - ready to battle!") - this element isn't
+      // torn down between rooms, just toggled visible/hidden with the
+      // screen, so without this it kept showing stale text from whatever
+      // room was last played until a snapshot happened to overwrite it.
+      const statusText = document.getElementById('depositStatusText');
+      if (statusText) {
+        statusText.textContent = '';
+        statusText.className = 'depositStatusText';
+      }
+      return;
+    }
+    this.uiManager.updateStakingUI({
+      isHost: this.isHost,
+      tier: this.lobbyTier,
+      locked: this.stakingState.hostDeposited || !!this.lobbyTier && this.isHost === false,
+      hostDeposited: this.stakingState.hostDeposited,
+      opponentDeposited: this.stakingState.opponentDeposited,
+      canDeposit: this.walletManager.connected,
+    });
+  }
+
+  startLocalGame(mode, difficulty, arenaIndex) {
+    this.gameModeManager.setMode(mode);
+    this.arenaManager.setMode(mode, arenaIndex);
+
+    const maxPlayers = this.gameModeManager.getMaxPlayers();
+    const spawnPositions = this.arenaManager.getSpawnPositions(maxPlayers);
+
+    this.dragonManager.clear();
+    this.foodSystem.init(this.arenaManager.getBounds(), this.arenaManager.getInnerBounds());
+
+    this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
+
+    // Reset match stats
+    this.matchStats = {};
+    this.winner = null;
+
+    if (this.isMultiplayer && this.playerIds && this.playerIds.length > 0) {
+      const myIndex = this.playerIds.indexOf(this.localPlayerId);
+      const localSpawn = spawnPositions[myIndex] || spawnPositions[0];
+
+      this.localDragon = this.dragonManager.createDragon(
+        this.selectedDragon || 'ignis',
+        localSpawn.x,
+        localSpawn.y
+      );
+      this.localDragon.playerId = this.localPlayerId;
+      this.initMatchStats(this.localDragon);
+
+      for (let i = 0; i < this.playerIds.length; i++) {
+        if (i === myIndex) continue;
+        const pid = this.playerIds[i];
+        const spawn = spawnPositions[i];
+        const playerData = this.roomPlayers[pid] || {};
+        const dragonName = playerData.dragon || 'ignis';
+        const remoteDragon = this.dragonManager.createDragon(dragonName, spawn.x, spawn.y);
+        remoteDragon.playerId = pid;
+        remoteDragon.isRemote = true;
+        this.initMatchStats(remoteDragon);
+      }
+
+      // NOTE: multiplayer rooms deliberately do NOT get backfilled with AI
+      // bots for empty slots. maxPlayers (e.g. 8 for FFA) is a capacity
+      // ceiling, not a target headcount - a 2-player staked match should
+      // only ever contain those 2 real dragons. Padding with bots was also
+      // why the match never ended after 3 deaths: checkMatchEnd() requires
+      // exactly ONE dragon left with lives > 0 to declare a winner, and
+      // with 6 AI bots also alive that condition could never be met.
+    } else {
+      const localSpawn = spawnPositions[0];
+      this.localDragon = this.dragonManager.createDragon(
+        this.selectedDragon || 'ignis',
+        localSpawn.x,
+        localSpawn.y
+      );
+      this.initMatchStats(this.localDragon);
+
+      const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
+      for (let i = 1; i < maxPlayers; i++) {
+        const spawn = spawnPositions[i];
+        const aiName = aiNames[i % aiNames.length];
+        const teamId = this.gameModeManager.getTeamForPlayer(i);
+        const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
+        aiDragon.speed *= this.aiController.getSpeedMult();
+        this.initMatchStats(aiDragon);
+      }
+    }
+
+    this.startGameLoop();
+
+    if (this.isMultiplayer) {
+      this.startNetworkSync();
+    }
+  }
+
+  initMatchStats(dragon) {
+    this.matchStats[dragon.id] = {
+      kills: 0,
+      deaths: 0,
+      timeSurvived: 0,
+      infiniteCoin: 0,
+      startTime: Date.now()
+    };
+  }
+
+  createRoom(mpMode, presetTier = null) {
+    if (!this.db) {
+      alert('Multiplayer not available. Running in local mode.');
+      this.uiManager.showScreen('modeSelectScreen');
+      return;
+    }
+    this.roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+    this.isHost = true;
+    this.selectedMpMode = mpMode || 'FFA';
+    this.localPlayerId = 'local';
+    this.playerIds = ['local'];
+    this.lobbyArenaIndex = 0;
+    this.lobbyTier = presetTier;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
+
+    this.roomRef = this.db.ref('rooms/' + this.roomCode);
+    this.roomRef.set({
+      host: 'local',
+      hostAuthUid: this.authUid || null,
+      mode: this.selectedMpMode,
+      maxPlayers: maxPlayers,
+      arenaIndex: 0,
+      status: 'waiting',
+      tier: presetTier,
+      staking: { hostDeposited: false, opponentDeposited: false },
+      players: {
+        local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
+      }
+    });
+
+    this.roomPlayers = { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
+
+    this.uiManager.updateLobby(
+      [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, deposited: false }],
+      maxPlayers,
+      this.roomCode,
+      true
+    );
+    this.uiManager.updateLobbyArena(0, true);
+    this.uiManager.showScreen('lobbyScreen');
+    this._refreshStakingUI();
+    this._attachRoomListener();
+    this._ensurePresence();
+    this._persistLastRoom();
+  }
+
+  joinRoom(code) {
+    if (!this.db) {
+      alert('Multiplayer not available.');
+      return;
+    }
+    this.roomCode = code;
+    this.isHost = false;
+    this.roomRef = this.db.ref('rooms/' + code);
+
+    this.roomRef.once('value').then(snapshot => {
+      const data = snapshot.val();
+      if (!data) {
+        const err = document.getElementById('mpJoinError');
+        if (err) err.textContent = 'Room not found';
+        this.roomRef = null;
+        return;
+      }
+      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
+      const playerCount = Object.keys(data.players || {}).length;
+      if (playerCount >= roomMax) {
+        const err = document.getElementById('mpJoinError');
+        if (err) err.textContent = 'Room is full';
+        this.roomRef = null;
+        return;
+      }
+      const newPlayerRef = this.roomRef.child('players').push({
+        name: 'Player ' + (playerCount + 1),
+        dragon: this.selectedDragon || 'ignis',
+        ready: true
+      });
+      this.localPlayerId = newPlayerRef.key;
+      this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
+      this.selectedMpMode = data.mode || this.selectedMpMode;
+      this.lobbyTier = data.tier || null;
+      this.uiManager.showScreen('lobbyScreen');
+      this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
+      this._attachRoomListener();
+      this._ensurePresence();
+      this._persistLastRoom();
+    });
+  }
+
+  _attachRoomListener() {
+    if (!this.roomRef) return;
+    this.roomRef.on('value', snap => {
+      const data = snap.val();
+      if (!data) return;
+      this.roomPlayers = data.players || {};
+      this.playerIds = Object.keys(this.roomPlayers);
+      this.lobbyTier = data.tier || null;
+      this.stakingState = {
+        hostDeposited: !!(data.staking && data.staking.hostDeposited),
+        opponentDeposited: !!(data.staking && data.staking.opponentDeposited),
+      };
+      if (data.arenaIndex !== undefined && data.arenaIndex !== this.lobbyArenaIndex) {
+        this.lobbyArenaIndex = data.arenaIndex;
+        this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
+      }
+      const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
+        ...p,
+        isLocal: id === this.localPlayerId,
+        isHost: id === 'local', // the host's Firebase key is always 'local', regardless of which browser is viewing
+        deposited: id === 'local' ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited,
+      }));
+      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
+      this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
+      this._refreshStakingUI();
+      if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
+        const gameConfig = data.gameConfig || {};
+        this.selectedMode = gameConfig.mode || data.mode || 'FFA';
+        this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
+        this.isMultiplayer = true;
+        this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
+      }
+    });
+  }
+
+  leaveRoom() {
+    if (this.stakingState.hostDeposited && this.stakingState.opponentDeposited) {
+      this.eventBus.emit('staking:error', {
+        message: 'Both stakes are locked in escrow. Leaving now will NOT refund you automatically — ask your opponent to mutually cancel, or wait for the settle-timeout refund window.'
+      });
+    }
+    this.stopNetworkSync();
+    if (this.roomRef) {
+      this.roomRef.off();
+      if (this.isHost) {
+        this.roomRef.remove();
+      } else if (this.localPlayerId) {
+        this.roomRef.child('players/' + this.localPlayerId).remove();
+      }
+      this.roomRef = null;
+    }
+    this.isHost = false;
+    this.roomCode = '';
+    this.localPlayerId = null;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this.isMultiplayer = false;
+    this.lobbyArenaIndex = 0;
+    this.lobbyTier = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this._consumeLobbyContext();
+    this._clearLastRoom();
+  }
+
+  startMpGame() {
+    // Staking is mandatory: no tier picked means no stakes locked, so the
+    // match cannot start - and with a tier picked, BOTH deposits are
+    // required. This backs up the disabled button so the rule holds even
+    // if the UI state is ever stale.
+    if (!this.lobbyTier) {
+      this.eventBus.emit('staking:error', { message: 'Pick a stake tier and place your bet before starting.' });
+      return;
+    }
+    if (!(this.stakingState.hostDeposited && this.stakingState.opponentDeposited)) {
+      this.eventBus.emit('staking:error', { message: 'Both players must deposit their stake before the match can start.' });
+      return;
+    }
+    if (this.roomRef && this.isHost) {
+      this.roomRef.update({
+        status: 'playing',
+        gameConfig: {
+          mode: this.selectedMpMode || 'FFA',
+          arenaIndex: this.lobbyArenaIndex,
+          playerIds: this.playerIds
+        }
+      });
+    }
+    this.isMultiplayer = true;
+    this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced', this.lobbyArenaIndex);
+  }
+
+  startNetworkSync() {
+    if (!this.roomRef) return;
+    this.positionsRef = this.roomRef.child('positions');
+    this.positionsListenerSet = false;
+    this.lastBroadcast = 0;
+    this._watchSettlement();
+  }
+
+  // Watches rooms/{code}/settlement - the node the always-on backend
+  // (watchMatches.js) writes after it determines the winner and pays out
+  // on-chain. This is the authoritative result for staked matches: it ends
+  // a match still running locally, corrects/confirm a locally-ended result,
+  // and surfaces the payout transaction to both players.
+  _watchSettlement() {
+    if (!this.roomRef) return;
+    if (this._settlementRef && this._settlementListener) {
+      try { this._settlementRef.off('value', this._settlementListener); } catch (_) {}
+    }
+    this._settlementHandled = false;
+    this._settlementRef = this.roomRef.child('settlement');
+    this._settlementListener = this._settlementRef.on('value', snap => {
+      const s = snap.val();
+      if (!s || this._settlementHandled) return;
+      if (s.status === 'draw_needs_dispute_resolution') {
+        this._settlementHandled = true;
+        this.uiManager.showStakeBreakdown({ draw: true });
+        return;
+      }
+      if (s.status !== 'settled') return;
+      this._settlementHandled = true;
+      const iWon = (s.winner === 'host') === !!this.isHost;
+      if (this.state === 'PLAYING') {
+        // Match still running on this client - end it now with the
+        // server-settled outcome instead of any local approximation.
+        const all = this.dragonManager.getAllDragons();
+        this.winner = iWon
+          ? this.localDragon
+          : (all.find(d => d !== this.localDragon) || null);
+        this.endGame(true);
+      } else if (this._lastStats) {
+        // Game already ended locally - make sure the title matches the
+        // authoritative settled result (winner object only needs .id for
+        // showMatchStats to compare against the local stat entry).
+        const localStat = this._lastStats.find(st => st.isLocal);
+        this.winner = iWon && localStat ? { id: localStat.id } : { id: '__remote__' };
+        this.uiManager.showMatchStats(this._lastStats, this.winner);
+      }
+      if (s.signature) {
+        this.eventBus.emit('staking:confirmed', {
+          label: `Match settled on-chain - payout sent (tx ${String(s.signature).slice(0, 8)}…).`
+        });
+      }
+      // Fill the Dragon Age settlement breakdown (stakes, pot, 2.5% Treasury
+      // fee, payout, tx link) on the game-over screen.
+      this._showStakeBreakdown(iWon, s);
+    });
+  }
+
+  stopNetworkSync() {
+    if (this.positionsRef) {
+      this.positionsRef.off();
+      this.positionsRef = null;
+    }
+    this.positionsListenerSet = false;
+    this.remotePositions = {};
+  }
+
+  // Combo announcements: 3 / 7 / 15 kills, then every +5 (20, 25...).
+  _checkCombo(killer) {
+    const streak = killer.killStreak || 0;
+    const isMilestone = streak === 3 || streak === 7 || streak === 15 || (streak > 15 && streak % 5 === 0);
+    if (!isMilestone) return;
+    this.uiManager.showComboBanner(killer, streak);
+    this.effectsSystem.playTone(520 + Math.min(streak, 30) * 20, 'square', 0.18, 0.14);
+  }
+
+  broadcastPosition() {
+    if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
+    const now = Date.now();
+    if (this.lastBroadcast && now - this.lastBroadcast < 50) return;
+    this.lastBroadcast = now;
+    this.positionsRef.child(this.localPlayerId).set({
+      x: this.localDragon.head.x,
+      y: this.localDragon.head.y,
+      angle: this.localDragon.angle,
+      score: this.localDragon.score || 0,
+      // Segment count is required by the server-side match simulator to
+      // correctly replicate collisionSystem.js's head-to-head death rule
+      // (shorter dragon dies) - without this the server cannot independently
+      // verify who won.
+      segments: this.localDragon.segments.length,
+      // lives/alive: each client is only authoritative for its OWN
+      // dragon's death/respawn state (see collisionSystem.js - it no
+      // longer lets a client declare a remote dragon dead based on its own
+      // local, lerped approximation of that dragon's position). Other
+      // clients now sync the real lives/alive state from here instead of
+      // computing it themselves, which is what was causing the opponent to
+      // vanish on one client but not the other.
+      lives: this.localDragon.lives,
+      alive: this.localDragon.alive,
+      attackActive: !!this.localDragon.attackActive,
+      t: now
+    });
+  }
+
+  applyRemotePositions() {
+    if (!this.positionsRef) return;
+    if (!this.positionsListenerSet) {
+      this.positionsListenerSet = true;
+      this.positionsRef.on('value', snap => {
+        this.remotePositions = snap.val() || {};
+      });
+    }
+    if (!this.remotePositions) return;
+    for (const dragon of this.dragonManager.getAllDragons()) {
+      if (!dragon.isRemote || !dragon.playerId) continue;
+      const pos = this.remotePositions[dragon.playerId];
+      if (!pos) continue;
+      dragon.remoteTarget = { x: pos.x, y: pos.y };
+      dragon.angle = pos.angle;
+      // Sync attack state (drives the open-mouth head + kill gate)
+      dragon.attackActive = !!pos.attackActive;
+      dragon.boostActive = dragon.attackActive;
+      // Sync this dragon's actual size to the network's authoritative
+      // segment count. broadcastPosition() already sends `segments`, but
+      // nothing was ever reading it back - each client was instead letting
+      // its OWN local food collisions grow remote dragons (collision:eat
+      // fires for any dragon, including remote ones), and food isn't
+      // networked at all. Two clients running independent, unsynced growth
+      // simulations for the same remote dragon is exactly why the size
+      // looked different on phone vs PC. This forces it back in line every
+      // network tick (~50ms), so any local drift self-corrects almost
+      // immediately instead of accumulating.
+      if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
+        this._resizeRemoteDragon(dragon, pos.segments);
+      }
+      // Sync lives/alive from the network - collisionSystem.js no longer
+      // lets any client declare a remote dragon dead on its own, so this
+      // is the only place a remote dragon's death/respawn state actually
+      // changes. The existing per-frame win-check in update() already
+      // re-evaluates allDragons every tick, so a real death arriving here
+      // is picked up automatically without needing anything extra.
+      if (typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
+        dragon.lives = pos.lives;
+      }
+      if (typeof pos.alive === 'boolean' && pos.alive !== dragon.alive) {
+        dragon.alive = pos.alive;
+      }
+    }
+  }
+
+  // Grows or shrinks a REMOTE dragon's segment array to match targetLength.
+  // Deliberately bypasses growthSystem (that's for the local player's own
+  // eating/growthProgress bookkeeping only) so remote dragons are purely
+  // network-driven and can never desync from what's authoritative on the
+  // client that actually owns them.
+  _resizeRemoteDragon(dragon, targetLength) {
+    const baseSpacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
+    const fatSpacing = baseSpacing * 2;
+    while (dragon.segments.length < targetLength && dragon.segments.length < CONFIG.DRAGON_MAX_SEGMENTS) {
+      const spacing = dragon.segments.length >= 25 ? fatSpacing : baseSpacing;
+      const tailSeg = dragon.segments[dragon.segments.length - 1];
+      const beforeTail = dragon.segments.length > 1
+        ? dragon.segments[dragon.segments.length - 2]
+        : dragon.head;
+      const angle = Math.atan2(tailSeg.y - beforeTail.y, tailSeg.x - beforeTail.x);
+      dragon.segments.push({
+        x: tailSeg.x + Math.cos(angle) * spacing,
+        y: tailSeg.y + Math.sin(angle) * spacing
+      });
+    }
+    while (dragon.segments.length > targetLength && dragon.segments.length > CONFIG.DRAGON_START_SEGMENTS) {
+      dragon.segments.pop();
+    }
+  }
+
+  startGameLoop() {
+    this.state = 'PLAYING';
+    this.isPaused = false;
+    this.gameStartTime = Date.now();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        this.cameraSystem.canvas = canvas;
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    this.uiManager.showScreen('gameScreen');
+    this.uiManager.showCountdown(3, () => {
+      this.lastTime = performance.now();
+      this.loop();
+    });
+  }
+
+  loop() {
+    if (this.state !== 'PLAYING') return;
+    const now = performance.now();
+    let deltaTime = now - this.lastTime;
+    this.lastTime = now;
+    if (deltaTime > CONFIG.MAX_DELTA_TIME) deltaTime = CONFIG.MAX_DELTA_TIME;
+    if (!this.isPaused) {
+      this.update(deltaTime);
+      this.render();
+    }
+    this.animationFrame = requestAnimationFrame(() => this.loop());
+  }
+
+  update(deltaTime) {
+    this.gameTimer = Date.now() - this.gameStartTime;
+    const minutes = Math.floor(this.gameTimer / 60000);
+    const seconds = Math.floor((this.gameTimer % 60000) / 1000);
+    const timeStr = minutes + ':' + seconds.toString().padStart(2, '0');
+
+    this.foodSystem.update(deltaTime);
+    this.movementSystem.update(this.dragonManager, this.cameraSystem, deltaTime);
+    this.effectsSystem.update(deltaTime);
+
+    const inputMap = new Map();
+    const allDragons = this.dragonManager.getAllDragons();
+
+    for (const dragon of this.dragonManager.getLivingDragons()) {
+      let angle;
+      if (dragon === this.localDragon) {
+        angle = this.movementSystem.getInputAngle(
+          dragon.id,
+          dragon.head.x,
+          dragon.head.y,
+          this.cameraSystem
+        );
+      } else if (dragon.isRemote) {
+        angle = dragon.angle;
+      } else if (this.aiController) {
+        angle = this.aiController.getInputAngle(dragon, allDragons);
+        // AI attack (magazine model): hold while it has charge and a live
+        // hunt target; the meter drains only during the hold, so the AI
+        // naturally saves leftover charge when it breaks off.
+        dragon.attackHeld = !!(dragon.aiHuntTarget && dragon.aiHuntTarget.alive &&
+                               (dragon.attackCharge || 0) > 0);
+      } else {
+        angle = dragon.angle || 0;
+      }
+      inputMap.set(dragon.id, angle);
+    }
+
+    this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getInnerBounds());
+
+    if (this.isMultiplayer) {
+      this.applyRemotePositions();
+      this.broadcastPosition();
+    }
+
+    this.cameraSystem.update(this.localDragon, this.arenaManager);
+    this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
+
+    // Update time survived for all living dragons
+    for (const dragon of this.dragonManager.getLivingDragons()) {
+      if (this.matchStats[dragon.id]) {
+        this.matchStats[dragon.id].timeSurvived = Date.now() - this.matchStats[dragon.id].startTime;
+      }
+    }
+
+    // Check win condition (last standing with lives)
+    const livingWithLives = allDragons.filter(d => d.alive && d.lives > 0);
+    const totalWithLives = allDragons.filter(d => d.lives > 0);
+
+    if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
+      this.winner = livingWithLives[0];
+      this.endGame(true);
+      return;
+    }
+
+    // Local player attack activation (ATTACK button / Space / click)
+    // Hold-to-attack: dragonManager drains the magazine only while held.
+    if (this.localDragon) {
+      this.localDragon.attackHeld = this.localDragon.alive && this.movementSystem.isAttackHeld();
+    }
+
+    const score = this.localDragon ? this.localDragon.score : 0;
+    this.uiManager.updateHUD(score, timeStr, this.localDragon);
+    this.uiManager.updateAttackMeter(this.localDragon);
+
+    const minimap = document.getElementById('minimapCanvas');
+    if (minimap) {
+      this.uiManager.renderMinimap(
+        minimap,
+        this.cameraSystem,
+        this.arenaManager,
+        this.dragonManager.getAllDragons(),
+        this.foodSystem.getFoods()
+      );
+    }
+  }
+
+  render() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      this.cameraSystem.canvas = canvas;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const shake = this.effectsSystem.getShake();
+    this.cameraSystem.apply(ctx, shake.x, shake.y);
+    this.arenaManager.render(ctx, this.cameraSystem);
+    this.foodSystem.render(ctx, this.cameraSystem);
+    this.effectsSystem.renderParticles(ctx, this.cameraSystem);
+    this.dragonManager.render(ctx, this.cameraSystem);
+    this.cameraSystem.reset(ctx);
+    this.effectsSystem.renderVignette(ctx, canvas);
+  }
+
+  pauseGame() {
+    this.isPaused = true;
+    this.uiManager.showPauseOverlay(true, this.isMultiplayer);
+  }
+
+  resumeGame() {
+    this.isPaused = false;
+    this.uiManager.showPauseOverlay(false);
+    this.lastTime = performance.now();
+  }
+
+  endGame(hasWinner = false) {
+    this.state = 'GAME_OVER';
+    this.uiManager.showPauseOverlay(false);
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.stopNetworkSync();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Build stats for all dragons
+    const allDragons = this.dragonManager.getAllDragons();
+    const stats = allDragons.map(d => ({
+      id: d.id,
+      name: d.type,
+      isLocal: d === this.localDragon,
+      kills: d.kills || 0,
+      deaths: d.deaths || 0,
+      timeSurvived: this.matchStats[d.id] ? this.matchStats[d.id].timeSurvived : 0,
+      infiniteCoin: 0,
+      lives: d.lives || 0,
+      collected: d.collected || 0
+    }));
+
+    const localStats = {
+      time: document.getElementById('timerDisplay').textContent,
+      collected: this.localDragon ? this.localDragon.collected : 0,
+      kills: this.localDragon ? this.localDragon.kills : 0,
+      deaths: this.localDragon ? this.localDragon.deaths : 0,
+      lives: this.localDragon ? this.localDragon.lives : 0
+    };
+
+    this.uiManager.updateGameOver(localStats);
+    this.uiManager.showMatchStats(stats, this.winner);
+    this.uiManager.showScreen('gameOverScreen');
+    // Kept so a later server-settlement update can correct/confirm the
+    // result title without re-deriving stats (see _watchSettlement).
+    this._lastStats = stats;
+
+    if (this.isMultiplayer) {
+      // Match is over - clear any saved lobby/room context so the title
+      // screen stops offering "Resume Room" for a finished match.
+      try { localStorage.removeItem(LOBBY_CONTEXT_KEY); } catch (_) {}
+      try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
+      // For staked matches, show the settlement panel in its pending state
+      // until the backend writes rooms/{code}/settlement.
+      if (this.lobbyTier) this.uiManager.showStakeBreakdown({ pending: true });
+    } else if (this.winner === this.localDragon) {
+      // AI wave progression: only fires for solo play, and only when the
+      // LOCAL player actually won. Clearing your current frontier wave
+      // unlocks the next one (unlockNextWave() is a no-op if this was a
+      // replay of an already-passed wave, or if mode isn't a wave at all).
+      const mode = this.gameModeManager.getMode();
+      if (typeof mode === 'string' && mode.startsWith('wave')) {
+        const unlocked = this.uiManager.unlockNextWave(mode);
+        if (unlocked) {
+          // TODO: no dedicated "Wave Cleared - X unlocked!" banner exists
+          // yet on the game-over screen - that needs an index.html change
+          // I don't have visibility into right now (you've likely edited
+          // it since the last version I saw). Logging for now so this is
+          // at least verifiable; flag it if you want a proper on-screen
+          // banner and send me the current gameOverScreen markup.
+          console.log(`[Waves] Cleared ${mode} - unlocked "${unlocked.name}" (${unlocked.players} dragons)`);
+        }
+      }
+    }
+  }
+
+  // Builds the Dragon Age settlement breakdown on the game-over screen once
+  // the backend has settled the match on-chain. Amounts come from the live
+  // on-chain tier config (stakingManager), the result/tx from the
+  // rooms/{code}/settlement node written by watchMatches.js.
+  async _showStakeBreakdown(iWon, settlement) {
+    try {
+      const tiers = await this.stakingManager.getDisplayTiers();
+      const tierName = String(settlement?.tier || this.lobbyTier || '').toLowerCase();
+      const tierKey = Object.keys(tiers).find(k => k.toLowerCase() === tierName);
+      const parseAmt = (v) => Number(String(v).replace(/[^0-9.]/g, '')) || 0;
+      const stake = tierKey ? parseAmt(tiers[tierKey]) : 0;
+      const feePct = Number(tiers.feePercent) || 2.5;
+      const pot = stake * 2;
+      const fee = pot * (feePct / 100);
+      const payout = pot - fee;
+      const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      this.uiManager.showStakeBreakdown({
+        won: iWon,
+        stakeText: stake ? `${fmt(stake)} INFINITE` : null,
+        potText: stake ? `${fmt(pot)} INFINITE` : null,
+        feeText: stake ? `-${fmt(fee)} INFINITE` : null,
+        payoutText: stake ? `${fmt(payout)} INFINITE` : null,
+        feePct,
+        signature: settlement?.signature || null,
+        cluster: settlement?.cluster || 'devnet',
+      });
+    } catch (err) {
+      console.warn('[Staking] settlement breakdown display failed:', err?.message || err);
+    }
+  }
+
+  restartGame() {
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.uiManager.showPauseOverlay(false);
+    this.dragonManager.clear();
+    this.stopNetworkSync();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    this.startLocalGame(
+      this.selectedMode || 'FFA',
+      this.aiDifficulty || 'advanced',
+      this.pendingArenaIndex !== null ? this.pendingArenaIndex : Math.floor(Math.random() * 4)
+    );
+  }
+
+  quitGame() {
+    this.state = 'MENU';
+    this.uiManager.showPauseOverlay(false);
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.dragonManager.clear();
+    this.isPaused = false;
+    this.stopNetworkSync();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  window.game = new Game();
+});
