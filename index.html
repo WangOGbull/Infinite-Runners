@@ -524,7 +524,13 @@
      existed, it just couldn't be seen or tapped). This makes the lobby
      scroll properly, sizes everything fluidly to the viewport, and makes
      every button a full-width touch target. */
-  #lobbyScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; display: flex; align-items: flex-start !important; justify-content: center; }
+  /* FIX: these layout rules must apply ONLY while the lobby is the active
+     screen. The previous version set display:flex on #lobbyScreen
+     unconditionally, which overrode the screen system's hidden state and
+     made the lobby permanently visible - including on top of the title
+     screen at page load. */
+  #lobbyScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+  #lobbyScreen.active { display: flex; align-items: flex-start !important; justify-content: center; }
   #lobbyScreen .lobbyBox {
     width: min(560px, calc(100vw - 20px));
     margin: max(10px, env(safe-area-inset-top)) auto calc(24px + env(safe-area-inset-bottom));
