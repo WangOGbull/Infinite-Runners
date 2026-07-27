@@ -966,6 +966,14 @@ class WalletManager {
     return balance;
   }
 
+  // Pre-stake check helper: what can this wallet actually pay right now?
+  // Returns SOL (for network fees/rent) and INFINITE (the stake itself).
+  async getSpendableBalances() {
+    const sol = await this._refreshBalance();
+    const infinite = await this._scanTokenBalance('C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump');
+    return { sol: sol || 0, infinite: infinite || 0 };
+  }
+
   async signTestMessage() {
     if (!this.connected) throw new Error('Wallet not connected.');
     const message = `Infinite Runners — verify wallet ownership\nAddress: ${this.publicKey.toString()}\nTimestamp: ${new Date().toISOString()}`;
