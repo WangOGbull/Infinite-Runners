@@ -517,49 +517,196 @@
     .bootTitle { font-size: 22px; letter-spacing: 3px; }
     .bootSub { font-size: 11px; letter-spacing: 6px; margin-bottom: 26px; }
   }
-  /* ==================== LOBBY - RESPONSIVE FIT (PC + MOBILE) ====================
-     The lobby content is taller than a phone screen, but the screen never
-     scrolled - so Start Game / Leave Room got pushed below the visible
-     area and became unreachable (the "no back button" bug: the button
-     existed, it just couldn't be seen or tapped). This makes the lobby
-     scroll properly, sizes everything fluidly to the viewport, and makes
-     every button a full-width touch target. */
-  /* FIX: these layout rules must apply ONLY while the lobby is the active
-     screen. The previous version set display:flex on #lobbyScreen
-     unconditionally, which overrode the screen system's hidden state and
-     made the lobby permanently visible - including on top of the title
-     screen at page load. */
+  /* ==================== LOBBY - OBSIDIAN WAR CHAMBER ====================
+     A deliberately DIFFERENT design language from the dragon-select
+     screen: no gold, no ornate flourishes. Forged obsidian and steel,
+     molten ember accents, sharp machined edges. Layout rules scoped to
+     .active only; screen scrolls; everything fits phone and PC; all
+     buttons are full-width touch targets. */
   #lobbyScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
-  #lobbyScreen.active { display: flex; align-items: flex-start !important; justify-content: center; }
+  #lobbyScreen.active {
+    display: flex; align-items: flex-start !important; justify-content: center;
+    background:
+      radial-gradient(ellipse 60% 40% at 15% 0%, rgba(255,94,26,0.10), transparent 60%),
+      radial-gradient(ellipse 55% 45% at 88% 100%, rgba(255,60,20,0.09), transparent 60%),
+      radial-gradient(ellipse 90% 70% at 50% 50%, rgba(20,26,38,0.5), transparent),
+      linear-gradient(180deg, #0b0e14 0%, #070a10 55%, #0a0705 100%) !important;
+    background-color: #07090e !important;
+  }
   #lobbyScreen .lobbyBox {
-    width: min(560px, calc(100vw - 20px));
-    margin: max(10px, env(safe-area-inset-top)) auto calc(24px + env(safe-area-inset-bottom));
-    padding: 14px 12px 18px;
-    max-height: none;
-    overflow: visible;
+    position: relative;
+    width: min(620px, calc(100vw - 20px));
+    margin: max(12px, env(safe-area-inset-top)) auto calc(26px + env(safe-area-inset-bottom));
+    padding: 20px 16px 22px;
+    max-height: none; overflow: visible;
+    background: linear-gradient(180deg, #12161f 0%, #0b0e15 100%) !important;
+    border: 1px solid #262d3b !important; border-radius: 2px !important;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04) !important;
   }
-  #lobbyScreen .lobbyBox h2 { font-size: clamp(18px, 5vw, 26px); margin: 0 0 8px; }
-  #lobbyScreen .roomCodeRow #roomCodeDisplay { font-size: clamp(22px, 7vw, 34px); letter-spacing: 4px; }
-  /* Tier buttons: 3-up grid that shrinks cleanly on narrow phones */
-  #tierBtns { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  #tierBtns .tierBtn { min-width: 0; width: 100%; padding: 10px 4px; font-size: clamp(11px, 3vw, 14px); line-height: 1.5; }
-  #tierBtns .tierBtn .tierAmt { font-size: clamp(10px, 2.6vw, 12px); }
-  /* Arena thumbs: 4-up grid, images scale instead of overflowing */
-  #lobbyArenaThumbs { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  #lobbyArenaThumbs .arenaThumb { min-width: 0; width: 100%; padding: 4px; }
-  #lobbyArenaThumbs .arenaThumb img { width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; display: block; border-radius: 6px; }
-  #lobbyArenaThumbs .arenaThumb span { font-size: clamp(10px, 2.6vw, 12px); }
-  /* Action buttons: full-width, stacked, real touch targets, always reachable */
-  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 12px; }
+  /* molten seam across the top of the panel */
+  #lobbyScreen .lobbyBox::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent 0%, #ff5e1a 18%, #ffb24d 50%, #ff5e1a 82%, transparent 100%);
+    box-shadow: 0 0 18px rgba(255,110,40,0.55), 0 2px 12px rgba(255,110,40,0.35);
+  }
+  /* --- Title: forged steel caps with ember underline --- */
+  #lobbyScreen .lobbyBox h2 {
+    font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
+    font-size: clamp(19px, 5vw, 27px) !important; letter-spacing: 8px !important;
+    text-transform: uppercase; text-align: center; margin: 2px 0 4px !important;
+    color: #e8edf5 !important; text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+  }
+  #lobbyScreen .lobbyBox h2::after {
+    content: ''; display: block; width: 68px; height: 2px; margin: 8px auto 0;
+    background: linear-gradient(90deg, transparent, #ff6a2a, transparent);
+    box-shadow: 0 0 12px rgba(255,106,42,0.7);
+  }
+  /* --- Room code: stamped steel counter --- */
+  #lobbyScreen .roomCodeRow { display: flex; flex-direction: column; align-items: center; gap: 5px; margin: 8px 0 4px; }
+  #lobbyScreen .roomLabel {
+    font-family: 'Rajdhani', sans-serif; font-size: 10px; font-weight: 600;
+    letter-spacing: 4px; text-transform: uppercase; color: #5f6b80;
+  }
+  #lobbyScreen #roomCodeDisplay {
+    font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
+    font-size: clamp(26px, 8vw, 40px) !important; letter-spacing: 10px !important;
+    color: #ffb24d !important; text-shadow: 0 0 22px rgba(255,140,60,0.55);
+    padding: 4px 18px 4px 28px !important;
+    background: linear-gradient(180deg, #161b26, #0d1119) !important;
+    border: 1px solid #2c3546 !important; border-bottom: 2px solid #ff6a2a !important;
+    border-radius: 2px !important;
+  }
+  #lobbyScreen .lobbyMeta {
+    text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600;
+    font-size: 12px; letter-spacing: 3px; color: #5f6b80; text-transform: uppercase; margin-bottom: 12px;
+  }
+  /* --- Section strips: machined steel, ember index tab on the left --- */
+  #lobbyScreen #modeSelectorHost, #lobbyScreen .lobbyTierSelector, #lobbyScreen .lobbyArenaSelector {
+    position: relative;
+    background: linear-gradient(180deg, #10141d, #0c0f16) !important;
+    border: 1px solid #232a38 !important; border-radius: 2px !important;
+    padding: 12px 12px 12px 16px !important; margin-bottom: 12px !important;
+  }
+  #lobbyScreen #modeSelectorHost::before, #lobbyScreen .lobbyTierSelector::before, #lobbyScreen .lobbyArenaSelector::before {
+    content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+    background: linear-gradient(180deg, #ff6a2a, #b23a10);
+    box-shadow: 0 0 10px rgba(255,106,42,0.5);
+  }
+  #lobbyScreen #modeSelectorHost label, #lobbyScreen .lobbyTierSelector label, #lobbyScreen .lobbyArenaSelector label {
+    font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
+    font-size: 11px !important; letter-spacing: 4px !important; color: #8a94a8 !important;
+    text-transform: uppercase;
+  }
+  #lobbyScreen #modeSelectorHost { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+  #lobbyScreen #modeSelectorHost button {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 13px;
+    background: #0d1119 !important; border: 1px solid #2c3546 !important; color: #6f7b92 !important;
+    border-radius: 2px !important; padding: 8px 20px !important; cursor: pointer;
+    transition: border-color .15s, color .15s, box-shadow .15s;
+  }
+  #lobbyScreen #modeSelectorHost button.active {
+    color: #ffcf9e !important; border-color: #ff6a2a !important;
+    box-shadow: 0 0 12px rgba(255,106,42,0.35), inset 0 0 10px rgba(255,106,42,0.12);
+  }
+  /* --- Tier cards: each rank keeps its own signal color on the top edge --- */
+  #tierBtns { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+  #tierBtns .tierBtn {
+    position: relative; min-width: 0; width: 100%; padding: 12px 4px 10px !important; line-height: 1.55;
+    font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
+    font-size: clamp(11px, 3vw, 14px) !important; letter-spacing: 1px;
+    background: linear-gradient(180deg, #131826, #0c101a) !important; color: #b9c2d4 !important;
+    border: 1px solid #232a38 !important; border-top: 2px solid var(--tierc, #2c3546) !important;
+    border-radius: 2px !important; cursor: pointer; transition: box-shadow .15s, border-color .15s, transform .1s;
+  }
+  #tierBtns #tierSmall { --tierc: #22c55e; }
+  #tierBtns #tierMedium { --tierc: #eab308; }
+  #tierBtns #tierHigh { --tierc: #ef4444; }
+  #tierBtns .tierBtn:hover:not(:disabled) { transform: translateY(-1px); }
+  #tierBtns .tierBtn.active {
+    border-color: var(--tierc) !important; color: #f2f6fc !important;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--tierc) 45%, transparent), inset 0 0 14px color-mix(in srgb, var(--tierc) 14%, transparent) !important;
+  }
+  #tierBtns .tierBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #tierBtns .tierBtn .tierAmt { font-size: clamp(10px, 2.6vw, 12px); color: #ffb24d; }
+  #lobbyScreen .feeDisclosure { text-align: center; font-size: 11px; color: #5f6b80 !important; margin: 10px 0 0 !important; letter-spacing: 0.5px; }
+  /* --- Arena thumbs: steel frames, ember ignition on the active one --- */
+  #lobbyArenaThumbs { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  #lobbyArenaThumbs .arenaThumb {
+    min-width: 0; width: 100%; padding: 2px !important;
+    background: #0d1119 !important; border: 1px solid #232a38 !important; border-radius: 2px !important;
+    cursor: pointer; opacity: 0.55; filter: saturate(0.65);
+    transition: opacity .15s, filter .15s, border-color .15s, box-shadow .15s;
+  }
+  #lobbyArenaThumbs .arenaThumb.active {
+    opacity: 1; filter: saturate(1.05);
+    border-color: #ff6a2a !important; box-shadow: 0 0 14px rgba(255,106,42,0.4);
+  }
+  #lobbyArenaThumbs .arenaThumb:disabled { cursor: default; }
+  #lobbyArenaThumbs .arenaThumb img { width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; display: block; border-radius: 1px; }
+  #lobbyArenaThumbs .arenaThumb span {
+    display: block; font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: clamp(10px, 2.6vw, 12px); letter-spacing: 2px; text-transform: uppercase;
+    color: #cfd6e4; padding: 4px 0 2px; background: #0a0d13;
+  }
+  /* --- Player roster: dossier rows --- */
+  #lobbySlots { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; margin-bottom: 4px; }
+  #lobbySlots > * { flex: 1 1 240px; min-width: 0; }
+  #lobbySlots .lobbyPlayerCard {
+    background: linear-gradient(90deg, #131826 0%, #0e121c 100%) !important;
+    border: 1px solid #232a38 !important; border-radius: 2px !important; padding: 10px 12px !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  #lobbySlots .lobbyPlayerCard.local { border-color: #3b465c !important; box-shadow: inset 3px 0 0 #ff6a2a, inset 0 1px 0 rgba(255,255,255,0.03) !important; }
+  #lobbySlots .lobbyPlayerName {
+    font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
+    font-size: 14px !important; letter-spacing: 2px; text-transform: uppercase; color: #e8edf5 !important;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #lobbySlots .lobbyPlayerDragon {
+    font-family: 'Rajdhani', sans-serif; font-size: 11px; letter-spacing: 3px;
+    text-transform: uppercase; color: #8a94a8 !important;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* --- Action buttons --- */
+  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 14px; }
   #lobbyScreen .lobbyActions .pBtn, #lobbyScreen #lobbyDepositBtn {
-    width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-size: clamp(13px, 3.6vw, 16px); white-space: nowrap;
+    width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
+    font-size: clamp(14px, 3.8vw, 17px) !important; letter-spacing: 3px !important;
+    text-transform: uppercase; white-space: nowrap;
+    border-radius: 2px !important; cursor: pointer; transition: filter .15s, box-shadow .15s;
   }
-  #lobbyScreen #lobbyDepositBtn { margin-top: 10px; }
-  #lobbyScreen #lobbyWaitingText { text-align: center; font-size: 13px; color: #8b93a6; }
-  /* Mode selector row wraps instead of overflowing on tiny screens */
-  #modeSelectorHost { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
-  /* Player slots: readable single-column stack on phones */
+  /* Place Bet: molten forge pour */
+  #lobbyScreen #lobbyDepositBtn {
+    margin-top: 10px;
+    background: linear-gradient(180deg, #ff8a3d 0%, #f25c1a 55%, #c23f0c 100%) !important;
+    border: none !important; color: #1c0c04 !important;
+    text-shadow: 0 1px 0 rgba(255,214,170,0.55);
+    box-shadow: 0 0 26px rgba(255,106,42,0.4), 0 6px 18px rgba(0,0,0,0.5);
+  }
+  #lobbyScreen #lobbyDepositBtn:hover:not(:disabled) { filter: brightness(1.1); }
+  #lobbyScreen #lobbyDepositBtn:disabled { filter: grayscale(0.7); opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+  /* Start: cold steel that IGNITES teal only when both stakes are locked */
+  #lobbyScreen #lobbyStartBtn {
+    background: linear-gradient(180deg, #0f2e2e 0%, #0a1f22 100%) !important;
+    border: 1px solid #22d3ae !important; color: #a7f3e3 !important;
+    box-shadow: 0 0 20px rgba(34,211,174,0.30), inset 0 0 16px rgba(34,211,174,0.10);
+  }
+  #lobbyScreen #lobbyStartBtn:hover:not(:disabled) { filter: brightness(1.18); }
+  #lobbyScreen #lobbyStartBtn:disabled {
+    background: linear-gradient(180deg, #12151d, #0c0f15) !important;
+    opacity: 0.45 !important; filter: grayscale(0.8) !important; cursor: not-allowed !important;
+    box-shadow: none !important; border-color: #2c3546 !important; color: #5f6b80 !important;
+  }
+  #lobbyScreen #btnLeaveRoom {
+    background: transparent !important;
+    border: 1px solid #3a2a2a !important; color: #a08585 !important;
+  }
+  #lobbyScreen #btnLeaveRoom:hover { border-color: #c2554a !important; color: #e0a39b !important; box-shadow: 0 0 14px rgba(194,85,74,0.25); }
+  #lobbyScreen #lobbyWaitingText { text-align: center; font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #5f6b80; }
+  #lobbyScreen .depositStatusText { text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600; letter-spacing: 1px; min-height: 18px; margin-top: 8px; }
+  #lobbyScreen .depositStatusText.confirmed { color: #22d3ae; text-shadow: 0 0 10px rgba(34,211,174,0.4); }
+  #lobbyScreen .depositStatusText.pending { color: #ffb24d; }
   @media (max-width: 520px) {
     #lobbySlots > * { flex: 1 1 100%; }
   }
@@ -831,7 +978,7 @@
     <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;"><i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span></button>
     <p id="depositStatusText" class="depositStatusText"></p>
     <div class="lobbyActions">
-      <button class="pBtn pBtnRes" id="lobbyStartBtn"><i data-lucide="play"></i> Start Game</button>
+      <button class="pBtn pBtnRes" id="lobbyStartBtn" disabled><i data-lucide="play"></i> Start Game</button>
       <div id="lobbyWaitingText">Waiting for host...</div>
       <button class="pBtn pBtnOut" id="btnLeaveRoom"><i data-lucide="log-out"></i> Leave Room</button>
     </div>
