@@ -155,7 +155,23 @@ class UIManager {
 
   _tap(el, fn) {
     if (!el) return;
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); fn(e); });
+    // Fire on pointerdown for snappy mobile response, BUT swallow the
+    // click/touch that the browser synthesizes from the same physical tap.
+    // Without this, a pointerdown that switches screens leaves the finger
+    // still down; the trailing click then lands on whatever element is now
+    // under that finger on the NEXT screen and fires it too - which is why
+    // tapping "Enter Match" flashed mode-select and bounced straight back
+    // to dragon-select. One physical tap must trigger exactly one action.
+    let swallow = false;
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      swallow = true;
+      setTimeout(() => { swallow = false; }, 700);
+      fn(e);
+    });
+    const eat = (e) => { if (swallow) { e.preventDefault(); e.stopPropagation(); } };
+    el.addEventListener('click', eat, true);
+    el.addEventListener('touchend', eat, true);
   }
 
   initDragonCarousel(dragons) {
@@ -1007,6 +1023,23 @@ class UIManager {
     Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+    // Mark the switch time and, once, install a capture-phase guard that
+    // swallows any click/touch landing on the freshly-shown screen within
+    // a short window. This is the safety net for the ghost-tap bounce:
+    // even for cards bound with plain 'click' (not _tap), a tap that
+    // triggered this transition can't immediately fire an element on the
+    // new screen under the still-down finger.
+    this._lastScreenSwitch = Date.now();
+    if (!this._ghostTapGuardInstalled) {
+      this._ghostTapGuardInstalled = true;
+      const guard = (e) => {
+        if (this._lastScreenSwitch && Date.now() - this._lastScreenSwitch < 350) {
+          e.preventDefault(); e.stopPropagation();
+        }
+      };
+      document.addEventListener('click', guard, true);
+      document.addEventListener('touchend', guard, true);
+    }
   }
 
   showOpponentFoundModal(tier) {
