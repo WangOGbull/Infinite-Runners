@@ -1087,9 +1087,27 @@ class Game {
   }
 
   leaveRoom() {
-    if (this.stakingState.hostDeposited && this.stakingState.opponentDeposited) {
+    // Whether THIS player (in their role) had staked into this room. If so,
+    // leaving removes the room and the backend auto-refunds - tell them so
+    // they know to expect the tokens back rather than thinking they're lost.
+    const iStaked = this.isHost ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited;
+    const bothStaked = this.stakingState.hostDeposited && this.stakingState.opponentDeposited;
+    const matchStarted = this.state === 'PLAYING' || this.state === 'GAME_OVER';
+    if (bothStaked && matchStarted) {
+      // Leaving a LIVE staked match is a forfeit, not a refund - the
+      // backend awards the pot to the opponent (see watchMatches forfeit
+      // path). Don't promise a refund that isn't coming.
       this.eventBus.emit('staking:error', {
-        message: 'Both stakes are locked in escrow. Leaving now will NOT refund you automatically — ask your opponent to mutually cancel, or wait for the settle-timeout refund window.'
+        message: 'Leaving a match in progress counts as a forfeit — your opponent will be awarded the pot.'
+      });
+    } else if (bothStaked) {
+      // Both staked but match never started - both refunded in full, no fee.
+      this.eventBus.emit('staking:pending', {
+        label: 'Refund in progress — both stakes are being returned in full. Check your wallet in ~30 seconds to confirm your balance.'
+      });
+    } else if (iStaked) {
+      this.eventBus.emit('staking:pending', {
+        label: 'Refund in progress — your stake is being returned in full. Check your wallet in ~30 seconds to confirm your balance.'
       });
     }
     this.stopNetworkSync();
@@ -1523,6 +1541,10 @@ class Game {
   endGame(hasWinner = false) {
     this.state = 'GAME_OVER';
     this.uiManager.showPauseOverlay(false);
+    // Make sure the start-of-match countdown overlay isn't still on screen
+    // when we jump to game-over - otherwise the loser briefly sees the "3,
+    // 2, 1" countdown flash on top of the DEFEATED screen.
+    this.uiManager.hideCountdown();
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
@@ -1569,25 +1591,30 @@ class Game {
       // screen stops offering "Resume Room" for a finished match.
       try { localStorage.removeItem(LOBBY_CONTEXT_KEY); } catch (_) {}
       try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
+      // Play Again makes no sense for a multiplayer/staked match - the room
+      // is gone and each rematch would need a fresh room + fresh stakes.
+      // Only Main Menu is offered. (Solo play keeps Play Again below.)
+      const playAgain = document.getElementById('btnPlayAgain');
+      if (playAgain) playAgain.style.display = 'none';
       // For staked matches, show the settlement panel in its pending state
       // until the backend writes rooms/{code}/settlement.
       if (this.lobbyTier) this.uiManager.showStakeBreakdown({ pending: true });
-    } else if (this.winner === this.localDragon) {
-      // AI wave progression: only fires for solo play, and only when the
-      // LOCAL player actually won. Clearing your current frontier wave
-      // unlocks the next one (unlockNextWave() is a no-op if this was a
-      // replay of an already-passed wave, or if mode isn't a wave at all).
-      const mode = this.gameModeManager.getMode();
-      if (typeof mode === 'string' && mode.startsWith('wave')) {
-        const unlocked = this.uiManager.unlockNextWave(mode);
-        if (unlocked) {
-          // TODO: no dedicated "Wave Cleared - X unlocked!" banner exists
-          // yet on the game-over screen - that needs an index.html change
-          // I don't have visibility into right now (you've likely edited
-          // it since the last version I saw). Logging for now so this is
-          // at least verifiable; flag it if you want a proper on-screen
-          // banner and send me the current gameOverScreen markup.
-          console.log(`[Waves] Cleared ${mode} - unlocked "${unlocked.name}" (${unlocked.players} dragons)`);
+    } else {
+      // Solo play: always restore Play Again (a prior MP match hides it on
+      // this shared screen), whether the player won or lost.
+      const playAgain = document.getElementById('btnPlayAgain');
+      if (playAgain) playAgain.style.display = 'flex';
+      if (this.winner === this.localDragon) {
+        // AI wave progression: only fires for solo play, and only when the
+        // LOCAL player actually won. Clearing your current frontier wave
+        // unlocks the next one (unlockNextWave() is a no-op if this was a
+        // replay of an already-passed wave, or if mode isn't a wave at all).
+        const mode = this.gameModeManager.getMode();
+        if (typeof mode === 'string' && mode.startsWith('wave')) {
+          const unlocked = this.uiManager.unlockNextWave(mode);
+          if (unlocked) {
+            console.log(`[Waves] Cleared ${mode} - unlocked "${unlocked.name}" (${unlocked.players} dragons)`);
+          }
         }
       }
     }
