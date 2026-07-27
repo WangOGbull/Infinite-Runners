@@ -671,12 +671,14 @@ class WalletManager {
         });
       };
       try {
+        // FIX: ONLY the passive path for Solflare. Phantom treats
+        // connect({ onlyIfTrusted: true }) as genuinely silent, but
+        // Solflare IGNORES that flag - calling connect() on a locked
+        // Solflare pops its full-screen "Unlock your wallet" dialog the
+        // moment the game loads, uninvited. If the extension is already
+        // unlocked and connected we restore instantly; otherwise we do
+        // NOTHING and the player connects with one tap when they choose.
         if (provider.isConnected && provider.publicKey) { finish(provider.publicKey); return true; }
-        if (typeof provider.connect === 'function') {
-          provider.connect({ onlyIfTrusted: true })
-            .then((resp) => finish((resp && resp.publicKey) || provider.publicKey))
-            .catch(() => { /* not trusted yet - user connects manually */ });
-        }
       } catch (_) { /* silent-restore is best-effort only */ }
       return true;
     };
