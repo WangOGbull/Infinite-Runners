@@ -1148,6 +1148,49 @@ class Game {
     this.positionsListenerSet = false;
     this.lastBroadcast = 0;
     this._watchSettlement();
+    this._startConnectionWatchdog();
+  }
+
+  // Local-side forfeit feedback. If THIS player's connection drops during a
+  // live staked match, the server will (after the silence window) award the
+  // pot to the opponent - but this client, if it's still alive at all, has
+  // no other way to learn it lost. This watchdog shows the defeat screen
+  // the moment it can tell the connection is gone, so the quitter isn't
+  // left staring at a frozen arena. Best-effort by nature: if the tab was
+  // truly killed there's nothing left to render, which is fine - the payout
+  // outcome is server-authoritative regardless.
+  _startConnectionWatchdog() {
+    if (!this.lobbyTier) return; // only meaningful for staked matches
+    this._clearConnectionWatchdog();
+    const onOffline = () => {
+      if (this.state !== 'PLAYING') return;
+      this.uiManager.showForfeitDefeat();
+    };
+    this._offlineHandler = onOffline;
+    window.addEventListener('offline', onOffline);
+    // Also watch Firebase's own connection state - catches drops that the
+    // browser 'offline' event misses (e.g. server unreachable but wifi up).
+    try {
+      this._connRef = firebase.database().ref('.info/connected');
+      this._connListener = this._connRef.on('value', (snap) => {
+        if (snap.val() === false && this.state === 'PLAYING') {
+          // brief grace so a momentary blip doesn't flash the screen
+          clearTimeout(this._connDropTimer);
+          this._connDropTimer = setTimeout(() => {
+            if (this.state === 'PLAYING') this.uiManager.showForfeitDefeat();
+          }, 6000);
+        } else if (snap.val() === true) {
+          clearTimeout(this._connDropTimer);
+        }
+      });
+    } catch (_) {}
+  }
+
+  _clearConnectionWatchdog() {
+    if (this._offlineHandler) { try { window.removeEventListener('offline', this._offlineHandler); } catch (_) {} this._offlineHandler = null; }
+    if (this._connRef && this._connListener) { try { this._connRef.off('value', this._connListener); } catch (_) {} }
+    clearTimeout(this._connDropTimer);
+    this._connRef = null; this._connListener = null;
   }
 
   // Watches rooms/{code}/settlement - the node the always-on backend
@@ -1194,6 +1237,12 @@ class Game {
           label: `Match settled on-chain - payout sent (tx ${String(s.signature).slice(0, 8)}…).`
         });
       }
+      // On a forfeit win, surface "opponent left the arena" messaging on
+      // the game-over screen (the winner is the one still connected, so
+      // this reliably reaches them).
+      if (s.forfeit && iWon) {
+        this.uiManager.showForfeitVictory();
+      }
       // Fill the Dragon Age settlement breakdown (stakes, pot, 2.5% Treasury
       // fee, payout, tx link) on the game-over screen.
       this._showStakeBreakdown(iWon, s);
@@ -1207,6 +1256,7 @@ class Game {
     }
     this.positionsListenerSet = false;
     this.remotePositions = {};
+    this._clearConnectionWatchdog();
   }
 
   // Combo announcements: 3 / 7 / 15 kills, then every +5 (20, 25...).
