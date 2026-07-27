@@ -517,6 +517,46 @@
     .bootTitle { font-size: 22px; letter-spacing: 3px; }
     .bootSub { font-size: 11px; letter-spacing: 6px; margin-bottom: 26px; }
   }
+  /* ==================== LOBBY - RESPONSIVE FIT (PC + MOBILE) ====================
+     The lobby content is taller than a phone screen, but the screen never
+     scrolled - so Start Game / Leave Room got pushed below the visible
+     area and became unreachable (the "no back button" bug: the button
+     existed, it just couldn't be seen or tapped). This makes the lobby
+     scroll properly, sizes everything fluidly to the viewport, and makes
+     every button a full-width touch target. */
+  #lobbyScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; display: flex; align-items: flex-start !important; justify-content: center; }
+  #lobbyScreen .lobbyBox {
+    width: min(560px, calc(100vw - 20px));
+    margin: max(10px, env(safe-area-inset-top)) auto calc(24px + env(safe-area-inset-bottom));
+    padding: 14px 12px 18px;
+    max-height: none;
+    overflow: visible;
+  }
+  #lobbyScreen .lobbyBox h2 { font-size: clamp(18px, 5vw, 26px); margin: 0 0 8px; }
+  #lobbyScreen .roomCodeRow #roomCodeDisplay { font-size: clamp(22px, 7vw, 34px); letter-spacing: 4px; }
+  /* Tier buttons: 3-up grid that shrinks cleanly on narrow phones */
+  #tierBtns { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #tierBtns .tierBtn { min-width: 0; width: 100%; padding: 10px 4px; font-size: clamp(11px, 3vw, 14px); line-height: 1.5; }
+  #tierBtns .tierBtn .tierAmt { font-size: clamp(10px, 2.6vw, 12px); }
+  /* Arena thumbs: 4-up grid, images scale instead of overflowing */
+  #lobbyArenaThumbs { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  #lobbyArenaThumbs .arenaThumb { min-width: 0; width: 100%; padding: 4px; }
+  #lobbyArenaThumbs .arenaThumb img { width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; display: block; border-radius: 6px; }
+  #lobbyArenaThumbs .arenaThumb span { font-size: clamp(10px, 2.6vw, 12px); }
+  /* Action buttons: full-width, stacked, real touch targets, always reachable */
+  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 12px; }
+  #lobbyScreen .lobbyActions .pBtn, #lobbyScreen #lobbyDepositBtn {
+    width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: clamp(13px, 3.6vw, 16px); white-space: nowrap;
+  }
+  #lobbyScreen #lobbyDepositBtn { margin-top: 10px; }
+  #lobbyScreen #lobbyWaitingText { text-align: center; font-size: 13px; color: #8b93a6; }
+  /* Mode selector row wraps instead of overflowing on tiny screens */
+  #modeSelectorHost { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+  /* Player slots: readable single-column stack on phones */
+  @media (max-width: 520px) {
+    #lobbySlots > * { flex: 1 1 100%; }
+  }
 </style>
 <base target="_blank">
 <base target="_blank">
