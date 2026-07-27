@@ -11,7 +11,7 @@ import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js';
 import EffectsSystem from './effectsSystem.js';
 import WalletManager from './walletManager.js';
-import StakingManager from './stakingManager.js';
+import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import PhotonMatchmaking from './photonMatchmaking.js';
 
@@ -741,6 +741,36 @@ class Game {
     }
   }
 
+  // Pre-flight before opening the wallet: does this wallet actually hold
+  // the stake plus a little SOL for the network fee? Without this, a
+  // player with INFINITE but zero SOL (or vice versa) just sees a scary
+  // "simulation failed" inside their wallet with no explanation - exactly
+  // what happened on the first mobile test. Fail-open: if the CHECK
+  // itself errors (RPC hiccup), staking proceeds normally.
+  async _preflightStakeCheck(tier) {
+    try {
+      const needed = TIER_AMOUNTS[tier];
+      if (!needed) return true;
+      const { sol, infinite } = await this.walletManager.getSpendableBalances();
+      if (infinite < needed) {
+        this.eventBus.emit('staking:error', {
+          message: `You need ${needed.toLocaleString()} INFINITE for this tier, but this wallet holds ${Math.floor(infinite).toLocaleString()}.`
+        });
+        return false;
+      }
+      if (sol < 0.0015) {
+        this.eventBus.emit('staking:error', {
+          message: 'This wallet needs a small amount of SOL (~0.005) to pay the network fee. Send it some SOL and try again.'
+        });
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('[Staking] pre-flight balance check failed (non-fatal, proceeding):', err?.message || err);
+      return true;
+    }
+  }
+
   async handleDeposit() {
     if (!this.walletManager.connected) {
       this.eventBus.emit('staking:error', { message: 'Connect your wallet first.' });
@@ -759,6 +789,7 @@ class Game {
           this.eventBus.emit('staking:error', { message: 'Pick a stake tier first.' });
           return;
         }
+        if (!(await this._preflightStakeCheck(this.lobbyTier))) return;
         this._persistLobbyContext();
         const result = await this.stakingManager.createStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
         if (result?.deepLinked) return;
@@ -768,6 +799,7 @@ class Game {
           this.eventBus.emit('staking:error', { message: 'Waiting for the host to lock in a tier.' });
           return;
         }
+        if (!(await this._preflightStakeCheck(this.lobbyTier))) return;
         this._persistLobbyContext();
         const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
         if (result?.deepLinked) return;
