@@ -699,7 +699,11 @@ class UIManager {
       }
       const startBtn = document.getElementById('lobbyStartBtn');
       const waitingText = document.getElementById('lobbyWaitingText');
-      if (startBtn) startBtn.style.display = isHost ? 'flex' : 'none';
+      // Start Game only ever appears for the HOST and only once BOTH
+      // players have staked (tracked by updateStakingUI, which runs right
+      // after this on every snapshot). Until then the button slot belongs
+      // to Place Bet.
+      if (startBtn) startBtn.style.display = (isHost && this._stakingBothDeposited) ? 'flex' : 'none';
       if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
       if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
     } catch (e) { console.warn('updateLobby error:', e); }
@@ -730,16 +734,20 @@ class UIManager {
   updateStakingUI(state = {}) {
     const { isHost, tier, hostDeposited, opponentDeposited, canDeposit } = state;
     const myDeposited = isHost ? hostDeposited : opponentDeposited;
+    const bothStaked = !!(hostDeposited && opponentDeposited);
+    // Remembered so updateLobby (which re-runs on every room snapshot)
+    // never re-shows Start before both stakes are locked.
+    this._stakingBothDeposited = bothStaked;
     const depositBtn = document.getElementById('lobbyDepositBtn');
     const label = document.getElementById('depositBtnLabel');
     const statusText = document.getElementById('depositStatusText');
+    const startBtn = document.getElementById('lobbyStartBtn');
+    const waitingText = document.getElementById('lobbyWaitingText');
+    // ONE morphing button slot: Place Bet occupies it from the moment a
+    // tier exists, and only once BOTH players have staked successfully
+    // does it swap out for Start Game (host) / "host is starting" (guest).
     if (depositBtn) {
-      depositBtn.style.display = tier ? 'flex' : 'none';
-      // FIX: previously also disabled when the wallet wasn't connected -
-      // which made the button silently do NOTHING for a disconnected
-      // player, with no hint why. Now it stays tappable: handleDeposit()
-      // already shows "Connect your wallet first" and opens the wallet
-      // modal, which is exactly the flow a disconnected player needs.
+      depositBtn.style.display = (tier && !bothStaked) ? 'flex' : 'none';
       depositBtn.disabled = !!myDeposited;
     }
     if (label) {
@@ -749,11 +757,17 @@ class UIManager {
           ? 'Connect Wallet to Stake'
           : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join'));
     }
-    const startBtn = document.getElementById('lobbyStartBtn');
-    if (startBtn) startBtn.disabled = !(hostDeposited && opponentDeposited);
+    if (startBtn) {
+      startBtn.style.display = (bothStaked && isHost) ? 'flex' : 'none';
+      startBtn.disabled = !bothStaked;
+    }
+    if (waitingText) {
+      waitingText.style.display = (bothStaked && !isHost) ? 'block' : (isHost ? 'none' : waitingText.style.display);
+      if (bothStaked && !isHost) waitingText.textContent = 'Both stakes locked — waiting for host to start...';
+    }
     if (statusText) {
-      if (hostDeposited && opponentDeposited) { statusText.textContent = 'Both players staked - ready!'; statusText.className = 'depositStatusText confirmed'; }
-      else if (myDeposited) { statusText.textContent = 'Waiting for opponent...'; statusText.className = 'depositStatusText pending'; }
+      if (bothStaked) { statusText.textContent = 'Both players staked - ready!'; statusText.className = 'depositStatusText confirmed'; }
+      else if (myDeposited) { statusText.textContent = 'Waiting for opponent to stake...'; statusText.className = 'depositStatusText pending'; }
       else { statusText.textContent = ''; statusText.className = 'depositStatusText'; }
     }
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
