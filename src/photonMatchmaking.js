@@ -71,6 +71,7 @@ class PhotonMatchmaking {
     this.matchedRoomCode = null;
     this.tier = tier;
     this.iAmInitiator = false;
+    this._joinAttempts = 0;
 
     this.client = this._newClient();
 
@@ -100,14 +101,33 @@ class PhotonMatchmaking {
       const NO_MATCH = (Photon.LoadBalancing.Constants && Photon.LoadBalancing.Constants.ErrorCode)
         ? Photon.LoadBalancing.Constants.ErrorCode.NoRandomMatchFound : 32760;
       if (code === JOIN_RANDOM && errorCode === NO_MATCH) {
-        console.log('[Matchmaking TRACE] no room found - creating one for tier:', this.tier);
+        // RACE-CONDITION FIX: when two players search at nearly the same
+        // time, BOTH get "no match" (neither has created a room yet) and
+        // both create their own - so they never meet. Instead, retry the
+        // random-join a few times with a short randomized delay FIRST. The
+        // random delay de-syncs the two clients so the second one's retry
+        // finds the first one's freshly-created room. Only after several
+        // failed retries do we create a room ourselves and wait to be
+        // joined.
+        this._joinAttempts = (this._joinAttempts || 0) + 1;
+        if (this._joinAttempts < 4) {
+          const delay = 600 + Math.floor(Math.random() * 1200); // 0.6-1.8s jitter
+          console.log(`[Matchmaking TRACE] no match (attempt ${this._joinAttempts}) - retrying join in ${delay}ms`);
+          setTimeout(() => {
+            if (this.isSearching && !this.opponentFound) {
+              this.client.joinRandomRoom({ expectedCustomRoomProperties: { tier: this.tier } });
+            }
+          }, delay);
+          return;
+        }
+        console.log('[Matchmaking TRACE] no room after retries - creating one for tier:', this.tier);
         const roomName = 'ir_' + this.tier + '_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
         this.client.createRoom(roomName, {
           maxPlayers: 2,
           isVisible: true,
           isOpen: true,
           customGameProperties: { tier: this.tier },
-          propsListedInLobby: ['tier'],   // <-- lets the next searcher find us
+          propsListedInLobby: ['tier'],
         });
       }
     };
