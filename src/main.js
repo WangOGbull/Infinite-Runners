@@ -555,14 +555,12 @@ class Game {
 
     this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
       if (isInitiator) {
-        // Create the real Firebase room using the EXACT same path as
-        // tapping "Create Room" manually, with the agreed tier already
-        // locked in, then tell the matched opponent the code via Photon.
-        this.createRoom(this.selectedMpMode || 'FFA', tier);
+        // Create the matched room (2-player, streamlined - no room-code
+        // lobby), then tell the opponent the code via Photon.
+        this.createRoom(this.selectedMpMode || 'FFA', tier, true);
         if (this.roomCode) this.matchmaking.announceRoomReady(this.roomCode);
       } else {
-        // roomCode arrives via Photon's onEvent - join it exactly as if
-        // typed in manually. Tier is already set on the room itself.
+        // roomCode arrives via Photon's onEvent - join it in matched mode.
         this.joinRoom(roomCode);
       }
     });
@@ -996,7 +994,7 @@ class Game {
     };
   }
 
-  createRoom(mpMode, presetTier = null) {
+  createRoom(mpMode, presetTier = null, matched = false) {
     if (!this.db) {
       alert('Multiplayer not available. Running in local mode.');
       this.uiManager.showScreen('modeSelectScreen');
@@ -1009,8 +1007,12 @@ class Game {
     this.playerIds = ['local'];
     this.lobbyArenaIndex = 0;
     this.lobbyTier = presetTier;
+    // Matchmaking rooms are always 1v1 stakes - lock to a 2-player room and
+    // remember we came from matchmaking so the UI shows the streamlined
+    // stake-confirm screen instead of the full room-code lobby.
+    this._matchedMode = !!matched;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
-    const maxPlayers = CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4;
+    const maxPlayers = matched ? 2 : (CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4);
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
@@ -1021,6 +1023,7 @@ class Game {
       arenaIndex: 0,
       status: 'waiting',
       tier: presetTier,
+      matched: !!matched,
       staking: { hostDeposited: false, opponentDeposited: false },
       players: {
         local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
@@ -1028,6 +1031,16 @@ class Game {
     });
 
     this.roomPlayers = { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
+
+    if (matched) {
+      // Streamlined matched flow: no room code, no lobby. Show the stake
+      // confirmation screen with the locked tier.
+      this.uiManager.showMatchedStakeScreen(presetTier, true);
+      this._attachRoomListener();
+      this._ensurePresence();
+      this._persistLastRoom();
+      return;
+    }
 
     this.uiManager.updateLobby(
       [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, deposited: false }],
@@ -1077,6 +1090,15 @@ class Game {
       this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
       this.selectedMpMode = data.mode || this.selectedMpMode;
       this.lobbyTier = data.tier || null;
+      this._matchedMode = !!data.matched;
+      if (data.matched) {
+        // Streamlined matched flow - stake confirm screen, no room code/lobby.
+        this.uiManager.showMatchedStakeScreen(this.lobbyTier, false);
+        this._attachRoomListener();
+        this._ensurePresence();
+        this._persistLastRoom();
+        return;
+      }
       this.uiManager.showScreen('lobbyScreen');
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
       this._attachRoomListener();
@@ -1108,6 +1130,33 @@ class Game {
         deposited: id === 'local' ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited,
       }));
       const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
+
+      if (this._matchedMode) {
+        // Streamlined matched flow: drive the stake-confirm screen instead
+        // of the lobby. Update both players' stake status, and auto-start
+        // the moment both have deposited (the HOST triggers the start; the
+        // opponent starts when it sees status flip to 'playing' below).
+        this.uiManager.updateMatchedStakeScreen({
+          isHost: this.isHost,
+          hostDeposited: this.stakingState.hostDeposited,
+          opponentDeposited: this.stakingState.opponentDeposited,
+          bothPresent: this.playerIds.length >= 2,
+        });
+        if (this.stakingState.hostDeposited && this.stakingState.opponentDeposited
+            && this.isHost && this.state !== 'PLAYING' && data.status !== 'playing') {
+          // Both staked - host kicks off the match for both clients.
+          this.startMpGame();
+        }
+        if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
+          const gameConfig = data.gameConfig || {};
+          this.selectedMode = gameConfig.mode || data.mode || 'FFA';
+          this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
+          this.isMultiplayer = true;
+          this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
+        }
+        return; // matched mode never touches the lobby UI
+      }
+
       this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
       this._refreshStakingUI();
       if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
@@ -1160,6 +1209,7 @@ class Game {
     this.playerIds = [];
     this.roomPlayers = {};
     this.isMultiplayer = false;
+    this._matchedMode = false;
     this.lobbyArenaIndex = 0;
     this.lobbyTier = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
