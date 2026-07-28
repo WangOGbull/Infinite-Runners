@@ -505,10 +505,15 @@ class Game {
       }
     });
 
-    this.eventBus.on('lobby:tierSelected', ({ tier }) => {
+    this.eventBus.on('lobby:tierSelected', ({ tier, customAmount }) => {
       if (this.isHost && this.roomRef && !this.stakingState.hostDeposited) {
         this.lobbyTier = tier;
-        this.roomRef.child('tier').set(tier);
+        this._customStakeAmount = (tier === 'Custom') ? customAmount : null;
+        const updates = { tier };
+        // Store the resolved custom amount on the room so the OPPONENT and
+        // the BACKEND both know the exact stake (settlement/refund read it).
+        updates.customAmount = (tier === 'Custom') ? (customAmount || null) : null;
+        this.roomRef.update(updates);
         this._refreshStakingUI();
       }
     });
@@ -781,12 +786,25 @@ class Game {
   // itself errors (RPC hiccup), staking proceeds normally.
   async _preflightStakeCheck(tier) {
     try {
-      const needed = TIER_AMOUNTS[tier];
+      let needed;
+      if (tier === 'Custom') {
+        needed = Math.floor(Number(this._customStakeAmount));
+        if (!Number.isFinite(needed) || needed < 1000) {
+          this.eventBus.emit('staking:error', { message: 'Enter a valid custom stake (minimum 1,000 INFINITE).' });
+          return false;
+        }
+        if (needed > 10000000) {
+          this.eventBus.emit('staking:error', { message: 'Maximum custom stake is 10,000,000 INFINITE.' });
+          return false;
+        }
+      } else {
+        needed = TIER_AMOUNTS[tier];
+      }
       if (!needed) return true;
       const { sol, infinite } = await this.walletManager.getSpendableBalances();
       if (infinite < needed) {
         this.eventBus.emit('staking:error', {
-          message: `You need ${needed.toLocaleString()} INFINITE for this tier, but this wallet holds ${Math.floor(infinite).toLocaleString()}.`
+          message: `You need ${needed.toLocaleString()} INFINITE for this stake, but this wallet holds ${Math.floor(infinite).toLocaleString()}.`
         });
         return false;
       }
@@ -823,7 +841,7 @@ class Game {
         }
         if (!(await this._preflightStakeCheck(this.lobbyTier))) return;
         this._persistLobbyContext();
-        const result = await this.stakingManager.createStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
+        const result = await this.stakingManager.createStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier, customAmount: this._customStakeAmount });
         if (result?.deepLinked) return;
         await this._markDeposited('host', this.lobbyTier, result.signature);
       } else {
@@ -833,7 +851,7 @@ class Game {
         }
         if (!(await this._preflightStakeCheck(this.lobbyTier))) return;
         this._persistLobbyContext();
-        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier });
+        const result = await this.stakingManager.joinStakedRoom({ roomId: roomIdNum, tier: this.lobbyTier, customAmount: this._customStakeAmount });
         if (result?.deepLinked) return;
         await this._markDeposited('opponent', this.lobbyTier, result.signature);
       }
@@ -1115,6 +1133,7 @@ class Game {
       this.roomPlayers = data.players || {};
       this.playerIds = Object.keys(this.roomPlayers);
       this.lobbyTier = data.tier || null;
+      this._customStakeAmount = data.customAmount || null;
       this.stakingState = {
         hostDeposited: !!(data.staking && data.staking.hostDeposited),
         opponentDeposited: !!(data.staking && data.staking.opponentDeposited),
