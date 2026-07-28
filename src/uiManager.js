@@ -530,13 +530,32 @@ class UIManager {
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn) startBtn.addEventListener('click', () => this.eventBus.emit('mp:startGame'));
     const leaveBtn = document.getElementById('btnLeaveRoom');
-    if (leaveBtn) leaveBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); this.showScreen('titleScreen'); });
+    if (leaveBtn) leaveBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); this.returnToMenuWithProcessing('titleScreen', 'Processing your refund…'); });
     document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
       btn.addEventListener('click', () => { this.eventBus.emit('lobby:arenaSelected', { arenaIndex: parseInt(btn.dataset.arena) }); });
     });
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
-      btn.addEventListener('click', () => { if (btn.disabled) return; this.selectedTier = btn.dataset.tier; this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier }); });
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        this.selectedTier = btn.dataset.tier;
+        const customWrap = document.getElementById('customStakeWrap');
+        if (this.selectedTier === 'Custom') {
+          // Reveal the amount input; emit the tier only once a valid amount
+          // is entered (handled by the input listener below).
+          if (customWrap) customWrap.style.display = 'block';
+          const input = document.getElementById('customStakeInput');
+          if (input) { input.focus(); this._emitCustomTier(input.value); }
+        } else {
+          if (customWrap) customWrap.style.display = 'none';
+          this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier });
+        }
+      });
     });
+    // Custom amount input: validate live and emit the tier+amount when valid.
+    const customInput = document.getElementById('customStakeInput');
+    if (customInput) {
+      customInput.addEventListener('input', () => this._emitCustomTier(customInput.value));
+    }
     const depositBtn = document.getElementById('lobbyDepositBtn');
     if (depositBtn) depositBtn.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
     const pauseBtn = document.getElementById('pauseBtn');
@@ -550,7 +569,7 @@ class UIManager {
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
     const mainMenu = document.getElementById('btnMainMenu');
-    if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('titleScreen'); });
+    if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.returnToMenuWithProcessing('titleScreen', 'Wrapping up the match…'); });
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
 
@@ -1138,6 +1157,38 @@ class UIManager {
   }
 
   hideResumeRoomBanner() { const banner = document.getElementById('resumeRoomBanner'); if (banner) banner.style.display = 'none'; }
+
+  // Shows the loading screen with a message for ~5s before routing to the
+  // destination, so leaving/forfeiting feels like real processing (refund
+  // being issued, match wrapping up) rather than an abrupt jump to menu.
+  // Validates the custom stake input and emits the tier only when the
+  // amount is within Wang's 1,000-10,000,000 bounds. Updates the hint text
+  // to guide the player; the Place Bet path re-validates before any tx.
+  _emitCustomTier(rawValue) {
+    const hint = document.getElementById('customStakeHint');
+    const n = Math.floor(Number(rawValue));
+    if (!Number.isFinite(n) || n < 1000) {
+      if (hint) { hint.textContent = 'Minimum 1,000 INFINITE'; hint.style.color = '#ff8080'; }
+      return;
+    }
+    if (n > 10000000) {
+      if (hint) { hint.textContent = 'Maximum 10,000,000 INFINITE'; hint.style.color = '#ff8080'; }
+      return;
+    }
+    if (hint) { hint.textContent = `Stake: ${n.toLocaleString()} INFINITE`; hint.style.color = '#4ade80'; }
+    this.eventBus.emit('lobby:tierSelected', { tier: 'Custom', customAmount: n });
+  }
+
+  returnToMenuWithProcessing(destination = 'titleScreen', message = 'Processing…') {
+    const loading = document.getElementById('loadingScreen');
+    const msgEl = document.getElementById('loadingMessage') || document.getElementById('loadingText');
+    if (msgEl) msgEl.textContent = message;
+    this.showScreen('loadingScreen');
+    clearTimeout(this._processingTimer);
+    this._processingTimer = setTimeout(() => {
+      this.showScreen(destination);
+    }, 5000);
+  }
 
   showScreen(screenId) {    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
