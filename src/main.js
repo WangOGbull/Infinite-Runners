@@ -564,16 +564,65 @@ class Game {
     });
 
     this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
+      // Two paired players are EQUALS. One of them silently owns the
+      // Firebase room record (needed for settlement) - but neither
+      // experiences "host vs opponent". We create/prepare the room NOW,
+      // on pairing, so by the time either player taps Proceed the room
+      // already exists and there's no waiting/timing gap.
+      this._pendingMatch = { roomCode, isInitiator, tier };
       if (isInitiator) {
-        // We're the host: create the streamlined matched room, then write
-        // its code back into our matchmaking ticket so the opponent (who
-        // claimed us) can join.
-        this.createRoom(this.selectedMpMode || 'FFA', tier, true);
-        if (this.roomCode && this.matchmaking) this.matchmaking.announceRoomReady(this.roomCode);
-      } else {
-        // We claimed a host and received their room code - join it.
-        this.joinRoom(roomCode);
+        // Owner: create the room immediately and publish its code so the
+        // other player can join. This does NOT navigate yet - we stay on
+        // the Opponent Found screen until Proceed.
+        this._prepareMatchedRoomAsOwner(tier);
       }
+      this.uiManager.showOpponentFound(tier);
+    });
+
+    this.eventBus.on('matchmaking:proceed', () => {
+      // Both players tap Proceed independently and both land in the SAME
+      // matched lobby. The owner already created the room on pairing; the
+      // other player joins it by code.
+      const m = this._pendingMatch;
+      if (!m) { this.uiManager.showScreen('mpMenuScreen'); return; }
+      if (m.isInitiator) {
+        // Owner: room is already created (see _prepareMatchedRoomAsOwner);
+        // just show the matched lobby.
+        this.uiManager.setMatchedLobbyMode(true, m.tier);
+        this.uiManager.showScreen('lobbyScreen');
+        this._refreshStakingUI();
+      } else {
+        // Other player: join the owner's room (code is present because the
+        // owner created it on pairing).
+        if (m.roomCode) {
+          this.joinRoom(m.roomCode);
+        } else {
+          // Extremely rare: owner hasn't published yet. Wait briefly.
+          this.uiManager.returnToMenuWithProcessing('lobbyScreen', 'Joining the arena…');
+          const q = this.matchmaking && this.matchmaking._roomWatchRef;
+          if (q) {
+            q.on('value', (snap) => {
+              const t = snap.val();
+              if (t && t.roomCode) { q.off('value'); this.joinRoom(t.roomCode); }
+            });
+          }
+        }
+      }
+    });
+
+    this.eventBus.on('matchmaking:cancelOpponentFound', () => {
+      // Player declined the found match BEFORE staking. Plain cancel - no
+      // refund (nothing was staked). If we're the owner who pre-created the
+      // room, tear it down so no orphan room is left. Then back to the menu.
+      const m = this._pendingMatch;
+      this._pendingMatch = null;
+      if (m && m.isInitiator && this.roomRef) {
+        try { this.roomRef.off(); } catch (_) {}
+        this.roomRef.remove().catch(() => {});
+        this.roomRef = null;
+      }
+      if (this.matchmaking) this.matchmaking.cancelSearch();
+      this.uiManager.showScreen('mpMenuScreen');
     });
 
     this.eventBus.on('ui:cancelSearch', () => {
@@ -1057,9 +1106,19 @@ class Game {
     this.roomPlayers = { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
 
     if (matched) {
-      // Streamlined matched flow: no room code, no lobby. Show the stake
-      // confirmation screen with the locked tier.
-      this.uiManager.showMatchedStakeScreen(presetTier, true);
+      // Matched flow: enter the SAME lobby as Create Room, in matched mode.
+      // When pre-creating on pairing (_suppressMatchedNav), we set up the
+      // room + listener but DON'T navigate - Proceed shows the lobby.
+      this.uiManager.updateLobby(
+        [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, deposited: false }],
+        maxPlayers, this.roomCode, true
+      );
+      this.uiManager.updateLobbyArena(this.lobbyArenaIndex || 0, true);
+      if (!this._suppressMatchedNav) {
+        this.uiManager.setMatchedLobbyMode(true, presetTier);
+        this.uiManager.showScreen('lobbyScreen');
+        this._refreshStakingUI();
+      }
       this._attachRoomListener();
       this._ensurePresence();
       this._persistLastRoom();
@@ -1116,13 +1175,17 @@ class Game {
       this.lobbyTier = data.tier || null;
       this._matchedMode = !!data.matched;
       if (data.matched) {
-        // Streamlined matched flow - stake confirm screen, no room code/lobby.
-        this.uiManager.showMatchedStakeScreen(this.lobbyTier, false);
+        // Matched opponent: same lobby, matched mode (bg shown, code +
+        // pickers hidden, Place Bet -> Start -> Leave).
+        this.uiManager.setMatchedLobbyMode(true, this.lobbyTier);
+        this.uiManager.showScreen('lobbyScreen');
+        this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
         this._attachRoomListener();
         this._ensurePresence();
         this._persistLastRoom();
         return;
       }
+      this.uiManager.setMatchedLobbyMode(false);
       this.uiManager.showScreen('lobbyScreen');
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
       this._attachRoomListener();
@@ -1156,34 +1219,18 @@ class Game {
       }));
       const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
 
-      if (this._matchedMode) {
-        // Streamlined matched flow: drive the stake-confirm screen instead
-        // of the lobby. Update both players' stake status, and auto-start
-        // the moment both have deposited (the HOST triggers the start; the
-        // opponent starts when it sees status flip to 'playing' below).
-        this.uiManager.updateMatchedStakeScreen({
-          isHost: this.isHost,
-          hostDeposited: this.stakingState.hostDeposited,
-          opponentDeposited: this.stakingState.opponentDeposited,
-          bothPresent: this.playerIds.length >= 2,
-        });
-        if (this.stakingState.hostDeposited && this.stakingState.opponentDeposited
-            && this.isHost && this.state !== 'PLAYING' && data.status !== 'playing') {
-          // Both staked - host kicks off the match for both clients.
-          this.startMpGame();
-        }
-        if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
-          const gameConfig = data.gameConfig || {};
-          this.selectedMode = gameConfig.mode || data.mode || 'FFA';
-          this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
-          this.isMultiplayer = true;
-          this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
-        }
-        return; // matched mode never touches the lobby UI
-      }
-
+      // Matched games use the SAME lobby UI as Create Room, with matched
+      // styling (bg shown, code + pickers hidden). Both paired players are
+      // equals - they stake, and the instant BOTH stakes are in, the match
+      // AUTO-STARTS (no manual Start tap). The room owner (a hidden
+      // technical role, not shown to players) triggers the start.
       this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
       this._refreshStakingUI();
+      if (this._matchedMode && this.stakingState.hostDeposited && this.stakingState.opponentDeposited
+          && this.isHost && this.state !== 'PLAYING' && data.status !== 'playing') {
+        // Both staked - auto-start for both clients.
+        this.startMpGame();
+      }
       if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
         const gameConfig = data.gameConfig || {};
         this.selectedMode = gameConfig.mode || data.mode || 'FFA';
@@ -1192,6 +1239,17 @@ class Game {
         this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
       }
     });
+  }
+
+  // Owner-side: create the matched Firebase room the moment the pair is
+  // confirmed (before Proceed), and publish its code so the other player
+  // can join. Does NOT navigate - createRoom in matched mode shows the
+  // lobby, so we suppress that by deferring the screen switch to Proceed.
+  _prepareMatchedRoomAsOwner(tier) {
+    this._suppressMatchedNav = true;
+    this.createRoom(this.selectedMpMode || 'FFA', tier, true);
+    this._suppressMatchedNav = false;
+    if (this.roomCode && this.matchmaking) this.matchmaking.announceRoomReady(this.roomCode);
   }
 
   leaveRoom() {
