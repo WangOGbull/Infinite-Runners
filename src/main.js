@@ -531,6 +531,13 @@ class Game {
     // picking a tier and starting the search already is the commitment.
     this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
       this.uiManager.showScreen('matchmakingSearchScreen');
+      // Show which stake we're searching for on the new search modal.
+      const badge = document.getElementById('matchmakingTierBadge');
+      if (badge) {
+        const label = tier === 'Small' ? 'Low' : tier;
+        badge.textContent = `${label} Stake`;
+        badge.style.display = 'inline-block';
+      }
       try {
         // The old pre-search checkConnectionQuality() gate has been removed.
         // It spun up a THROWAWAY Photon client and force-disconnected it if
