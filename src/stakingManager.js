@@ -46,7 +46,20 @@ async function _timed(label, promiseFactory) {
   }
 }
 
-function tierAmount(tier) {
+export const CUSTOM_STAKE_MIN = 1000;
+export const CUSTOM_STAKE_MAX = 10000000;
+
+// Resolves a tier name OR a numeric custom amount to a validated stake.
+// Custom amounts are passed as { tier: 'Custom', customAmount: N } from the
+// callers; a plain named tier ignores customAmount.
+function tierAmount(tier, customAmount) {
+  if (tier === 'Custom') {
+    const n = Math.floor(Number(customAmount));
+    if (!Number.isFinite(n)) throw new Error('Enter a valid custom stake amount.');
+    if (n < CUSTOM_STAKE_MIN) throw new Error(`Minimum stake is ${CUSTOM_STAKE_MIN.toLocaleString()} INFINITE.`);
+    if (n > CUSTOM_STAKE_MAX) throw new Error(`Maximum stake is ${CUSTOM_STAKE_MAX.toLocaleString()} INFINITE.`);
+    return n;
+  }
   const amount = TIER_AMOUNTS[tier];
   if (!amount) throw new Error(`Unknown stake tier: "${tier}"`);
   return amount;
@@ -243,10 +256,10 @@ class StakingManager {
     }
   }
 
-  async createStakedRoom({ roomId, tier }) {
+  async createStakedRoom({ roomId, tier, customAmount }) {
     const connection = this.connection;
     const hostPubkey = this.walletManager.publicKey;
-    const amount = tierAmount(tier);
+    const amount = tierAmount(tier, customAmount);
 
     // FIX: No more parallel blockhash fetch. Only fetch ATA info here.
     const { ata: hostAta, instructions: ataIxs } = await ensureAtaInstructions(
@@ -265,14 +278,14 @@ class StakingManager {
 
     return this._sendTx(
       [...ataIxs, ensureHotWalletAtaIx, transferIx],
-      { type: 'createRoom', roomId, tier }
+      { type: 'createRoom', roomId, tier, customAmount: amount }
     );
   }
 
-  async joinStakedRoom({ roomId, tier }) {
+  async joinStakedRoom({ roomId, tier, customAmount }) {
     const connection = this.connection;
     const opponentPubkey = this.walletManager.publicKey;
-    const amount = tierAmount(tier);
+    const amount = tierAmount(tier, customAmount);
 
     // FIX: No more parallel blockhash fetch.
     const { ata: opponentAta, instructions: ataIxs } = await ensureAtaInstructions(
@@ -291,7 +304,7 @@ class StakingManager {
 
     return this._sendTx(
       [...ataIxs, ensureHotWalletAtaIx, transferIx],
-      { type: 'joinRoom', roomId, tier }
+      { type: 'joinRoom', roomId, tier, customAmount: amount }
     );
   }
 
