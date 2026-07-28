@@ -560,7 +560,7 @@
   /* ----- Room code: dragon-head plaque frame ----- */
   #lobbyScreen .roomCodeRow {
     position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 100%; aspect-ratio: 1740 / 820; max-width: 460px; margin: 4px auto 0;
+    width: 100%; aspect-ratio: 1338 / 680; max-width: 460px; margin: 4px auto 0;
     background: url('/lobby/room-code-frame.png') center / 100% 100% no-repeat;
     padding-top: 4%;
   }
@@ -661,12 +661,13 @@
   #lobbySlots > * { width: 100%; }
   #lobbySlots .lobbyPlayerCard {
     position: relative; display: flex; align-items: center; gap: 12px;
-    aspect-ratio: 2010 / 560; padding: 0 14% 0 15%;
+    aspect-ratio: 1515 / 680; padding: 0 14% 0 15%;
     background: url('/lobby/player-banner-shield.png') center / 100% 100% no-repeat;
     border: none !important; box-shadow: none !important; border-radius: 0 !important;
   }
   /* host / room-leader gets the crown banner */
   #lobbySlots .lobbyPlayerCard.local {
+    aspect-ratio: 1716 / 680;
     background: url('/lobby/player-banner-crown.png') center / 100% 100% no-repeat !important;
   }
   #lobbySlots .lobbyPlayerCard img,
@@ -725,6 +726,14 @@
   #lobbyScreen .depositStatusText { text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600; letter-spacing: 1px; min-height: 18px; margin-top: 6px; }
   #lobbyScreen .depositStatusText.confirmed { color: #4ade80; text-shadow: 0 0 10px rgba(74,222,128,0.4); }
   #lobbyScreen .depositStatusText.pending { color: #ffb24d; }
+
+  /* ===== MATCHED LOBBY MODE: reuse lobby, hide code/pickers, keep bg ===== */
+  #lobbyScreen.matchedLobby .roomCodeRow,
+  #lobbyScreen.matchedLobby .lobbyMeta,
+  #lobbyScreen.matchedLobby #modeSelectorHost,
+  #lobbyScreen.matchedLobby #lobbyTierSelector,
+  #lobbyScreen.matchedLobby #lobbyArenaSelector { display: none !important; }
+  #lobbyScreen.matchedLobby .lobbyBox { padding-top: 28px; }
 </style>
 <base target="_blank">
 <base target="_blank">
@@ -921,13 +930,12 @@
     <div class="daOppHeader">
       <div class="daOppIcon"><i data-lucide="flame"></i></div>
       <h2>Opponent Found!</h2>
-      <p>Confirm your stake to begin the battle</p>
+      <p>A challenger awaits at your chosen stake</p>
     </div>
     <div class="daOppTierDisplay" id="oppFoundTierDisplay">Low Stake</div>
-    <div class="daOppStakeStatus" id="oppStakeStatus" style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:1px;color:#8fa3c4;min-height:18px;margin-bottom:16px;"></div>
     <div class="daOppActions">
-      <button class="daOppProceed" id="btnMatchedStake"><i data-lucide="lock"></i> Place Bet</button>
-      <button class="daOppCancel" id="btnCancelOppFound"><i data-lucide="x"></i> Cancel &amp; Refund</button>
+      <button class="daOppProceed" id="btnProceedMatch"><i data-lucide="arrow-right"></i> Proceed</button>
+      <button class="daOppCancel" id="btnCancelOppFound"><i data-lucide="x"></i> Cancel</button>
     </div>
   </div>
 </div>
