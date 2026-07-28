@@ -863,6 +863,7 @@ class UIManager {
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
     ctx.clearRect(0, 0, w, h);
+
     const bounds = arenaManager.getBounds();
     const worldW = bounds.maxX - bounds.minX;
     const worldH = bounds.maxY - bounds.minY;
@@ -870,21 +871,104 @@ class UIManager {
     const scaleX = w / worldW;
     const scaleY = h / worldH;
     const toMini = (wx, wy) => ({ x: (wx - bounds.minX) * scaleX, y: (wy - bounds.minY) * scaleY });
-    ctx.fillStyle = 'rgba(0,180,216,0.7)';
-    (foods || []).forEach(f => { const p = toMini(f.x, f.y); ctx.fillRect(p.x, p.y, 1.5, 1.5); });
-    (dragons || []).forEach(d => {
-      if (!d.alive) return;
-      const p = toMini(d.head.x, d.head.y);
-      ctx.beginPath(); ctx.fillStyle = '#ff6666'; ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2); ctx.fill();
-    });
+
+    const cx = w / 2, cy = h / 2;
+    const R = Math.min(w, h) / 2;
+
+    // --- Clip everything to a circular scope ---
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Dark radar backdrop with a faint radial vignette
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    bg.addColorStop(0, 'rgba(10,20,36,0.92)');
+    bg.addColorStop(1, 'rgba(4,9,18,0.96)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Concentric range rings + crosshair
+    ctx.strokeStyle = 'rgba(72,224,255,0.10)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, (R - 2) * (i / 2.4), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx, 2); ctx.lineTo(cx, h - 2);
+    ctx.moveTo(2, cy); ctx.lineTo(w - 2, cy);
+    ctx.stroke();
+
+    // Viewport rectangle (what the camera currently sees)
     if (camera) {
       const viewW = (canvas.parentElement ? canvas.parentElement.clientWidth : w * camera.zoom) / camera.zoom;
       const viewH = (canvas.parentElement ? canvas.parentElement.clientHeight : h * camera.zoom) / camera.zoom;
       const topLeft = toMini(camera.x - viewW / 2, camera.y - viewH / 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+      ctx.lineWidth = 1;
       ctx.strokeRect(topLeft.x, topLeft.y, viewW * scaleX, viewH * scaleY);
     }
+
+    // Food: faint infinity-blue motes
+    ctx.fillStyle = 'rgba(72,224,255,0.35)';
+    (foods || []).forEach(f => { const p = toMini(f.x, f.y); ctx.fillRect(p.x - 0.5, p.y - 0.5, 1.5, 1.5); });
+
+    // Dragons: local = cyan directional arrowhead with glow; enemies = red blips
+    (dragons || []).forEach(d => {
+      if (!d.alive) return;
+      const p = toMini(d.head.x, d.head.y);
+      const isLocal = d === this._localDragonRef || d.isLocalPlayer;
+      if (isLocal || (!d.isRemote && !d.isAI)) {
+        // player blip: glowing cyan with a heading triangle
+        ctx.save();
+        ctx.shadowColor = '#48e0ff';
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = '#7ef0ff';
+        const a = d.angle || 0;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(a);
+        ctx.beginPath();
+        ctx.moveTo(4, 0); ctx.lineTo(-3, 2.6); ctx.lineTo(-3, -2.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.shadowColor = '#ff5a5a';
+        ctx.shadowBlur = 5;
+        ctx.beginPath();
+        ctx.fillStyle = '#ff6b6b';
+        ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    });
+
+    ctx.restore(); // end circular clip
+
+    // --- Gold frame ring (drawn on top, unclipped) ---
+    ctx.lineWidth = 2;
+    const ring = ctx.createLinearGradient(0, 0, 0, h);
+    ring.addColorStop(0, '#f0d9a0');
+    ring.addColorStop(0.5, '#a97f45');
+    ring.addColorStop(1, '#6e5226');
+    ctx.strokeStyle = ring;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
+    ctx.stroke();
+    // subtle inner bevel
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R - 3.5, 0, Math.PI * 2);
+    ctx.stroke();
   }
+
+  // Called from main.js so the minimap can distinguish the local dragon
+  // reliably regardless of the isRemote/isAI flags on other dragons.
+  setLocalDragonRef(d) { this._localDragonRef = d; }
 
   updateGameOver(stats = {}) {
     const map = { goTime: stats.time, goCollect: stats.collected, goKills: stats.kills, goDeaths: stats.deaths, goLives: stats.lives };
