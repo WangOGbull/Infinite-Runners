@@ -921,19 +921,20 @@
   </div>
 </div>
 
-<!-- ===== OPPONENT FOUND ===== -->
+<!-- ===== OPPONENT FOUND — streamlined stake confirmation (no room code) ===== -->
 <div id="opponentFoundScreen" class="screen">
   <div class="daModalOverlay"></div>
   <div class="daOpponentModal">
     <div class="daOppHeader">
       <div class="daOppIcon"><i data-lucide="flame"></i></div>
       <h2>Opponent Found!</h2>
-      <p>A challenger awaits at your chosen stake</p>
+      <p>Confirm your stake to begin the battle</p>
     </div>
     <div class="daOppTierDisplay" id="oppFoundTierDisplay">Low Stake</div>
+    <div class="daOppStakeStatus" id="oppStakeStatus" style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:1px;color:#8fa3c4;min-height:18px;margin-bottom:16px;"></div>
     <div class="daOppActions">
-      <button class="daOppProceed" id="btnProceedToLobby"><i data-lucide="play"></i> Proceed to Battle</button>
-      <button class="daOppCancel" id="btnCancelOppFound"><i data-lucide="x"></i> Cancel</button>
+      <button class="daOppProceed" id="btnMatchedStake"><i data-lucide="lock"></i> Place Bet</button>
+      <button class="daOppCancel" id="btnCancelOppFound"><i data-lucide="x"></i> Cancel &amp; Refund</button>
     </div>
   </div>
 </div>
