@@ -77,12 +77,38 @@ class PhotonMatchmaking {
     this.client.onStateChange = (state) => {
       console.log('[Matchmaking TRACE] onStateChange fired with state:', state);
       if (state === Photon.LoadBalancing.LoadBalancingClient.State.JoinedLobby) {
-        console.log('[Matchmaking TRACE] calling joinRandomOrCreateRoom');
-        this.client.joinRandomOrCreateRoom(
-          { expectedCustomRoomProperties: { tier } },
-          null,
-          { maxPlayers: 2, isVisible: true, isOpen: true, customGameProperties: { tier } }
-        );
+        // CORRECT JS SDK PATTERN (two-step). joinRandomOrCreateRoom is
+        // unreliable in the Photon JS client - it silently had every player
+        // create their OWN room, so nobody ever matched. Instead:
+        //   1. try joinRandomRoom filtered by our tier
+        //   2. if none exists (onOperationResponse -> NoRandomMatchFound),
+        //      create a room ourselves, tagging it with the tier and
+        //      exposing that tier to the lobby so the NEXT searcher's
+        //      joinRandomRoom can actually find us.
+        console.log('[Matchmaking TRACE] joinRandomRoom for tier:', tier);
+        this.client.joinRandomRoom({ expectedCustomRoomProperties: { tier } });
+      }
+    };
+
+    // The join-random result comes back here. Photon's "no match" is
+    // operation code 225 (OpJoinRandomRoom) with return code 32760
+    // (NoRandomMatchFound / ErrorCode.NoRandomMatchFound). On that, WE
+    // create the room - which makes us the initiator/host.
+    this.client.onOperationResponse = (errorCode, errorMsg, code) => {
+      const JOIN_RANDOM = (Photon.LoadBalancing.Constants && Photon.LoadBalancing.Constants.OperationCode)
+        ? Photon.LoadBalancing.Constants.OperationCode.JoinRandomGame : 225;
+      const NO_MATCH = (Photon.LoadBalancing.Constants && Photon.LoadBalancing.Constants.ErrorCode)
+        ? Photon.LoadBalancing.Constants.ErrorCode.NoRandomMatchFound : 32760;
+      if (code === JOIN_RANDOM && errorCode === NO_MATCH) {
+        console.log('[Matchmaking TRACE] no room found - creating one for tier:', this.tier);
+        const roomName = 'ir_' + this.tier + '_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
+        this.client.createRoom(roomName, {
+          maxPlayers: 2,
+          isVisible: true,
+          isOpen: true,
+          customGameProperties: { tier: this.tier },
+          propsListedInLobby: ['tier'],   // <-- lets the next searcher find us
+        });
       }
     };
 
