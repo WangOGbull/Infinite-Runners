@@ -509,10 +509,10 @@ class UIManager {
     if (btnMmTierBack) btnMmTierBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
     const btnCancelSearch = document.getElementById('btnCancelSearch');
     if (btnCancelSearch) btnCancelSearch.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
-    const btnMatchedStake = document.getElementById('btnMatchedStake');
-    if (btnMatchedStake) btnMatchedStake.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
+    const btnProceedMatch = document.getElementById('btnProceedMatch');
+    if (btnProceedMatch) btnProceedMatch.addEventListener('click', () => this.eventBus.emit('matchmaking:proceed'));
     const btnCancelOpp = document.getElementById('btnCancelOppFound');
-    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => this.eventBus.emit('mp:leaveRoom'));
+    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => this.eventBus.emit('matchmaking:cancelOpponentFound'));
     const mpJoin = document.getElementById('btnMpJoin');
     if (mpJoin) mpJoin.addEventListener('click', () => {
       const input = document.getElementById('mpRoomInput');
@@ -1212,46 +1212,30 @@ class UIManager {
     }
   }
 
-  // Streamlined matched-stake screen (replaces the room-code lobby for
-  // matchmaking). Shows the locked tier and a Place Bet button; both
-  // players stake here, then the match auto-starts. No room code shown.
-  showMatchedStakeScreen(tier, isHost) {
+  // Step 1 of the matched flow: "Opponent Found" with Proceed + Cancel.
+  // Nothing is staked yet - purely confirm-to-continue.
+  showOpponentFound(tier) {
     const tierName = (tier === 'Small' ? 'Low' : (tier || 'Unknown'));
-    const tierDisplay = document.getElementById('oppFoundTierDisplay');
-    if (tierDisplay) tierDisplay.textContent = `${tierName} Stake`;
-    const status = document.getElementById('oppStakeStatus');
-    if (status) { status.textContent = 'Place your bet to lock in the match.'; status.style.color = '#8fa3c4'; }
-    const btn = document.getElementById('btnMatchedStake');
-    if (btn) { btn.disabled = false; btn.style.display = 'flex'; }
-    this._matchedStakeDone = false;
+    const disp = document.getElementById('oppFoundTierDisplay');
+    if (disp) disp.textContent = `${tierName} Stake`;
     this.showScreen('opponentFoundScreen');
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
   }
 
-  updateMatchedStakeScreen({ isHost, hostDeposited, opponentDeposited, bothPresent }) {
-    const myDeposited = isHost ? hostDeposited : opponentDeposited;
-    const oppDeposited = isHost ? opponentDeposited : hostDeposited;
-    const status = document.getElementById('oppStakeStatus');
-    const btn = document.getElementById('btnMatchedStake');
-    if (btn) {
-      btn.disabled = !!myDeposited;
-      if (myDeposited) { btn.innerHTML = '<i data-lucide="check"></i> Bet Placed'; }
-    }
-    if (status) {
-      if (hostDeposited && opponentDeposited) {
-        status.textContent = 'Both stakes locked — entering the arena…';
-        status.style.color = '#4ade80';
-      } else if (myDeposited) {
-        status.textContent = 'Waiting for your opponent to place their bet…';
-        status.style.color = '#ffb24d';
-      } else if (oppDeposited) {
-        status.textContent = 'Your opponent has staked. Place your bet to begin!';
-        status.style.color = '#48e0ff';
-      } else {
-        status.textContent = 'Place your bet to lock in the match.';
-        status.style.color = '#8fa3c4';
-      }
-    }
+  // Puts the shared lobby into MATCHED mode: shows lobby-bg, hides the
+  // room-code plaque and the mode/tier/arena pickers (pre-decided by
+  // matchmaking). Off = normal Create Room lobby with everything visible.
+  setMatchedLobbyMode(on, tier) {
+    const lobby = document.getElementById('lobbyScreen');
+    if (lobby) lobby.classList.toggle('matchedLobby', !!on);
+    const rcRow = document.querySelector('#lobbyScreen .roomCodeRow');
+    if (rcRow) rcRow.style.display = on ? 'none' : '';
+    const meta = document.querySelector('#lobbyScreen .lobbyMeta');
+    if (meta) meta.style.display = on ? 'none' : '';
+    const setDisp = (id, hide) => { const el = document.getElementById(id); if (el) el.style.display = hide ? 'none' : ''; };
+    setDisp('modeSelectorHost', on);
+    setDisp('lobbyTierSelector', on);
+    setDisp('lobbyArenaSelector', on);
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
   }
 
