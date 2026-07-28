@@ -13,7 +13,7 @@ import EffectsSystem from './effectsSystem.js';
 import WalletManager from './walletManager.js';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
-import PhotonMatchmaking from './photonMatchmaking.js';
+import FirebaseMatchmaking from './firebaseMatchmaking.js';
 
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
 // Separate from LOBBY_CONTEXT_KEY (which is ephemeral - consumed the moment
@@ -162,7 +162,7 @@ class Game {
     // explicitly from init(), after listeners and Firebase are ready.
     this.walletManager = new WalletManager(this.eventBus);
     this.stakingManager = new StakingManager(this.eventBus, this.walletManager);
-    this.matchmaking = new PhotonMatchmaking(this.eventBus);
+    this.matchmaking = null; // created once Firebase db is ready (see setup)
     this.aiController = null;
 
     this.localDragon = null;
@@ -289,6 +289,18 @@ class Game {
       if (typeof firebase !== 'undefined') {
         this.firebaseApp = firebase.initializeApp(firebaseConfig);
         this.db = firebase.database();
+        // Firebase-based automatic matchmaking (replaces Photon). Uses the
+        // same db as every room/stake/settlement, and identifies the player
+        // by their connected wallet when available so two tabs on one wallet
+        // never match themselves.
+        this.matchmaking = new FirebaseMatchmaking(this.eventBus, this.db, {
+          getIdentity: () => ({
+            uid: (this.walletManager && this.walletManager.publicKey)
+              ? this.walletManager.publicKey.toString()
+              : 'anon_' + Math.random().toString(36).slice(2),
+            name: 'Player',
+          }),
+        });
         // Anonymous auth DISABLED for now. Database rules are currently
         // wide open (.read: true, .write: true), so no write actually
         // requires an auth token right now - and this has repeatedly been
@@ -544,14 +556,7 @@ class Game {
         badge.style.display = 'inline-block';
       }
       try {
-        // The old pre-search checkConnectionQuality() gate has been removed.
-        // It spun up a THROWAWAY Photon client and force-disconnected it if
-        // the Master handshake took longer than 5s - that mid-handshake kill
-        // is exactly what produced the "WebSocket is closed before the
-        // connection is established" / Master peer 1001+1004 errors, after
-        // which the UI bounced straight back to the menu ("opens then
-        // closes"). The real search client below has its own onError path,
-        // so the gate added failure modes without adding safety.
+        if (!this.matchmaking) { this.eventBus.emit('matchmaking:error', { message: 'Matchmaking is not ready yet. Please try again in a moment.' }); return; }
         this.matchmaking.startSearch(tier);
       } catch (err) {
         this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
@@ -560,24 +565,25 @@ class Game {
 
     this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
       if (isInitiator) {
-        // Create the matched room (2-player, streamlined - no room-code
-        // lobby), then tell the opponent the code via Photon.
+        // We're the host: create the streamlined matched room, then write
+        // its code back into our matchmaking ticket so the opponent (who
+        // claimed us) can join.
         this.createRoom(this.selectedMpMode || 'FFA', tier, true);
-        if (this.roomCode) this.matchmaking.announceRoomReady(this.roomCode);
+        if (this.roomCode && this.matchmaking) this.matchmaking.announceRoomReady(this.roomCode);
       } else {
-        // roomCode arrives via Photon's onEvent - join it in matched mode.
+        // We claimed a host and received their room code - join it.
         this.joinRoom(roomCode);
       }
     });
 
     this.eventBus.on('ui:cancelSearch', () => {
-      this.matchmaking.cancelSearch();
+      if (this.matchmaking) this.matchmaking.cancelSearch();
     });
     this.eventBus.on('matchmaking:cancelled', () => {
       this.uiManager.showScreen('mpMenuScreen');
     });
     this.eventBus.on('matchmaking:error', ({ message }) => {
-      this.matchmaking.cancelSearch();
+      if (this.matchmaking) this.matchmaking.cancelSearch();
       this.uiManager.showScreen('mpMenuScreen');
       const err = document.getElementById('mpJoinError');
       if (err) err.textContent = message || 'Matchmaking failed.';
