@@ -509,10 +509,10 @@ class UIManager {
     if (btnMmTierBack) btnMmTierBack.addEventListener('click', () => this.showScreen('mpMenuScreen'));
     const btnCancelSearch = document.getElementById('btnCancelSearch');
     if (btnCancelSearch) btnCancelSearch.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
-    const btnProceed = document.getElementById('btnProceedToLobby');
-    if (btnProceed) btnProceed.addEventListener('click', () => this.eventBus.emit('matchmaking:proceed'));
+    const btnMatchedStake = document.getElementById('btnMatchedStake');
+    if (btnMatchedStake) btnMatchedStake.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
     const btnCancelOpp = document.getElementById('btnCancelOppFound');
-    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => this.eventBus.emit('ui:cancelSearch'));
+    if (btnCancelOpp) btnCancelOpp.addEventListener('click', () => this.eventBus.emit('mp:leaveRoom'));
     const mpJoin = document.getElementById('btnMpJoin');
     if (mpJoin) mpJoin.addEventListener('click', () => {
       const input = document.getElementById('mpRoomInput');
@@ -1161,12 +1161,47 @@ class UIManager {
     }
   }
 
-  showOpponentFoundModal(tier) {
-    const tierName = (tier || 'Unknown').toLowerCase();
-    const displayTier = tierName.charAt(0).toUpperCase() + tierName.slice(1);
+  // Streamlined matched-stake screen (replaces the room-code lobby for
+  // matchmaking). Shows the locked tier and a Place Bet button; both
+  // players stake here, then the match auto-starts. No room code shown.
+  showMatchedStakeScreen(tier, isHost) {
+    const tierName = (tier === 'Small' ? 'Low' : (tier || 'Unknown'));
     const tierDisplay = document.getElementById('oppFoundTierDisplay');
-    if (tierDisplay) tierDisplay.textContent = `${displayTier} Stake`;
+    if (tierDisplay) tierDisplay.textContent = `${tierName} Stake`;
+    const status = document.getElementById('oppStakeStatus');
+    if (status) { status.textContent = 'Place your bet to lock in the match.'; status.style.color = '#8fa3c4'; }
+    const btn = document.getElementById('btnMatchedStake');
+    if (btn) { btn.disabled = false; btn.style.display = 'flex'; }
+    this._matchedStakeDone = false;
     this.showScreen('opponentFoundScreen');
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
+  }
+
+  updateMatchedStakeScreen({ isHost, hostDeposited, opponentDeposited, bothPresent }) {
+    const myDeposited = isHost ? hostDeposited : opponentDeposited;
+    const oppDeposited = isHost ? opponentDeposited : hostDeposited;
+    const status = document.getElementById('oppStakeStatus');
+    const btn = document.getElementById('btnMatchedStake');
+    if (btn) {
+      btn.disabled = !!myDeposited;
+      if (myDeposited) { btn.innerHTML = '<i data-lucide="check"></i> Bet Placed'; }
+    }
+    if (status) {
+      if (hostDeposited && opponentDeposited) {
+        status.textContent = 'Both stakes locked — entering the arena…';
+        status.style.color = '#4ade80';
+      } else if (myDeposited) {
+        status.textContent = 'Waiting for your opponent to place their bet…';
+        status.style.color = '#ffb24d';
+      } else if (oppDeposited) {
+        status.textContent = 'Your opponent has staked. Place your bet to begin!';
+        status.style.color = '#48e0ff';
+      } else {
+        status.textContent = 'Place your bet to lock in the match.';
+        status.style.color = '#8fa3c4';
+      }
+    }
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
   }
 
   hideOpponentFoundModal() {
