@@ -90,11 +90,10 @@ class CollisionSystem {
           if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'head_clash' });
         }
       } else {
-        // Equal size -> both shrink to start size (NOT die). Untouched by
-        // the small-vs-big rules above - neither dragon is "the small one"
-        // in an equal clash.
-        if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'equal_head' });
-        if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'equal_head' });
+        // Equal size -> both shrink to start size (NOT die), and get shoved
+        // apart (knockback handled in main.js via the `other` reference).
+        if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'equal_head', other: d2 });
+        if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'equal_head', other: d1 });
       }
       return;
     }
@@ -166,8 +165,8 @@ class CollisionSystem {
               if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'body_hit' });
             }
           } else {
-            if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body' });
-            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body' });
+            if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body', other: bodyDragon });
+            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body', other: headDragon });
           }
         }
         return;
