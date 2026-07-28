@@ -57,9 +57,20 @@ class EffectsSystem {
   }
 
   // ==================== SCREEN SHAKE ====================
+  // Callers pass raw intensities tuned for a punchy feel, but with lots of
+  // nearby combat those stack and the arena becomes a blur. We scale every
+  // request down and HARD-CAP the result so even a pile-up of simultaneous
+  // hits can't exceed a comfortable ceiling. Duration is also capped so a
+  // burst of impacts doesn't leave the screen trembling for a full second.
   addShake(intensity, duration) {
-    this.shake.intensity = Math.max(this.shake.intensity, intensity);
-    this.shake.duration = Math.max(this.shake.duration, duration);
+    const SHAKE_SCALE = 0.55;   // overall strength trim (impact still reads)
+    const SHAKE_CAP = 10;       // absolute max intensity, however much stacks
+    const DURATION_CAP = 260;   // ms - keeps shake snappy, not lingering
+    const scaled = intensity * SHAKE_SCALE;
+    // Blend toward the strongest current request rather than hard-replacing,
+    // so rapid repeats don't each restart a full-strength shake.
+    this.shake.intensity = Math.min(SHAKE_CAP, Math.max(this.shake.intensity, scaled));
+    this.shake.duration = Math.min(DURATION_CAP, Math.max(this.shake.duration, duration));
   }
 
   // ==================== VIGNETTE ====================
