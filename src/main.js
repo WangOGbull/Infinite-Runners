@@ -1298,6 +1298,17 @@ class Game {
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
     this._consumeLobbyContext();
     this._clearLastRoom();
+
+    // Drive the exit screen based on what's actually happening:
+    //  - never staked            -> straight to menu (NO refund screen)
+    //  - staked, match NOT started -> refund is coming, show processing
+    //  - staked, match WAS live    -> forfeit (opponent paid), not a refund,
+    //                                 so no refund screen - just exit
+    if ((iStaked || bothStaked) && !matchStarted) {
+      this.uiManager.returnToMenuWithProcessing('titleScreen', 'Processing your refund…');
+    } else {
+      this.uiManager.showScreen('titleScreen');
+    }
   }
 
   startMpGame() {
