@@ -992,6 +992,12 @@
         <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierDot small" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span> Small<br><span class="tierAmt">-- INFINITE</span></button>
         <button class="tierBtn" data-tier="Medium" id="tierMedium"><span class="tierDot medium" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#eab308;"></span> Medium<br><span class="tierAmt">-- INFINITE</span></button>
         <button class="tierBtn" data-tier="High" id="tierHigh"><span class="tierDot high" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> High<br><span class="tierAmt">-- INFINITE</span></button>
+        <button class="tierBtn" data-tier="Custom" id="tierCustom"><span class="tierDot custom" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#a855f7;"></span> Custom<br><span class="tierAmt">Set amount</span></button>
+      </div>
+      <div id="customStakeWrap" style="display:none;margin-top:10px;">
+        <input id="customStakeInput" type="number" inputmode="numeric" min="1000" max="10000000" step="1000" placeholder="Enter amount"
+          style="width:100%;padding:12px 14px;background:rgba(4,9,20,0.7);border:1px solid rgba(168,85,247,0.5);color:#e9d5ff;font-family:'Rajdhani',sans-serif;font-size:16px;letter-spacing:2px;text-align:center;border-radius:2px;outline:none;">
+        <div id="customStakeHint" style="font-family:'Rajdhani',sans-serif;font-size:11px;letter-spacing:0.5px;color:#8fa3c4;text-align:center;margin-top:6px;">Min 1,000 &nbsp;•&nbsp; Max 10,000,000 INFINITE</div>
       </div>
       <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
     </div>
@@ -1022,7 +1028,7 @@
 <!-- ===== LOADING ===== -->
 <div id="loadingScreen" class="screen">
   <div class="loadBox"><div class="infsym">&#8734;</div><div class="orbit1"></div><div class="orbit2"></div></div>
-  <h2>Entering the Arena...</h2>
+  <h2 id="loadingMessage">Entering the Arena...</h2>
   <div class="progbar"><div></div></div>
 </div>
 
