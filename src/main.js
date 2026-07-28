@@ -376,8 +376,35 @@ class Game {
     this.eventBus.on('dragon:shrink', ({ dragon, reason, other }) => {
       this.dragonManager.shrinkDragon(dragon);
       this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#ffaa00', CONFIG.EFFECTS.SHRINK_PARTICLES || 15, CONFIG.EFFECTS.SHRINK_PARTICLE_SPEED || 4, CONFIG.EFFECTS.SHRINK_PARTICLE_LIFE || 500);
-      this.effectsSystem.addShake(8, 200);
-      this.effectsSystem.playTone(200, 'sawtooth', 0.3, 0.15);
+      // Lighter per-hit shake now that addShake caps the total - an equal
+      // clash fires this handler for BOTH dragons, so keeping each call
+      // small prevents the old double-strength jolt.
+      this.effectsSystem.addShake(dragon === this.localDragon ? 6 : 3, 160);
+      this.effectsSystem.playTone(200, 'sawtooth', 0.28, 0.13);
+
+      // Equal-size head clash: previously both just shrank in place, which
+      // felt mushy and unclear. Add a real knockback - shove both dragons
+      // directly apart from the point of contact - plus a brighter spark
+      // burst, so an even clash reads as a genuine collision with weight.
+      if ((reason === 'equal_head' || reason === 'equal_body') && other && other.head) {
+        const dxk = dragon.head.x - other.head.x;
+        const dyk = dragon.head.y - other.head.y;
+        const d = Math.hypot(dxk, dyk) || 1;
+        const KNOCK = 26; // px shove apart
+        const nx = (dxk / d) * KNOCK;
+        const ny = (dyk / d) * KNOCK;
+        dragon.head.x += nx;
+        dragon.head.y += ny;
+        // Drag the front few segments along so the body follows the shove
+        // instead of stretching unnaturally.
+        if (dragon.segments) {
+          for (let s = 0; s < Math.min(3, dragon.segments.length); s++) {
+            dragon.segments[s].x += nx * (1 - s * 0.3);
+            dragon.segments[s].y += ny * (1 - s * 0.3);
+          }
+        }
+        this.effectsSystem.spawnImpactSparks(dragon.head.x, dragon.head.y, '#ffd24d');
+      }
     });
 
     // UPDATED: Dragon death with lives/respawn system
@@ -1390,6 +1417,9 @@ class Game {
     this.state = 'PLAYING';
     this.isPaused = false;
     this.gameStartTime = Date.now();
+    // Let the minimap identify the local player's dragon for the cyan
+    // heading blip (vs red enemy blips).
+    if (this.uiManager.setLocalDragonRef) this.uiManager.setLocalDragonRef(this.localDragon);
 
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
