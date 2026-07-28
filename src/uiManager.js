@@ -530,7 +530,7 @@ class UIManager {
     const startBtn = document.getElementById('lobbyStartBtn');
     if (startBtn) startBtn.addEventListener('click', () => this.eventBus.emit('mp:startGame'));
     const leaveBtn = document.getElementById('btnLeaveRoom');
-    if (leaveBtn) leaveBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); this.returnToMenuWithProcessing('titleScreen', 'Processing your refund…'); });
+    if (leaveBtn) leaveBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); });
     document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
       btn.addEventListener('click', () => { this.eventBus.emit('lobby:arenaSelected', { arenaIndex: parseInt(btn.dataset.arena) }); });
     });
