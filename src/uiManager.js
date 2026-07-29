@@ -537,25 +537,44 @@ class UIManager {
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.disabled) return;
-        this.selectedTier = btn.dataset.tier;
-        const customWrap = document.getElementById('customStakeWrap');
-        if (this.selectedTier === 'Custom') {
-          // Reveal the amount input; emit the tier only once a valid amount
-          // is entered (handled by the input listener below).
-          if (customWrap) customWrap.style.display = 'block';
-          const input = document.getElementById('customStakeInput');
-          if (input) { input.focus(); this._emitCustomTier(input.value); }
-        } else {
-          if (customWrap) customWrap.style.display = 'none';
-          this.eventBus.emit('lobby:tierSelected', { tier: this.selectedTier });
+        const tier = btn.dataset.tier;
+        if (tier === 'Custom') {
+          // Custom opens a small modal (doesn't disturb the layout). The
+          // tier is only committed when the player Confirms a valid amount.
+          this._openCustomStakeModal();
+          return;
         }
+        this.selectedTier = tier;
+        this._applyTierGlow(tier);
+        this.eventBus.emit('lobby:tierSelected', { tier });
       });
     });
-    // Custom amount input: validate live and emit the tier+amount when valid.
-    const customInput = document.getElementById('customStakeInput');
-    if (customInput) {
-      customInput.addEventListener('input', () => this._emitCustomTier(customInput.value));
+
+    // ---- Custom stake modal wiring ----
+    const csmInput = document.getElementById('csmInput');
+    const csmConfirm = document.getElementById('csmConfirm');
+    const csmCancel = document.getElementById('csmCancel');
+    const csmHint = document.getElementById('csmHint');
+    if (csmInput) {
+      csmInput.addEventListener('input', () => {
+        const n = Math.floor(Number(csmInput.value));
+        let ok = false;
+        if (!Number.isFinite(n) || csmInput.value === '') { csmHint.textContent = 'Min 1,000 • Max 10,000,000'; csmHint.style.color = '#8fa3c4'; }
+        else if (n < 1000) { csmHint.textContent = 'Minimum is 1,000 INFINITE'; csmHint.style.color = '#ff8080'; }
+        else if (n > 10000000) { csmHint.textContent = 'Maximum is 10,000,000 INFINITE'; csmHint.style.color = '#ff8080'; }
+        else { csmHint.textContent = `Stake: ${n.toLocaleString()} INFINITE`; csmHint.style.color = '#4ade80'; ok = true; }
+        if (csmConfirm) csmConfirm.disabled = !ok;
+      });
     }
+    if (csmConfirm) csmConfirm.addEventListener('click', () => {
+      const n = Math.floor(Number(csmInput.value));
+      if (!Number.isFinite(n) || n < 1000 || n > 10000000) return;
+      this.selectedTier = 'Custom';
+      this._applyTierGlow('Custom');
+      this._closeCustomStakeModal();
+      this.eventBus.emit('lobby:tierSelected', { tier: 'Custom', customAmount: n });
+    });
+    if (csmCancel) csmCancel.addEventListener('click', () => this._closeCustomStakeModal());
     const depositBtn = document.getElementById('lobbyDepositBtn');
     if (depositBtn) depositBtn.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
     const pauseBtn = document.getElementById('pauseBtn');
@@ -715,29 +734,46 @@ class UIManager {
       if (countEl) countEl.textContent = `${players.length} / ${maxPlayers}`;
       const slotsEl = document.getElementById('lobbySlots');
       if (slotsEl && Array.isArray(players)) {
-        slotsEl.innerHTML = players.map(p => {
-          const dragonKey = (p.dragon || '').toLowerCase();
-          const imgUrl = DRAGON_IMAGES[dragonKey];
-          const icon = imgUrl
-            ? `<img src="${imgUrl}" alt="${dragonKey}" style="width:44px;height:44px;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 0 6px rgba(0,180,216,0.45));">`
-            : `<div class="lobbyPlayerIcon" style="flex:0 0 auto;">🐉</div>`;
-          return `
-          <div class="lobbyPlayerCard ${p.isLocal ? 'local' : ''}" style="display:flex;align-items:center;gap:10px;min-width:0;">
-            ${icon}
-            <div class="lobbyPlayerInfo" style="flex:1;min-width:0;">
-              <div class="lobbyPlayerName">${p.isHost ? 'Host' : (p.name || 'Player')}${p.isLocal ? ' (You)' : ''}</div>
-              <div class="lobbyPlayerDragon">${p.dragon || ''}</div>
-            </div>
-            ${p.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span> Staked</span>' : ''}
+        // Always render exactly two rows: Host (crown banner) and Opponent
+        // (shield banner). The host is whoever's isHost; the opponent is the
+        // other player if present, otherwise a "joining…" placeholder.
+        const host = players.find(p => p.isHost) || players[0];
+        const opp = players.find(p => !p.isHost && p !== host);
+
+        const portrait = (p) => {
+          const key = (p && p.dragon || '').toLowerCase();
+          const url = key && DRAGON_IMAGES[key];
+          return url
+            ? `<img src="${url}" alt="${key}">`
+            : `<div class="lobbyPlayerIcon">🐉</div>`;
+        };
+
+        const hostRow = host ? `
+          <div class="lobbyPlayerCard local">
+            ${portrait(host)}
+            <div class="lobbyPlayerName">HOST${host.isLocal ? ' (YOU)' : ''}</div>
+            <div class="lobbyPlayerDragon">${(host.dragon || '').toUpperCase()}</div>
+            <div class="lobbyPlayerRole"><span class="roleCrown">&#128081;</span> ROOM LEADER</div>
+            ${host.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span></span>' : ''}
+          </div>` : '';
+
+        const oppRow = opp ? `
+          <div class="lobbyPlayerCard opponent">
+            ${portrait(opp)}
+            <div class="lobbyPlayerName">OPPONENT${opp.isLocal ? ' (YOU)' : ''}</div>
+            <div class="lobbyPlayerDragon">${(opp.dragon || '').toUpperCase()}</div>
+            <div class="lobbyPlayerRole"><span class="roleShield">&#128737;</span> CONTENDER</div>
+            ${opp.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span></span>' : ''}
+          </div>` : `
+          <div class="lobbyPlayerCard opponent waiting">
+            <div class="lobbyPlayerIcon empty"></div>
+            <div class="lobbyPlayerName joining">Opponent joining<span class="joinDots"><span>.</span><span>.</span><span>.</span></span></div>
           </div>`;
-        }).join('');
+
+        slotsEl.innerHTML = hostRow + oppRow;
       }
       const startBtn = document.getElementById('lobbyStartBtn');
       const waitingText = document.getElementById('lobbyWaitingText');
-      // Start Game only ever appears for the HOST and only once BOTH
-      // players have staked (tracked by updateStakingUI, which runs right
-      // after this on every snapshot). Until then the button slot belongs
-      // to Place Bet.
       if (startBtn) startBtn.style.display = (isHost && this._stakingBothDeposited) ? 'flex' : 'none';
       if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
       if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
@@ -1177,6 +1213,31 @@ class UIManager {
     }
     if (hint) { hint.textContent = `Stake: ${n.toLocaleString()} INFINITE`; hint.style.color = '#4ade80'; }
     this.eventBus.emit('lobby:tierSelected', { tier: 'Custom', customAmount: n });
+  }
+
+  _openCustomStakeModal() {
+    const m = document.getElementById('customStakeModal');
+    const input = document.getElementById('csmInput');
+    const confirm = document.getElementById('csmConfirm');
+    const hint = document.getElementById('csmHint');
+    if (input) input.value = '';
+    if (confirm) confirm.disabled = true;
+    if (hint) { hint.textContent = 'Min 1,000 • Max 10,000,000'; hint.style.color = '#8fa3c4'; }
+    if (m) m.classList.add('open');
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+  _closeCustomStakeModal() {
+    const m = document.getElementById('customStakeModal');
+    if (m) m.classList.remove('open');
+  }
+  _applyTierGlow(tier) {
+    document.querySelectorAll('#tierBtns .tierBtn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tier === tier);
+      b.classList.remove('glow-small','glow-medium','glow-high','glow-custom');
+    });
+    const map = { Small: 'glow-small', Medium: 'glow-medium', High: 'glow-high', Custom: 'glow-custom' };
+    const el = document.querySelector(`#tierBtns .tierBtn[data-tier="${tier}"]`);
+    if (el && map[tier]) el.classList.add(map[tier]);
   }
 
   returnToMenuWithProcessing(destination = 'titleScreen', message = 'Processing…') {
