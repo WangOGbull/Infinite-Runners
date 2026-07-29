@@ -750,6 +750,59 @@
   #lobbyScreen.matchedLobby #lobbyTierSelector,
   #lobbyScreen.matchedLobby #lobbyArenaSelector { display: none !important; }
   #lobbyScreen.matchedLobby .lobbyBox { padding-top: 28px; }
+
+  /* ===== CUSTOM STAKE MODAL ===== */
+  .customStakeModal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; }
+  .customStakeModal.open { display: flex; }
+  .customStakeModal .csmBackdrop { position: absolute; inset: 0; background: rgba(3,5,10,0.78); backdrop-filter: blur(3px); }
+  .customStakeModal .csmBox {
+    position: relative; width: min(360px, calc(100vw - 40px)); padding: 22px 20px 18px;
+    background: linear-gradient(180deg, #141019 0%, #0b0810 100%);
+    border: 1px solid rgba(168,85,247,0.5); border-radius: 4px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 40px rgba(168,85,247,0.15);
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+    text-align: center;
+  }
+  .customStakeModal .csmTitle { font-family: 'Cinzel Decorative', serif; font-weight: 700; font-size: 20px; letter-spacing: 2px; color: #d8b4fe; text-shadow: 0 0 18px rgba(168,85,247,0.4); margin-bottom: 4px; }
+  .customStakeModal .csmSub { font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 1px; color: #8fa3c4; text-transform: uppercase; margin-bottom: 16px; }
+  .customStakeModal #csmInput {
+    width: 100%; padding: 13px 14px; background: rgba(4,6,12,0.9); border: 1px solid rgba(168,85,247,0.55);
+    color: #e9d5ff; font-family: 'Rajdhani', sans-serif; font-size: 18px; letter-spacing: 3px; text-align: center;
+    border-radius: 0; outline: none; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  }
+  .customStakeModal #csmInput:focus { border-color: #c084fc; box-shadow: 0 0 14px rgba(168,85,247,0.35); }
+  .customStakeModal .csmHint { font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 0.5px; color: #8fa3c4; margin: 8px 0 16px; }
+  .customStakeModal .csmActions { display: flex; gap: 10px; }
+  .customStakeModal .csmActions button { flex: 1; min-height: 44px; font-family: 'Cinzel Decorative', serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; cursor: pointer; border-radius: 0; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); transition: filter .15s; }
+  .customStakeModal .csmCancel { background: transparent; border: 1px solid rgba(160,110,120,0.5); color: #c99; }
+  .customStakeModal .csmCancel:hover { border-color: #e08; color: #fbb; }
+  .customStakeModal .csmConfirm { background: linear-gradient(180deg, #c084fc, #7c3aed); border: none; color: #1a0733; }
+  .customStakeModal .csmConfirm:hover:not(:disabled) { filter: brightness(1.12); }
+  .customStakeModal .csmConfirm:disabled { filter: grayscale(0.7); opacity: 0.5; cursor: not-allowed; }
+
+  /* ===== PER-TIER SELECTION GLOW ===== */
+  #tierBtns .tierBtn.glow-small  { border-color: #22c55e !important; box-shadow: 0 0 22px rgba(34,197,94,0.55), inset 0 0 20px rgba(34,197,94,0.18) !important; }
+  #tierBtns .tierBtn.glow-medium { border-color: #eab308 !important; box-shadow: 0 0 22px rgba(234,179,8,0.55), inset 0 0 20px rgba(234,179,8,0.18) !important; }
+  #tierBtns .tierBtn.glow-high   { border-color: #ef4444 !important; box-shadow: 0 0 22px rgba(239,68,68,0.55), inset 0 0 20px rgba(239,68,68,0.18) !important; }
+  #tierBtns .tierBtn.glow-custom { border-color: #a855f7 !important; box-shadow: 0 0 22px rgba(168,85,247,0.6), inset 0 0 20px rgba(168,85,247,0.2) !important; }
+
+  /* ===== OPPONENT JOINING STATE + ROLE TEXT ===== */
+  #lobbySlots .lobbyPlayerCard.opponent.waiting { display: flex; align-items: center; }
+  #lobbySlots .lobbyPlayerName.joining { position: static; color: #8fa3c4 !important; font-family: 'Rajdhani', sans-serif !important; font-weight: 600 !important; letter-spacing: 1px; text-transform: none; left: 22%; }
+  #lobbySlots .joinDots span { animation: joinBlink 1.4s infinite both; }
+  #lobbySlots .joinDots span:nth-child(2) { animation-delay: 0.2s; }
+  #lobbySlots .joinDots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes joinBlink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+  #lobbySlots .lobbyPlayerRole {
+    position: absolute; left: 22%; top: 74%;
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: clamp(9px, 2.4vw, 11px);
+    letter-spacing: 1.5px; text-transform: uppercase; color: #c9a86a;
+    display: flex; align-items: center; gap: 4px;
+  }
+  #lobbySlots .lobbyPlayerRole .roleCrown, #lobbySlots .lobbyPlayerRole .roleShield { font-size: 11px; }
+  #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon.empty { background: transparent; }
+  /* Contain dragon portrait fully inside the octagon (no spill) */
+  #lobbySlots .lobbyPlayerCard img { object-fit: contain !important; }
 </style>
 <base target="_blank">
 <base target="_blank">
@@ -996,6 +1049,19 @@
 
 <!-- ===== LOBBY (manual rooms only) ===== -->
 <div id="lobbyScreen" class="screen">
+  <div id="customStakeModal" class="customStakeModal">
+    <div class="csmBackdrop"></div>
+    <div class="csmBox">
+      <div class="csmTitle">Custom Stake</div>
+      <div class="csmSub">Enter your wager (INFINITE)</div>
+      <input id="csmInput" type="number" inputmode="numeric" min="1000" max="10000000" step="1000" placeholder="Enter amount" />
+      <div id="csmHint" class="csmHint">Min 1,000 &nbsp;•&nbsp; Max 10,000,000</div>
+      <div class="csmActions">
+        <button id="csmCancel" class="csmCancel">Cancel</button>
+        <button id="csmConfirm" class="csmConfirm" disabled>Confirm</button>
+      </div>
+    </div>
+  </div>
   <div class="lobbyBox">
     <h2>Game Lobby</h2>
     <div class="roomCodeRow"><span class="roomLabel">Room Code:</span><span id="roomCodeDisplay">------</span></div>
