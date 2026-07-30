@@ -498,7 +498,22 @@ class UIManager {
     const arenaBack = document.getElementById('btnArenaBack');
     if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
     const mpCreate = document.getElementById('btnMpCreate');
-    if (mpCreate) mpCreate.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.eventBus.emit('mp:createRoom', { mode: 'FFA' }); });
+    if (mpCreate) mpCreate.addEventListener('click', () => { this._openModeSelectModal(); });
+    // Mode-select modal (styled like Custom Stake Modal): commits the chosen
+    // mode BEFORE createRoom fires, so the room is set up right the first time.
+    const mpmCancel = document.getElementById('mpmCancel');
+    if (mpmCancel) mpmCancel.addEventListener('click', () => this._closeModeSelectModal());
+    const mpmBackdrop = document.querySelector('#mpModeSelectModal .mpmBackdrop');
+    if (mpmBackdrop) mpmBackdrop.addEventListener('click', () => this._closeModeSelectModal());
+    document.querySelectorAll('#mpModeSelectModal .mpmCard').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const chosen = btn.getAttribute('data-mpmode');
+        if (!chosen) return;
+        this.selectedMpMode = chosen;
+        this._closeModeSelectModal();
+        this.eventBus.emit('mp:createRoom', { mode: chosen });
+      });
+    });
     const mpSearchBattle = document.getElementById('btnMpSearchBattle');
     if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.showScreen('matchmakingTierScreen'); });
 
@@ -728,19 +743,23 @@ class UIManager {
     });
   }
 
-  updateLobby(players = [], maxPlayers = 4, roomCode = '', isHost = false) {
+  updateLobby(players = [], maxPlayers = 4, roomCode = '', isHost = false, mode = null) {
     try {
       const codeEl = document.getElementById('roomCodeDisplay');
       if (codeEl && roomCode) codeEl.textContent = roomCode;
       const countEl = document.getElementById('lobbyPlayerCount');
       if (countEl) countEl.textContent = `${players.length} / ${maxPlayers}`;
+
+      // Derive mode if not passed: 2 slots => 1v1, otherwise FFA.
+      const inferredMode = (maxPlayers <= 2) ? '1v1' : 'FFA';
+      const roomMode = mode || inferredMode;
+      const isFFA = roomMode !== '1v1';
+      const cap = isFFA ? Math.max(maxPlayers, 4) : 2;
+
       const slotsEl = document.getElementById('lobbySlots');
       if (slotsEl && Array.isArray(players)) {
-        // Always render exactly two rows: Host (crown banner) and Opponent
-        // (shield banner). The host is whoever's isHost; the opponent is the
-        // other player if present, otherwise a "joining…" placeholder.
-        const host = players.find(p => p.isHost) || players[0];
-        const opp = players.find(p => !p.isHost && p !== host);
+        const host = players.find(p => p.isHost) || players[0] || null;
+        const others = players.filter(p => p !== host);
 
         const portrait = (p) => {
           const key = (p && p.dragon || '').toLowerCase();
@@ -750,30 +769,102 @@ class UIManager {
             : `<div class="lobbyPlayerIcon">🐉</div>`;
         };
 
-        const hostRow = host ? `
-          <div class="lobbyPlayerCard local">
-            ${portrait(host)}
-            <div class="lobbyPlayerName">HOST${host.isLocal ? ' (YOU)' : ''}</div>
-            <div class="lobbyPlayerDragon">${(host.dragon || '').toUpperCase()}</div>
-            <div class="lobbyPlayerRole"><span class="roleCrown">&#128081;</span> ROOM LEADER</div>
-            ${host.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span></span>' : ''}
-          </div>` : '';
+        // Kick chip: only shown for HOST viewer, ONLY on UNSTAKED slots
+        // (never on staked players — that would break the refund flow).
+        // Rendered as a real button with a data attribute the delegate uses.
+        const kickChip = (p) => {
+          if (!isHost) return '';
+          if (!p || p.isHost) return '';
+          if (p.deposited) return '';
+          const pid = p.id || p.playerId || '';
+          return `<button class="kickBtn" data-kick-id="${pid}" title="Kick unstaked player">Kick</button>`;
+        };
 
-        const oppRow = opp ? `
-          <div class="lobbyPlayerCard opponent">
-            ${portrait(opp)}
-            <div class="lobbyPlayerName">OPPONENT${opp.isLocal ? ' (YOU)' : ''}</div>
-            <div class="lobbyPlayerDragon">${(opp.dragon || '').toUpperCase()}</div>
-            <div class="lobbyPlayerRole"><span class="roleShield">&#128737;</span> CONTENDER</div>
-            ${opp.deposited ? '<span class="depositBadge confirmed"><span class="material-icons">check_circle</span></span>' : ''}
-          </div>` : `
-          <div class="lobbyPlayerCard opponent waiting">
-            <div class="lobbyPlayerIcon empty"></div>
-            <div class="lobbyPlayerName joining">Opponent joining<span class="joinDots"><span>.</span><span>.</span><span>.</span></span></div>
+        const depositChip = (p) => {
+          if (!p) return '';
+          if (p.deposited) return '<span class="depositBadge confirmed">STAKED</span>';
+          if (p.tier || p.dragon) return '<span class="depositBadge pending">WAITING</span>';
+          return '';
+        };
+
+        const roleLabel = (roleClass, i) => {
+          if (roleClass === 'role-host') return '<span class="roleCrown">👑</span> ROOM LEADER';
+          if (roleClass === 'role-opponent') return '<span class="roleShield">🛡</span> CONTENDER';
+          return `<span class="roleShield">🛡</span> CHALLENGER ${i}`;
+        };
+
+        // Build a row for a known player.
+        const filledRow = (p, roleClass, roleIdx) => `
+          <div class="lobbyPlayerCard ${roleClass}">
+            ${portrait(p)}
+            <div class="lobbyPlayerBody">
+              <div class="lobbyPlayerName">${(p.name || (roleClass === 'role-host' ? 'HOST' : 'CHALLENGER')).toUpperCase()}${p.isLocal ? ' (YOU)' : ''}</div>
+              <div class="lobbyPlayerDragon">${(p.dragon || '').toUpperCase()}</div>
+              <div class="lobbyPlayerRole">${roleLabel(roleClass, roleIdx)}</div>
+            </div>
+            <div class="lobbyPlayerRight">
+              ${depositChip(p)}
+              ${kickChip(p)}
+            </div>
           </div>`;
 
-        slotsEl.innerHTML = hostRow + oppRow;
+        // Build an empty slot. In 1v1, this becomes the "joining…" placeholder.
+        const emptyRow = (roleClass, roleIdx) => {
+          if (roleClass === 'role-opponent' && !isFFA) {
+            return `
+              <div class="lobbyPlayerCard opponent role-opponent empty waiting">
+                <div class="lobbyPlayerIcon empty"></div>
+                <div class="lobbyPlayerBody">
+                  <div class="lobbyPlayerName joining">Opponent joining<span class="joinDots"><span>.</span><span>.</span><span>.</span></span></div>
+                </div>
+              </div>`;
+          }
+          return `
+            <div class="lobbyPlayerCard ${roleClass} empty">
+              <div class="lobbyPlayerIcon empty"></div>
+              <div class="lobbyPlayerBody">
+                <div class="lobbyPlayerName joining">Waiting for challenger<span class="joinDots"><span>.</span><span>.</span><span>.</span></span></div>
+                <div class="lobbyPlayerRole">${roleLabel(roleClass, roleIdx)}</div>
+              </div>
+            </div>`;
+        };
+
+        let html = '';
+        // Slot 0 = host
+        html += host ? filledRow(host, 'role-host', 0) : emptyRow('role-host', 0);
+
+        if (!isFFA) {
+          // 1v1: single opponent slot
+          const opp = others[0];
+          html += opp ? filledRow({ ...opp, isLocal: opp.isLocal }, 'role-opponent', 1) : emptyRow('role-opponent', 1);
+        } else {
+          // FFA: three challenger slots (deep pink for 2 & 3, blue for slot 1)
+          const roleClasses = ['role-opponent', 'role-ffa2', 'role-ffa3'];
+          for (let i = 0; i < 3; i++) {
+            const p = others[i];
+            const rc = roleClasses[i];
+            html += p ? filledRow(p, rc, i + 1) : emptyRow(rc, i + 1);
+          }
+        }
+
+        slotsEl.innerHTML = html;
       }
+
+      // Delegate kick clicks once — the .kickBtn elements are re-rendered
+      // every snapshot so binding directly would leak. One capture-phase
+      // listener on the slots container handles the whole lifecycle.
+      const slotsRoot = document.getElementById('lobbySlots');
+      if (slotsRoot && !this._kickBound) {
+        this._kickBound = true;
+        slotsRoot.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest && e.target.closest('.kickBtn');
+          if (!btn) return;
+          e.preventDefault(); e.stopPropagation();
+          const pid = btn.getAttribute('data-kick-id');
+          if (pid) this.eventBus.emit('lobby:kickPlayer', { playerId: pid });
+        }, true);
+      }
+
       const startBtn = document.getElementById('lobbyStartBtn');
       const waitingText = document.getElementById('lobbyWaitingText');
       if (startBtn) startBtn.style.display = (isHost && this._stakingBothDeposited) ? 'flex' : 'none';
@@ -1231,6 +1322,41 @@ class UIManager {
   _closeCustomStakeModal() {
     const m = document.getElementById('customStakeModal');
     if (m) m.classList.remove('open');
+  }
+  _openModeSelectModal() {
+    const m = document.getElementById('mpModeSelectModal');
+    if (m) m.classList.add('open');
+    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20);
+  }
+  _closeModeSelectModal() {
+    const m = document.getElementById('mpModeSelectModal');
+    if (m) m.classList.remove('open');
+  }
+
+  // ===== FFA 60s host auto-start countdown =====
+  // Distinct from showLobbyCountdown (the 10s pre-game bar). This one fires
+  // when all N FFA players have staked. The host sees the Start Game button
+  // AND this bar; if the host never taps Start, main.js emits mp:startGame
+  // at 0 so the other 3 aren't stuck on an AFK host.
+  showFFACountdown(seconds = 60) {
+    const el = document.getElementById('ffaStartCountdown');
+    const num = document.getElementById('ffaCdSeconds');
+    const fill = document.getElementById('ffaCdFill');
+    this._ffaCdTotal = seconds;
+    if (el) el.style.display = 'block';
+    if (num) num.textContent = seconds;
+    if (fill) fill.style.width = '100%';
+  }
+  updateFFACountdown(seconds) {
+    const num = document.getElementById('ffaCdSeconds');
+    const fill = document.getElementById('ffaCdFill');
+    const total = this._ffaCdTotal || 60;
+    if (num) num.textContent = Math.max(0, seconds);
+    if (fill) fill.style.width = `${Math.max(0, (seconds / total) * 100)}%`;
+  }
+  hideFFACountdown() {
+    const el = document.getElementById('ffaStartCountdown');
+    if (el) el.style.display = 'none';
   }
   _applyTierGlow(tier) {
     document.querySelectorAll('#tierBtns .tierBtn').forEach(b => {
