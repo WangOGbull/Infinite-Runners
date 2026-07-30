@@ -730,8 +730,6 @@ class UIManager {
 
   updateLobby(players = [], maxPlayers = 4, roomCode = '', isHost = false) {
     try {
-      const coinEl = document.getElementById('lobbyCoinAmount');
-      if (coinEl) coinEl.textContent = this.playerCoins.toLocaleString();
       const codeEl = document.getElementById('roomCodeDisplay');
       if (codeEl && roomCode) codeEl.textContent = roomCode;
       const countEl = document.getElementById('lobbyPlayerCount');
