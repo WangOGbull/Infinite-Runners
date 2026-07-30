@@ -346,6 +346,7 @@ class Game {
     this.eventBus.on('mp:joinRoom', ({ code }) => this.joinRoom(code));
     this.eventBus.on('mp:leaveRoom', () => this.leaveRoom());
     this.eventBus.on('mp:startGame', () => this.startMpGame());
+    this.eventBus.on('lobby:kickPlayer', ({ playerId }) => this.kickPlayer(playerId));
 
     this.eventBus.on('game:pause', () => this.pauseGame());
     this.eventBus.on('game:resume', () => this.resumeGame());
@@ -1085,7 +1086,12 @@ class Game {
     // stake-confirm screen instead of the full room-code lobby.
     this._matchedMode = !!matched;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
-    const maxPlayers = matched ? 2 : (CONFIG.MAX_PLAYERS[this.selectedMpMode] || 4);
+    // Local canonical map so 1v1 always seats 2 and FFA always seats 4,
+    // independent of whatever CONFIG.MAX_PLAYERS may have (or not have).
+    const MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
+    const maxPlayers = matched
+      ? 2
+      : (MP_MAX[this.selectedMpMode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[this.selectedMpMode]) || 4);
 
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
@@ -1110,8 +1116,8 @@ class Game {
       // When pre-creating on pairing (_suppressMatchedNav), we set up the
       // room + listener but DON'T navigate - Proceed shows the lobby.
       this.uiManager.updateLobby(
-        [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, deposited: false }],
-        maxPlayers, this.roomCode, true
+        [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, isHost: true, deposited: false }],
+        maxPlayers, this.roomCode, true, '1v1'
       );
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex || 0, true);
       if (!this._suppressMatchedNav) {
@@ -1126,10 +1132,11 @@ class Game {
     }
 
     this.uiManager.updateLobby(
-      [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, deposited: false }],
+      [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, isHost: true, deposited: false }],
       maxPlayers,
       this.roomCode,
-      true
+      true,
+      this.selectedMpMode
     );
     this.uiManager.updateLobbyArena(0, true);
     this.uiManager.showScreen('lobbyScreen');
@@ -1156,7 +1163,8 @@ class Game {
         this.roomRef = null;
         return;
       }
-      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
+      const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
+      const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
       const playerCount = Object.keys(data.players || {}).length;
       if (playerCount >= roomMax) {
         const err = document.getElementById('mpJoinError');
@@ -1211,26 +1219,47 @@ class Game {
         this.lobbyArenaIndex = data.arenaIndex;
         this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
       }
+      // The player's Firebase key is what the host needs to kick them, and
+      // FFA cards need per-player deposited flags (the 2-player room-level
+      // staking flags don't cover challenger slots 3/4). Both are surfaced
+      // here so updateLobby can render kick chips and STAKED badges correctly.
       const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
         ...p,
+        id,
         isLocal: id === this.localPlayerId,
         isHost: id === 'local', // the host's Firebase key is always 'local', regardless of which browser is viewing
-        deposited: id === 'local' ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited,
+        deposited: id === 'local'
+          ? this.stakingState.hostDeposited
+          : (p && p.deposited !== undefined ? !!p.deposited : this.stakingState.opponentDeposited),
       }));
-      const roomMax = data.maxPlayers || CONFIG.MAX_PLAYERS[data.mode] || 4;
+      const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
+      const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
+      const roomMode = data.mode || this.selectedMpMode || (roomMax <= 2 ? '1v1' : 'FFA');
 
       // Matched games use the SAME lobby UI as Create Room, with matched
       // styling (bg shown, code + pickers hidden). Both paired players are
       // equals - they stake, and the instant BOTH stakes are in, the match
       // AUTO-STARTS (no manual Start tap). The room owner (a hidden
       // technical role, not shown to players) triggers the start.
-      this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost);
+      this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost, roomMode);
       this._refreshStakingUI();
       if (this._matchedMode && this.stakingState.hostDeposited && this.stakingState.opponentDeposited
           && this.isHost && this.state !== 'PLAYING' && data.status !== 'playing') {
         // Both staked - auto-start for both clients.
         this.startMpGame();
       }
+
+      // FFA auto-start: when the pot is full and everyone has staked, run a
+      // 60s local countdown on every client. Host also sees Start Game and
+      // can end it early; if the timer hits 0, host emits mp:startGame so
+      // the other 3 aren't stuck on an AFK host. Guests just watch — their
+      // expiry does nothing; they'll pick up status='playing' from the snap.
+      if (this._shouldRunFFACountdown(data, players, roomMode)) {
+        this._startFFACountdown();
+      } else {
+        this._stopFFACountdown();
+      }
+
       if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
         const gameConfig = data.gameConfig || {};
         this.selectedMode = gameConfig.mode || data.mode || 'FFA';
@@ -1250,6 +1279,79 @@ class Game {
     this.createRoom(this.selectedMpMode || 'FFA', tier, true);
     this._suppressMatchedNav = false;
     if (this.roomCode && this.matchmaking) this.matchmaking.announceRoomReady(this.roomCode);
+  }
+
+  // Host-only: remove an unstaked player from the room. Kicking a STAKED
+  // player would strand their tokens (custodial hot-wallet model refunds
+  // on room-remove, not on individual player-remove), so the UI only ever
+  // shows the kick button on unstaked slots — this method double-checks
+  // the same invariant before writing to Firebase.
+  kickPlayer(playerId) {
+    if (!this.isHost || !this.roomRef || !playerId) return;
+    if (playerId === 'local') return; // host can't kick themselves
+    const p = (this.roomPlayers && this.roomPlayers[playerId]) || null;
+    // Staking is tracked at the room level (hostDeposited / opponentDeposited)
+    // in the 2-player era; for FFA the per-player deposited flag lives on the
+    // player record itself. Refuse if either signal says "staked".
+    const staked = !!(p && (p.deposited || p.staked));
+    if (staked) {
+      console.warn('kickPlayer: refusing to kick staked player', playerId);
+      return;
+    }
+    try {
+      this.roomRef.child('players/' + playerId).remove();
+    } catch (e) { console.warn('kickPlayer error:', e); }
+  }
+
+  // ===== FFA 60s host auto-start countdown =====
+  // Purely local timer on every client. Every client renders the same UI so
+  // all 4 dragons see the same visible clock, but only the HOST's expiry
+  // actually emits mp:startGame — guests are passive observers who react to
+  // status='playing' the same way they always do. No Firebase schema
+  // changes; the countdown is derived from the existing "all staked" signal.
+  _shouldRunFFACountdown(roomData, players, roomMode) {
+    if (roomMode === '1v1') return false;
+    if (!roomData || roomData.status === 'playing') return false;
+    if (this._matchedMode) return false; // matched games auto-start on both stakes
+    if (!Array.isArray(players) || players.length < 2) return false;
+    // Everyone in the room is staked. In FFA the pot is only "full" when
+    // maxPlayers seats are filled AND every seated player has deposited.
+    const maxPlayers = roomData.maxPlayers || 4;
+    if (players.length < maxPlayers) return false;
+    return players.every(p => !!p.deposited);
+  }
+  _startFFACountdown() {
+    if (this._ffaCountdownActive) return;
+    this._ffaCountdownActive = true;
+    this._ffaCountdownSecs = 60;
+    if (this.uiManager && this.uiManager.showFFACountdown) {
+      this.uiManager.showFFACountdown(60);
+    }
+    this._ffaCountdownTimer = setInterval(() => {
+      this._ffaCountdownSecs -= 1;
+      if (this.uiManager && this.uiManager.updateFFACountdown) {
+        this.uiManager.updateFFACountdown(this._ffaCountdownSecs);
+      }
+      if (this._ffaCountdownSecs <= 0) {
+        this._stopFFACountdown();
+        // Only the host actually starts the game. Guests just wait for the
+        // 'playing' status to arrive via the room snapshot.
+        if (this.isHost && this.state !== 'PLAYING') {
+          this.startMpGame();
+        }
+      }
+    }, 1000);
+  }
+  _stopFFACountdown() {
+    if (this._ffaCountdownTimer) {
+      clearInterval(this._ffaCountdownTimer);
+      this._ffaCountdownTimer = null;
+    }
+    this._ffaCountdownActive = false;
+    this._ffaCountdownSecs = 0;
+    if (this.uiManager && this.uiManager.hideFFACountdown) {
+      this.uiManager.hideFFACountdown();
+    }
   }
 
   leaveRoom() {
@@ -1277,6 +1379,7 @@ class Game {
       });
     }
     this.stopNetworkSync();
+    this._stopFFACountdown();
     if (this.roomRef) {
       this.roomRef.off();
       if (this.isHost) {
