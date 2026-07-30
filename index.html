@@ -808,6 +808,24 @@
   #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon.empty { background: transparent; }
   /* Contain dragon portrait fully inside the octagon (no spill) */
   #lobbySlots .lobbyPlayerCard img { object-fit: contain !important; }
+
+  /* ===== LOBBY SCROLL HINT (glowing down arrow) ===== */
+  #lobbyScrollHint {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    width: 44px; height: 44px; border-radius: 50%; z-index: 1500; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle, rgba(201,168,76,0.25), rgba(10,14,22,0.6));
+    border: 1px solid rgba(201,168,76,0.6); color: #ffd98a;
+    box-shadow: 0 0 18px rgba(201,168,76,0.5);
+    animation: scrollHintBounce 1.6s ease-in-out infinite;
+    transition: opacity .3s;
+  }
+  #lobbyScrollHint i { width: 24px; height: 24px; }
+  @keyframes scrollHintBounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
+  /* Extra breathing room so the Opponent frame + Leave Room sit below the
+     fold (they're revealed by scrolling, per the intended flow). */
+  #lobbyScreen #lobbySlots { margin-top: 4px; }
+  #lobbyScreen .lobbyActions { padding-bottom: 60px; }
 </style>
 <base target="_blank">
 <base target="_blank">
