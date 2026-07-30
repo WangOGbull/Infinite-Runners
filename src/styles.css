@@ -218,7 +218,7 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 /* ==================== LOBBY ==================== */
 #lobbyScreen{background:linear-gradient(180deg,#030814,#0a1628,#06122e)}
-#lobbyScreen .lobbyBox{width:92%;max-width:500px;border-radius:20px;padding:28px 24px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.18);text-align:center}
+#lobbyScreen .lobbyBox{width:92%;max-width:500px;border-radius:20px;padding:8px 24px 24px;background:linear-gradient(180deg,rgba(18,30,55,0.98),rgba(10,18,35,0.99));border:1px solid rgba(0,180,216,0.18);text-align:center}
 #lobbyScreen h2{font-family:'Cinzel Decorative',cursive;font-size:20px;letter-spacing:3px;color:#48cae4;margin-bottom:12px;text-shadow:0 0 12px rgba(72,202,228,0.35)}
 .roomCodeRow{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px}
 #roomCodeDisplay{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;letter-spacing:6px;color:#48cae4;text-shadow:0 0 12px rgba(72,202,228,0.4);padding:8px 20px;border-radius:12px;border:1px solid rgba(0,180,216,0.25);background:rgba(0,119,182,0.1);cursor:pointer;user-select:all;transition:all .2s}
