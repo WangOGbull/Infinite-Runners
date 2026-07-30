@@ -539,11 +539,19 @@
     .bootTitle { font-size: 22px; letter-spacing: 3px; }
     .bootSub { font-size: 11px; letter-spacing: 6px; margin-bottom: 26px; }
   }
-  /* ==================== LOBBY — DRAGON AGE ART ASSETS ====================
-     Rebuilt to use the committed /lobby/*.png artwork as the background and
-     framed panels, matching the approved mockup. Every existing element ID
-     and class is preserved so all lobby JS keeps working unchanged. */
-  #lobbyScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+  /* ==================== LOBBY — CSS-ONLY (v40) ====================
+     Every framed panel is pure CSS. Only /lobby/lobby-bg.png is used as the
+     screen background. Arena thumbnails remain image content (arena_*.png)
+     because they preview the actual arenas. All frame PNGs
+     (room-code-frame, stake-tier, arena-select, player-banner-*, back,
+     start-game-btn) are DROPPED — they never aligned across screens.
+     Color language: obsidian panels, chevron clips, deep red/blue/pink
+     glowing borders per role/dragon, Cinzel gold headings — matches the
+     Custom Stake Modal (untouched). */
+  #lobbyScreen {
+    overflow-y: auto !important; -webkit-overflow-scrolling: touch;
+    padding-top: 70px; /* Kimi scroll fix: keep header + wallet clear */
+  }
   #lobbyScreen.active {
     display: flex; align-items: flex-start !important; justify-content: center;
     background: #05060c url('/lobby/lobby-bg.png') top center / cover no-repeat !important;
@@ -551,86 +559,119 @@
   #lobbyScreen .lobbyBox {
     position: relative;
     width: min(600px, calc(100vw - 16px));
-    margin: max(10px, env(safe-area-inset-top)) auto calc(22px + env(safe-area-inset-bottom));
-    padding: 14px 12px 20px;
+    margin: max(6px, env(safe-area-inset-top)) auto calc(22px + env(safe-area-inset-bottom));
+    padding: 12px 12px 24px;
     max-height: none; overflow: visible;
-    background: linear-gradient(180deg, rgba(6,9,16,0) 0%, rgba(6,9,16,0.55) 30%, rgba(6,9,16,0.92) 100%) !important;
+    background: linear-gradient(180deg, rgba(4,6,12,0) 0%, rgba(4,6,12,0.55) 25%, rgba(4,6,12,0.94) 100%) !important;
     border: none !important; box-shadow: none !important; border-radius: 0 !important;
     backdrop-filter: none;
   }
-  /* ----- Room code: dragon-head plaque frame ----- */
-  #lobbyScreen .roomCodeRow {
-    position: relative; display: block;
-    width: 100%; max-width: 380px; height: 92px; margin: 0 auto;
-    background: url('/lobby/room-code-frame.png') center / contain no-repeat;
+
+  /* ----- Top header (Kimi mode-select header — kept, restyled) ----- */
+  .lobbyTopHeader {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; max-width: 560px; margin: 0 auto 8px; padding: 0 4px;
+    position: relative; z-index: 10; min-height: 34px;
   }
-  #lobbyScreen .roomLabel { display: none; }
-  /* Number sits in the frame's dark box (middle of the plaque). */
-  #lobbyScreen #roomCodeDisplay {
-    position: absolute; left: 12%; right: 12%; top: 50%; transform: translateY(-50%); text-align: center;
-    font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
-    font-size: clamp(20px, 6vw, 32px) !important; letter-spacing: 6px !important;
-    color: #ffb24d !important; text-shadow: 0 0 20px rgba(255,160,70,0.9), 0 2px 4px #000; z-index: 5;
-    white-space: nowrap;
-  }
-  #lobbyScreen .lobbyMeta {
-    position: relative; text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600;
-    font-size: clamp(11px, 3vw, 13px); letter-spacing: 3px; color: #b9a888;
-    text-transform: uppercase; margin: 6px 0 14px; z-index: 2;
-  }
-  /* ----- Mode selector ----- */
-  #lobbyScreen #modeSelectorHost {
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px;
-    margin: 6px 0 6px; padding: 10px;
-    background: linear-gradient(180deg, rgba(14,12,20,0.7), rgba(8,7,12,0.8));
-    border: 1px solid rgba(160,110,50,0.35);
-    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-  }
-  #lobbyScreen #modeSelectorHost label {
-    font-family: 'Cinzel Decorative', serif; font-size: 12px; letter-spacing: 3px; color: #b9a888; text-transform: uppercase;
-  }
-  #lobbyScreen #modeSelectorHost button {
-    font-family: 'Rajdhani', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 13px;
-    background: rgba(10,8,14,0.8); border: 1px solid rgba(160,110,50,0.4); color: #8a7f70;
-    padding: 8px 22px; cursor: pointer; border-radius: 0;
-    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  .lobbyBackBtn {
+    position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
+    width: 34px; height: 34px; padding: 0; cursor: pointer;
+    background: linear-gradient(180deg, rgba(20,16,25,0.9), rgba(10,8,14,0.9));
+    border: 1px solid rgba(168,85,247,0.4);
+    color: #d8b4fe; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 18px; line-height: 1;
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
     transition: color .15s, border-color .15s, box-shadow .15s;
   }
-  #lobbyScreen #modeSelectorHost button.active {
-    color: #ffcf9e; border-color: #d98a3d; box-shadow: 0 0 12px rgba(217,138,61,0.35), inset 0 0 10px rgba(217,138,61,0.12);
+  .lobbyBackBtn::before { content: '<'; }
+  .lobbyBackBtn:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 14px rgba(168,85,247,0.4); }
+  .lobbyHeaderCenter { display: flex; flex-direction: column; align-items: center; }
+  .lobbyHeaderLabel {
+    font-family: 'Cinzel Decorative', serif; font-weight: 700; font-size: 11px;
+    letter-spacing: 5px; color: #d4b071; text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(212,176,113,0.4);
   }
-  /* ----- STAKE TIER: locked to the art's aspect ratio so it NEVER
-     stretches on any screen. Hit-zones are absolutely placed over the
-     four cards. ----- */
+
+  /* ----- Room code plaque (pure CSS obsidian panel) ----- */
+  #lobbyScreen .roomCodeRow {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    width: 100%; max-width: 320px; margin: 4px auto 14px;
+    min-height: 56px; padding: 10px 18px;
+    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%);
+    border: 1px solid rgba(212,176,113,0.55);
+    box-shadow: 0 0 22px rgba(212,176,113,0.18), inset 0 0 20px rgba(212,176,113,0.08);
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  }
+  #lobbyScreen .roomCodeRow .roomCodeFrame { display: none; }
+  #lobbyScreen .roomLabel { display: none; }
+  #lobbyScreen #roomCodeDisplay,
+  #lobbyScreen .roomCodeRow .roomCodeDigits {
+    position: static; transform: none;
+    font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
+    font-size: clamp(22px, 6vw, 30px) !important; letter-spacing: 8px !important;
+    color: #ffd98a !important;
+    text-shadow: 0 0 20px rgba(255,180,80,0.55), 0 2px 4px #000;
+    white-space: nowrap; pointer-events: none;
+  }
+  #lobbyScreen .lobbyMeta {
+    text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600;
+    font-size: clamp(11px, 3vw, 13px); letter-spacing: 3px; color: #b9a888;
+    text-transform: uppercase; margin: 0 0 14px;
+  }
+
+  /* ----- STAKE TIER: 4 CSS cards, no PNG ----- */
   #lobbyScreen .lobbyTierSelector {
-    position: relative; width: 100%; aspect-ratio: 1847 / 852; margin-bottom: 6px;
-    padding: 0 !important;
-    background: url('/lobby/stake-tier.png') center / contain no-repeat;
-    border: none !important; clip-path: none !important; overflow: visible;
+    display: block; width: 100%; max-width: 560px; margin: 0 auto 14px;
+    padding: 0 !important; background: none !important;
+    border: none !important; clip-path: none !important;
   }
-  #lobbyScreen .lobbyTierSelector::before, #lobbyScreen .lobbyTierSelector::after { display: none !important; content: none !important; }
   #lobbyScreen .lobbyTierSelector > label { display: none; }
-  /* cards occupy ~5%-96% across and ~17%-88% down within the art */
+  #lobbyScreen .lobbyTierSelector::before,
+  #lobbyScreen .lobbyTierSelector::after { display: none !important; content: none !important; }
   #tierBtns {
-    position: absolute; left: 4.5%; right: 4.5%; top: 17%; bottom: 12%;
-    display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 2.2%; margin: 0; background: none;
+    position: static; display: grid !important; grid-template-columns: repeat(4, 1fr);
+    gap: 8px; width: 100%; margin: 0; padding: 0; background: none;
   }
   #tierBtns .tierBtn {
-    background: transparent !important; border: 2px solid transparent !important; color: transparent !important;
-    height: 100%; min-width: 0; width: 100%; padding: 0 !important; cursor: pointer;
-    border-radius: 8px; font-size: 0 !important; clip-path: none !important;
-    transition: box-shadow .15s, border-color .15s;
+    position: relative; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    height: auto; min-height: 92px; padding: 12px 6px 10px !important;
+    width: 100%; min-width: 0; cursor: pointer; font-size: 0 !important;
+    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%) !important;
+    border: 1px solid rgba(120,90,140,0.4) !important;
+    color: #e9d5ff !important; border-radius: 0 !important;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    transition: border-color .15s, box-shadow .15s, transform .1s;
   }
-  #tierBtns .tierBtn .tierDot, #tierBtns .tierBtn .tierAmt, #tierBtns .tierBtn br { display: none !important; }
-  #tierBtns .tierBtn:hover:not(:disabled) { box-shadow: inset 0 0 22px rgba(255,255,255,0.12); }
-  #tierBtns .tierBtn.active {
-    border-color: #ffe9b8 !important;
-    box-shadow: 0 0 20px rgba(255,220,150,0.5), inset 0 0 22px rgba(255,220,150,0.18) !important;
+  #tierBtns .tierBtn img { display: none !important; }
+  #tierBtns .tierBtn .tierDot, #tierBtns .tierBtn br { display: none !important; }
+  #tierBtns .tierBtn::before {
+    content: attr(data-tier); display: block;
+    font-family: 'Cinzel Decorative', serif; font-weight: 700;
+    font-size: clamp(11px, 2.8vw, 14px); letter-spacing: 2px;
+    color: #f3ead4; text-transform: uppercase; line-height: 1.1;
   }
-  #tierBtns .tierBtn:disabled { cursor: not-allowed; }
-  /* Custom input + fee note render as normal flow BELOW the panel, never
-     overlaid on the cards. */
-  #lobbyScreen #customStakeWrap { margin: 12px 0 0; }
+  #tierBtns .tierBtn .tierAmt {
+    display: block !important;
+    font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
+    font-size: clamp(9px, 2.4vw, 11px) !important; letter-spacing: 1px;
+    color: #b9a888; text-transform: none; line-height: 1.1;
+  }
+  #tierBtns .tierBtn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: inset 0 0 22px rgba(255,255,255,0.06);
+  }
+  #tierBtns .tierBtn:disabled { cursor: not-allowed; opacity: 0.55; }
+  /* Per-tier selection glow (Small=green, Medium=gold, High=red, Custom=purple) */
+  #tierBtns .tierBtn.glow-small  { border-color: #22c55e !important; box-shadow: 0 0 22px rgba(34,197,94,0.55), inset 0 0 20px rgba(34,197,94,0.18) !important; }
+  #tierBtns .tierBtn.glow-medium { border-color: #eab308 !important; box-shadow: 0 0 22px rgba(234,179,8,0.55), inset 0 0 20px rgba(234,179,8,0.18) !important; }
+  #tierBtns .tierBtn.glow-high   { border-color: #ef4444 !important; box-shadow: 0 0 22px rgba(239,68,68,0.55), inset 0 0 20px rgba(239,68,68,0.18) !important; }
+  #tierBtns .tierBtn.glow-custom { border-color: #a855f7 !important; box-shadow: 0 0 22px rgba(168,85,247,0.6),  inset 0 0 20px rgba(168,85,247,0.2)  !important; }
+  #tierBtns .tierBtn.glow-small.active,
+  #tierBtns .tierBtn.glow-medium.active,
+  #tierBtns .tierBtn.glow-high.active,
+  #tierBtns .tierBtn.glow-custom.active { transform: none; filter: brightness(1.08); }
+
+  #lobbyScreen #customStakeWrap { margin: 8px 0 0; }
   #lobbyScreen #customStakeInput {
     width: 100%; padding: 12px 14px; background: rgba(4,6,12,0.9);
     border: 1px solid rgba(168,85,247,0.55); color: #e9d5ff; font-family: 'Rajdhani', sans-serif;
@@ -638,118 +679,279 @@
     clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   }
   #lobbyScreen #customStakeInput:focus { border-color: #c084fc; box-shadow: 0 0 14px rgba(168,85,247,0.35); }
-  #lobbyScreen .feeDisclosure { display: none; } /* baked into stake-tier art */
-  /* ----- ARENA: use arena-select.png as the framed panel ----- */
+  #lobbyScreen .feeDisclosure {
+    text-align: center; font-family: 'Rajdhani', sans-serif;
+    font-size: 10px; letter-spacing: 1.5px; color: #8a7f70;
+    margin: 8px 0 0; text-transform: uppercase;
+  }
+
+  /* ----- ARENA: CSS panel wrapping 4 CSS thumbnail cards ----- */
   #lobbyScreen .lobbyArenaSelector {
-    position: relative; width: 100%; aspect-ratio: 1937 / 812; margin-bottom: 6px;
-    padding: 0 !important;
-    background: url('/lobby/arena-select.png') center / contain no-repeat;
-    border: none !important; clip-path: none !important; overflow: visible;
+    position: relative; display: block; width: 100%; max-width: 560px; margin: 0 auto 14px;
+    padding: 12px 10px 10px; background: linear-gradient(180deg, rgba(14,12,20,0.7), rgba(8,7,12,0.85)) !important;
+    border: 1px solid rgba(120,180,220,0.35) !important; clip-path: none !important;
+    box-shadow: inset 0 0 20px rgba(50,90,140,0.1);
   }
-  #lobbyScreen .lobbyArenaSelector::before, #lobbyScreen .lobbyArenaSelector::after { display: none !important; content: none !important; }
+  #lobbyScreen .lobbyArenaSelector::before {
+    content: 'Arena'; display: block; text-align: center;
+    font-family: 'Cinzel Decorative', serif; font-weight: 700;
+    font-size: 11px; letter-spacing: 4px; color: #d4b071;
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaFrame { display: none; }
   #lobbyScreen .lobbyArenaSelector > label { display: none; }
-  /* thumbnails sit inside the four frame slots: ~4%-96% across, ~26%-88% down */
+  #lobbyScreen .lobbyArenaSelector .arenaThumbs,
   #lobbyArenaThumbs {
-    position: absolute; left: 4%; right: 4%; top: 26%; bottom: 12%;
-    display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 3%; margin: 0;
+    position: static; inset: auto; padding: 0; display: grid !important;
+    grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%;
+    pointer-events: auto;
   }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb,
   #lobbyArenaThumbs .arenaThumb {
-    position: relative; background: transparent !important; border: 2px solid transparent !important;
-    padding: 0 !important; height: 100%; width: 100%; min-width: 0; cursor: pointer;
-    border-radius: 4px; clip-path: none !important; overflow: hidden; opacity: 0.92;
-    transition: box-shadow .15s, border-color .15s, opacity .15s;
+    position: relative; width: 100%; height: auto; aspect-ratio: 1/1;
+    overflow: hidden; padding: 0; margin: 0; cursor: pointer;
+    background: rgba(4,6,12,0.6);
+    border: 2px solid rgba(120,180,220,0.3) !important; border-radius: 0;
+    opacity: 0.85; transition: opacity .15s, border-color .15s, box-shadow .15s;
   }
-  #lobbyArenaThumbs .arenaThumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 2px; }
-  #lobbyArenaThumbs .arenaThumb span {
-    position: absolute; left: 0; right: 0; bottom: 0; font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: clamp(8px, 2.2vw, 11px); letter-spacing: 1px; text-transform: uppercase; color: #ffe9b8;
-    text-align: center; padding: 2px 0; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.85));
+  #lobbyScreen .lobbyArenaSelector .arenaThumb img,
+  #lobbyArenaThumbs .arenaThumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
   }
-  #lobbyArenaThumbs .arenaThumb.active {
-    opacity: 1; border-color: #ffb24d !important;
-    box-shadow: 0 0 16px rgba(255,140,60,0.5), inset 0 0 14px rgba(255,140,60,0.18) !important;
+  #lobbyScreen .lobbyArenaSelector .arenaThumb.active,
+  #lobbyScreen .lobbyArenaSelector .arenaThumb.selected,
+  #lobbyArenaThumbs .arenaThumb.active,
+  #lobbyArenaThumbs .arenaThumb.selected {
+    opacity: 1; border-color: #60a5fa !important;
+    box-shadow: 0 0 16px rgba(96,165,250,0.5), inset 0 0 14px rgba(96,165,250,0.18) !important;
   }
-  /* ----- Player rows: host = crown banner, opponent = shield banner ----- */
-  #lobbySlots { display: flex; flex-direction: column; gap: 12px; width: 100%; margin-bottom: 14px; }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb:disabled { cursor: not-allowed; }
+
+  /* ----- Player slot cards (deep red host, deep blue opponent, deep pink FFA) ----- */
+  #lobbySlots {
+    display: flex; flex-direction: column; gap: 10px;
+    width: 100%; max-width: 560px; margin: 0 auto 14px;
+  }
   #lobbySlots > * { width: 100%; }
   #lobbySlots .lobbyPlayerCard {
-    position: relative; display: block;
-    aspect-ratio: 1872 / 840; width: 100%;
-    background: url('/lobby/player-banner-shield.png') center / 100% 100% no-repeat;
-    border: none !important; box-shadow: none !important; border-radius: 0 !important;
+    position: relative; display: flex; align-items: center; gap: 12px;
+    width: 100%; min-height: 78px; padding: 12px 16px 12px 14px; margin: 0;
+    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%) !important;
+    border: 1px solid rgba(120,90,140,0.4) !important;
+    box-shadow: none; border-radius: 0 !important;
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+    aspect-ratio: auto !important;
+    transition: border-color .15s, box-shadow .2s;
   }
-  /* host / room-leader gets the crown banner (its own aspect ratio) */
-  #lobbySlots .lobbyPlayerCard.local {
-    aspect-ratio: 1991 / 789;
-    background: url('/lobby/player-banner-crown.png') center / 100% 100% no-repeat !important;
+  /* Deep red for the host — matches Ignis */
+  #lobbySlots .lobbyPlayerCard.local,
+  #lobbySlots .lobbyPlayerCard.role-host {
+    border-color: rgba(220,50,50,0.55) !important;
+    box-shadow: 0 0 22px rgba(220,50,50,0.22), inset 0 0 20px rgba(220,50,50,0.06);
+    background: linear-gradient(180deg, #1a0f14 0%, #0d0509 100%) !important;
   }
-  /* Portrait CENTERED inside the octagon ring. The octagon center is ~12%
-     from the left edge and vertically centered; the dragon is sized to sit
-     inside the ring (~15% wide) and centered on that point via translate. */
+  /* Deep blue for 1v1 opponent — matches Magnetron */
+  #lobbySlots .lobbyPlayerCard.opponent,
+  #lobbySlots .lobbyPlayerCard.role-opponent {
+    border-color: rgba(60,120,220,0.55) !important;
+    box-shadow: 0 0 22px rgba(60,120,220,0.22), inset 0 0 20px rgba(60,120,220,0.06);
+    background: linear-gradient(180deg, #0d1220 0%, #05080f 100%) !important;
+  }
+  /* Deep pink for FFA challengers 2/3 — matches Infinite */
+  #lobbySlots .lobbyPlayerCard.role-ffa2,
+  #lobbySlots .lobbyPlayerCard.role-ffa3 {
+    border-color: rgba(220,80,160,0.55) !important;
+    box-shadow: 0 0 22px rgba(220,80,160,0.22), inset 0 0 20px rgba(220,80,160,0.06);
+    background: linear-gradient(180deg, #1a0d18 0%, #0d050a 100%) !important;
+  }
+  /* Empty slot: quiet dashed obsidian */
+  #lobbySlots .lobbyPlayerCard.empty {
+    justify-content: center;
+    border-style: dashed !important; border-color: rgba(160,110,50,0.35) !important;
+    box-shadow: none;
+    background: linear-gradient(180deg, rgba(20,16,25,0.55), rgba(10,8,14,0.75)) !important;
+  }
   #lobbySlots .lobbyPlayerCard img,
   #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon {
-    position: absolute; left: 16%; top: 48%; transform: translate(-50%, -50%);
-    width: 19%; aspect-ratio: 1/1; object-fit: contain; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    position: static; transform: none;
+    width: 54px; height: 54px; min-width: 54px; aspect-ratio: 1/1;
+    object-fit: contain; border-radius: 50%;
+    background: rgba(0,0,0,0.4); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: #b9a888;
+    border: 1px solid rgba(255,255,255,0.08);
   }
-  /* Name / dragon / role stacked TIGHT in a column right of the octagon. */
+  #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon.empty { background: transparent; border-color: transparent; }
+  #lobbySlots .lobbyPlayerBody {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: 3px; flex: 1; min-width: 0;
+  }
   #lobbySlots .lobbyPlayerName {
-    position: absolute; left: 30%; right: 16%; top: 26%;
+    position: static !important; top: auto !important; left: auto !important; right: auto !important;
+    transform: none !important;
     font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
-    font-size: clamp(13px, 3.6vw, 18px) !important; letter-spacing: 1.5px; color: #f3ead4 !important;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1;
-  }
-  #lobbySlots .lobbyPlayerDragon {
-    position: absolute; left: 30%; right: 16%; top: 50%; transform: translateY(-50%);
-    font-family: 'Rajdhani', sans-serif; font-size: clamp(9px, 2.6vw, 12px); letter-spacing: 2px;
-    text-transform: uppercase; color: #b98cff !important; line-height: 1;
+    font-size: clamp(13px, 3.4vw, 16px) !important; letter-spacing: 1.5px !important;
+    color: #f3ead4 !important; line-height: 1.1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  #lobbySlots .lobbyPlayerDragon {
+    position: static !important; top: auto !important; left: auto !important; right: auto !important;
+    transform: none !important;
+    font-family: 'Rajdhani', sans-serif !important; font-size: clamp(9px, 2.4vw, 11px) !important;
+    font-weight: 600 !important; letter-spacing: 2px !important;
+    color: #b98cff !important; text-transform: uppercase !important; line-height: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #lobbySlots .lobbyPlayerRole {
+    position: static !important; top: auto !important; left: auto !important;
+    display: flex; align-items: center; gap: 5px;
+    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: clamp(9px, 2.2vw, 10px); letter-spacing: 1.5px;
+    text-transform: uppercase; color: #c9a86a;
+  }
+  #lobbySlots .lobbyPlayerCard.role-opponent .lobbyPlayerRole,
+  #lobbySlots .lobbyPlayerCard.opponent .lobbyPlayerRole { color: #93c5fd; }
+  #lobbySlots .lobbyPlayerCard.role-ffa2 .lobbyPlayerRole,
+  #lobbySlots .lobbyPlayerCard.role-ffa3 .lobbyPlayerRole { color: #f9a8d4; }
+  #lobbySlots .lobbyPlayerRole .roleCrown,
+  #lobbySlots .lobbyPlayerRole .roleShield { font-size: 11px; }
+  #lobbySlots .lobbyPlayerRight {
+    position: static !important; right: auto !important; top: auto !important; transform: none !important;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-left: auto;
+  }
   #lobbySlots .depositBadge {
-    position: absolute; right: 3%; top: 50%; transform: translateY(-50%);
-    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 10px; letter-spacing: 1px;
-    color: #4ade80; display: flex; align-items: center; gap: 4px;
+    position: static !important; right: auto !important; top: auto !important; transform: none !important;
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 10px; letter-spacing: 1.5px;
+    color: #4ade80; display: flex; align-items: center; gap: 4px; text-transform: uppercase;
   }
+  #lobbySlots .depositBadge::before { content: '\2713'; font-size: 12px; }
+  #lobbySlots .depositBadge.pending { color: #ffb24d; }
+  #lobbySlots .depositBadge.pending::before { content: '\22EF'; }
+  #lobbySlots .kickBtn {
+    padding: 4px 10px; cursor: pointer;
+    background: rgba(220,50,50,0.15);
+    border: 1px solid rgba(220,50,50,0.5); color: #fca5a5;
+    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  #lobbySlots .kickBtn:hover { color: #fff; border-color: #ef4444; background: rgba(239,68,68,0.35); }
+  /* "Opponent joining…" placeholder text for 1v1 empty seat */
+  #lobbySlots .lobbyPlayerName.joining {
+    color: #8fa3c4 !important; font-family: 'Rajdhani', sans-serif !important;
+    font-weight: 600 !important; letter-spacing: 1px !important;
+    text-transform: none !important;
+  }
+  #lobbySlots .joinDots span { animation: joinBlink 1.4s infinite both; }
+  #lobbySlots .joinDots span:nth-child(2) { animation-delay: 0.2s; }
+  #lobbySlots .joinDots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes joinBlink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+
   /* ----- Action buttons ----- */
-  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 6px; align-items: center; }
-  /* START GAME uses the dragon button art */
-  #lobbyScreen #lobbyStartBtn {
-    width: 100%; max-width: 520px; aspect-ratio: 2180 / 520; min-height: 0;
-    background: url('/lobby/btn-start-game.png') center / 100% 100% no-repeat !important;
-    border: none !important; box-shadow: none !important; border-radius: 0 !important;
-    font-size: 0 !important; color: transparent !important; cursor: pointer;
-    transition: filter .15s, transform .1s;
+  #lobbyScreen .lobbyActions {
+    display: flex; flex-direction: column; gap: 10px;
+    width: 100%; max-width: 520px; margin: 6px auto 0;
+    align-items: center; padding-bottom: 60px;
   }
-  #lobbyScreen #lobbyStartBtn i { display: none !important; }
+  /* START GAME — deep-color CSS button (no PNG) */
+  #lobbyScreen #lobbyStartBtn,
+  #lobbyScreen .startGameBtn {
+    display: none; width: 100%; max-width: 520px; min-height: 54px; aspect-ratio: auto !important;
+    align-items: center; justify-content: center; gap: 10px;
+    font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
+    font-size: clamp(14px, 3.8vw, 17px) !important; letter-spacing: 3px !important;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ff8c40 0%, #d94a1f 55%, #7a1f10 100%) !important;
+    color: #fff !important; border: none !important; border-radius: 0 !important; cursor: pointer;
+    clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%);
+    box-shadow: 0 0 26px rgba(255,140,40,0.35), inset 0 -2px 0 rgba(0,0,0,0.35);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    transition: filter .15s, transform .1s;
+    font-size: 0; /* reset; the real font-size is above via !important */
+  }
+  #lobbyScreen #lobbyStartBtn { display: none; }
+  #lobbyScreen #lobbyStartBtn i,
+  #lobbyScreen .startGameBtn i { display: none !important; }
+  #lobbyScreen #lobbyStartBtn img,
+  #lobbyScreen .startGameBtn img { display: none !important; }
   #lobbyScreen #lobbyStartBtn:hover:not(:disabled) { filter: brightness(1.12) drop-shadow(0 0 14px rgba(255,140,40,0.5)); }
   #lobbyScreen #lobbyStartBtn:active:not(:disabled) { transform: scale(0.98); }
   #lobbyScreen #lobbyStartBtn:disabled { filter: grayscale(0.8) brightness(0.5); opacity: 0.55; cursor: not-allowed; }
-  /* Place Bet: molten style (no baked art for this one) */
+  #lobbyScreen .startGameBtn.visible { display: flex; }
+
+  /* DEPOSIT — molten gold */
   #lobbyScreen #lobbyDepositBtn {
-    width: 100%; max-width: 520px; min-height: 50px; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; max-width: 520px; min-height: 50px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
     font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
-    font-size: clamp(13px, 3.6vw, 16px) !important; letter-spacing: 2px !important; text-transform: uppercase;
+    font-size: clamp(13px, 3.6vw, 16px) !important; letter-spacing: 2px !important;
+    text-transform: uppercase;
     background: linear-gradient(180deg, #f0d9a0 0%, #c9a86a 45%, #8a6a34 100%) !important;
     color: #241a0c !important; border: none !important; cursor: pointer; border-radius: 0 !important;
     clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 16px 100%, 0 50%);
     box-shadow: 0 0 20px rgba(201,168,106,0.3);
   }
   #lobbyScreen #lobbyDepositBtn:disabled { filter: grayscale(0.6); opacity: 0.55; cursor: not-allowed; }
-  /* Leave Room: quiet ghost-gold */
+  /* LEAVE — ghost purple */
   #lobbyScreen #btnLeaveRoom {
-    width: 100%; max-width: 340px; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-family: 'Cinzel Decorative', serif; font-weight: 700; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
-    background: transparent; border: 1px solid rgba(160,110,50,0.5); color: #b9a06a; cursor: pointer; border-radius: 0;
+    width: 100%; max-width: 340px; min-height: 42px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: 'Cinzel Decorative', serif; font-weight: 700;
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    background: transparent; border: 1px solid rgba(168,85,247,0.45);
+    color: #c8a4f0; cursor: pointer; border-radius: 0;
     clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
-    transition: color .15s, border-color .15s;
+    transition: color .15s, border-color .15s, box-shadow .15s;
   }
-  #lobbyScreen #btnLeaveRoom:hover { color: #ffcf9e; border-color: #d98a3d; }
-  #lobbyScreen #lobbyWaitingText { text-align: center; font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #8a7f70; }
-  #lobbyScreen .depositStatusText { text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600; letter-spacing: 1px; min-height: 18px; margin-top: 6px; }
+  #lobbyScreen #btnLeaveRoom:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 14px rgba(168,85,247,0.35); }
+  #lobbyScreen #lobbyWaitingText {
+    text-align: center; font-family: 'Rajdhani', sans-serif;
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: #8a7f70;
+  }
+  #lobbyScreen .depositStatusText {
+    text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600;
+    letter-spacing: 1px; min-height: 18px; margin-top: 6px;
+  }
   #lobbyScreen .depositStatusText.confirmed { color: #4ade80; text-shadow: 0 0 10px rgba(74,222,128,0.4); }
   #lobbyScreen .depositStatusText.pending { color: #ffb24d; }
 
-  /* ===== MATCHED LOBBY MODE: reuse lobby, hide code/pickers, keep bg ===== */
+  /* ===== FFA 60s AUTO-START COUNTDOWN ===== */
+  #ffaStartCountdown {
+    width: 100%; max-width: 520px; margin: 8px auto 4px;
+    padding: 12px 14px 14px; text-align: center;
+    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%);
+    border: 1px solid rgba(255,180,80,0.55);
+    box-shadow: 0 0 22px rgba(255,180,80,0.22), inset 0 0 20px rgba(255,180,80,0.06);
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  }
+  .ffaCdLabel {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: 11px; letter-spacing: 3px; color: #b9a888;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+  .ffaCdNum {
+    font-family: 'Cinzel Decorative', serif; font-weight: 700;
+    font-size: clamp(24px, 6.5vw, 32px); letter-spacing: 3px;
+    color: #ffd98a; text-shadow: 0 0 20px rgba(255,180,80,0.55);
+    line-height: 1.1;
+  }
+  .ffaCdBar {
+    width: 100%; height: 5px; margin: 8px 0 6px;
+    background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;
+  }
+  #ffaCdFill {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, #ffd98a, #ff6b35);
+    border-radius: 2px; transition: width 1s linear;
+  }
+  .ffaCdHint {
+    font-family: 'Rajdhani', sans-serif; font-size: 10px;
+    letter-spacing: 1px; color: #8a7f70; text-transform: uppercase;
+  }
+
+  /* ===== MATCHED LOBBY MODE: reuse lobby, hide code/pickers ===== */
   #lobbyScreen.matchedLobby .roomCodeRow,
   #lobbyScreen.matchedLobby .lobbyMeta,
   #lobbyScreen.matchedLobby #modeSelectorHost,
@@ -757,7 +959,7 @@
   #lobbyScreen.matchedLobby #lobbyArenaSelector { display: none !important; }
   #lobbyScreen.matchedLobby .lobbyBox { padding-top: 28px; }
 
-  /* ===== CUSTOM STAKE MODAL ===== */
+  /* ===== CUSTOM STAKE MODAL — untouched (design reference) ===== */
   .customStakeModal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; }
   .customStakeModal.open { display: flex; }
   .customStakeModal .csmBackdrop { position: absolute; inset: 0; background: rgba(3,5,10,0.78); backdrop-filter: blur(3px); }
@@ -784,171 +986,93 @@
   .customStakeModal .csmCancel:hover { border-color: #e08; color: #fbb; }
   .customStakeModal .csmConfirm { background: linear-gradient(180deg, #c084fc, #7c3aed); border: none; color: #1a0733; }
   .customStakeModal .csmConfirm:hover:not(:disabled) { filter: brightness(1.12); }
-  .customStakeModal .csmConfirm:disabled { filter: grayscale(0.7); opacity: 0.5; cursor: not-allowed; }
+  .customStakeModal .csmConfirm:disabled { filter: grayscale(0.7) opacity(0.5); opacity: 0.5; cursor: not-allowed; }
 
-  /* ===== PER-TIER SELECTION GLOW ===== */
-  #tierBtns .tierBtn.glow-small  { border-color: #22c55e !important; box-shadow: 0 0 22px rgba(34,197,94,0.55), inset 0 0 20px rgba(34,197,94,0.18) !important; }
-  #tierBtns .tierBtn.glow-medium { border-color: #eab308 !important; box-shadow: 0 0 22px rgba(234,179,8,0.55), inset 0 0 20px rgba(234,179,8,0.18) !important; }
-  #tierBtns .tierBtn.glow-high   { border-color: #ef4444 !important; box-shadow: 0 0 22px rgba(239,68,68,0.55), inset 0 0 20px rgba(239,68,68,0.18) !important; }
-  #tierBtns .tierBtn.glow-custom { border-color: #a855f7 !important; box-shadow: 0 0 22px rgba(168,85,247,0.6), inset 0 0 20px rgba(168,85,247,0.2) !important; }
-
-  /* ===== OPPONENT JOINING STATE + ROLE TEXT ===== */
-  #lobbySlots .lobbyPlayerCard.opponent.waiting { display: flex; align-items: center; }
-  #lobbySlots .lobbyPlayerName.joining { position: absolute; left: 30%; right: 12%; top: 50%; transform: translateY(-50%); color: #8fa3c4 !important; font-family: 'Rajdhani', sans-serif !important; font-weight: 600 !important; letter-spacing: 1px; text-transform: none; }
-  #lobbySlots .joinDots span { animation: joinBlink 1.4s infinite both; }
-  #lobbySlots .joinDots span:nth-child(2) { animation-delay: 0.2s; }
-  #lobbySlots .joinDots span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes joinBlink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
-  #lobbySlots .lobbyPlayerRole {
-    position: absolute; left: 30%; top: 70%;
-    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: clamp(9px, 2.4vw, 11px);
-    letter-spacing: 1.5px; text-transform: uppercase; color: #c9a86a;
-    display: flex; align-items: center; gap: 4px;
+  /* ===== MP MODE SELECT MODAL (same visual language as Custom Stake) ===== */
+  .mpModeModal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; }
+  .mpModeModal.open { display: flex; }
+  .mpModeModal .mpmBackdrop { position: absolute; inset: 0; background: rgba(3,5,10,0.78); backdrop-filter: blur(3px); }
+  .mpModeModal .mpmBox {
+    position: relative; width: min(440px, calc(100vw - 40px)); padding: 24px 22px 20px;
+    background: linear-gradient(180deg, #141019 0%, #0b0810 100%);
+    border: 1px solid rgba(168,85,247,0.5); border-radius: 4px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 40px rgba(168,85,247,0.15);
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+    text-align: center;
   }
-  #lobbySlots .lobbyPlayerRole .roleCrown, #lobbySlots .lobbyPlayerRole .roleShield { font-size: 11px; }
-  #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon.empty { background: transparent; }
-  /* Contain dragon portrait fully inside the octagon (no spill) */
-  #lobbySlots .lobbyPlayerCard img { object-fit: contain !important; }
+  .mpModeModal .mpmTitle {
+    font-family: 'Cinzel Decorative', serif; font-weight: 700;
+    font-size: 20px; letter-spacing: 2px; color: #d8b4fe;
+    text-shadow: 0 0 18px rgba(168,85,247,0.4); margin-bottom: 4px;
+  }
+  .mpModeModal .mpmSub {
+    font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 1px;
+    color: #8fa3c4; text-transform: uppercase; margin-bottom: 18px;
+  }
+  .mpModeModal .mpmCards {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;
+  }
+  @media (max-width: 380px) { .mpModeModal .mpmCards { grid-template-columns: 1fr; } }
+  .mpModeModal .mpmCard {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 14px 10px 12px; cursor: pointer;
+    background: linear-gradient(180deg, rgba(20,16,25,0.9), rgba(10,8,14,0.95));
+    border: 1px solid rgba(120,90,140,0.4); color: #e9d5ff;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    transition: transform .1s, border-color .15s, box-shadow .15s;
+    font: inherit;
+  }
+  .mpModeModal .mpmCard:hover {
+    transform: translateY(-1px); border-color: #c084fc;
+    box-shadow: 0 0 22px rgba(168,85,247,0.35), inset 0 0 18px rgba(168,85,247,0.1);
+  }
+  .mpModeModal .mpmCard[data-mpmode="1v1"] { border-color: rgba(60,120,220,0.55); }
+  .mpModeModal .mpmCard[data-mpmode="1v1"]:hover {
+    border-color: #60a5fa;
+    box-shadow: 0 0 22px rgba(96,165,250,0.4), inset 0 0 18px rgba(96,165,250,0.12);
+  }
+  .mpModeModal .mpmCard[data-mpmode="FFA"] { border-color: rgba(220,80,160,0.55); }
+  .mpModeModal .mpmCard[data-mpmode="FFA"]:hover {
+    border-color: #f472b6;
+    box-shadow: 0 0 22px rgba(244,114,182,0.4), inset 0 0 18px rgba(244,114,182,0.12);
+  }
+  .mpModeModal .mpmIcon {
+    width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    color: #ffd98a;
+  }
+  .mpModeModal .mpmIcon i { width: 26px; height: 26px; }
+  .mpModeModal .mpmLabel {
+    font-family: 'Cinzel Decorative', serif; font-weight: 700;
+    font-size: 15px; letter-spacing: 2px; color: #f3ead4; text-transform: uppercase;
+  }
+  .mpModeModal .mpmDesc {
+    font-family: 'Rajdhani', sans-serif; font-size: 11px; line-height: 1.35;
+    color: #b9a888; letter-spacing: 0.5px;
+  }
+  .mpModeModal .mpmActions { display: flex; gap: 10px; }
+  .mpModeModal .mpmCancel {
+    flex: 1; min-height: 42px; cursor: pointer; background: transparent;
+    border: 1px solid rgba(160,110,120,0.5); color: #c99;
+    font-family: 'Cinzel Decorative', serif; font-weight: 700; font-size: 13px; letter-spacing: 1px;
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+    transition: filter .15s, color .15s, border-color .15s;
+  }
+  .mpModeModal .mpmCancel:hover { border-color: #e08; color: #fbb; }
 
   /* ===== LOBBY SCROLL HINT (glowing down arrow) ===== */
   #lobbyScrollHint {
     position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
     width: 44px; height: 44px; border-radius: 50%; z-index: 1500; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(circle, rgba(201,168,76,0.25), rgba(10,14,22,0.6));
-    border: 1px solid rgba(201,168,76,0.6); color: #ffd98a;
-    box-shadow: 0 0 18px rgba(201,168,76,0.5);
+    background: radial-gradient(circle, rgba(168,85,247,0.25), rgba(10,14,22,0.6));
+    border: 1px solid rgba(168,85,247,0.6); color: #d8b4fe;
+    box-shadow: 0 0 18px rgba(168,85,247,0.5);
     animation: scrollHintBounce 1.6s ease-in-out infinite;
     transition: opacity .3s;
   }
   #lobbyScrollHint i { width: 24px; height: 24px; }
   @keyframes scrollHintBounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
-  /* Extra breathing room so the Opponent frame + Leave Room sit below the
-     fold (they're revealed by scrolling, per the intended flow). */
-  #lobbyScreen #lobbySlots { margin-top: 4px; }
-  #lobbyScreen .lobbyActions { padding-bottom: 60px; }
-
-  /* ===== LOBBY REDESIGN v37 ===== */
-  .lobbyTopHeader {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; max-width: 560px; margin: 0 auto 4px; padding: 0 4px;
-    position: relative; z-index: 10; min-height: 36px;
-  }
-  .lobbyBackBtn {
-    position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
-    width: 32px; height: 32px; border: none;
-    background: url('/lobby/back.png') center / contain no-repeat;
-    cursor: pointer; opacity: 0.9; transition: opacity 0.15s, filter 0.15s;
-  }
-  .lobbyBackBtn:hover { opacity: 1; filter: brightness(1.25); }
-  .lobbyHeaderCenter { display: flex; flex-direction: column; align-items: center; }
-  .lobbyHeaderLabel {
-    font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 9px;
-    letter-spacing: 4px; color: #8a7f70; text-transform: uppercase;
-  }
-  #lobbyScreen .roomCodeRow {
-    position: relative; display: block;
-    width: 100%; max-width: 340px; margin: 2px auto 6px;
-  }
-  #lobbyScreen .roomCodeRow .roomCodeFrame {
-    width: 100%; height: auto; max-height: 70px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .roomCodeRow .roomCodeDigits {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    font-size: clamp(16px, 4.5vw, 24px); letter-spacing: 6px;
-    color: #f3ead4; font-weight: 700;
-    text-shadow: 0 0 12px rgba(243,234,212,0.4);
-    white-space: nowrap; pointer-events: none;
-  }
-  #lobbyScreen .lobbyTierSelector {
-    display: block; width: 100%; max-width: 560px; margin: 0 auto 6px;
-    border: none !important; clip-path: none !important; background: none !important;
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtns {
-    display: flex; justify-content: center; align-items: flex-start;
-    gap: 6px; width: 100%;
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtn {
-    flex: 1; max-width: 90px; padding: 0; border: none; background: none;
-    cursor: pointer; transition: transform 0.15s, filter 0.15s;
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtn:hover {
-    transform: scale(1.05); filter: brightness(1.15);
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtn img {
-    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .lobbyTierSelector .feeDisclosure {
-    text-align: center; font-size: 10px; color: #8a7f70; margin-top: 4px;
-  }
-  #lobbyScreen .lobbyArenaSelector {
-    position: relative; display: block;
-    width: 100%; max-width: 560px; margin: 0 auto 6px;
-    border: none !important; clip-path: none !important; background: none !important;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaFrame {
-    width: 100%; height: auto; max-height: 120px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumbs {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
-    padding: 0 5.5%; pointer-events: none;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumb {
-    width: 19.5%; height: 58%; position: relative; overflow: hidden;
-    border-radius: 3px; border: 1px solid rgba(0,0,0,0.6);
-    pointer-events: auto; cursor: pointer; padding: 0; background: none;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumb.selected {
-    box-shadow: 0 0 0 2px #c9a84c, 0 0 12px rgba(201,168,76,0.5);
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumb img {
-    width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 2px;
-  }
-  #lobbySlots { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-bottom: 8px; }
-  #lobbySlots .lobbyPlayerCard {
-    position: relative; display: block; width: 100%; margin-bottom: 4px;
-    border: none !important; box-shadow: none !important; border-radius: 0 !important;
-    background: none !important;
-  }
-  #lobbySlots .lobbyPlayerCard .playerFrame {
-    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
-  }
-  #lobbySlots .lobbyPlayerCard .playerDragon {
-    position: absolute; top: 50%; left: 15%; transform: translate(-50%, -50%);
-    width: 13%; height: 70%; object-fit: contain; border-radius: 50%;
-  }
-  #lobbySlots .lobbyPlayerCard .playerName {
-    position: absolute; top: 18%; left: 34%;
-    font-size: clamp(11px, 3vw, 15px); color: #f3ead4; font-weight: 700;
-    letter-spacing: 1px; text-shadow: 0 1px 4px #000;
-  }
-  #lobbySlots .lobbyPlayerCard .playerDragonName {
-    position: absolute; top: 42%; left: 34%;
-    font-size: clamp(8px, 2.2vw, 11px); color: #8a7f70; letter-spacing: 2px;
-  }
-  #lobbySlots .lobbyPlayerCard .playerRole {
-    position: absolute; top: 66%; left: 34%;
-    font-size: clamp(8px, 2vw, 10px); color: #c9a84c;
-  }
-  #lobbyScreen .startGameBtn {
-    display: none; width: 80%; max-width: 300px; margin: 4px auto; cursor: pointer;
-    transition: transform 0.15s, filter 0.15s;
-  }
-  #lobbyScreen .startGameBtn.visible { display: block; }
-  #lobbyScreen .startGameBtn:hover { transform: scale(1.03); filter: brightness(1.15); }
-  #lobbyScreen .startGameBtn img {
-    width: 100%; height: auto; max-height: 55px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px; align-items: center; padding-bottom: 40px; }
 </style>
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
 </head>
 <body>
 
@@ -1208,20 +1332,18 @@
       </div>
     </div>
     <div class="roomCodeRow" id="roomCodeRow">
-      <img src="/lobby/room-code-frame.png" alt="Room Code" class="roomCodeFrame">
       <div class="roomCodeDigits" id="roomCodeDisplay">------</div>
     </div>
-    <div class="lobbyTierSelector" id="lobbyTierSelector" style="display:none;">
+    <div class="lobbyTierSelector" id="lobbyTierSelector">
       <div class="tierBtns" id="tierBtns">
-        <button class="tierBtn" data-tier="Small" id="tierSmall"><img src="/lobby/stake-small.png" alt="Small"></button>
-        <button class="tierBtn" data-tier="Medium" id="tierMedium"><img src="/lobby/stake-medium.png" alt="Medium"></button>
-        <button class="tierBtn" data-tier="High" id="tierHigh"><img src="/lobby/stake-high.png" alt="High"></button>
-        <button class="tierBtn" data-tier="Custom" id="tierCustom"><img src="/lobby/stake-custom.png" alt="Custom"></button>
+        <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierAmt" id="tierAmtSmall">500K</span></button>
+        <button class="tierBtn" data-tier="Medium" id="tierMedium"><span class="tierAmt" id="tierAmtMedium">2M</span></button>
+        <button class="tierBtn" data-tier="High" id="tierHigh"><span class="tierAmt" id="tierAmtHigh">5M</span></button>
+        <button class="tierBtn" data-tier="Custom" id="tierCustom"><span class="tierAmt">1K–10M</span></button>
       </div>
       <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
     </div>
     <div class="lobbyArenaSelector" id="lobbyArenaSelector">
-      <img class="arenaFrame" src="/lobby/arena-selector.png" alt="Arena Selector">
       <div class="arenaThumbs" id="lobbyArenaThumbs">
         <button data-arena="0" class="arenaThumb active" id="lobbyArena0"><img src="/arenas/arena_stone.png" alt="Stone"></button>
         <button data-arena="1" class="arenaThumb" id="lobbyArena1"><img src="/arenas/arena_grass.png" alt="Grass"></button>
@@ -1230,9 +1352,6 @@
       </div>
     </div>
     <div class="lobbySlots" id="lobbySlots"></div>
-    <div class="startGameBtn" id="startGameBtnWrapper">
-      <img src="/lobby/start-game-btn.png" alt="Start Game" id="lobbyStartBtnImg">
-    </div>
     <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;"><i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span></button>
     <p id="depositStatusText" class="depositStatusText"></p>
     <div class="lobbyActions">
@@ -1244,8 +1363,35 @@
       <div class="lobbyCountdownText">Game starts in <span id="lobbyCountdownNum">10</span>...</div>
       <div class="lobbyCountdownBar"><div id="lobbyCountdownFill"></div></div>
     </div>
+    <div id="ffaStartCountdown" style="display:none;">
+      <div class="ffaCdLabel">Auto-start in</div>
+      <div class="ffaCdNum"><span id="ffaCdSeconds">60</span>s</div>
+      <div class="ffaCdBar"><div id="ffaCdFill"></div></div>
+      <div class="ffaCdHint">Host can Start Game now, or the match starts automatically at 0.</div>
+    </div>
   </div>
-      <div class="lobbyCountdownBar"><div id="lobbyCountdownFill"></div></div>
+</div>
+
+<!-- ===== MP MODE SELECT MODAL (styled like Custom Stake Modal) ===== -->
+<div id="mpModeSelectModal" class="mpModeModal">
+  <div class="mpmBackdrop"></div>
+  <div class="mpmBox">
+    <div class="mpmTitle">Choose Battle Mode</div>
+    <div class="mpmSub">Select how many dragons enter the arena</div>
+    <div class="mpmCards">
+      <button class="mpmCard" data-mpmode="1v1">
+        <div class="mpmIcon"><i data-lucide="swords"></i></div>
+        <div class="mpmLabel">1v1 Duel</div>
+        <div class="mpmDesc">Head-to-head. Winner takes the pot.</div>
+      </button>
+      <button class="mpmCard" data-mpmode="FFA">
+        <div class="mpmIcon"><i data-lucide="flame"></i></div>
+        <div class="mpmLabel">4 Dragons FFA</div>
+        <div class="mpmDesc">Four-way brawl. Last dragon standing wins the pot.</div>
+      </button>
+    </div>
+    <div class="mpmActions">
+      <button id="mpmCancel" class="mpmCancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -1446,130 +1592,4 @@
 </div>
 
 </body>
-</html/* ==================== LOBBY ==================== */
-  #lobbyScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
-  #lobbyScreen .lobbyBox {
-    position: relative;
-    width: min(600px, calc(100vw - 16px));
-    margin: max(10px, env(safe-area-inset-top)) auto calc(22px + env(safe-area-inset-bottom));
-    padding: 14px 12px 20px;
-    max-height: none; overflow: visible;
-    background: linear-gradient(180deg, rgba(6,9,16,0) 0%, rgba(6,9,16,0.55) 30%, rgba(6,9,16,0.92) 100%) !important;
-    border: none !important; box-shadow: none !important; border-radius: 0 !important;
-    backdrop-filter: none;
-  }
-  .lobbyTopHeader {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; max-width: 560px; margin: 0 auto 4px; padding: 0 4px;
-    position: relative; z-index: 10; min-height: 36px;
-  }
-  .lobbyBackBtn {
-    position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
-    width: 32px; height: 32px; border: none;
-    background: url('/lobby/back.png') center / contain no-repeat;
-    cursor: pointer; opacity: 0.9; transition: opacity 0.15s, filter 0.15s;
-  }
-  .lobbyBackBtn:hover { opacity: 1; filter: brightness(1.25); }
-  .lobbyHeaderCenter {
-    display: flex; flex-direction: column; align-items: center;
-  }
-  .lobbyHeaderLabel {
-    font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 9px;
-    letter-spacing: 4px; color: #8a7f70; text-transform: uppercase;
-  }
-  #lobbyScreen .roomCodeRow {
-    position: relative; display: block;
-    width: 100%; max-width: 340px; margin: 2px auto 6px;
-  }
-  #lobbyScreen .roomCodeRow .roomCodeFrame {
-    width: 100%; height: auto; max-height: 70px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .roomCodeRow .roomCodeDigits {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    font-size: clamp(16px, 4.5vw, 24px); letter-spacing: 6px;
-    color: #f3ead4; font-weight: 700;
-    text-shadow: 0 0 12px rgba(243,234,212,0.4);
-    white-space: nowrap; pointer-events: none;
-  }
-  #lobbyScreen .lobbyTierSelector {
-    display: block; width: 100%; max-width: 560px; margin: 0 auto 6px;
-    border: none !important; clip-path: none !important; background: none !important;
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtns {
-    display: flex; justify-content: center; align-items: flex-start;
-    gap: 6px; width: 100%;
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtn {
-    flex: 1; max-width: 90px; padding: 0; border: none; background: none;
-    cursor: pointer; transition: transform 0.15s, filter 0.15s;
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtn:hover {
-    transform: scale(1.05); filter: brightness(1.15);
-  }
-  #lobbyScreen .lobbyTierSelector .tierBtn img {
-    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .lobbyTierSelector .feeDisclosure {
-    text-align: center; font-size: 10px; color: #8a7f70;
-    margin-top: 4px;
-  }
-  #lobbyScreen .lobbyArenaSelector {
-    position: relative; display: block;
-    width: 100%; max-width: 560px; margin: 0 auto 6px;
-    border: none !important; clip-path: none !important; background: none !important;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaFrame {
-    width: 100%; height: auto; max-height: 120px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumbs {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
-    padding: 0 5.5%; pointer-events: none;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumb {
-    width: 19.5%; height: 58%; position: relative; overflow: hidden;
-    border-radius: 3px; border: 1px solid rgba(0,0,0,0.6);
-    pointer-events: auto; cursor: pointer; padding: 0; background: none;
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumb.selected {
-    box-shadow: 0 0 0 2px #c9a84c, 0 0 12px rgba(201,168,76,0.5);
-  }
-  #lobbyScreen .lobbyArenaSelector .arenaThumb img {
-    width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 2px;
-  }
-  #lobbySlots { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-bottom: 8px; }
-  #lobbySlots .lobbyPlayerCard {
-    position: relative; display: block; width: 100%; margin-bottom: 4px;
-    border: none !important; box-shadow: none !important; border-radius: 0 !important;
-    background: none !important;
-  }
-  #lobbySlots .lobbyPlayerCard .playerFrame {
-    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
-  }
-  #lobbySlots .lobbyPlayerCard .playerDragon {
-    position: absolute; top: 50%; left: 15%; transform: translate(-50%, -50%);
-    width: 13%; height: 70%; object-fit: contain; border-radius: 50%;
-  }
-  #lobbySlots .lobbyPlayerCard .playerName {
-    position: absolute; top: 18%; left: 34%;
-    font-size: clamp(11px, 3vw, 15px); color: #f3ead4; font-weight: 700;
-    letter-spacing: 1px; text-shadow: 0 1px 4px #000;
-  }
-  #lobbySlots .lobbyPlayerCard .playerDragonName {
-    position: absolute; top: 42%; left: 34%;
-    font-size: clamp(8px, 2.2vw, 11px); color: #8a7f70; letter-spacing: 2px;
-  }
-  #lobbySlots .lobbyPlayerCard .playerRole {
-    position: absolute; top: 66%; left: 34%;
-    font-size: clamp(8px, 2vw, 10px); color: #c9a84c;
-  }
-  #lobbyScreen .startGameBtn {
-    display: none; width: 80%; max-width: 300px; margin: 4px auto; cursor: pointer;
-    transition: transform 0.15s, filter 0.15s;
-  }
-  #lobbyScreen .startGameBtn.visible { display: block; }
-  #lobbyScreen .startGameBtn:hover { transform: scale(1.03); filter: brightness(1.15); }
-  #lobbyScreen .startGameBtn img {
-    width: 100%; height: auto; max-height: 55px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px; align-items: center; padding-bottom: 40px; }
->
+</html>
