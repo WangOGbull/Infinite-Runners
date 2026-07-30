@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="./src/styles.css?v=36">
+<link rel="stylesheet" href="./src/styles.css?v=37">
 
 <style>
   html, body { overflow-x: hidden; max-width: 100vw; }
@@ -561,17 +561,8 @@
   /* ----- Room code: dragon-head plaque frame ----- */
   #lobbyScreen .roomCodeRow {
     position: relative; display: block;
-    width: 100%; max-width: 340px; margin: 2px auto 6px;
-  }
-  #lobbyScreen .roomCodeRow img {
-    width: 100%; height: auto; max-height: 70px; object-fit: contain; display: block;
-  }
-  #lobbyScreen .roomCodeText {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    font-size: clamp(16px, 4.5vw, 24px); letter-spacing: 6px;
-    color: #f3ead4; font-weight: 700;
-    text-shadow: 0 0 12px rgba(243,234,212,0.4);
-    white-space: nowrap; pointer-events: none;
+    width: 100%; max-width: 380px; height: 92px; margin: 0 auto;
+    background: url('/lobby/room-code-frame.png') center / contain no-repeat;
   }
   #lobbyScreen .roomLabel { display: none; }
   /* Number sits in the frame's dark box (middle of the plaque). */
@@ -679,23 +670,28 @@
     box-shadow: 0 0 16px rgba(255,140,60,0.5), inset 0 0 14px rgba(255,140,60,0.18) !important;
   }
   /* ----- Player rows: host = crown banner, opponent = shield banner ----- */
-  #lobbySlots { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-bottom: 8px; }
+  #lobbySlots { display: flex; flex-direction: column; gap: 12px; width: 100%; margin-bottom: 14px; }
   #lobbySlots > * { width: 100%; }
   #lobbySlots .lobbyPlayerCard {
     position: relative; display: block;
-    width: 100%;
+    aspect-ratio: 1872 / 840; width: 100%;
     background: url('/lobby/player-banner-shield.png') center / 100% 100% no-repeat;
     border: none !important; box-shadow: none !important; border-radius: 0 !important;
   }
   /* host / room-leader gets the crown banner (its own aspect ratio) */
   #lobbySlots .lobbyPlayerCard.local {
-    
+    aspect-ratio: 1991 / 789;
     background: url('/lobby/player-banner-crown.png') center / 100% 100% no-repeat !important;
   }
   /* Portrait CENTERED inside the octagon ring. The octagon center is ~12%
      from the left edge and vertically centered; the dragon is sized to sit
      inside the ring (~15% wide) and centered on that point via translate. */
-  
+  #lobbySlots .lobbyPlayerCard img,
+  #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon {
+    position: absolute; left: 16%; top: 48%; transform: translate(-50%, -50%);
+    width: 19%; aspect-ratio: 1/1; object-fit: contain; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
   /* Name / dragon / role stacked TIGHT in a column right of the octagon. */
   #lobbySlots .lobbyPlayerName {
     position: absolute; left: 30%; right: 16%; top: 26%;
@@ -715,7 +711,7 @@
     color: #4ade80; display: flex; align-items: center; gap: 4px;
   }
   /* ----- Action buttons ----- */
-  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px; align-items: center; }
+  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 6px; align-items: center; }
   /* START GAME uses the dragon button art */
   #lobbyScreen #lobbyStartBtn {
     width: 100%; max-width: 520px; aspect-ratio: 2180 / 520; min-height: 0;
@@ -827,20 +823,12 @@
   }
   #lobbyScrollHint i { width: 24px; height: 24px; }
   @keyframes scrollHintBounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
-  /* Start Game button hidden until both players bet */
-  #lobbyScreen .startGameBtn {
-    display: none; width: 80%; max-width: 300px; margin: 4px auto; cursor: pointer;
-    transition: transform 0.15s, filter 0.15s;
-  }
-  #lobbyScreen .startGameBtn.visible { display: block; }
-  #lobbyScreen .startGameBtn:hover { transform: scale(1.03); filter: brightness(1.15); }
-  #lobbyScreen .startGameBtn img {
-    width: 100%; height: auto; max-height: 55px; object-fit: contain; display: block;
-  }
-  #lobbyScreen #lobbySlots { margin-top: 2px; }
-  #lobbyScreen .lobbyActions { padding-bottom: 40px; }
+  /* Extra breathing room so the Opponent frame + Leave Room sit below the
+     fold (they're revealed by scrolling, per the intended flow). */
+  #lobbyScreen #lobbySlots { margin-top: 4px; }
+  #lobbyScreen .lobbyActions { padding-bottom: 60px; }
 
-  /* ===== LOBBY TOP HEADER ===== */
+  /* ===== LOBBY REDESIGN v37 ===== */
   .lobbyTopHeader {
     display: flex; align-items: center; justify-content: center;
     width: 100%; max-width: 560px; margin: 0 auto 4px; padding: 0 4px;
@@ -853,13 +841,105 @@
     cursor: pointer; opacity: 0.9; transition: opacity 0.15s, filter 0.15s;
   }
   .lobbyBackBtn:hover { opacity: 1; filter: brightness(1.25); }
-  .lobbyHeaderCenter {
-    display: flex; flex-direction: column; align-items: center;
-  }
+  .lobbyHeaderCenter { display: flex; flex-direction: column; align-items: center; }
   .lobbyHeaderLabel {
     font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 9px;
     letter-spacing: 4px; color: #8a7f70; text-transform: uppercase;
   }
+  #lobbyScreen .roomCodeRow {
+    position: relative; display: block;
+    width: 100%; max-width: 340px; margin: 2px auto 6px;
+  }
+  #lobbyScreen .roomCodeRow .roomCodeFrame {
+    width: 100%; height: auto; max-height: 70px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .roomCodeRow .roomCodeDigits {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: clamp(16px, 4.5vw, 24px); letter-spacing: 6px;
+    color: #f3ead4; font-weight: 700;
+    text-shadow: 0 0 12px rgba(243,234,212,0.4);
+    white-space: nowrap; pointer-events: none;
+  }
+  #lobbyScreen .lobbyTierSelector {
+    display: block; width: 100%; max-width: 560px; margin: 0 auto 6px;
+    border: none !important; clip-path: none !important; background: none !important;
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtns {
+    display: flex; justify-content: center; align-items: flex-start;
+    gap: 6px; width: 100%;
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtn {
+    flex: 1; max-width: 90px; padding: 0; border: none; background: none;
+    cursor: pointer; transition: transform 0.15s, filter 0.15s;
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtn:hover {
+    transform: scale(1.05); filter: brightness(1.15);
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtn img {
+    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .lobbyTierSelector .feeDisclosure {
+    text-align: center; font-size: 10px; color: #8a7f70; margin-top: 4px;
+  }
+  #lobbyScreen .lobbyArenaSelector {
+    position: relative; display: block;
+    width: 100%; max-width: 560px; margin: 0 auto 6px;
+    border: none !important; clip-path: none !important; background: none !important;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaFrame {
+    width: 100%; height: auto; max-height: 120px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumbs {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 5.5%; pointer-events: none;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb {
+    width: 19.5%; height: 58%; position: relative; overflow: hidden;
+    border-radius: 3px; border: 1px solid rgba(0,0,0,0.6);
+    pointer-events: auto; cursor: pointer; padding: 0; background: none;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb.selected {
+    box-shadow: 0 0 0 2px #c9a84c, 0 0 12px rgba(201,168,76,0.5);
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 2px;
+  }
+  #lobbySlots { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-bottom: 8px; }
+  #lobbySlots .lobbyPlayerCard {
+    position: relative; display: block; width: 100%; margin-bottom: 4px;
+    border: none !important; box-shadow: none !important; border-radius: 0 !important;
+    background: none !important;
+  }
+  #lobbySlots .lobbyPlayerCard .playerFrame {
+    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
+  }
+  #lobbySlots .lobbyPlayerCard .playerDragon {
+    position: absolute; top: 50%; left: 15%; transform: translate(-50%, -50%);
+    width: 13%; height: 70%; object-fit: contain; border-radius: 50%;
+  }
+  #lobbySlots .lobbyPlayerCard .playerName {
+    position: absolute; top: 18%; left: 34%;
+    font-size: clamp(11px, 3vw, 15px); color: #f3ead4; font-weight: 700;
+    letter-spacing: 1px; text-shadow: 0 1px 4px #000;
+  }
+  #lobbySlots .lobbyPlayerCard .playerDragonName {
+    position: absolute; top: 42%; left: 34%;
+    font-size: clamp(8px, 2.2vw, 11px); color: #8a7f70; letter-spacing: 2px;
+  }
+  #lobbySlots .lobbyPlayerCard .playerRole {
+    position: absolute; top: 66%; left: 34%;
+    font-size: clamp(8px, 2vw, 10px); color: #c9a84c;
+  }
+  #lobbyScreen .startGameBtn {
+    display: none; width: 80%; max-width: 300px; margin: 4px auto; cursor: pointer;
+    transition: transform 0.15s, filter 0.15s;
+  }
+  #lobbyScreen .startGameBtn.visible { display: block; }
+  #lobbyScreen .startGameBtn:hover { transform: scale(1.03); filter: brightness(1.15); }
+  #lobbyScreen .startGameBtn img {
+    width: 100%; height: auto; max-height: 55px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px; align-items: center; padding-bottom: 40px; }
 </style>
 <base target="_blank">
 <base target="_blank">
@@ -1122,34 +1202,37 @@
   </div>
   <div class="lobbyBox">
     <div class="lobbyTopHeader">
-  <button class="lobbyBackBtn" id="btnLobbyBack" title="Back"></button>
-  <div class="lobbyHeaderCenter">
-    <span class="lobbyHeaderLabel">ROOM CODE</span>
-  </div>
-</div>
-    <div class="roomCodeRow"><span class="roomLabel">Room Code:</span><span id="roomCodeDisplay">------</span></div>
-    
-    
+      <button class="lobbyBackBtn" id="btnLobbyBack" title="Back"></button>
+      <div class="lobbyHeaderCenter">
+        <span class="lobbyHeaderLabel">ROOM CODE</span>
+      </div>
+    </div>
+    <div class="roomCodeRow" id="roomCodeRow">
+      <img src="/lobby/room-code-frame.png" alt="Room Code" class="roomCodeFrame">
+      <div class="roomCodeDigits" id="roomCodeDisplay">------</div>
+    </div>
     <div class="lobbyTierSelector" id="lobbyTierSelector" style="display:none;">
-      <label>Stake Tier:</label>
       <div class="tierBtns" id="tierBtns">
-        <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierDot small" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span> Small<br><span class="tierAmt">-- INFINITE</span></button>
-        <button class="tierBtn" data-tier="Medium" id="tierMedium"><span class="tierDot medium" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#eab308;"></span> Medium<br><span class="tierAmt">-- INFINITE</span></button>
-        <button class="tierBtn" data-tier="High" id="tierHigh"><span class="tierDot high" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> High<br><span class="tierAmt">-- INFINITE</span></button>
-        <button class="tierBtn" data-tier="Custom" id="tierCustom"><span class="tierDot custom" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#a855f7;"></span> Custom<br><span class="tierAmt">Set amount</span></button>
+        <button class="tierBtn" data-tier="Small" id="tierSmall"><img src="/lobby/stake-small.png" alt="Small"></button>
+        <button class="tierBtn" data-tier="Medium" id="tierMedium"><img src="/lobby/stake-medium.png" alt="Medium"></button>
+        <button class="tierBtn" data-tier="High" id="tierHigh"><img src="/lobby/stake-high.png" alt="High"></button>
+        <button class="tierBtn" data-tier="Custom" id="tierCustom"><img src="/lobby/stake-custom.png" alt="Custom"></button>
       </div>
       <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
     </div>
     <div class="lobbyArenaSelector" id="lobbyArenaSelector">
-      <label>Arena:</label>
+      <img class="arenaFrame" src="/lobby/arena-selector.png" alt="Arena Selector">
       <div class="arenaThumbs" id="lobbyArenaThumbs">
-        <button data-arena="0" class="arenaThumb active" id="lobbyArena0"><img src="/arenas/arena_stone.png" alt="Stone"><span>Stone</span></button>
-        <button data-arena="1" class="arenaThumb" id="lobbyArena1"><img src="/arenas/arena_grass.png" alt="Grass"><span>Grass</span></button>
-        <button data-arena="2" class="arenaThumb" id="lobbyArena2"><img src="/arenas/arena_purple.png" alt="Purple"><span>Purple</span></button>
-        <button data-arena="3" class="arenaThumb" id="lobbyArena3"><img src="/arenas/arena_fire.png" alt="Fire"><span>Fire</span></button>
+        <button data-arena="0" class="arenaThumb active" id="lobbyArena0"><img src="/arenas/arena_stone.png" alt="Stone"></button>
+        <button data-arena="1" class="arenaThumb" id="lobbyArena1"><img src="/arenas/arena_grass.png" alt="Grass"></button>
+        <button data-arena="2" class="arenaThumb" id="lobbyArena2"><img src="/arenas/arena_purple.png" alt="Purple"></button>
+        <button data-arena="3" class="arenaThumb" id="lobbyArena3"><img src="/arenas/arena_fire.png" alt="Fire"></button>
       </div>
     </div>
     <div class="lobbySlots" id="lobbySlots"></div>
+    <div class="startGameBtn" id="startGameBtnWrapper">
+      <img src="/lobby/start-game-btn.png" alt="Start Game" id="lobbyStartBtnImg">
+    </div>
     <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;"><i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span></button>
     <p id="depositStatusText" class="depositStatusText"></p>
     <div class="lobbyActions">
@@ -1159,6 +1242,9 @@
     </div>
     <div id="lobbyCountdown" style="display:none;">
       <div class="lobbyCountdownText">Game starts in <span id="lobbyCountdownNum">10</span>...</div>
+      <div class="lobbyCountdownBar"><div id="lobbyCountdownFill"></div></div>
+    </div>
+  </div>
       <div class="lobbyCountdownBar"><div id="lobbyCountdownFill"></div></div>
     </div>
   </div>
@@ -1325,7 +1411,7 @@
 <!-- ===== LOADING OVERLAY ===== -->
 <div id="loadingOverlay"><div class="loadSpin"></div><div class="loadText">Loading...</div></div>
 
-<script type="module" src="./src/main.js?v=40"></script>
+<script type="module" src="./src/main.js?v=41"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== -->
 <div id="dragonDetailModal" class="screen">
@@ -1360,4 +1446,130 @@
 </div>
 
 </body>
-</html>
+</html/* ==================== LOBBY ==================== */
+  #lobbyScreen { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+  #lobbyScreen .lobbyBox {
+    position: relative;
+    width: min(600px, calc(100vw - 16px));
+    margin: max(10px, env(safe-area-inset-top)) auto calc(22px + env(safe-area-inset-bottom));
+    padding: 14px 12px 20px;
+    max-height: none; overflow: visible;
+    background: linear-gradient(180deg, rgba(6,9,16,0) 0%, rgba(6,9,16,0.55) 30%, rgba(6,9,16,0.92) 100%) !important;
+    border: none !important; box-shadow: none !important; border-radius: 0 !important;
+    backdrop-filter: none;
+  }
+  .lobbyTopHeader {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; max-width: 560px; margin: 0 auto 4px; padding: 0 4px;
+    position: relative; z-index: 10; min-height: 36px;
+  }
+  .lobbyBackBtn {
+    position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px; border: none;
+    background: url('/lobby/back.png') center / contain no-repeat;
+    cursor: pointer; opacity: 0.9; transition: opacity 0.15s, filter 0.15s;
+  }
+  .lobbyBackBtn:hover { opacity: 1; filter: brightness(1.25); }
+  .lobbyHeaderCenter {
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .lobbyHeaderLabel {
+    font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 9px;
+    letter-spacing: 4px; color: #8a7f70; text-transform: uppercase;
+  }
+  #lobbyScreen .roomCodeRow {
+    position: relative; display: block;
+    width: 100%; max-width: 340px; margin: 2px auto 6px;
+  }
+  #lobbyScreen .roomCodeRow .roomCodeFrame {
+    width: 100%; height: auto; max-height: 70px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .roomCodeRow .roomCodeDigits {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: clamp(16px, 4.5vw, 24px); letter-spacing: 6px;
+    color: #f3ead4; font-weight: 700;
+    text-shadow: 0 0 12px rgba(243,234,212,0.4);
+    white-space: nowrap; pointer-events: none;
+  }
+  #lobbyScreen .lobbyTierSelector {
+    display: block; width: 100%; max-width: 560px; margin: 0 auto 6px;
+    border: none !important; clip-path: none !important; background: none !important;
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtns {
+    display: flex; justify-content: center; align-items: flex-start;
+    gap: 6px; width: 100%;
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtn {
+    flex: 1; max-width: 90px; padding: 0; border: none; background: none;
+    cursor: pointer; transition: transform 0.15s, filter 0.15s;
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtn:hover {
+    transform: scale(1.05); filter: brightness(1.15);
+  }
+  #lobbyScreen .lobbyTierSelector .tierBtn img {
+    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .lobbyTierSelector .feeDisclosure {
+    text-align: center; font-size: 10px; color: #8a7f70;
+    margin-top: 4px;
+  }
+  #lobbyScreen .lobbyArenaSelector {
+    position: relative; display: block;
+    width: 100%; max-width: 560px; margin: 0 auto 6px;
+    border: none !important; clip-path: none !important; background: none !important;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaFrame {
+    width: 100%; height: auto; max-height: 120px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumbs {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 5.5%; pointer-events: none;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb {
+    width: 19.5%; height: 58%; position: relative; overflow: hidden;
+    border-radius: 3px; border: 1px solid rgba(0,0,0,0.6);
+    pointer-events: auto; cursor: pointer; padding: 0; background: none;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb.selected {
+    box-shadow: 0 0 0 2px #c9a84c, 0 0 12px rgba(201,168,76,0.5);
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 2px;
+  }
+  #lobbySlots { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-bottom: 8px; }
+  #lobbySlots .lobbyPlayerCard {
+    position: relative; display: block; width: 100%; margin-bottom: 4px;
+    border: none !important; box-shadow: none !important; border-radius: 0 !important;
+    background: none !important;
+  }
+  #lobbySlots .lobbyPlayerCard .playerFrame {
+    width: 100%; height: auto; max-height: 100px; object-fit: contain; display: block;
+  }
+  #lobbySlots .lobbyPlayerCard .playerDragon {
+    position: absolute; top: 50%; left: 15%; transform: translate(-50%, -50%);
+    width: 13%; height: 70%; object-fit: contain; border-radius: 50%;
+  }
+  #lobbySlots .lobbyPlayerCard .playerName {
+    position: absolute; top: 18%; left: 34%;
+    font-size: clamp(11px, 3vw, 15px); color: #f3ead4; font-weight: 700;
+    letter-spacing: 1px; text-shadow: 0 1px 4px #000;
+  }
+  #lobbySlots .lobbyPlayerCard .playerDragonName {
+    position: absolute; top: 42%; left: 34%;
+    font-size: clamp(8px, 2.2vw, 11px); color: #8a7f70; letter-spacing: 2px;
+  }
+  #lobbySlots .lobbyPlayerCard .playerRole {
+    position: absolute; top: 66%; left: 34%;
+    font-size: clamp(8px, 2vw, 10px); color: #c9a84c;
+  }
+  #lobbyScreen .startGameBtn {
+    display: none; width: 80%; max-width: 300px; margin: 4px auto; cursor: pointer;
+    transition: transform 0.15s, filter 0.15s;
+  }
+  #lobbyScreen .startGameBtn.visible { display: block; }
+  #lobbyScreen .startGameBtn:hover { transform: scale(1.03); filter: brightness(1.15); }
+  #lobbyScreen .startGameBtn img {
+    width: 100%; height: auto; max-height: 55px; object-fit: contain; display: block;
+  }
+  #lobbyScreen .lobbyActions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px; align-items: center; padding-bottom: 40px; }
+>
