@@ -512,3 +512,35 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
   .ddmPowerName{font-size:11px}
   .ddmPowerDesc{font-size:9px}
 }
+/* ==================== LOBBY TOP HEADER ==================== */
+.lobbyTopHeader {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; max-width: 560px; margin: 0 auto 10px; padding: 0 4px;
+  position: relative; z-index: 10;
+}
+.lobbyBackBtn {
+  width: 40px; height: 40px; border: none; background: url('/lobby/btn-back.png') center / contain no-repeat;
+  cursor: pointer; opacity: 0.9; transition: opacity 0.15s, filter 0.15s; flex-shrink: 0;
+}
+.lobbyBackBtn:hover { opacity: 1; filter: brightness(1.25); }
+.lobbyHeaderCenter {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center;
+}
+.lobbyHeaderLabel {
+  font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 11px;
+  letter-spacing: 4px; color: #8a7f70; text-transform: uppercase;
+}
+.lobbyHeaderRight {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.lobbyHeaderCoins {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 14px;
+  color: #ffd700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+}
+.lobbyHeaderCrown {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #1a1030, #0d0818); border: 1px solid rgba(201, 168, 76, 0.4);
+  border-radius: 6px; box-shadow: 0 0 8px rgba(201, 168, 76, 0.2);
+}
