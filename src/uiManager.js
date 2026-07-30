@@ -531,6 +531,8 @@ class UIManager {
     if (startBtn) startBtn.addEventListener('click', () => this.eventBus.emit('mp:startGame'));
     const leaveBtn = document.getElementById('btnLeaveRoom');
     if (leaveBtn) leaveBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); });
+    const lobbyBackBtn = document.getElementById('btnLobbyBack');
+    if (lobbyBackBtn) lobbyBackBtn.addEventListener('click', () => { this.eventBus.emit('mp:leaveRoom'); });
     document.querySelectorAll('#lobbyArenaThumbs .arenaThumb').forEach(btn => {
       btn.addEventListener('click', () => { this.eventBus.emit('lobby:arenaSelected', { arenaIndex: parseInt(btn.dataset.arena) }); });
     });
@@ -728,6 +730,8 @@ class UIManager {
 
   updateLobby(players = [], maxPlayers = 4, roomCode = '', isHost = false) {
     try {
+      const coinEl = document.getElementById('lobbyCoinAmount');
+      if (coinEl) coinEl.textContent = this.playerCoins.toLocaleString();
       const codeEl = document.getElementById('roomCodeDisplay');
       if (codeEl && roomCode) codeEl.textContent = roomCode;
       const countEl = document.getElementById('lobbyPlayerCount');
