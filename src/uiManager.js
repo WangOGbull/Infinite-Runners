@@ -1251,9 +1251,46 @@ class UIManager {
     }, 5000);
   }
 
+  // Shows a glowing down-arrow hint on the lobby when there's more content
+  // below the fold (Opponent frame + Leave Room), and hides it once the
+  // player scrolls near the bottom.
+  _updateScrollHint(screenEl) {
+    if (!screenEl || screenEl.id !== 'lobbyScreen') return;
+    let hint = document.getElementById('lobbyScrollHint');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.id = 'lobbyScrollHint';
+      hint.innerHTML = '<i data-lucide="chevrons-down"></i>';
+      hint.addEventListener('click', () => { try { screenEl.scrollBy({ top: screenEl.clientHeight * 0.7, behavior: 'smooth' }); } catch (_) {} });
+      screenEl.appendChild(hint);
+      if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20);
+      if (!this._lobbyScrollBound) {
+        this._lobbyScrollBound = true;
+        screenEl.addEventListener('scroll', () => {
+          const nearBottom = screenEl.scrollTop + screenEl.clientHeight >= screenEl.scrollHeight - 40;
+          const h = document.getElementById('lobbyScrollHint');
+          if (h) h.style.opacity = nearBottom ? '0' : '1';
+        });
+      }
+    }
+    // Only show if there's actually more to scroll.
+    const canScroll = screenEl.scrollHeight > screenEl.clientHeight + 40;
+    hint.style.display = canScroll ? 'flex' : 'none';
+    hint.style.opacity = '1';
+  }
+
   showScreen(screenId) {    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+    // Reveal every screen from the TOP. For the lobby this is essential:
+    // the room-code plaque is the first element, and if the screen opened
+    // mid-scroll the code sat above the viewport. Also refresh the scroll
+    // hint arrow for scrollable screens.
+    const _shown = this.screens[screenId];
+    if (_shown) {
+      try { _shown.scrollTop = 0; } catch (_) {}
+      setTimeout(() => { try { _shown.scrollTop = 0; } catch (_) {} this._updateScrollHint(_shown); }, 60);
+    }
     // Mark the switch time and, once, install a capture-phase guard that
     // swallows any click/touch landing on the freshly-shown screen within
     // a short window. This is the safety net for the ghost-tap bounce:
