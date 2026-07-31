@@ -539,88 +539,108 @@
     .bootTitle { font-size: 22px; letter-spacing: 3px; }
     .bootSub { font-size: 11px; letter-spacing: 6px; margin-bottom: 26px; }
   }
-  /* ==================== LOBBY — CSS-ONLY (v40) ====================
-     Every framed panel is pure CSS. Only /lobby/lobby-bg.png is used as the
-     screen background. Arena thumbnails remain image content (arena_*.png)
-     because they preview the actual arenas. All frame PNGs
-     (room-code-frame, stake-tier, arena-select, player-banner-*, back,
-     start-game-btn) are DROPPED — they never aligned across screens.
-     Color language: obsidian panels, chevron clips, deep red/blue/pink
-     glowing borders per role/dragon, Cinzel gold headings — matches the
-     Custom Stake Modal (untouched). */
+  /* ==================== LOBBY — v41 (View-Dragon-modal design language) ====
+     Root cause of the scroll shake in v40: #lobbyScreen itself was the
+     scroll container AND the cover-bg host, so every scroll frame the
+     browser recomputed the cover-fit bg. Fix: the SCREEN keeps a FIXED
+     background (attachment: fixed) and holds a single .lobbyPanel that is
+     the actual scroll container — same pattern as the View Dragon modal.
+     The panel gets one continuous purple neon border, hidden scrollbar,
+     and section headers with gradient divider lines. */
   #lobbyScreen {
+    --neon: #a855f7;             /* deep purple — matches Custom Modal */
+    --neon-red: #ef4444;         /* host slot (Ignis) */
+    --neon-blue: #60a5fa;        /* 1v1 opponent (Magnetron) */
+    --neon-pink: #ec4899;        /* FFA challengers 2/3 (Infinite) */
+    --neon-gold: #d4b071;        /* room code + accents */
     overflow-y: auto !important; -webkit-overflow-scrolling: touch;
-    padding-top: 70px; /* Kimi scroll fix: keep header + wallet clear */
+    padding: 0 !important;
   }
   #lobbyScreen.active {
-    display: flex; align-items: flex-start !important; justify-content: center;
-    background: #05060c url('/lobby/lobby-bg.png') top center / cover no-repeat !important;
+    display: block !important; /* NOT flex — flex+scroll causes reflow jitter */
+    background: #05060c url('/lobby/lobby-bg.png') center center / cover no-repeat fixed !important;
+  }
+  #lobbyScreen.active::before {
+    /* Soft vignette so the panel reads clearly over any bg brightness */
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(3,5,10,0.55) 70%, rgba(3,5,10,0.85) 100%);
   }
   #lobbyScreen .lobbyBox {
-    position: relative;
-    width: min(600px, calc(100vw - 16px));
-    margin: max(6px, env(safe-area-inset-top)) auto calc(22px + env(safe-area-inset-bottom));
-    padding: 12px 12px 24px;
+    position: relative; z-index: 1;
+    width: min(560px, calc(100vw - 24px));
+    margin: max(56px, env(safe-area-inset-top)) auto calc(28px + env(safe-area-inset-bottom));
+    padding: 22px 20px 24px;
     max-height: none; overflow: visible;
-    background: linear-gradient(180deg, rgba(4,6,12,0) 0%, rgba(4,6,12,0.55) 25%, rgba(4,6,12,0.94) 100%) !important;
-    border: none !important; box-shadow: none !important; border-radius: 0 !important;
+    background: linear-gradient(180deg, #0b0813 0%, #070510 100%) !important;
+    border: 2px solid var(--neon) !important;
+    border-radius: 18px !important;
+    box-shadow:
+      0 0 50px color-mix(in srgb, var(--neon) 35%, transparent),
+      inset 0 0 60px color-mix(in srgb, var(--neon) 10%, transparent),
+      0 24px 60px rgba(0,0,0,0.6);
     backdrop-filter: none;
   }
 
-  /* ----- Top header (Kimi mode-select header — kept, restyled) ----- */
-  .lobbyTopHeader {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; max-width: 560px; margin: 0 auto 8px; padding: 0 4px;
-    position: relative; z-index: 10; min-height: 34px;
+  /* Kill the old Kimi top header entirely — the plaque IS the header now */
+  .lobbyTopHeader { display: none !important; }
+
+  /* ----- Section titles: gradient divider lines + Cinzel neon (from ddm) ----- */
+  #lobbyScreen .lobbySection {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Cinzel Decorative', cursive; font-weight: 700;
+    font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--neon-gold);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--neon-gold) 50%, transparent);
+    margin: 16px 0 10px;
   }
-  .lobbyBackBtn {
-    position: absolute; left: 4px; top: 50%; transform: translateY(-50%);
-    width: 34px; height: 34px; padding: 0; cursor: pointer;
-    background: linear-gradient(180deg, rgba(20,16,25,0.9), rgba(10,8,14,0.9));
-    border: 1px solid rgba(168,85,247,0.4);
-    color: #d8b4fe; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 18px; line-height: 1;
-    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-    transition: color .15s, border-color .15s, box-shadow .15s;
+  #lobbyScreen .lobbySection::before,
+  #lobbyScreen .lobbySection::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--neon-gold) 55%, transparent));
   }
-  .lobbyBackBtn::before { content: '<'; }
-  .lobbyBackBtn:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 14px rgba(168,85,247,0.4); }
-  .lobbyHeaderCenter { display: flex; flex-direction: column; align-items: center; }
-  .lobbyHeaderLabel {
-    font-family: 'Cinzel Decorative', serif; font-weight: 700; font-size: 11px;
-    letter-spacing: 5px; color: #d4b071; text-transform: uppercase;
-    text-shadow: 0 0 12px rgba(212,176,113,0.4);
+  #lobbyScreen .lobbySection::after {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--neon-gold) 55%, transparent), transparent);
   }
 
-  /* ----- Room code plaque (pure CSS obsidian panel) ----- */
+  /* ----- Room code plaque — TOP PRIORITY, always visible ----- */
   #lobbyScreen .roomCodeRow {
     position: relative; display: flex; align-items: center; justify-content: center;
-    width: 100%; max-width: 320px; margin: 4px auto 14px;
-    min-height: 56px; padding: 10px 18px;
-    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%);
-    border: 1px solid rgba(212,176,113,0.55);
-    box-shadow: 0 0 22px rgba(212,176,113,0.18), inset 0 0 20px rgba(212,176,113,0.08);
-    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+    gap: 10px; width: 100%; margin: 0 auto 4px;
+    padding: 12px 18px; min-height: 62px;
+    background: linear-gradient(180deg, #101d33, #0a1424);
+    border: 2px solid var(--neon-gold);
+    border-radius: 6px;
+    box-shadow:
+      0 0 24px color-mix(in srgb, var(--neon-gold) 30%, transparent),
+      inset 0 0 22px color-mix(in srgb, var(--neon-gold) 12%, transparent);
+    clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
   }
-  #lobbyScreen .roomCodeRow .roomCodeFrame { display: none; }
+  #lobbyScreen .roomCodeRow::before {
+    content: 'ROOM CODE'; position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
+    padding: 2px 10px; background: #070510;
+    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: 9px; letter-spacing: 4px; color: var(--neon-gold);
+    text-transform: uppercase; white-space: nowrap;
+  }
+  #lobbyScreen .roomCodeRow .roomCodeFrame,
   #lobbyScreen .roomLabel { display: none; }
   #lobbyScreen #roomCodeDisplay,
   #lobbyScreen .roomCodeRow .roomCodeDigits {
-    position: static; transform: none;
-    font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
-    font-size: clamp(22px, 6vw, 30px) !important; letter-spacing: 8px !important;
+    position: static; transform: none; padding: 0; background: none; border: none;
+    font-family: 'Cinzel Decorative', cursive !important; font-weight: 900 !important;
+    font-size: clamp(24px, 6.5vw, 32px) !important;
+    letter-spacing: clamp(6px, 2vw, 10px) !important;
     color: #ffd98a !important;
-    text-shadow: 0 0 20px rgba(255,180,80,0.55), 0 2px 4px #000;
-    white-space: nowrap; pointer-events: none;
+    text-shadow:
+      0 0 22px color-mix(in srgb, var(--neon-gold) 70%, transparent),
+      0 2px 4px #000;
+    white-space: nowrap; user-select: all; cursor: pointer;
   }
-  #lobbyScreen .lobbyMeta {
-    text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600;
-    font-size: clamp(11px, 3vw, 13px); letter-spacing: 3px; color: #b9a888;
-    text-transform: uppercase; margin: 0 0 14px;
-  }
+  #lobbyScreen .lobbyMeta { display: none; } /* meta text was redundant */
 
-  /* ----- STAKE TIER: 4 CSS cards, no PNG ----- */
+  /* ----- STAKE TIER: 4 CSS cards, no PNG, per-tier neon glow ----- */
   #lobbyScreen .lobbyTierSelector {
-    display: block; width: 100%; max-width: 560px; margin: 0 auto 14px;
+    display: block; width: 100%; margin: 0 auto 6px;
     padding: 0 !important; background: none !important;
     border: none !important; clip-path: none !important;
   }
@@ -633,77 +653,69 @@
   }
   #tierBtns .tierBtn {
     position: relative; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 4px;
-    height: auto; min-height: 92px; padding: 12px 6px 10px !important;
+    align-items: center; justify-content: center; gap: 6px;
+    height: auto; min-height: 78px; padding: 12px 6px !important;
     width: 100%; min-width: 0; cursor: pointer; font-size: 0 !important;
-    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%) !important;
-    border: 1px solid rgba(120,90,140,0.4) !important;
-    color: #e9d5ff !important; border-radius: 0 !important;
-    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-    transition: border-color .15s, box-shadow .15s, transform .1s;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    color: #e9d5ff !important; border-radius: 10px !important;
+    clip-path: none !important;
+    transition: border-color .18s, box-shadow .18s, transform .1s;
   }
   #tierBtns .tierBtn img { display: none !important; }
   #tierBtns .tierBtn .tierDot, #tierBtns .tierBtn br { display: none !important; }
   #tierBtns .tierBtn::before {
     content: attr(data-tier); display: block;
-    font-family: 'Cinzel Decorative', serif; font-weight: 700;
-    font-size: clamp(11px, 2.8vw, 14px); letter-spacing: 2px;
+    font-family: 'Cinzel Decorative', cursive; font-weight: 700;
+    font-size: clamp(12px, 3vw, 14px); letter-spacing: 2px;
     color: #f3ead4; text-transform: uppercase; line-height: 1.1;
   }
   #tierBtns .tierBtn .tierAmt {
     display: block !important;
     font-family: 'Rajdhani', sans-serif !important; font-weight: 700 !important;
-    font-size: clamp(9px, 2.4vw, 11px) !important; letter-spacing: 1px;
-    color: #b9a888; text-transform: none; line-height: 1.1;
+    font-size: clamp(10px, 2.6vw, 12px) !important; letter-spacing: 1px !important;
+    color: rgba(255,255,255,0.55) !important; text-transform: none; line-height: 1.1;
   }
   #tierBtns .tierBtn:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: inset 0 0 22px rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.2) !important;
+    box-shadow: inset 0 0 22px rgba(255,255,255,0.05);
   }
   #tierBtns .tierBtn:disabled { cursor: not-allowed; opacity: 0.55; }
-  /* Per-tier selection glow (Small=green, Medium=gold, High=red, Custom=purple) */
-  #tierBtns .tierBtn.glow-small  { border-color: #22c55e !important; box-shadow: 0 0 22px rgba(34,197,94,0.55), inset 0 0 20px rgba(34,197,94,0.18) !important; }
-  #tierBtns .tierBtn.glow-medium { border-color: #eab308 !important; box-shadow: 0 0 22px rgba(234,179,8,0.55), inset 0 0 20px rgba(234,179,8,0.18) !important; }
-  #tierBtns .tierBtn.glow-high   { border-color: #ef4444 !important; box-shadow: 0 0 22px rgba(239,68,68,0.55), inset 0 0 20px rgba(239,68,68,0.18) !important; }
-  #tierBtns .tierBtn.glow-custom { border-color: #a855f7 !important; box-shadow: 0 0 22px rgba(168,85,247,0.6),  inset 0 0 20px rgba(168,85,247,0.2)  !important; }
-  #tierBtns .tierBtn.glow-small.active,
-  #tierBtns .tierBtn.glow-medium.active,
-  #tierBtns .tierBtn.glow-high.active,
-  #tierBtns .tierBtn.glow-custom.active { transform: none; filter: brightness(1.08); }
+  /* Per-tier selection glow: Small=green, Medium=gold, High=red, Custom=purple */
+  #tierBtns .tierBtn.glow-small  { border-color: #22c55e !important; box-shadow: 0 0 20px rgba(34,197,94,0.5),  inset 0 0 20px rgba(34,197,94,0.15) !important; }
+  #tierBtns .tierBtn.glow-medium { border-color: #eab308 !important; box-shadow: 0 0 20px rgba(234,179,8,0.5),  inset 0 0 20px rgba(234,179,8,0.15) !important; }
+  #tierBtns .tierBtn.glow-high   { border-color: #ef4444 !important; box-shadow: 0 0 20px rgba(239,68,68,0.5),  inset 0 0 20px rgba(239,68,68,0.15) !important; }
+  #tierBtns .tierBtn.glow-custom { border-color: #a855f7 !important; box-shadow: 0 0 20px rgba(168,85,247,0.55), inset 0 0 20px rgba(168,85,247,0.16) !important; }
 
   #lobbyScreen #customStakeWrap { margin: 8px 0 0; }
   #lobbyScreen #customStakeInput {
     width: 100%; padding: 12px 14px; background: rgba(4,6,12,0.9);
     border: 1px solid rgba(168,85,247,0.55); color: #e9d5ff; font-family: 'Rajdhani', sans-serif;
-    font-size: 16px; letter-spacing: 3px; text-align: center; border-radius: 0; outline: none;
-    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+    font-size: 16px; letter-spacing: 3px; text-align: center; border-radius: 10px; outline: none;
+    clip-path: none;
   }
   #lobbyScreen #customStakeInput:focus { border-color: #c084fc; box-shadow: 0 0 14px rgba(168,85,247,0.35); }
   #lobbyScreen .feeDisclosure {
     text-align: center; font-family: 'Rajdhani', sans-serif;
-    font-size: 10px; letter-spacing: 1.5px; color: #8a7f70;
+    font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.35);
     margin: 8px 0 0; text-transform: uppercase;
   }
 
-  /* ----- ARENA: CSS panel wrapping 4 CSS thumbnail cards ----- */
+  /* ----- ARENA: soft panel, 4 real thumbnails ----- */
   #lobbyScreen .lobbyArenaSelector {
-    position: relative; display: block; width: 100%; max-width: 560px; margin: 0 auto 14px;
-    padding: 12px 10px 10px; background: linear-gradient(180deg, rgba(14,12,20,0.7), rgba(8,7,12,0.85)) !important;
-    border: 1px solid rgba(120,180,220,0.35) !important; clip-path: none !important;
-    box-shadow: inset 0 0 20px rgba(50,90,140,0.1);
+    position: relative; display: block; width: 100%; margin: 0;
+    padding: 0 !important; background: none !important;
+    border: none !important; clip-path: none !important;
   }
-  #lobbyScreen .lobbyArenaSelector::before {
-    content: 'Arena'; display: block; text-align: center;
-    font-family: 'Cinzel Decorative', serif; font-weight: 700;
-    font-size: 11px; letter-spacing: 4px; color: #d4b071;
-    text-transform: uppercase; margin-bottom: 8px;
-  }
+  #lobbyScreen .lobbyArenaSelector::before,
+  #lobbyScreen .lobbyArenaSelector::after { display: none !important; content: none !important; }
   #lobbyScreen .lobbyArenaSelector .arenaFrame { display: none; }
   #lobbyScreen .lobbyArenaSelector > label { display: none; }
   #lobbyScreen .lobbyArenaSelector .arenaThumbs,
   #lobbyArenaThumbs {
     position: static; inset: auto; padding: 0; display: grid !important;
-    grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%;
+    grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;
     pointer-events: auto;
   }
   #lobbyScreen .lobbyArenaSelector .arenaThumb,
@@ -711,8 +723,13 @@
     position: relative; width: 100%; height: auto; aspect-ratio: 1/1;
     overflow: hidden; padding: 0; margin: 0; cursor: pointer;
     background: rgba(4,6,12,0.6);
-    border: 2px solid rgba(120,180,220,0.3) !important; border-radius: 0;
-    opacity: 0.85; transition: opacity .15s, border-color .15s, box-shadow .15s;
+    border: 2px solid rgba(255,255,255,0.08) !important;
+    border-radius: 10px !important;
+    opacity: 0.85; transition: opacity .15s, border-color .15s, box-shadow .15s, transform .1s;
+  }
+  #lobbyScreen .lobbyArenaSelector .arenaThumb:hover,
+  #lobbyArenaThumbs .arenaThumb:hover {
+    opacity: 1; border-color: rgba(96,165,250,0.5) !important; transform: translateY(-1px);
   }
   #lobbyScreen .lobbyArenaSelector .arenaThumb img,
   #lobbyArenaThumbs .arenaThumb img {
@@ -722,54 +739,59 @@
   #lobbyScreen .lobbyArenaSelector .arenaThumb.selected,
   #lobbyArenaThumbs .arenaThumb.active,
   #lobbyArenaThumbs .arenaThumb.selected {
-    opacity: 1; border-color: #60a5fa !important;
-    box-shadow: 0 0 16px rgba(96,165,250,0.5), inset 0 0 14px rgba(96,165,250,0.18) !important;
+    opacity: 1; border-color: var(--neon-blue) !important;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--neon-blue) 45%, transparent),
+                inset 0 0 14px color-mix(in srgb, var(--neon-blue) 18%, transparent) !important;
   }
   #lobbyScreen .lobbyArenaSelector .arenaThumb:disabled { cursor: not-allowed; }
 
-  /* ----- Player slot cards (deep red host, deep blue opponent, deep pink FFA) ----- */
+  /* ----- Player slot cards: obsidian + per-role neon border ----- */
   #lobbySlots {
     display: flex; flex-direction: column; gap: 10px;
-    width: 100%; max-width: 560px; margin: 0 auto 14px;
+    width: 100%; margin: 0 auto 6px;
   }
   #lobbySlots > * { width: 100%; }
   #lobbySlots .lobbyPlayerCard {
     position: relative; display: flex; align-items: center; gap: 12px;
-    width: 100%; min-height: 78px; padding: 12px 16px 12px 14px; margin: 0;
-    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%) !important;
-    border: 1px solid rgba(120,90,140,0.4) !important;
-    box-shadow: none; border-radius: 0 !important;
-    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+    width: 100%; min-height: 78px; padding: 12px 14px; margin: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)) !important;
+    border: 2px solid rgba(255,255,255,0.08) !important;
+    box-shadow: none; border-radius: 12px !important;
+    clip-path: none !important;
     aspect-ratio: auto !important;
-    transition: border-color .15s, box-shadow .2s;
+    transition: border-color .18s, box-shadow .2s;
   }
-  /* Deep red for the host — matches Ignis */
+  /* Host = red (Ignis) */
   #lobbySlots .lobbyPlayerCard.local,
   #lobbySlots .lobbyPlayerCard.role-host {
-    border-color: rgba(220,50,50,0.55) !important;
-    box-shadow: 0 0 22px rgba(220,50,50,0.22), inset 0 0 20px rgba(220,50,50,0.06);
-    background: linear-gradient(180deg, #1a0f14 0%, #0d0509 100%) !important;
+    border-color: var(--neon-red) !important;
+    box-shadow:
+      0 0 22px color-mix(in srgb, var(--neon-red) 30%, transparent),
+      inset 0 0 18px color-mix(in srgb, var(--neon-red) 8%, transparent) !important;
   }
-  /* Deep blue for 1v1 opponent — matches Magnetron */
+  /* 1v1 opponent = blue (Magnetron) */
   #lobbySlots .lobbyPlayerCard.opponent,
   #lobbySlots .lobbyPlayerCard.role-opponent {
-    border-color: rgba(60,120,220,0.55) !important;
-    box-shadow: 0 0 22px rgba(60,120,220,0.22), inset 0 0 20px rgba(60,120,220,0.06);
-    background: linear-gradient(180deg, #0d1220 0%, #05080f 100%) !important;
+    border-color: var(--neon-blue) !important;
+    box-shadow:
+      0 0 22px color-mix(in srgb, var(--neon-blue) 30%, transparent),
+      inset 0 0 18px color-mix(in srgb, var(--neon-blue) 8%, transparent) !important;
   }
-  /* Deep pink for FFA challengers 2/3 — matches Infinite */
+  /* FFA challengers 2/3 = pink (Infinite) */
   #lobbySlots .lobbyPlayerCard.role-ffa2,
   #lobbySlots .lobbyPlayerCard.role-ffa3 {
-    border-color: rgba(220,80,160,0.55) !important;
-    box-shadow: 0 0 22px rgba(220,80,160,0.22), inset 0 0 20px rgba(220,80,160,0.06);
-    background: linear-gradient(180deg, #1a0d18 0%, #0d050a 100%) !important;
+    border-color: var(--neon-pink) !important;
+    box-shadow:
+      0 0 22px color-mix(in srgb, var(--neon-pink) 30%, transparent),
+      inset 0 0 18px color-mix(in srgb, var(--neon-pink) 8%, transparent) !important;
   }
-  /* Empty slot: quiet dashed obsidian */
+  /* Empty slot: quiet dashed, no glow */
   #lobbySlots .lobbyPlayerCard.empty {
     justify-content: center;
-    border-style: dashed !important; border-color: rgba(160,110,50,0.35) !important;
-    box-shadow: none;
-    background: linear-gradient(180deg, rgba(20,16,25,0.55), rgba(10,8,14,0.75)) !important;
+    border-style: dashed !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    box-shadow: none !important;
+    opacity: 0.75;
   }
   #lobbySlots .lobbyPlayerCard img,
   #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon {
@@ -781,6 +803,21 @@
     font-size: 22px; color: #b9a888;
     border: 1px solid rgba(255,255,255,0.08);
   }
+  #lobbySlots .lobbyPlayerCard.role-host img,
+  #lobbySlots .lobbyPlayerCard.local img {
+    border-color: var(--neon-red);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--neon-red) 40%, transparent);
+  }
+  #lobbySlots .lobbyPlayerCard.role-opponent img,
+  #lobbySlots .lobbyPlayerCard.opponent img {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--neon-blue) 40%, transparent);
+  }
+  #lobbySlots .lobbyPlayerCard.role-ffa2 img,
+  #lobbySlots .lobbyPlayerCard.role-ffa3 img {
+    border-color: var(--neon-pink);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--neon-pink) 40%, transparent);
+  }
   #lobbySlots .lobbyPlayerCard .lobbyPlayerIcon.empty { background: transparent; border-color: transparent; }
   #lobbySlots .lobbyPlayerBody {
     display: flex; flex-direction: column; justify-content: center;
@@ -789,7 +826,7 @@
   #lobbySlots .lobbyPlayerName {
     position: static !important; top: auto !important; left: auto !important; right: auto !important;
     transform: none !important;
-    font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
+    font-family: 'Cinzel Decorative', cursive !important; font-weight: 700 !important;
     font-size: clamp(13px, 3.4vw, 16px) !important; letter-spacing: 1.5px !important;
     color: #f3ead4 !important; line-height: 1.1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -809,10 +846,12 @@
     font-size: clamp(9px, 2.2vw, 10px); letter-spacing: 1.5px;
     text-transform: uppercase; color: #c9a86a;
   }
+  #lobbySlots .lobbyPlayerCard.role-host .lobbyPlayerRole,
+  #lobbySlots .lobbyPlayerCard.local .lobbyPlayerRole { color: color-mix(in srgb, var(--neon-red) 65%, #fff); }
   #lobbySlots .lobbyPlayerCard.role-opponent .lobbyPlayerRole,
-  #lobbySlots .lobbyPlayerCard.opponent .lobbyPlayerRole { color: #93c5fd; }
+  #lobbySlots .lobbyPlayerCard.opponent .lobbyPlayerRole { color: color-mix(in srgb, var(--neon-blue) 65%, #fff); }
   #lobbySlots .lobbyPlayerCard.role-ffa2 .lobbyPlayerRole,
-  #lobbySlots .lobbyPlayerCard.role-ffa3 .lobbyPlayerRole { color: #f9a8d4; }
+  #lobbySlots .lobbyPlayerCard.role-ffa3 .lobbyPlayerRole { color: color-mix(in srgb, var(--neon-pink) 65%, #fff); }
   #lobbySlots .lobbyPlayerRole .roleCrown,
   #lobbySlots .lobbyPlayerRole .roleShield { font-size: 11px; }
   #lobbySlots .lobbyPlayerRight {
@@ -821,27 +860,29 @@
   }
   #lobbySlots .depositBadge {
     position: static !important; right: auto !important; top: auto !important; transform: none !important;
+    padding: 4px 10px;
     font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 10px; letter-spacing: 1.5px;
-    color: #4ade80; display: flex; align-items: center; gap: 4px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 5px; text-transform: uppercase;
+    background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.4);
+    color: #4ade80; border-radius: 4px;
   }
-  #lobbySlots .depositBadge::before { content: '\2713'; font-size: 12px; }
-  #lobbySlots .depositBadge.pending { color: #ffb24d; }
-  #lobbySlots .depositBadge.pending::before { content: '\22EF'; }
+  #lobbySlots .depositBadge.pending {
+    background: rgba(255,178,77,0.12); border-color: rgba(255,178,77,0.4); color: #ffb24d;
+  }
   #lobbySlots .kickBtn {
-    padding: 4px 10px; cursor: pointer;
-    background: rgba(220,50,50,0.15);
-    border: 1px solid rgba(220,50,50,0.5); color: #fca5a5;
+    padding: 5px 12px; cursor: pointer;
+    background: rgba(239,68,68,0.14);
+    border: 1px solid rgba(239,68,68,0.5); color: #fca5a5;
     font-family: 'Rajdhani', sans-serif; font-weight: 700;
     font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
-    clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+    border-radius: 4px;
     transition: color .15s, border-color .15s, background .15s;
   }
   #lobbySlots .kickBtn:hover { color: #fff; border-color: #ef4444; background: rgba(239,68,68,0.35); }
-  /* "Opponent joining…" placeholder text for 1v1 empty seat */
   #lobbySlots .lobbyPlayerName.joining {
-    color: #8fa3c4 !important; font-family: 'Rajdhani', sans-serif !important;
-    font-weight: 600 !important; letter-spacing: 1px !important;
-    text-transform: none !important;
+    color: rgba(255,255,255,0.55) !important; font-family: 'Rajdhani', sans-serif !important;
+    font-weight: 600 !important; letter-spacing: 1.5px !important; text-transform: uppercase !important;
+    font-size: clamp(12px, 3vw, 14px) !important;
   }
   #lobbySlots .joinDots span { animation: joinBlink 1.4s infinite both; }
   #lobbySlots .joinDots span:nth-child(2) { animation-delay: 0.2s; }
@@ -851,64 +892,64 @@
   /* ----- Action buttons ----- */
   #lobbyScreen .lobbyActions {
     display: flex; flex-direction: column; gap: 10px;
-    width: 100%; max-width: 520px; margin: 6px auto 0;
-    align-items: center; padding-bottom: 60px;
+    width: 100%; margin: 14px auto 0;
+    align-items: center; padding-bottom: 8px;
   }
-  /* START GAME — deep-color CSS button (no PNG) */
+  /* START GAME — molten gold chevron (matches SELECT DRAGON button) */
   #lobbyScreen #lobbyStartBtn,
   #lobbyScreen .startGameBtn {
-    display: none; width: 100%; max-width: 520px; min-height: 54px; aspect-ratio: auto !important;
-    align-items: center; justify-content: center; gap: 10px;
-    font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
+    display: none; width: 100%; max-width: 100%; min-height: 54px; aspect-ratio: auto !important;
+    align-items: center; justify-content: center; gap: 10px; padding: 3px;
+    font-family: 'Cinzel Decorative', cursive !important; font-weight: 900 !important;
     font-size: clamp(14px, 3.8vw, 17px) !important; letter-spacing: 3px !important;
     text-transform: uppercase;
-    background: linear-gradient(180deg, #ff8c40 0%, #d94a1f 55%, #7a1f10 100%) !important;
-    color: #fff !important; border: none !important; border-radius: 0 !important; cursor: pointer;
+    background: linear-gradient(180deg, #f7e3b0 0%, #c9a86a 45%, #7a5c2c 100%) !important;
+    color: #ffe9b8 !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.85), 0 0 18px rgba(255,200,100,0.35);
+    border: none !important; border-radius: 0 !important; cursor: pointer;
     clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%);
-    box-shadow: 0 0 26px rgba(255,140,40,0.35), inset 0 -2px 0 rgba(0,0,0,0.35);
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    box-shadow: 0 0 26px rgba(201,168,106,0.35);
     transition: filter .15s, transform .1s;
-    font-size: 0; /* reset; the real font-size is above via !important */
   }
-  #lobbyScreen #lobbyStartBtn { display: none; }
   #lobbyScreen #lobbyStartBtn i,
   #lobbyScreen .startGameBtn i { display: none !important; }
   #lobbyScreen #lobbyStartBtn img,
   #lobbyScreen .startGameBtn img { display: none !important; }
-  #lobbyScreen #lobbyStartBtn:hover:not(:disabled) { filter: brightness(1.12) drop-shadow(0 0 14px rgba(255,140,40,0.5)); }
-  #lobbyScreen #lobbyStartBtn:active:not(:disabled) { transform: scale(0.98); }
+  #lobbyScreen #lobbyStartBtn:hover:not(:disabled) { filter: brightness(1.2); }
+  #lobbyScreen #lobbyStartBtn:active:not(:disabled) { filter: brightness(0.9); transform: scale(0.98); }
   #lobbyScreen #lobbyStartBtn:disabled { filter: grayscale(0.8) brightness(0.5); opacity: 0.55; cursor: not-allowed; }
   #lobbyScreen .startGameBtn.visible { display: flex; }
-
-  /* DEPOSIT — molten gold */
+  /* DEPOSIT — same molten gold chevron */
   #lobbyScreen #lobbyDepositBtn {
-    width: 100%; max-width: 520px; min-height: 50px;
+    width: 100%; max-width: 100%; min-height: 52px;
     display: flex; align-items: center; justify-content: center; gap: 10px;
-    font-family: 'Cinzel Decorative', serif !important; font-weight: 700 !important;
+    font-family: 'Cinzel Decorative', cursive !important; font-weight: 900 !important;
     font-size: clamp(13px, 3.6vw, 16px) !important; letter-spacing: 2px !important;
     text-transform: uppercase;
-    background: linear-gradient(180deg, #f0d9a0 0%, #c9a86a 45%, #8a6a34 100%) !important;
-    color: #241a0c !important; border: none !important; cursor: pointer; border-radius: 0 !important;
+    background: linear-gradient(180deg, #f7e3b0 0%, #c9a86a 45%, #7a5c2c 100%) !important;
+    color: #241a0c !important;
+    text-shadow: 0 1px 2px rgba(255,235,180,0.4);
+    border: none !important; cursor: pointer; border-radius: 0 !important;
     clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 16px 100%, 0 50%);
-    box-shadow: 0 0 20px rgba(201,168,106,0.3);
+    box-shadow: 0 0 22px rgba(201,168,106,0.35);
   }
   #lobbyScreen #lobbyDepositBtn:disabled { filter: grayscale(0.6); opacity: 0.55; cursor: not-allowed; }
   /* LEAVE — ghost purple */
   #lobbyScreen #btnLeaveRoom {
-    width: 100%; max-width: 340px; min-height: 42px;
+    width: 100%; max-width: 100%; min-height: 42px;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-family: 'Cinzel Decorative', serif; font-weight: 700;
+    font-family: 'Cinzel Decorative', cursive; font-weight: 700;
     font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
     background: transparent; border: 1px solid rgba(168,85,247,0.45);
-    color: #c8a4f0; cursor: pointer; border-radius: 0;
-    clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+    color: #c8a4f0; cursor: pointer; border-radius: 10px;
+    clip-path: none;
     transition: color .15s, border-color .15s, box-shadow .15s;
   }
   #lobbyScreen #btnLeaveRoom:hover { color: #fff; border-color: #c084fc; box-shadow: 0 0 14px rgba(168,85,247,0.35); }
   #lobbyScreen #lobbyWaitingText {
     text-align: center; font-family: 'Rajdhani', sans-serif;
     font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
-    color: #8a7f70;
+    color: rgba(255,255,255,0.4);
   }
   #lobbyScreen .depositStatusText {
     text-align: center; font-family: 'Rajdhani', sans-serif; font-weight: 600;
@@ -919,36 +960,38 @@
 
   /* ===== FFA 60s AUTO-START COUNTDOWN ===== */
   #ffaStartCountdown {
-    width: 100%; max-width: 520px; margin: 8px auto 4px;
-    padding: 12px 14px 14px; text-align: center;
-    background: linear-gradient(180deg, #14101a 0%, #0b0810 100%);
-    border: 1px solid rgba(255,180,80,0.55);
-    box-shadow: 0 0 22px rgba(255,180,80,0.22), inset 0 0 20px rgba(255,180,80,0.06);
-    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+    width: 100%; margin: 12px auto 0;
+    padding: 14px 16px; text-align: center;
+    background: linear-gradient(180deg, rgba(255,180,80,0.06), rgba(255,180,80,0.02));
+    border: 2px solid var(--neon-gold);
+    box-shadow:
+      0 0 22px color-mix(in srgb, var(--neon-gold) 30%, transparent),
+      inset 0 0 18px color-mix(in srgb, var(--neon-gold) 10%, transparent);
+    border-radius: 12px;
   }
   .ffaCdLabel {
     font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 11px; letter-spacing: 3px; color: #b9a888;
+    font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.5);
     text-transform: uppercase; margin-bottom: 4px;
   }
   .ffaCdNum {
-    font-family: 'Cinzel Decorative', serif; font-weight: 700;
-    font-size: clamp(24px, 6.5vw, 32px); letter-spacing: 3px;
-    color: #ffd98a; text-shadow: 0 0 20px rgba(255,180,80,0.55);
+    font-family: 'Cinzel Decorative', cursive; font-weight: 900;
+    font-size: clamp(26px, 6.5vw, 34px); letter-spacing: 3px;
+    color: #ffd98a; text-shadow: 0 0 20px color-mix(in srgb, var(--neon-gold) 65%, transparent);
     line-height: 1.1;
   }
   .ffaCdBar {
-    width: 100%; height: 5px; margin: 8px 0 6px;
-    background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;
+    width: 100%; height: 6px; margin: 10px 0 6px;
+    background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden;
   }
   #ffaCdFill {
     height: 100%; width: 100%;
-    background: linear-gradient(90deg, #ffd98a, #ff6b35);
-    border-radius: 2px; transition: width 1s linear;
+    background: linear-gradient(90deg, var(--neon-gold), #ff6b35);
+    border-radius: 3px; transition: width 1s linear;
   }
   .ffaCdHint {
     font-family: 'Rajdhani', sans-serif; font-size: 10px;
-    letter-spacing: 1px; color: #8a7f70; text-transform: uppercase;
+    letter-spacing: 1px; color: rgba(255,255,255,0.35); text-transform: uppercase;
   }
 
   /* ===== MATCHED LOBBY MODE: reuse lobby, hide code/pickers ===== */
@@ -956,8 +999,9 @@
   #lobbyScreen.matchedLobby .lobbyMeta,
   #lobbyScreen.matchedLobby #modeSelectorHost,
   #lobbyScreen.matchedLobby #lobbyTierSelector,
+  #lobbyScreen.matchedLobby .lobbySectionTier,
+  #lobbyScreen.matchedLobby .lobbySectionArena,
   #lobbyScreen.matchedLobby #lobbyArenaSelector { display: none !important; }
-  #lobbyScreen.matchedLobby .lobbyBox { padding-top: 28px; }
 
   /* ===== CUSTOM STAKE MODAL — untouched (design reference) ===== */
   .customStakeModal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; }
@@ -1059,19 +1103,9 @@
   }
   .mpModeModal .mpmCancel:hover { border-color: #e08; color: #fbb; }
 
-  /* ===== LOBBY SCROLL HINT (glowing down arrow) ===== */
-  #lobbyScrollHint {
-    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
-    width: 44px; height: 44px; border-radius: 50%; z-index: 1500; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(circle, rgba(168,85,247,0.25), rgba(10,14,22,0.6));
-    border: 1px solid rgba(168,85,247,0.6); color: #d8b4fe;
-    box-shadow: 0 0 18px rgba(168,85,247,0.5);
-    animation: scrollHintBounce 1.6s ease-in-out infinite;
-    transition: opacity .3s;
-  }
-  #lobbyScrollHint i { width: 24px; height: 24px; }
-  @keyframes scrollHintBounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(6px); } }
+  /* Kill the scroll-hint arrow — with hidden scrollbar and the panel now
+     sized to fit ~one screen on desktop, an animated arrow reads as a bug. */
+  #lobbyScrollHint { display: none !important; }
 </style>
 </head>
 <body>
@@ -1325,15 +1359,10 @@
     </div>
   </div>
   <div class="lobbyBox">
-    <div class="lobbyTopHeader">
-      <button class="lobbyBackBtn" id="btnLobbyBack" title="Back"></button>
-      <div class="lobbyHeaderCenter">
-        <span class="lobbyHeaderLabel">ROOM CODE</span>
-      </div>
-    </div>
     <div class="roomCodeRow" id="roomCodeRow">
       <div class="roomCodeDigits" id="roomCodeDisplay">------</div>
     </div>
+    <div class="lobbySection lobbySectionTier">Stake Tier</div>
     <div class="lobbyTierSelector" id="lobbyTierSelector">
       <div class="tierBtns" id="tierBtns">
         <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierAmt" id="tierAmtSmall">500K</span></button>
@@ -1343,6 +1372,7 @@
       </div>
       <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
     </div>
+    <div class="lobbySection lobbySectionArena">Arena</div>
     <div class="lobbyArenaSelector" id="lobbyArenaSelector">
       <div class="arenaThumbs" id="lobbyArenaThumbs">
         <button data-arena="0" class="arenaThumb active" id="lobbyArena0"><img src="/arenas/arena_stone.png" alt="Stone"></button>
@@ -1351,6 +1381,7 @@
         <button data-arena="3" class="arenaThumb" id="lobbyArena3"><img src="/arenas/arena_fire.png" alt="Fire"></button>
       </div>
     </div>
+    <div class="lobbySection lobbySectionPlayers">Players</div>
     <div class="lobbySlots" id="lobbySlots"></div>
     <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;"><i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span></button>
     <p id="depositStatusText" class="depositStatusText"></p>
