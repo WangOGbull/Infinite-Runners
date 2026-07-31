@@ -802,18 +802,50 @@ class Game {
   // cleaned up.
   _ensurePresence() {
     if (!this.roomRef) return;
+    // Use .update() (partial merge) instead of .set() (full replace) so a
+    // Telegram round-trip that hits this path CAN'T obliterate the staking
+    // fields (pubkey / deposited / depositTx / joinedAt / authUid) already
+    // written on the player record. Anything already present is preserved;
+    // only missing fields get filled in. Also stamp authUid so joinRoom's
+    // dedup guard can find this record on a later re-entry.
+    const baseFields = {
+      dragon: this.selectedDragon || 'ignis',
+      ready: true,
+      authUid: this.authUid || null,
+    };
     if (this.isHost) {
       const hostRef = this.roomRef.child('players/local');
       hostRef.once('value').then(snap => {
         if (!snap.exists()) {
-          hostRef.set({ name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true });
+          hostRef.set({
+            name: 'Player 1',
+            joinedAt: firebase.database.ServerValue.TIMESTAMP,
+            ...baseFields,
+          });
+        } else {
+          // Just fill in any fields the record is missing — never overwrite.
+          const existing = snap.val() || {};
+          const patch = {};
+          if (!existing.authUid && this.authUid) patch.authUid = this.authUid;
+          if (!existing.joinedAt) patch.joinedAt = firebase.database.ServerValue.TIMESTAMP;
+          if (Object.keys(patch).length) hostRef.update(patch);
         }
       }).catch(() => {});
     } else if (this.localPlayerId) {
       const meRef = this.roomRef.child('players/' + this.localPlayerId);
       meRef.once('value').then(snap => {
         if (!snap.exists()) {
-          meRef.set({ name: 'Player', dragon: this.selectedDragon || 'ignis', ready: true });
+          meRef.set({
+            name: 'Player',
+            joinedAt: firebase.database.ServerValue.TIMESTAMP,
+            ...baseFields,
+          });
+        } else {
+          const existing = snap.val() || {};
+          const patch = {};
+          if (!existing.authUid && this.authUid) patch.authUid = this.authUid;
+          if (!existing.joinedAt) patch.joinedAt = firebase.database.ServerValue.TIMESTAMP;
+          if (Object.keys(patch).length) meRef.update(patch);
         }
       }).catch(() => {});
     }
@@ -992,12 +1024,33 @@ class Game {
       }
       return;
     }
+    // FFA/2v2-aware: compute per-player deposit signals so uiManager can
+    // gate the deposit button on MY OWN status (not the 1v1 "bothStaked"
+    // gate that hid the button for FFA players 3/4 the moment host and
+    // player 2 had staked). All-players-deposited is what actually
+    // unlocks Start Game for any N.
+    const playersArr = Object.values(this.roomPlayers || {});
+    const myRecord = (this.roomPlayers && this.localPlayerId)
+      ? this.roomPlayers[this.localPlayerId] : null;
+    const myDeposited = !!(
+      (myRecord && myRecord.deposited)
+      || (this.isHost ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited)
+    );
+    const mode = this.selectedMpMode || '1v1';
+    const isFFA = mode !== '1v1' && playersArr.length >= 2;
+    const allPlayersDeposited = isFFA
+      ? (playersArr.length >= 2 && playersArr.every(p => !!(p && p.deposited)))
+      : (this.stakingState.hostDeposited && this.stakingState.opponentDeposited);
+
     this.uiManager.updateStakingUI({
       isHost: this.isHost,
       tier: this.lobbyTier,
       locked: this.stakingState.hostDeposited || !!this.lobbyTier && this.isHost === false,
       hostDeposited: this.stakingState.hostDeposited,
       opponentDeposited: this.stakingState.opponentDeposited,
+      myDeposited,
+      allPlayersDeposited,
+      mode,
       canDeposit: this.walletManager.connected,
     });
   }
@@ -1129,6 +1182,7 @@ class Game {
           dragon: this.selectedDragon || 'ignis',
           ready: true,
           joinedAt: firebase.database.ServerValue.TIMESTAMP,
+          authUid: this.authUid || null,
         }
       }
     });
@@ -1175,6 +1229,23 @@ class Game {
       alert('Multiplayer not available.');
       return;
     }
+    // GUARD 1: don't re-enter. A tap-tap on the Join button, a rapid
+    // Telegram→browser round-trip that re-fires a stale click handler, or
+    // any visibilitychange rehydration path — all of these were pushing
+    // duplicate player records with fresh keys, orphaning the original.
+    // The phantom that "showed 🐉 2D and appeared already staked" was the
+    // ORIGINAL record (still holding pubkey/deposited) sitting alongside
+    // the new bare-name duplicate.
+    if (this._joinInProgress) {
+      console.warn('[joinRoom] already in progress — ignoring duplicate call');
+      return;
+    }
+    // GUARD 2: if I'm already inside a room, refuse to start another join.
+    if (this.roomRef) {
+      console.warn('[joinRoom] already in a room — ignoring duplicate call');
+      return;
+    }
+    this._joinInProgress = true;
     this.roomCode = code;
     this.isHost = false;
     this.roomRef = this.db.ref('rooms/' + code);
@@ -1189,7 +1260,39 @@ class Game {
       }
       const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
       const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
-      const playerCount = Object.keys(data.players || {}).length;
+      const existingPlayers = data.players || {};
+
+      // GUARD 3: authUid-based dedup. If ANY existing player record in this
+      // room is already stamped with my authUid (from a prior join in the
+      // same session — Telegram round-trip, refresh, backgrounded tab), do
+      // NOT push a new record. Reuse that existing key so my staking
+      // signature stays attached to my identity.
+      if (this.authUid) {
+        const preExisting = Object.entries(existingPlayers)
+          .find(([, p]) => p && p.authUid && p.authUid === this.authUid);
+        if (preExisting) {
+          const [existingKey] = preExisting;
+          console.log(`[joinRoom] found existing record ${existingKey} for my authUid — reusing`);
+          this.localPlayerId = existingKey;
+          this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
+          this.selectedMpMode = data.mode || this.selectedMpMode;
+          this.lobbyTier = data.tier || null;
+          this._matchedMode = !!data.matched;
+          if (data.matched) {
+            this.uiManager.setMatchedLobbyMode(true, this.lobbyTier);
+          } else {
+            this.uiManager.setMatchedLobbyMode(false);
+          }
+          this.uiManager.showScreen('lobbyScreen');
+          this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
+          this._attachRoomListener();
+          this._ensurePresence();
+          this._persistLastRoom();
+          return;
+        }
+      }
+
+      const playerCount = Object.keys(existingPlayers).length;
       if (playerCount >= roomMax) {
         const err = document.getElementById('mpJoinError');
         if (err) err.textContent = 'Room is full';
@@ -1201,6 +1304,9 @@ class Game {
         dragon: this.selectedDragon || 'ignis',
         ready: true,
         joinedAt: firebase.database.ServerValue.TIMESTAMP,
+        // Stamp identity so GUARD 3 above can find this record on a
+        // subsequent joinRoom call (Telegram round-trip, tab refresh).
+        authUid: this.authUid || null,
       });
       this.localPlayerId = newPlayerRef.key;
       this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
@@ -1224,6 +1330,10 @@ class Game {
       this._attachRoomListener();
       this._ensurePresence();
       this._persistLastRoom();
+    }).catch(err => {
+      console.error('[joinRoom] error:', err);
+    }).finally(() => {
+      this._joinInProgress = false;
     });
   }
 
