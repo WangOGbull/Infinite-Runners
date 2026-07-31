@@ -924,6 +924,16 @@ class Game {
     // knows where to send a payout later - nothing wrote this before, and
     // settle_match cannot function without it.
     const myPubkey = this.walletManager.publicKey.toString();
+
+    // Dual-format staking writes:
+    //   - 1v1: keep the legacy top-level fields (hostPubkey / opponentPubkey
+    //     + staking.hostDeposited / staking.opponentDeposited) so anything
+    //     already reading them keeps working byte-identically.
+    //   - FFA (and any 2+ player mode): ALSO write per-player fields on the
+    //     player record (players/{myId}/pubkey + players/{myId}/deposited)
+    //     so the backend can attribute each of the 4 stakes to a specific
+    //     player without relying on host/opponent slot names.
+    // Backend prefers per-player fields when present; top-level as fallback.
     if (role === 'host') {
       updates.tier = tier;
       updates.hostPubkey = myPubkey;
@@ -939,6 +949,14 @@ class Game {
       updates['staking/opponentDeposited'] = true;
       updates['staking/opponentTx'] = signature;
     }
+    // Per-player writes: always write, whichever mode. Cheap, and gives the
+    // backend one canonical shape to iterate for FFA/2v2 without dropping
+    // the top-level fields the 1v1 code path already depends on.
+    const myId = this.localPlayerId || 'local';
+    updates[`players/${myId}/pubkey`] = myPubkey;
+    updates[`players/${myId}/deposited`] = true;
+    updates[`players/${myId}/depositTx`] = signature;
+
     await this.roomRef.update(updates);
     this._consumeLobbyContext();
     this.eventBus.emit('staking:confirmed', { label: `Deposit confirmed on-chain (tx ${String(signature).slice(0, 8)}…).` });
@@ -1096,6 +1114,7 @@ class Game {
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
     this.roomRef.set({
       host: 'local',
+      hostId: 'local', // authoritative host id — migrates if host leaves pre-game
       hostAuthUid: this.authUid || null,
       mode: this.selectedMpMode,
       maxPlayers: maxPlayers,
@@ -1105,7 +1124,12 @@ class Game {
       matched: !!matched,
       staking: { hostDeposited: false, opponentDeposited: false },
       players: {
-        local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true }
+        local: {
+          name: 'Player 1',
+          dragon: this.selectedDragon || 'ignis',
+          ready: true,
+          joinedAt: firebase.database.ServerValue.TIMESTAMP,
+        }
       }
     });
 
@@ -1175,7 +1199,8 @@ class Game {
       const newPlayerRef = this.roomRef.child('players').push({
         name: 'Player ' + (playerCount + 1),
         dragon: this.selectedDragon || 'ignis',
-        ready: true
+        ready: true,
+        joinedAt: firebase.database.ServerValue.TIMESTAMP,
       });
       this.localPlayerId = newPlayerRef.key;
       this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
@@ -1219,6 +1244,29 @@ class Game {
         this.lobbyArenaIndex = data.arenaIndex;
         this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
       }
+
+      // Host role migration (deterministic across clients on the same snap):
+      // whoever has the earliest joinedAt among current players IS the host.
+      // If the original host has left the room, this promotes the next-oldest
+      // remaining player automatically. Every client on the same snapshot
+      // agrees on the new host id, so no coordination write is required.
+      const stampedHostId = data.hostId || data.host || 'local';
+      let computedHostId = stampedHostId;
+      if (!this.roomPlayers[stampedHostId]) {
+        // Original host isn't in the room anymore → pick earliest joiner.
+        const sorted = Object.entries(this.roomPlayers)
+          .map(([id, p]) => ({ id, joinedAt: (p && p.joinedAt) || 0 }))
+          .sort((a, b) => a.joinedAt - b.joinedAt);
+        if (sorted.length) computedHostId = sorted[0].id;
+      }
+      // If I am the newly-promoted host AND the room record hasn't caught up
+      // yet, persist the migration so late-joiners see the same authoritative
+      // host id. Only the promoted client writes, so no thundering herd.
+      if (computedHostId !== stampedHostId && this.localPlayerId === computedHostId) {
+        try { this.roomRef.update({ hostId: computedHostId }); } catch (_) {}
+      }
+      this.isHost = (this.localPlayerId === computedHostId);
+
       // The player's Firebase key is what the host needs to kick them, and
       // FFA cards need per-player deposited flags (the 2-player room-level
       // staking flags don't cover challenger slots 3/4). Both are surfaced
@@ -1227,10 +1275,10 @@ class Game {
         ...p,
         id,
         isLocal: id === this.localPlayerId,
-        isHost: id === 'local', // the host's Firebase key is always 'local', regardless of which browser is viewing
-        deposited: id === 'local'
-          ? this.stakingState.hostDeposited
-          : (p && p.deposited !== undefined ? !!p.deposited : this.stakingState.opponentDeposited),
+        isHost: id === computedHostId,
+        deposited: (p && p.deposited !== undefined)
+          ? !!p.deposited
+          : (id === stampedHostId ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited),
       }));
       const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
       const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
@@ -1239,28 +1287,57 @@ class Game {
       // Matched games use the SAME lobby UI as Create Room, with matched
       // styling (bg shown, code + pickers hidden). Both paired players are
       // equals - they stake, and the instant BOTH stakes are in, the match
-      // AUTO-STARTS (no manual Start tap). The room owner (a hidden
-      // technical role, not shown to players) triggers the start.
+      // AUTO-STARTS (no manual Start tap).
       this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost, roomMode);
       this._refreshStakingUI();
       if (this._matchedMode && this.stakingState.hostDeposited && this.stakingState.opponentDeposited
-          && this.isHost && this.state !== 'PLAYING' && data.status !== 'playing') {
-        // Both staked - auto-start for both clients.
+          && this.isHost && this.state !== 'PLAYING' && this.state !== 'GAME_OVER' && data.status !== 'playing') {
         this.startMpGame();
       }
 
       // FFA auto-start: when the pot is full and everyone has staked, run a
       // 60s local countdown on every client. Host also sees Start Game and
       // can end it early; if the timer hits 0, host emits mp:startGame so
-      // the other 3 aren't stuck on an AFK host. Guests just watch — their
-      // expiry does nothing; they'll pick up status='playing' from the snap.
+      // the other players aren't stuck on an AFK host. Guests just watch —
+      // their expiry does nothing; they'll pick up status='playing' from
+      // the next room snapshot.
       if (this._shouldRunFFACountdown(data, players, roomMode)) {
         this._startFFACountdown();
       } else {
         this._stopFFACountdown();
       }
 
-      if (data.status === 'playing' && this.state !== 'PLAYING' && !this.isHost) {
+      // "Last player standing" auto-leave: when the room drops from 2+ down
+      // to just me AND the match hasn't started, auto-leave. leaveRoom()
+      // removes my player record → backend sees the whole room empty AND
+      // still-staked → handleRoomRemoved refunds me and returns me to menu.
+      // Guard on prev-count so this doesn't fire when I first create a room
+      // (1 player → still 1 player, no leaves happened).
+      const prevCount = this._lastPlayerCount || 0;
+      if (prevCount >= 2 && players.length === 1
+          && this.localPlayerId === players[0].id
+          && data.status !== 'playing'
+          && this.state !== 'PLAYING' && this.state !== 'GAME_OVER') {
+        console.log('[Room] Last player standing — auto-leaving to main menu');
+        this.eventBus.emit('staking:pending', {
+          label: 'Everyone else left this room — returning you to the menu.',
+        });
+        setTimeout(() => this.leaveRoom(), 400);
+      }
+      this._lastPlayerCount = players.length;
+
+      // AUTO-REPLAY BUG FIX: the previous condition (data.status==='playing'
+      // && state!=='PLAYING' && !isHost) re-fired startLocalGame on EVERY
+      // room update while status was still 'playing' — including the
+      // settlement write that happens AFTER game over — dragging non-host
+      // clients back into a bogus "settling on chain" replay of an
+      // already-finished match. Explicitly bail if the local player has
+      // already reached GAME_OVER for this match; the finished-match state
+      // is server-authoritative from that point.
+      if (data.status === 'playing'
+          && this.state !== 'PLAYING'
+          && this.state !== 'GAME_OVER'
+          && !this.isHost) {
         const gameConfig = data.gameConfig || {};
         this.selectedMode = gameConfig.mode || data.mode || 'FFA';
         this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
@@ -1355,45 +1432,71 @@ class Game {
   }
 
   leaveRoom() {
-    // Whether THIS player (in their role) had staked into this room. If so,
-    // leaving removes the room and the backend auto-refunds - tell them so
-    // they know to expect the tokens back rather than thinking they're lost.
-    const iStaked = this.isHost ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited;
-    const bothStaked = this.stakingState.hostDeposited && this.stakingState.opponentDeposited;
+    // Local view of my own stake status. In the dual-format schema my
+    // deposited flag lives on the player record itself (players/{id}) for
+    // FFA, and also as a role-level flag (staking.hostDeposited /
+    // opponentDeposited) for 1v1 legacy. Either is enough to know I'm
+    // owed a refund.
+    const myRecord = (this.roomPlayers && this.localPlayerId)
+      ? this.roomPlayers[this.localPlayerId] : null;
+    const iStakedPerPlayer = !!(myRecord && myRecord.deposited);
+    const iStakedLegacy = this.isHost
+      ? this.stakingState.hostDeposited
+      : this.stakingState.opponentDeposited;
+    const iStaked = iStakedPerPlayer || iStakedLegacy;
     const matchStarted = this.state === 'PLAYING' || this.state === 'GAME_OVER';
-    if (bothStaked && matchStarted) {
-      // Leaving a LIVE staked match is a forfeit, not a refund - the
-      // backend awards the pot to the opponent (see watchMatches forfeit
-      // path). Don't promise a refund that isn't coming.
+
+    if (iStaked && matchStarted) {
+      // Leaving a LIVE staked match is a forfeit — the backend awards the
+      // pot to whoever's left. Don't promise a refund that isn't coming.
       this.eventBus.emit('staking:error', {
-        message: 'Leaving a match in progress counts as a forfeit — your opponent will be awarded the pot.'
-      });
-    } else if (bothStaked) {
-      // Both staked but match never started - both refunded in full, no fee.
-      this.eventBus.emit('staking:pending', {
-        label: 'Refund in progress — both stakes are being returned in full. Check your wallet in ~30 seconds to confirm your balance.'
+        message: 'Leaving a match in progress counts as a forfeit — your opponent(s) will be awarded the pot.'
       });
     } else if (iStaked) {
       this.eventBus.emit('staking:pending', {
         label: 'Refund in progress — your stake is being returned in full. Check your wallet in ~30 seconds to confirm your balance.'
       });
     }
+
     this.stopNetworkSync();
     this._stopFFACountdown();
-    if (this.roomRef) {
-      this.roomRef.off();
-      if (this.isHost) {
-        this.roomRef.remove();
-      } else if (this.localPlayerId) {
+
+    if (this.roomRef && this.localPlayerId) {
+      // Host and non-host both remove only their OWN player record now.
+      // Removing the whole room used to be host-only; that made host
+      // leaves auto-refund every player at once and killed FFA rooms just
+      // because the host walked away. The new rule: host leaves like
+      // anyone else — remaining players stay, host role migrates
+      // deterministically by joinedAt (handled in _attachRoomListener),
+      // backend refunds this specific player via the child_removed listener.
+      // The room record dies naturally when the last player leaves, and
+      // handleRoomRemoved then refunds whoever's still staked (which will
+      // be nobody, since everyone already got refunded individually).
+      try {
+        this.roomRef.off();
+      } catch (_) {}
+      try {
         this.roomRef.child('players/' + this.localPlayerId).remove();
+      } catch (_) {}
+      // If I'm the last player OR I'm the ORIGINAL host in a 1v1 legacy
+      // room where opponent already left / never joined, also remove the
+      // whole room record so it doesn't linger. Safe because the backend's
+      // handleRoomRemoved won't double-refund (the individualRefunds/
+      // marker written when my player record was removed short-circuits
+      // the room-removed path).
+      const remainingCount = Math.max(0, this.playerIds.length - 1);
+      if (remainingCount === 0) {
+        try { this.roomRef.remove(); } catch (_) {}
       }
       this.roomRef = null;
     }
+
     this.isHost = false;
     this.roomCode = '';
     this.localPlayerId = null;
     this.playerIds = [];
     this.roomPlayers = {};
+    this._lastPlayerCount = 0;
     this.isMultiplayer = false;
     this._matchedMode = false;
     this.lobbyArenaIndex = 0;
@@ -1407,7 +1510,7 @@ class Game {
     //  - staked, match NOT started -> refund is coming, show processing
     //  - staked, match WAS live    -> forfeit (opponent paid), not a refund,
     //                                 so no refund screen - just exit
-    if ((iStaked || bothStaked) && !matchStarted) {
+    if (iStaked && !matchStarted) {
       this.uiManager.returnToMenuWithProcessing('titleScreen', 'Processing your refund…');
     } else {
       this.uiManager.showScreen('titleScreen');
@@ -1416,15 +1519,27 @@ class Game {
 
   startMpGame() {
     // Staking is mandatory: no tier picked means no stakes locked, so the
-    // match cannot start - and with a tier picked, BOTH deposits are
-    // required. This backs up the disabled button so the rule holds even
-    // if the UI state is ever stale.
+    // match cannot start - and with a tier picked, EVERY seated player
+    // must have deposited. Backs up the disabled button so the rule holds
+    // even if the UI state is ever stale.
     if (!this.lobbyTier) {
       this.eventBus.emit('staking:error', { message: 'Pick a stake tier and place your bet before starting.' });
       return;
     }
-    if (!(this.stakingState.hostDeposited && this.stakingState.opponentDeposited)) {
-      this.eventBus.emit('staking:error', { message: 'Both players must deposit their stake before the match can start.' });
+    // FFA-aware guard. In 1v1 the top-level staking flags are the source
+    // of truth (host + opponent); in FFA the per-player deposited flag on
+    // each player record is authoritative. If ANY seated player hasn't
+    // deposited, refuse to start regardless of role.
+    const players = Object.values(this.roomPlayers || {});
+    const isFFA = (this.selectedMpMode || '') !== '1v1' && players.length > 2;
+    let everyoneStaked;
+    if (isFFA) {
+      everyoneStaked = players.length >= 2 && players.every(p => !!(p && p.deposited));
+    } else {
+      everyoneStaked = this.stakingState.hostDeposited && this.stakingState.opponentDeposited;
+    }
+    if (!everyoneStaked) {
+      this.eventBus.emit('staking:error', { message: 'All players must deposit their stake before the match can start.' });
       return;
     }
     if (this.roomRef && this.isHost) {
