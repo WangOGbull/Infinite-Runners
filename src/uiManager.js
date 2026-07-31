@@ -1335,17 +1335,32 @@ class UIManager {
 
   // ===== FFA 60s host auto-start countdown =====
   // Distinct from showLobbyCountdown (the 10s pre-game bar). This one fires
-  // when all N FFA players have staked. The host sees the Start Game button
-  // AND this bar; if the host never taps Start, main.js emits mp:startGame
-  // at 0 so the other 3 aren't stuck on an AFK host.
+  // when all N FFA players have staked. Host also sees the Start Game
+  // button and can end the countdown early; if the host never taps Start,
+  // main.js emits mp:startGame at 0 so the other players aren't stuck.
+  //
+  // UI is a small floating widget in the top-right corner of the lobby
+  // panel (id="ffaCountdownWidget"). Non-blocking: it doesn't push the
+  // lobby content around, doesn't cover the player cards, doesn't intercept
+  // clicks. Falls back to the legacy full-width panel (id="ffaStartCountdown")
+  // if the widget isn't in the DOM, so pre-Phase-2 index.html doesn't break.
   showFFACountdown(seconds = 60) {
-    const el = document.getElementById('ffaStartCountdown');
-    const num = document.getElementById('ffaCdSeconds');
-    const fill = document.getElementById('ffaCdFill');
+    const widget = document.getElementById('ffaCountdownWidget');
+    const legacy = document.getElementById('ffaStartCountdown');
     this._ffaCdTotal = seconds;
-    if (el) el.style.display = 'block';
-    if (num) num.textContent = seconds;
-    if (fill) fill.style.width = '100%';
+    if (widget) {
+      widget.style.display = 'flex';
+      const num = document.getElementById('ffaCdSeconds');
+      const fill = document.getElementById('ffaCdFill');
+      if (num) num.textContent = seconds;
+      if (fill) fill.style.width = '100%';
+    } else if (legacy) {
+      legacy.style.display = 'block';
+      const num = document.getElementById('ffaCdSeconds');
+      const fill = document.getElementById('ffaCdFill');
+      if (num) num.textContent = seconds;
+      if (fill) fill.style.width = '100%';
+    }
   }
   updateFFACountdown(seconds) {
     const num = document.getElementById('ffaCdSeconds');
@@ -1355,8 +1370,10 @@ class UIManager {
     if (fill) fill.style.width = `${Math.max(0, (seconds / total) * 100)}%`;
   }
   hideFFACountdown() {
-    const el = document.getElementById('ffaStartCountdown');
-    if (el) el.style.display = 'none';
+    const widget = document.getElementById('ffaCountdownWidget');
+    const legacy = document.getElementById('ffaStartCountdown');
+    if (widget) widget.style.display = 'none';
+    if (legacy) legacy.style.display = 'none';
   }
   _applyTierGlow(tier) {
     document.querySelectorAll('#tierBtns .tierBtn').forEach(b => {
