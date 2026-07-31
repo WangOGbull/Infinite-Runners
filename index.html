@@ -958,41 +958,51 @@
   #lobbyScreen .depositStatusText.confirmed { color: #4ade80; text-shadow: 0 0 10px rgba(74,222,128,0.4); }
   #lobbyScreen .depositStatusText.pending { color: #ffb24d; }
 
-  /* ===== FFA 60s AUTO-START COUNTDOWN ===== */
-  #ffaStartCountdown {
-    width: 100%; margin: 12px auto 0;
-    padding: 14px 16px; text-align: center;
-    background: linear-gradient(180deg, rgba(255,180,80,0.06), rgba(255,180,80,0.02));
-    border: 2px solid var(--neon-gold);
-    box-shadow:
-      0 0 22px color-mix(in srgb, var(--neon-gold) 30%, transparent),
-      inset 0 0 18px color-mix(in srgb, var(--neon-gold) 10%, transparent);
-    border-radius: 12px;
+  /* ===== FFA 60s AUTO-START COUNTDOWN — small top-right widget ===== */
+  /* Anchored to .lobbyBox's top-right so it sits INSIDE the panel visually
+     but stacks above the section headers; z-index keeps it above the
+     player cards. Transparent bg, minimal footprint, non-blocking:
+     pointer-events: none so no click targets are hijacked. */
+  #ffaCountdownWidget {
+    position: absolute; top: 12px; right: 12px; z-index: 20;
+    display: none; flex-direction: column; align-items: center; gap: 3px;
+    min-width: 68px; padding: 8px 10px 7px;
+    background: rgba(10, 8, 16, 0.55);
+    backdrop-filter: blur(3px);
+    border: 1px solid color-mix(in srgb, var(--neon-gold) 55%, transparent);
+    border-radius: 8px;
+    box-shadow: 0 0 14px color-mix(in srgb, var(--neon-gold) 25%, transparent);
+    pointer-events: none;
+    animation: ffaCdPulse 2.4s ease-in-out infinite;
   }
-  .ffaCdLabel {
+  #ffaCountdownWidget .ffaCdMiniLabel {
     font-family: 'Rajdhani', sans-serif; font-weight: 700;
-    font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.5);
-    text-transform: uppercase; margin-bottom: 4px;
+    font-size: 8px; letter-spacing: 2.5px; color: rgba(255,220,140,0.75);
+    text-transform: uppercase; line-height: 1;
   }
-  .ffaCdNum {
+  #ffaCountdownWidget .ffaCdMiniNum {
     font-family: 'Cinzel Decorative', cursive; font-weight: 900;
-    font-size: clamp(26px, 6.5vw, 34px); letter-spacing: 3px;
-    color: #ffd98a; text-shadow: 0 0 20px color-mix(in srgb, var(--neon-gold) 65%, transparent);
-    line-height: 1.1;
+    font-size: 18px; letter-spacing: 1.5px;
+    color: #ffd98a; line-height: 1;
+    text-shadow: 0 0 10px color-mix(in srgb, var(--neon-gold) 55%, transparent);
   }
-  .ffaCdBar {
-    width: 100%; height: 6px; margin: 10px 0 6px;
-    background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden;
+  #ffaCountdownWidget .ffaCdMiniBar {
+    width: 100%; height: 2px; margin-top: 3px;
+    background: rgba(255,255,255,0.08); border-radius: 1px; overflow: hidden;
   }
-  #ffaCdFill {
+  #ffaCountdownWidget #ffaCdFill {
     height: 100%; width: 100%;
     background: linear-gradient(90deg, var(--neon-gold), #ff6b35);
-    border-radius: 3px; transition: width 1s linear;
+    transition: width 1s linear;
   }
-  .ffaCdHint {
-    font-family: 'Rajdhani', sans-serif; font-size: 10px;
-    letter-spacing: 1px; color: rgba(255,255,255,0.35); text-transform: uppercase;
+  @keyframes ffaCdPulse {
+    0%, 100% { box-shadow: 0 0 14px color-mix(in srgb, var(--neon-gold) 25%, transparent); }
+    50%      { box-shadow: 0 0 22px color-mix(in srgb, var(--neon-gold) 45%, transparent); }
   }
+  /* Legacy full-width panel kept hidden — the JS supports both IDs but the
+     v42 lobby only uses the widget. Killed here to guarantee it never renders
+     even if an older cached HTML pulls it in. */
+  #ffaStartCountdown { display: none !important; }
 
   /* ===== MATCHED LOBBY MODE: reuse lobby, hide code/pickers ===== */
   #lobbyScreen.matchedLobby .roomCodeRow,
@@ -1394,11 +1404,10 @@
       <div class="lobbyCountdownText">Game starts in <span id="lobbyCountdownNum">10</span>...</div>
       <div class="lobbyCountdownBar"><div id="lobbyCountdownFill"></div></div>
     </div>
-    <div id="ffaStartCountdown" style="display:none;">
-      <div class="ffaCdLabel">Auto-start in</div>
-      <div class="ffaCdNum"><span id="ffaCdSeconds">60</span>s</div>
-      <div class="ffaCdBar"><div id="ffaCdFill"></div></div>
-      <div class="ffaCdHint">Host can Start Game now, or the match starts automatically at 0.</div>
+    <div id="ffaCountdownWidget">
+      <div class="ffaCdMiniLabel">Auto-start</div>
+      <div class="ffaCdMiniNum"><span id="ffaCdSeconds">60</span>s</div>
+      <div class="ffaCdMiniBar"><div id="ffaCdFill"></div></div>
     </div>
   </div>
 </div>
