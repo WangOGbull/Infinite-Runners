@@ -896,22 +896,39 @@ class UIManager {
   }
 
   updateStakingUI(state = {}) {
-    const { isHost, tier, hostDeposited, opponentDeposited, canDeposit } = state;
-    const myDeposited = isHost ? hostDeposited : opponentDeposited;
-    const bothStaked = !!(hostDeposited && opponentDeposited);
+    const {
+      isHost, tier, hostDeposited, opponentDeposited, canDeposit,
+      myDeposited: myDepositedFromMain,
+      allPlayersDeposited: allDepositedFromMain,
+      mode,
+    } = state;
+    // Prefer FFA-aware signals from main.js when present; fall back to the
+    // 1v1 host/opponent flags for callers that haven't been updated. This
+    // is what fixes the FFA "no place-bet button for players 3/4" bug —
+    // v41 gated on `bothStaked` (host+opponent), which flipped true the
+    // moment player 2 staked and then hid the button for every later
+    // joiner. The gate is now per-player: MY OWN deposit status decides
+    // whether I still see the button; ALL-players decides Start Game.
+    const myDeposited = (myDepositedFromMain !== undefined)
+      ? !!myDepositedFromMain
+      : (isHost ? !!hostDeposited : !!opponentDeposited);
+    const allPlayersDeposited = (allDepositedFromMain !== undefined)
+      ? !!allDepositedFromMain
+      : !!(hostDeposited && opponentDeposited);
     // Remembered so updateLobby (which re-runs on every room snapshot)
-    // never re-shows Start before both stakes are locked.
-    this._stakingBothDeposited = bothStaked;
+    // never re-shows Start before every player's stake is locked.
+    this._stakingBothDeposited = allPlayersDeposited;
     const depositBtn = document.getElementById('lobbyDepositBtn');
     const label = document.getElementById('depositBtnLabel');
     const statusText = document.getElementById('depositStatusText');
     const startBtn = document.getElementById('lobbyStartBtn');
     const waitingText = document.getElementById('lobbyWaitingText');
     // ONE morphing button slot: Place Bet occupies it from the moment a
-    // tier exists, and only once BOTH players have staked successfully
-    // does it swap out for Start Game (host) / "host is starting" (guest).
+    // tier exists AND *I* haven't staked yet. Once I've staked it hides
+    // (I'm done); once EVERYONE has staked, Start Game takes the slot for
+    // the host and a "waiting for host..." message replaces it for guests.
     if (depositBtn) {
-      depositBtn.style.display = (tier && !bothStaked) ? 'flex' : 'none';
+      depositBtn.style.display = (tier && !myDeposited) ? 'flex' : 'none';
       depositBtn.disabled = !!myDeposited;
     }
     if (label) {
@@ -922,16 +939,16 @@ class UIManager {
           : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join'));
     }
     if (startBtn) {
-      startBtn.style.display = (bothStaked && isHost) ? 'flex' : 'none';
-      startBtn.disabled = !bothStaked;
+      startBtn.style.display = (allPlayersDeposited && isHost) ? 'flex' : 'none';
+      startBtn.disabled = !allPlayersDeposited;
     }
     if (waitingText) {
-      waitingText.style.display = (bothStaked && !isHost) ? 'block' : (isHost ? 'none' : waitingText.style.display);
-      if (bothStaked && !isHost) waitingText.textContent = 'Both stakes locked — waiting for host to start...';
+      waitingText.style.display = (allPlayersDeposited && !isHost) ? 'block' : (isHost ? 'none' : waitingText.style.display);
+      if (allPlayersDeposited && !isHost) waitingText.textContent = 'All stakes locked — waiting for host to start...';
     }
     if (statusText) {
-      if (bothStaked) { statusText.textContent = 'Both players staked - ready!'; statusText.className = 'depositStatusText confirmed'; }
-      else if (myDeposited) { statusText.textContent = 'Waiting for opponent to stake...'; statusText.className = 'depositStatusText pending'; }
+      if (allPlayersDeposited) { statusText.textContent = 'All players staked - ready!'; statusText.className = 'depositStatusText confirmed'; }
+      else if (myDeposited) { statusText.textContent = 'Waiting for other players to stake...'; statusText.className = 'depositStatusText pending'; }
       else { statusText.textContent = ''; statusText.className = 'depositStatusText'; }
     }
     document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
