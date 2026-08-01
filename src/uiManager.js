@@ -80,34 +80,52 @@ class UIManager {
     const overlay = document.getElementById('countdownOverlay');
     const textEl = document.getElementById('countdownText');
     if (!overlay || !textEl) { if (typeof onComplete === 'function') setTimeout(onComplete, 0); return; }
-    const prevFontSize = textEl.style.fontSize;
-    const prevLetterSpacing = textEl.style.letterSpacing;
-    const headerHtml = `<div style="font-size:0.32em;letter-spacing:5px;color:rgba(255,255,255,0.55);margin-bottom:10px;">WAVE CLEARED &mdash; GET READY</div>`;
-    const subHtml = `<div style="font-size:0.28em;letter-spacing:1px;color:#48cae4;margin-top:12px;">${wave.players} Dragons Entering Arena</div>`;
-    textEl.style.fontSize = '2.4rem';
-    textEl.style.letterSpacing = '2px';
-    let count = 3;
+
+    const waveNum = wave.id.replace('wave', '');
+    overlay.classList.add('wave-transition');
+    textEl.innerHTML = `
+      <div class="wave-cleared-title">WAVE CLEARED</div>
+      <div class="wave-divider"></div>
+      <div class="wave-next-label">PREPARE FOR WAVE ${waveNum}</div>
+      <div class="wave-enemy-count">${wave.players} DRAGONS APPROACHING</div>
+      <div class="wave-countdown-number">3</div>
+    `;
+
     overlay.classList.add('active');
-    const render = (label) => { textEl.innerHTML = `${headerHtml}<div>${label}</div>${subHtml}`; };
-    render(count);
+    const countEl = textEl.querySelector('.wave-countdown-number');
+
+    let count = 3;
     const tick = () => {
       count--;
-      if (count > 0) { render(count); setTimeout(tick, 1000); }
-      else if (count === 0) { render('GO!'); setTimeout(tick, 700); }
-      else {
-        overlay.classList.remove('active');
-        textEl.style.fontSize = prevFontSize;
-        textEl.style.letterSpacing = prevLetterSpacing;
+      if (count > 0) {
+        if (countEl) {
+          countEl.textContent = count;
+          countEl.style.animation = 'none';
+          countEl.offsetHeight;
+          countEl.style.animation = '';
+        }
+        setTimeout(tick, 1000);
+      } else if (count === 0) {
+        if (countEl) {
+          countEl.textContent = 'GO!';
+          countEl.style.animation = 'none';
+          countEl.offsetHeight;
+          countEl.style.animation = '';
+        }
+        setTimeout(tick, 800);
+      } else {
+        overlay.classList.remove('active', 'wave-transition');
         textEl.innerHTML = '';
         if (typeof onComplete === 'function') onComplete();
       }
     };
-    setTimeout(tick, 1000);
+    setTimeout(tick, 1500);
   }
 
   // Tier fully cleared (all 3 waves beaten). Shows rank + Restart/Advance/
   // Main Menu. nextTier is null for Hard (Ultimate Victory - no Advance).
   showTierComplete(tier, nextTier) {
+    const screen = document.getElementById('tierCompleteScreen');
     const titleEl = document.getElementById('tierCompleteTitle');
     const rankEl = document.getElementById('tierCompleteRank');
     const subEl = document.getElementById('tierCompleteSub');
@@ -115,12 +133,20 @@ class UIManager {
     const restartBtn = document.getElementById('btnTierRestart');
     const isUltimate = !nextTier;
 
+    // Apply difficulty-specific theme
+    if (screen) {
+      screen.classList.remove('tier-easy', 'tier-medium', 'tier-hard');
+      if (tier.id === 'easy') screen.classList.add('tier-easy');
+      else if (tier.id === 'medium') screen.classList.add('tier-medium');
+      else if (tier.id === 'hard') screen.classList.add('tier-hard');
+    }
+
     if (titleEl) {
       titleEl.textContent = isUltimate ? 'ULTIMATE VICTORY' : 'TIER CLEARED';
-      titleEl.style.color = isUltimate ? '#ffd700' : '#4ade80';
-      titleEl.style.textShadow = isUltimate ? '0 0 30px rgba(255,215,0,0.5)' : '0 0 30px rgba(74,222,128,0.5)';
     }
-    if (rankEl) rankEl.textContent = `Rank Achieved: ${tier.rank}`;
+    if (rankEl) {
+      rankEl.innerHTML = `<span class="rank-label">Rank Achieved</span><span class="rank-name">${tier.rank}</span>`;
+    }
     if (subEl) {
       subEl.textContent = isUltimate
         ? 'You have conquered every trial the arena holds. There is nothing left to prove.'
@@ -160,11 +186,39 @@ class UIManager {
     diffModal.className = 'screen';
     diffModal.innerHTML = `
       <div class="difficultyBox">
-        <h2>Select Difficulty</h2>
+        <h2>Select Trial</h2>
+        <p class="difficultySub">Choose your challenge. Clear all 3 waves to earn your rank.</p>
         <div class="difficultyGrid">
-          <button class="diffBtn" data-tier="easy">Easy</button>
-          <button class="diffBtn" data-tier="medium">Medium</button>
-          <button class="diffBtn" data-tier="hard">Hard</button>
+          <button class="diffBtn" data-tier="easy">
+            <div class="diffBtnInner">
+              <div class="diffTierIcon">🟢</div>
+              <div>
+                <div class="diffTierName">Easy</div>
+                <div class="diffTierRank">Rank: Emberborn</div>
+                <div class="diffTierDesc">3 &rarr; 7 &rarr; 10 Dragons</div>
+              </div>
+            </div>
+          </button>
+          <button class="diffBtn" data-tier="medium">
+            <div class="diffBtnInner">
+              <div class="diffTierIcon">🟣</div>
+              <div>
+                <div class="diffTierName">Medium</div>
+                <div class="diffTierRank">Rank: Voidwalker</div>
+                <div class="diffTierDesc">3 &rarr; 7 &rarr; 10 Dragons</div>
+              </div>
+            </div>
+          </button>
+          <button class="diffBtn" data-tier="hard">
+            <div class="diffBtnInner">
+              <div class="diffTierIcon">🔴</div>
+              <div>
+                <div class="diffTierName">Hard</div>
+                <div class="diffTierRank">Rank: The Infinite Sovereign</div>
+                <div class="diffTierDesc">3 &rarr; 7 &rarr; 10 Dragons</div>
+              </div>
+            </div>
+          </button>
         </div>
         <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
       </div>`;
