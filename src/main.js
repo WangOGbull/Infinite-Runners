@@ -851,12 +851,69 @@ class Game {
     }
   }
 
+  // Polls Solana for a signature's confirmation status via the connection
+  // the stakingManager already uses. searchTransactionHistory:true is
+  // required so a tx that has slipped out of the recent-status cache is
+  // still found. Returns true only for CONFIRMED / FINALIZED. Anything
+  // else (unknown, processed-only, err) => false. Matches the private
+  // stakingManager._didTxLand logic exactly, so desktop and mobile paths
+  // apply the same on-chain proof of deposit.
+  async _verifyTxLanded(signature) {
+    try {
+      const conn = this.walletManager && this.walletManager.connection;
+      if (!conn || !signature) return false;
+      for (let i = 0; i < 6; i++) {
+        try {
+          const res = await conn.getSignatureStatus(signature, { searchTransactionHistory: true });
+          const st = res && res.value;
+          if (st) {
+            if (st.err) return false; // included on-chain but FAILED — funds did not move
+            if (st.confirmationStatus === 'confirmed' || st.confirmationStatus === 'finalized') {
+              return true;
+            }
+          }
+        } catch (_) { /* transient — poll again */ }
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      return false;
+    } catch (_) { return false; }
+  }
+
   async _resumeStakingAction(pendingAction, signature) {
     if (!pendingAction) return;
     if (!this.roomRef) {
       const ctx = this._consumeLobbyContext();
       if (ctx && this.db) this._rejoinRoom(ctx);
     }
+
+    // CRITICAL — mobile deep-link flow: Phantom/Solflare hand us a signature
+    // in the redirect URL whether or not the user actually approved the
+    // stake. Without an on-chain confirmation check we'd write
+    // deposited: true to Firebase for a tx that never moved any tokens,
+    // and the settlement pot would end up short by exactly that player's
+    // stake. Verify BEFORE _markDeposited runs; if the signature isn't
+    // confirmed on-chain within ~9s, refuse to mark deposited and surface
+    // a clear error so the user can retry. Refund / cancel resume paths
+    // don't touch Firebase staking state, so they skip this check.
+    const isStakeAction = pendingAction.type === 'createRoom' || pendingAction.type === 'joinRoom';
+    if (isStakeAction) {
+      if (!signature) {
+        console.error('[Staking] resume attempted without a signature — not marking deposited');
+        this.eventBus.emit('staking:error', {
+          message: 'Your wallet did not return a transaction. No tokens moved. Please try placing your bet again.'
+        });
+        return;
+      }
+      const landed = await this._verifyTxLanded(signature);
+      if (!landed) {
+        console.error(`[Staking] mobile-redirect signature ${signature} did NOT land on-chain — not marking deposited`);
+        this.eventBus.emit('staking:error', {
+          message: 'Your stake transaction did not confirm on-chain. No tokens moved. Please try placing your bet again.'
+        });
+        return;
+      }
+    }
+
     if (pendingAction.type === 'createRoom') {
       await this._markDeposited('host', pendingAction.tier, signature);
     } else if (pendingAction.type === 'joinRoom') {
@@ -1728,18 +1785,70 @@ class Game {
       try { this._settlementRef.off('value', this._settlementListener); } catch (_) {}
     }
     this._settlementHandled = false;
+    // Diagnostic timeout: if the backend hasn't written settlement (of any
+    // status) within 90s of the match ending, the "Treasury is weighing
+    // the stakes…" panel switches to a plain-language delay message
+    // instead of hanging forever. Doesn't ADVANCE the settlement — funds
+    // are still owed and the room stays alive for backend recovery — but
+    // it tells the player "your funds are safe, this is delayed, contact
+    // support with this room code" so they aren't stranded on a screen
+    // that looks broken. Fires only for staked matches (this.lobbyTier).
+    if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
+    if (this.lobbyTier) {
+      const stuckRoom = this.roomCode;
+      this._settlementTimeoutId = setTimeout(() => {
+        if (this._settlementHandled) return;
+        console.warn(`[Settlement] no result after 90s for room ${stuckRoom} — showing delay message`);
+        this.uiManager.showStakeBreakdown({
+          delayed: true,
+          roomCode: stuckRoom,
+        });
+      }, 90000);
+    }
     this._settlementRef = this.roomRef.child('settlement');
     this._settlementListener = this._settlementRef.on('value', snap => {
       const s = snap.val();
       if (!s || this._settlementHandled) return;
       if (s.status === 'draw_needs_dispute_resolution') {
         this._settlementHandled = true;
+        if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
         this.uiManager.showStakeBreakdown({ draw: true });
+        return;
+      }
+      // Error settlement statuses — backend saw the match end but the
+      // payout / refund transaction itself failed, or the room record was
+      // missing data needed to settle. Surface it instead of hanging the
+      // UI on "Treasury weighing the stakes…" forever. Funds are still in
+      // the hot wallet; manual review is written to the settlement record
+      // for support-side triage.
+      if (typeof s.status === 'string' && s.status.startsWith('error_')) {
+        this._settlementHandled = true;
+        if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
+        console.error(`[Settlement] backend error status for room ${this.roomCode}: ${s.status}`, s);
+        this.uiManager.showStakeBreakdown({
+          error: true,
+          errorStatus: s.status,
+          errorMessage: s.errorMessage || null,
+          roomCode: this.roomCode,
+        });
         return;
       }
       if (s.status !== 'settled') return;
       this._settlementHandled = true;
-      const iWon = (s.winner === 'host') === !!this.isHost;
+      if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
+      // FFA-aware win check. Backend writes both `winner` ('host'|'opponent'
+      // for 1v1) and `winnerId` (the Firebase key, for any player count).
+      // Prefer winnerId — it's correct for all modes; the 'host'/'opponent'
+      // string is only meaningful for 1v1 and would misattribute the win
+      // in FFA (where winnerSide is a Firebase key, not one of two roles).
+      let iWon;
+      if (s.winnerId) {
+        iWon = this.localPlayerId
+          ? (this.localPlayerId === s.winnerId)
+          : (this.isHost && s.winnerId === 'local');
+      } else {
+        iWon = (s.winner === 'host') === !!this.isHost;
+      }
       if (this.state === 'PLAYING') {
         // Match still running on this client - end it now with the
         // server-settled outcome instead of any local approximation.
