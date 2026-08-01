@@ -1,4 +1,4 @@
-import CONFIG, { DRAGON_IMAGES } from './config.js';
+import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
 import { DragonManager } from './dragonManager.js';
 import MovementSystem from './movementSystem.js';
@@ -198,6 +198,14 @@ class Game {
     this.matchStats = {};
     this.winner = null;
 
+    // AI wave chaining (see isWaveMode()/advanceToNextWave()/startWaveRun())
+    // - -1 means "not currently in a wave match"; currentWaveIndex is reset
+    // properly every startLocalGame(). currentTier ('easy'/'medium'/'hard')
+    // is set from ui:arenaSelected or startWaveRun().
+    this.currentWaveIndex = -1;
+    this.currentTier = null;
+    this._waveTransitionPending = false;
+
     this.init();
   }
 
@@ -330,7 +338,7 @@ class Game {
       this.selectedDragon = name;
     });
 
-    this.eventBus.on('ui:arenaSelected', ({ mode, difficulty, arenaIndex }) => {
+    this.eventBus.on('ui:arenaSelected', ({ mode, difficulty, tierId, arenaIndex }) => {
       this.pendingArenaIndex = arenaIndex;
       // FIX: these were never stored anywhere before. restartGame() (Play
       // Again) reads this.selectedMode / this.aiDifficulty, which without
@@ -339,7 +347,21 @@ class Game {
       // mode/dragon-count than whatever the player actually just played.
       this.selectedMode = mode;
       this.aiDifficulty = difficulty;
+      this.currentTier = tierId || null;
       this.startLocalGame(mode, difficulty, arenaIndex);
+    });
+
+    // Tier-complete screen: Advance to the next tier, or Restart the
+    // current one. Both start a fresh wave1 match at the given tier -
+    // pendingArenaIndex (last picked arena) is reused so the player isn't
+    // re-prompted for arena skin on every tier transition.
+    this.eventBus.on('ui:tierAdvance', ({ tierId }) => {
+      const tier = AI_DIFFICULTY_TIERS.find(t => t.id === tierId);
+      if (tier) this.startWaveRun(tier);
+    });
+    this.eventBus.on('ui:tierRestart', ({ tierId }) => {
+      const tier = AI_DIFFICULTY_TIERS.find(t => t.id === tierId);
+      if (tier) this.startWaveRun(tier);
     });
 
     this.eventBus.on('mp:createRoom', ({ mode }) => this.createRoom(mode));
@@ -648,12 +670,28 @@ class Game {
     });
   }
 
+  // True only for the AI wave modes ('wave1'/'wave2'/'wave3', set once at
+  // match start and never changed mid-match - see startLocalGame() and
+  // advanceToNextWave()) - NOT for '1v1AI' or any multiplayer mode, which
+  // stay untouched by any of the wave-chaining logic below.
+  isWaveMode() {
+    const mode = this.gameModeManager.getMode();
+    return typeof mode === 'string' && mode.startsWith('wave');
+  }
+
   checkMatchEnd() {
     const allDragons = this.dragonManager.getAllDragons();
     const withLives = allDragons.filter(d => d.lives > 0);
 
     // If only one dragon has lives left, they win
     if (withLives.length === 1 && allDragons.length > 1) {
+      // Wave mode + the local player is the sole survivor: this is a wave
+      // CLEAR, not necessarily the end of the match - continue into the
+      // next wave in-place if there is one (see advanceToNextWave()).
+      if (this.isWaveMode() && withLives[0] === this.localDragon) {
+        this.advanceToNextWave();
+        return;
+      }
       this.winner = withLives[0];
       this.endGame(true);
       return;
@@ -674,6 +712,90 @@ class Game {
         this.endGame(true);
       }
     }
+  }
+
+  // Called the instant a wave's AI dragons are all eliminated and the
+  // local player is still alive. Pauses gameplay, shows the "WAVE CLEARED
+  // -> next wave incoming" 3-2-1 countdown (uiManager.showWaveClearedCountdown,
+  // reusing the existing pre-match countdown overlay), then spawns the
+  // next wave's AI dragons into the SAME match - no menu, no game-over
+  // screen, no loss of the player's current size/position. If the wave
+  // just cleared was the final one (wave3), the tier itself is complete
+  // instead (see onTierCleared()).
+  advanceToNextWave() {
+    // checkMatchEnd() (from the dragon:death handler) and update()'s own
+    // inline win-check both evaluate the same win condition in the same
+    // frame - without this guard, both would call advanceToNextWave() for
+    // the same elimination, double-spawning the next wave and double-
+    // firing the countdown.
+    if (this._waveTransitionPending) return;
+    const currentIndex = this.currentWaveIndex;
+    const nextWave = AI_WAVES[currentIndex + 1];
+
+    if (!nextWave) {
+      this.onTierCleared();
+      return;
+    }
+
+    this._waveTransitionPending = true;
+    this.currentWaveIndex = currentIndex + 1;
+    this.isPaused = true; // freezes update()/render() in loop() - no pause MENU, just frozen gameplay under the countdown
+    this.uiManager.showWaveClearedCountdown(nextWave, () => {
+      this.spawnWaveDragons(nextWave.players - 1); // -1: the local player already counts as one of nextWave.players
+      this.isPaused = false;
+      this.lastTime = performance.now(); // avoid a huge deltaTime spike from the pause
+      this._waveTransitionPending = false;
+    });
+  }
+
+  // Adds `count` fresh AI dragons into the CURRENT match (does not touch
+  // the local player or any existing dragon). AI difficulty stays fixed at
+  // whatever the tier was set to at match start (this.aiDifficulty) - it
+  // does NOT escalate wave to wave within one run, only tier to tier.
+  spawnWaveDragons(count) {
+    const spawnPositions = this.arenaManager.getSpawnPositions(count + 1);
+    const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
+    for (let i = 0; i < count; i++) {
+      const spawn = spawnPositions[i + 1] || spawnPositions[i % spawnPositions.length];
+      const aiName = aiNames[i % aiNames.length];
+      const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y);
+      if (this.aiController) aiDragon.speed *= this.aiController.getSpeedMult();
+      this.initMatchStats(aiDragon);
+    }
+  }
+
+  // All 3 waves cleared on the current tier. Stops the match WITHOUT going
+  // through the normal endGame()/gameOverScreen path - shows the dedicated
+  // tier-complete screen (rank + Restart/Advance/Main Menu) instead.
+  onTierCleared() {
+    this.state = 'GAME_OVER';
+    this.uiManager.showPauseOverlay(false);
+    this.uiManager.hideCountdown();
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.stopNetworkSync();
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    const tier = AI_DIFFICULTY_TIERS.find(t => t.id === this.currentTier) || AI_DIFFICULTY_TIERS[0];
+    const tierIdx = AI_DIFFICULTY_TIERS.findIndex(t => t.id === tier.id);
+    const nextTier = AI_DIFFICULTY_TIERS[tierIdx + 1] || null;
+    this.uiManager.showTierComplete(tier, nextTier);
+  }
+
+  // Starts a fresh wave1 match at the given tier - used by both the
+  // tier-complete screen's Restart and Advance buttons. Reuses the last
+  // picked arena so the player isn't re-prompted every tier transition.
+  startWaveRun(tier) {
+    this.currentTier = tier.id;
+    this.selectedMode = 'wave1';
+    this.aiDifficulty = tier.aiDifficulty;
+    const arenaIdx = (this.pendingArenaIndex !== null && this.pendingArenaIndex !== undefined) ? this.pendingArenaIndex : 0;
+    this.startLocalGame('wave1', tier.aiDifficulty, arenaIdx);
   }
 
   _persistLobbyContext() {
@@ -1115,6 +1237,11 @@ class Game {
   startLocalGame(mode, difficulty, arenaIndex) {
     this.gameModeManager.setMode(mode);
     this.arenaManager.setMode(mode, arenaIndex);
+
+    // Fresh match: reset wave progress. -1 for any non-wave mode (1v1AI,
+    // multiplayer modes, etc.) so isWaveMode()/advanceToNextWave() never
+    // engage for them.
+    this.currentWaveIndex = typeof mode === 'string' ? AI_WAVES.findIndex(w => w.id === mode) : -1;
 
     const maxPlayers = this.gameModeManager.getMaxPlayers();
     const spawnPositions = this.arenaManager.getSpawnPositions(maxPlayers);
@@ -2099,6 +2226,10 @@ class Game {
     const totalWithLives = allDragons.filter(d => d.lives > 0);
 
     if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
+      if (this.state === 'PLAYING' && this.isWaveMode() && livingWithLives[0] === this.localDragon) {
+        this.advanceToNextWave();
+        return;
+      }
       this.winner = livingWithLives[0];
       this.endGame(true);
       return;
@@ -2222,19 +2353,12 @@ class Game {
       // this shared screen), whether the player won or lost.
       const playAgain = document.getElementById('btnPlayAgain');
       if (playAgain) playAgain.style.display = 'flex';
-      if (this.winner === this.localDragon) {
-        // AI wave progression: only fires for solo play, and only when the
-        // LOCAL player actually won. Clearing your current frontier wave
-        // unlocks the next one (unlockNextWave() is a no-op if this was a
-        // replay of an already-passed wave, or if mode isn't a wave at all).
-        const mode = this.gameModeManager.getMode();
-        if (typeof mode === 'string' && mode.startsWith('wave')) {
-          const unlocked = this.uiManager.unlockNextWave(mode);
-          if (unlocked) {
-            console.log(`[Waves] Cleared ${mode} - unlocked "${unlocked.name}" (${unlocked.players} dragons)`);
-          }
-        }
-      }
+      // NOTE: AI wave-mode wins no longer reach this branch at all - they're
+      // intercepted earlier by advanceToNextWave()/onTierCleared() (see
+      // checkMatchEnd() and update()'s inline win-check), which show the
+      // wave countdown or the tier-complete screen instead of ending the
+      // match here. This else-branch only runs for normal losses/deaths,
+      // or a genuine non-wave-mode win (e.g. 1v1AI).
     }
   }
 
