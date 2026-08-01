@@ -1213,7 +1213,12 @@ class UIManager {
 
   hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
 
-  showStakeBreakdown({ pending = false, draw = false, won = false, stakeText = null, potText = null, feeText = null, payoutText = null, feePct = 2.5, signature = null, cluster = 'devnet' } = {}) {
+  showStakeBreakdown({
+    pending = false, draw = false, won = false,
+    delayed = false, error = false, errorStatus = null, errorMessage = null, roomCode = null,
+    stakeText = null, potText = null, feeText = null, payoutText = null,
+    feePct = 2.5, signature = null, cluster = 'devnet'
+  } = {}) {
     const box = document.getElementById('goStakeBox');
     if (!box) return;
     const title = document.getElementById('goStakeTitle');
@@ -1224,6 +1229,49 @@ class UIManager {
     if (pending) {
       title.textContent = 'SETTLING ON-CHAIN…';
       rows.innerHTML = `<div class="goStakeRow pending"><span>The Treasury is weighing the stakes…</span></div>`;
+      tx.style.display = 'none';
+      return;
+    }
+
+    // Delayed: 90s passed without the backend writing ANY settlement record.
+    // Most likely watchMatches.js on Railway isn't running, restarted mid-
+    // match, or lost its Firebase connection. Funds are safe (never moved
+    // out of the hot wallet); the room stays on-chain so a support-side
+    // restart of the watcher can still resolve it. Player-facing wording
+    // is neutral: no accusations, no "we broke it", just what to do.
+    if (delayed) {
+      title.textContent = 'SETTLEMENT DELAYED';
+      rows.innerHTML = `
+        <div class="goStakeRow pending"><span>The on-chain payout is taking longer than expected.</span></div>
+        <div class="goStakeRow pending"><span>Your funds are safe. This match will be resolved shortly.</span></div>
+        ${roomCode ? `<div class="goStakeRow"><span>Room code (for support)</span><span class="val">${roomCode}</span></div>` : ''}`;
+      tx.style.display = 'none';
+      return;
+    }
+
+    // Error: backend saw the match end but the payout / refund transaction
+    // itself failed on-chain (bad ATA, RPC hiccup, insufficient hot-wallet
+    // balance, etc.), or the room record was missing data. Backend wrote
+    // an error status to the settlement record; we surface it here instead
+    // of hanging on "Treasury weighing the stakes…" forever. Funds are
+    // still in the hot wallet; support can re-run settlement.
+    if (error) {
+      title.textContent = 'SETTLEMENT NEEDS REVIEW';
+      const friendly = ({
+        error_payout_failed:            'The winner payout transaction failed on-chain.',
+        error_refund_failed:            'The refund transaction failed on-chain.',
+        error_missing_data:             'Some room data was missing when settlement ran.',
+        error_unknown_tier:             'The stake tier on this room could not be resolved.',
+        error_winner_not_found:         'The winner\u2019s wallet was not found on the room record.',
+        error_insufficient_stakes:      'Not enough valid stakes were locked on-chain to settle.',
+        error_hot_wallet_short:         'Not enough funds in the Treasury hot wallet to complete the payout.',
+        error_deposit_verification_failed: 'One or more stakes could not be verified on-chain, so the match was blocked.',
+      })[errorStatus] || 'Settlement did not complete on-chain.';
+      rows.innerHTML = `
+        <div class="goStakeRow pending"><span>${friendly}</span></div>
+        <div class="goStakeRow pending"><span>Your funds are safe in the Treasury hot wallet and will be resolved manually.</span></div>
+        ${roomCode ? `<div class="goStakeRow"><span>Room code (for support)</span><span class="val">${roomCode}</span></div>` : ''}
+        ${errorStatus ? `<div class="goStakeRow"><span>Reason</span><span class="val">${errorStatus}</span></div>` : ''}`;
       tx.style.display = 'none';
       return;
     }
