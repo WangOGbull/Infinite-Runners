@@ -741,6 +741,19 @@ class Game {
     this.currentWaveIndex = currentIndex + 1;
     this.isPaused = true; // freezes update()/render() in loop() - no pause MENU, just frozen gameplay under the countdown
     this.uiManager.showWaveClearedCountdown(nextWave, () => {
+      // Reset the player dragon to starting size for the new wave challenge
+      this._resetDragonToWaveStart(this.localDragon);
+
+      // Clean up dead AI dragons from the previous wave so they don't linger
+      // in the dragon array (alive=false dragons are harmless but bloat state)
+      const allDragons = this.dragonManager.getAllDragons();
+      for (let i = allDragons.length - 1; i >= 0; i--) {
+        const d = allDragons[i];
+        if (d !== this.localDragon && !d.alive) {
+          allDragons.splice(i, 1);
+        }
+      }
+
       this.spawnWaveDragons(nextWave.players - 1); // -1: the local player already counts as one of nextWave.players
       this.isPaused = false;
       this.lastTime = performance.now(); // avoid a huge deltaTime spike from the pause
@@ -797,6 +810,33 @@ class Game {
     const arenaIdx = (this.pendingArenaIndex !== null && this.pendingArenaIndex !== undefined) ? this.pendingArenaIndex : 0;
     this.startLocalGame('wave1', tier.aiDifficulty, arenaIdx);
   }
+
+
+  // Reset a dragon's body to starting segment count at the beginning of a new wave.
+  // Called during wave transitions so every wave is a fresh challenge.
+  _resetDragonToWaveStart(dragon) {
+    if (!dragon || !dragon.segments) return;
+    const targetLength = CONFIG.DRAGON_START_SEGMENTS;
+    const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
+    const hx = dragon.head ? dragon.head.x : (dragon.segments[0] ? dragon.segments[0].x : 0);
+    const hy = dragon.head ? dragon.head.y : (dragon.segments[0] ? dragon.segments[0].y : 0);
+    const angle = dragon.angle || 0;
+
+    const newSegments = [];
+    for (let i = 0; i < targetLength; i++) {
+      newSegments.push({
+        x: hx - Math.cos(angle) * spacing * i,
+        y: hy - Math.sin(angle) * spacing * i
+      });
+    }
+    dragon.segments = newSegments;
+    if (dragon.head) dragon.head = dragon.segments[0];
+    // Reset growth progress so the dragon doesn't immediately re-grow from stored progress
+    if (dragon.growthProgress !== undefined) dragon.growthProgress = 0;
+    // Cap attack charge so the player doesn't carry a full magazine into the next wave
+    if (dragon.attackCharge > 0) dragon.attackCharge = Math.min(dragon.attackCharge, 5);
+  }
+
 
   _persistLobbyContext() {
     try {
