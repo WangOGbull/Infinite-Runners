@@ -1,11 +1,9 @@
-import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS, AI_WAVES } from './config.js';
+import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 
 const WALLET_ICON_URLS = {
   phantom: 'https://i.postimg.cc/44mrJ4My/phantom-logo.webp',
   solflare: './Solflare.png'
 };
-
-const WAVE_PROGRESS_KEY = 'aiWaveProgress';
 
 class UIManager {
   constructor(eventBus) {
@@ -52,47 +50,94 @@ class UIManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
-  _getUnlockedWaveIndex() {
-    try {
-      const raw = localStorage.getItem(WAVE_PROGRESS_KEY);
-      const idx = raw !== null ? parseInt(raw, 10) : 0;
-      if (!Number.isFinite(idx)) return 0;
-      return Math.max(0, Math.min(idx, AI_WAVES.length - 1));
-    } catch (_) {
-      return 0;
+  // ==================== AI DIFFICULTY TIER + WAVE PROGRESSION ====================
+  // "vs AI" always opens the EASY/MEDIUM/HARD picker fresh - no cross-match
+  // memory. Whichever tier is picked runs the SAME wave1->wave2->wave3
+  // progression (3/7/10 dragons) in one continuous match; only AI
+  // toughness differs between tiers. Clearing all 3 waves shows the
+  // tier-complete screen (see showTierComplete()); wave-to-wave within a
+  // run is a brief automatic countdown (see showWaveClearedCountdown()),
+  // driven entirely from main.js (advanceToNextWave()/onTierCleared()).
+
+  // Called when a tier button (Easy/Medium/Hard) is picked - stores the
+  // choice and moves on to arena selection, same as before.
+  selectDifficultyTier(tierId) {
+    const tier = AI_DIFFICULTY_TIERS.find(t => t.id === tierId);
+    if (!tier) return;
+    this.selectedMode = 'wave1';
+    this.selectedDifficulty = tier.aiDifficulty;
+    this.selectedTierId = tier.id;
+    this.showScreen('arenaSelectModal');
+  }
+
+  // Mid-match transition: fires WHILE the game screen is still active
+  // (canvas visible underneath), when a wave is cleared and there's a next
+  // one to continue into. Reuses the existing countdownOverlay element
+  // (normally used for the 3-2-1-GO pre-match countdown) instead of adding
+  // a new overlay - styles/text are restored afterward so the real
+  // countdown isn't affected the next time a fresh match starts.
+  showWaveClearedCountdown(wave, onComplete) {
+    const overlay = document.getElementById('countdownOverlay');
+    const textEl = document.getElementById('countdownText');
+    if (!overlay || !textEl) { if (typeof onComplete === 'function') setTimeout(onComplete, 0); return; }
+    const prevFontSize = textEl.style.fontSize;
+    const prevLetterSpacing = textEl.style.letterSpacing;
+    const headerHtml = `<div style="font-size:0.32em;letter-spacing:5px;color:rgba(255,255,255,0.55);margin-bottom:10px;">WAVE CLEARED &mdash; GET READY</div>`;
+    const subHtml = `<div style="font-size:0.28em;letter-spacing:1px;color:#48cae4;margin-top:12px;">${wave.players} Dragons Entering Arena</div>`;
+    textEl.style.fontSize = '2.4rem';
+    textEl.style.letterSpacing = '2px';
+    let count = 3;
+    overlay.classList.add('active');
+    const render = (label) => { textEl.innerHTML = `${headerHtml}<div>${label}</div>${subHtml}`; };
+    render(count);
+    const tick = () => {
+      count--;
+      if (count > 0) { render(count); setTimeout(tick, 1000); }
+      else if (count === 0) { render('GO!'); setTimeout(tick, 700); }
+      else {
+        overlay.classList.remove('active');
+        textEl.style.fontSize = prevFontSize;
+        textEl.style.letterSpacing = prevLetterSpacing;
+        textEl.innerHTML = '';
+        if (typeof onComplete === 'function') onComplete();
+      }
+    };
+    setTimeout(tick, 1000);
+  }
+
+  // Tier fully cleared (all 3 waves beaten). Shows rank + Restart/Advance/
+  // Main Menu. nextTier is null for Hard (Ultimate Victory - no Advance).
+  showTierComplete(tier, nextTier) {
+    const titleEl = document.getElementById('tierCompleteTitle');
+    const rankEl = document.getElementById('tierCompleteRank');
+    const subEl = document.getElementById('tierCompleteSub');
+    const advanceBtn = document.getElementById('btnTierAdvance');
+    const restartBtn = document.getElementById('btnTierRestart');
+    const isUltimate = !nextTier;
+
+    if (titleEl) {
+      titleEl.textContent = isUltimate ? 'ULTIMATE VICTORY' : 'TIER CLEARED';
+      titleEl.style.color = isUltimate ? '#ffd700' : '#4ade80';
+      titleEl.style.textShadow = isUltimate ? '0 0 30px rgba(255,215,0,0.5)' : '0 0 30px rgba(74,222,128,0.5)';
     }
-  }
-
-  unlockNextWave(clearedWaveId) {
-    const clearedIndex = AI_WAVES.findIndex(w => w.id === clearedWaveId);
-    if (clearedIndex === -1) return null;
-    const current = this._getUnlockedWaveIndex();
-    if (clearedIndex !== current) return null;
-    if (current >= AI_WAVES.length - 1) return null;
-    try { localStorage.setItem(WAVE_PROGRESS_KEY, String(current + 1)); } catch (_) {}
-    return AI_WAVES[current + 1];
-  }
-
-  enterWaveMode() {
-    const wave = AI_WAVES[this._getUnlockedWaveIndex()];
-    this.selectedMode = wave.id;
-    this.selectedDifficulty = (CONFIG.WAVE_DIFFICULTY && CONFIG.WAVE_DIFFICULTY[wave.id]) || 'advanced';
-    this.showWaveIntro(wave);
-  }
-
-  showWaveIntro(wave) {
-    const modal = this.screens['difficultyModal'];
-    if (!modal) { this.showScreen('arenaSelectModal'); return; }
-    modal.innerHTML = `
-      <div class="difficultyBox" style="text-align:center;">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:4px;color:rgba(255,255,255,0.45);margin-bottom:10px;">ENTERING</div>
-        <h2 style="margin-bottom:8px;">${wave.name}</h2>
-        <div style="font-family:'Rajdhani',sans-serif;font-size:13px;letter-spacing:1px;color:#48cae4;">${wave.players} Dragons Await</div>
-      </div>`;
-    this.showScreen('difficultyModal');
-    setTimeout(() => {
-      if (this.currentScreen === 'difficultyModal') this.showScreen('arenaSelectModal');
-    }, 1500);
+    if (rankEl) rankEl.textContent = `Rank Achieved: ${tier.rank}`;
+    if (subEl) {
+      subEl.textContent = isUltimate
+        ? 'You have conquered every trial the arena holds. There is nothing left to prove.'
+        : `Advance to ${nextTier.label} and face a greater challenge, or restart ${tier.label} to sharpen your skills.`;
+    }
+    if (advanceBtn) {
+      advanceBtn.style.display = nextTier ? 'flex' : 'none';
+      const span = advanceBtn.querySelector('span');
+      if (span && nextTier) span.textContent = `ADVANCE TO ${nextTier.label.toUpperCase()}`;
+    }
+    if (restartBtn) {
+      const span = restartBtn.querySelector('span');
+      if (span) span.textContent = `RESTART ${tier.label.toUpperCase()}`;
+    }
+    this._pendingTierId = tier.id;
+    this._pendingNextTierId = nextTier ? nextTier.id : null;
+    this.showScreen('tierCompleteScreen');
   }
 
   initScreens() {
@@ -101,7 +146,7 @@ class UIManager {
       'matchmakingTierScreen','matchmakingSearchScreen','opponentFoundScreen',
       'bettingArenaScreen','lobbyScreen','loadingScreen','gameScreen',
       'gameOverScreen','howToPlayScreen','walletModal','walletSelectionModal',
-      'mpGameOver','loadingOverlay','dragonDetailModal'
+      'mpGameOver','loadingOverlay','dragonDetailModal','tierCompleteScreen'
     ];
     ids.forEach(id => {
       const el = document.getElementById(id);
@@ -113,7 +158,16 @@ class UIManager {
     const diffModal = document.createElement('div');
     diffModal.id = 'difficultyModal';
     diffModal.className = 'screen';
-    diffModal.innerHTML = `<div class="difficultyBox"></div>`;
+    diffModal.innerHTML = `
+      <div class="difficultyBox">
+        <h2>Select Difficulty</h2>
+        <div class="difficultyGrid">
+          <button class="diffBtn" data-tier="easy">Easy</button>
+          <button class="diffBtn" data-tier="medium">Medium</button>
+          <button class="diffBtn" data-tier="hard">Hard</button>
+        </div>
+        <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
+      </div>`;
     document.body.appendChild(diffModal);
     this.screens['difficultyModal'] = diffModal;
 
@@ -485,18 +539,24 @@ class UIManager {
     const modeBack = document.getElementById('btnModeBack');
     if (modeBack) modeBack.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
     const btn1v1 = document.getElementById('btn1v1AI');
-    if (btn1v1) btn1v1.addEventListener('click', () => this.enterWaveMode());
+    if (btn1v1) btn1v1.addEventListener('click', () => this.showScreen('difficultyModal'));
     const btnMp = document.getElementById('btnMpMultiplayer');
     if (btnMp) btnMp.addEventListener('click', () => this.showScreen('mpMenuScreen'));
+
+    document.querySelectorAll('#difficultyModal .diffBtn').forEach(btn => {
+      btn.addEventListener('click', () => this.selectDifficultyTier(btn.dataset.tier));
+    });
+    const btnDiffBack = document.getElementById('btnDiffBack');
+    if (btnDiffBack) btnDiffBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
 
     document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
       btn.addEventListener('click', () => {
         this.selectedArena = parseInt(btn.dataset.arena);
-        this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, arenaIndex: this.selectedArena });
+        this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, tierId: this.selectedTierId, arenaIndex: this.selectedArena });
       });
     });
     const arenaBack = document.getElementById('btnArenaBack');
-    if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen('modeSelectScreen'));
+    if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen(this.selectedTierId ? 'difficultyModal' : 'modeSelectScreen'));
     const mpCreate = document.getElementById('btnMpCreate');
     if (mpCreate) mpCreate.addEventListener('click', () => { this._openModeSelectModal(); });
     // Mode-select modal (styled like Custom Stake Modal): commits the chosen
@@ -599,15 +659,27 @@ class UIManager {
     const resumeBtn = document.getElementById('btnResume');
     if (resumeBtn) resumeBtn.addEventListener('click', () => this.eventBus.emit('game:resume'));
     const quitBtn = document.getElementById('btnQuit');
-    if (quitBtn) quitBtn.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('titleScreen'); });
+    if (quitBtn) quitBtn.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
     const changeDragon = document.getElementById('btnChangeDragon');
     if (changeDragon) changeDragon.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
     const mainMenu = document.getElementById('btnMainMenu');
-    if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.returnToMenuWithProcessing('titleScreen', 'Wrapping up the match…'); });
+    if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.returnToMenuWithProcessing('dragonSelectScreen', 'Wrapping up the match…'); });
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
+
+    // Tier-complete screen (all 3 waves beaten on a difficulty)
+    const btnTierAdvance = document.getElementById('btnTierAdvance');
+    if (btnTierAdvance) btnTierAdvance.addEventListener('click', () => {
+      if (this._pendingNextTierId) this.eventBus.emit('ui:tierAdvance', { tierId: this._pendingNextTierId });
+    });
+    const btnTierRestart = document.getElementById('btnTierRestart');
+    if (btnTierRestart) btnTierRestart.addEventListener('click', () => {
+      if (this._pendingTierId) this.eventBus.emit('ui:tierRestart', { tierId: this._pendingTierId });
+    });
+    const btnTierMainMenu = document.getElementById('btnTierMainMenu');
+    if (btnTierMainMenu) btnTierMainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
 
     const walletBtn = document.getElementById('walletBtn');
     if (walletBtn) walletBtn.addEventListener('click', () => {
