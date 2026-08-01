@@ -35,17 +35,30 @@ export const POWER_UPGRADE_COSTS = {
 // Max power level per stat
 export const MAX_POWER_LEVEL = 10;
 
-// Progressive "vs AI" wave system, replacing the old explicit
-// Beginner/Easy/Advanced/Master/Legendary difficulty picker. Clearing your
-// current frontier wave unlocks the next one (see uiManager.js
-// unlockNextWave() / _getUnlockedWaveIndex(), persisted in localStorage).
-// These reuse the exact same CONFIG.MAX_PLAYERS / CONFIG.ARENA /
-// CONFIG.GAME_DURATION lookup mechanism every other mode already uses
-// (see gameModeManager.js) - no special-casing needed there.
+// Progressive "vs AI" wave system. Every difficulty tier (see
+// AI_DIFFICULTY_TIERS below) runs through ALL three of these waves in
+// order, in one continuous match - wave count is fixed regardless of
+// tier, only AI toughness changes between tiers. These reuse the exact
+// same CONFIG.MAX_PLAYERS / CONFIG.ARENA / CONFIG.GAME_DURATION lookup
+// mechanism every other mode already uses (see gameModeManager.js) - no
+// special-casing needed there. See main.js advanceToNextWave().
 export const AI_WAVES = [
   { id: 'wave1', name: 'The Hatchling Grounds', players: 3 },
   { id: 'wave2', name: 'The Ember Trials', players: 7 },
   { id: 'wave3', name: 'The Void Gauntlet', players: 10 }
+];
+
+// The EASY/MEDIUM/HARD picker shown after clicking "vs AI". Each tier runs
+// the SAME wave1->wave2->wave3 progression above; only aiDifficulty
+// differs between tiers (the AI stays equally tough across all 3 waves of
+// one run). Clearing all 3 waves on a tier awards `rank` and offers
+// Restart / Advance to the next tier / Main Menu (see main.js
+// onTierCleared(), uiManager.js showTierComplete()). Hard has no
+// "advance" - it's the final tier (Ultimate Victory).
+export const AI_DIFFICULTY_TIERS = [
+  { id: 'easy', label: 'Easy', aiDifficulty: 'easy', rank: 'Emberborn' },
+  { id: 'medium', label: 'Medium', aiDifficulty: 'advanced', rank: 'Voidwalker' },
+  { id: 'hard', label: 'Hard', aiDifficulty: 'legendary', rank: 'The Infinite Sovereign' }
 ];
 
 const CONFIG = {
@@ -94,16 +107,6 @@ const CONFIG = {
   // at or below 5 would be permanently unreachable and this rule would
   // silently never fire. See collisionSystem.js checkDragonCollisions().
   SMALL_DRAGON_DEATH_THRESHOLD: 8,
-
-  // AI skill per wave - my own placeholder mapping, not something we
-  // actually discussed (only dragon count was agreed). Change freely -
-  // must be one of aiController.js's difficultySettings keys (beginner,
-  // easy, advanced, master, legendary).
-  WAVE_DIFFICULTY: {
-    wave1: 'easy',
-    wave2: 'advanced',
-    wave3: 'legendary'
-  },
 
   // ==================== ATTACK SYSTEM ====================
   ATTACK_METER_MAX: 20,        // infinite food eaten to fully charge ATTACK
