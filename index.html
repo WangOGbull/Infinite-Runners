@@ -1056,7 +1056,13 @@
      This CSS handles the visually dynamic elements injected by main.js
   =============================================================== */
   #difficultyModal {
-      position: relative;
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
       overflow: hidden;
       background: #0a0500 !important;
   }
@@ -1118,8 +1124,8 @@
       -webkit-user-drag: none;
   }
   #difficultyModal .diffBtn {
-      background: rgba(255,255,255,0.02) !important;
-      border: 1px solid rgba(255,255,255,0.04) !important;
+      background: transparent !important;
+      border: none !important;
       box-shadow: none !important;
       position: absolute;
       width: 92%;
