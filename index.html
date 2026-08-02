@@ -1060,11 +1060,13 @@
       inset: 0 !important;
       width: 100vw !important;
       height: 100vh !important;
+      overflow: hidden;
+      background: #0a0500 !important;
+  }
+  #difficultyModal.active {
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      overflow: hidden;
-      background: #0a0500 !important;
   }
   #difficultyModal::before {
       content: '';
@@ -1140,14 +1142,14 @@
 
   #btnDiffBack {
       position: absolute;
-      background: rgba(255,255,255,0.02) !important;
-      border: 1px solid rgba(255,255,255,0.04) !important;
+      background: transparent !important;
+      border: none !important;
       box-shadow: none !important;
       color: transparent !important;
-      width: 50%;
-      height: 8%;
-      bottom: 3%;
-      left: 25%;
+      width: 34%;
+      height: 5.5%;
+      bottom: 3.5%;
+      left: 33%;
       z-index: 5;
       cursor: pointer;
   }
