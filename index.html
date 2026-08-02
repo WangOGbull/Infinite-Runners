@@ -22,11 +22,9 @@
 <style>
   html, body { overflow-x: hidden; max-width: 100vw; }
   *, *::before, *::after { box-sizing: border-box; }
-  /* Select screen fits ONE viewport - no scrolling, phone or PC */
   #dragonSelectScreen { overflow: hidden !important; }
   #dragonSelectScreen .dsInner { height: 100dvh; position: relative; z-index: 2; }
 
-  /* ==================== ATTACK BUTTON (kill meter) ==================== */
   #boostBtn { --fill: 0%; --neon: #ffd700; position: relative; overflow: hidden; background: rgba(8,10,22,0.8); border: 2px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; }
   #boostBtn::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: var(--fill); background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, var(--neon) 35%, var(--neon) 100%); opacity: 0.9; transition: height 0.25s ease; }
   #boostBtn::after { content: ''; position: absolute; top: 8%; left: 16%; width: 34%; height: 24%; background: radial-gradient(ellipse at center, rgba(255,255,255,0.55), transparent 70%); border-radius: 50%; pointer-events: none; z-index: 1; }
@@ -35,7 +33,6 @@
   #boostBtn.attack-active { border-color: var(--neon); box-shadow: 0 0 22px var(--neon), 0 0 55px var(--neon); }
   @keyframes attackPulse { 0%, 100% { box-shadow: 0 0 10px var(--neon), 0 0 24px var(--neon); } 50% { box-shadow: 0 0 18px var(--neon), 0 0 46px var(--neon), 0 0 70px var(--neon); } }
 
-  /* ==================== COMBO BANNER ==================== */
   #comboBanner { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); text-align: center; z-index: 150; opacity: 0; pointer-events: none; font-family: 'Cinzel Decorative', serif; }
   #comboBanner.combo-show { animation: comboPop 2.4s ease forwards; }
   #comboBanner .combo-title { font-size: 44px; font-weight: 900; letter-spacing: 5px; }
@@ -83,7 +80,6 @@
   #lobbySlots .depositBadge, #lobbySlots .lobbyPlayerName, #lobbySlots .lobbyPlayerDragon { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lobbyBox, #lobbyTierSelector, #lobbyArenaSelector, #tierBtns, #lobbyArenaThumbs { max-width: 100%; }
 
-  /* ===== DRAGON SELECT — ORNATE ARENA EDITION (mockup build) ===== */
   #dragonSelectScreen {
     position: fixed; inset: 0; overflow: hidden;
     background:
@@ -95,11 +91,9 @@
   .dsCarouselWrap { position: relative; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 2px 0 6px; overflow: hidden; }
   .dsCarouselWrap::-webkit-scrollbar { display: none; }
 
-  /* ---- angular (chevron-cut) gold frame helper ---- */
   .ang { clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); background: linear-gradient(180deg, #f0d9a0 0%, #a97f45 50%, #6e5226 100%); padding: 2px; display: inline-block; }
   .ang-in { clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px); background: linear-gradient(180deg, #3d2d17 0%, #241a0c 100%); display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 100%; }
 
-  /* ---- top bar ---- */
   .dsTopBar { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 8px 14px 0; }
   .dsBackBtn { border: none; cursor: pointer; font-family: 'Cinzel Decorative', cursive; font-weight: 700; font-size: 12px; letter-spacing: 2px; color: #f6e7c1; text-shadow: 0 1px 3px rgba(0,0,0,0.8); touch-action: manipulation; background: linear-gradient(180deg, #f0d9a0 0%, #a97f45 50%, #6e5226 100%); padding: 2px; clip-path: polygon(16px 0, 100% 0, calc(100% - 12px) 100%, 0 100%, 0 16px); display: inline-block; transition: filter .15s; }
   .dsBackBtn span { clip-path: polygon(15px 0, 100% 0, calc(100% - 11px) 100%, 0 100%, 0 15px); background: linear-gradient(180deg, #3d2d17, #241a0c); display: flex; align-items: center; gap: 8px; padding: 9px 22px; }
@@ -113,7 +107,6 @@
   .dsCoinDisplay i { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.6); }
   .dsCoinDisplay span { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 15px; color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.4); }
 
-  /* ---- dragon name with ornamental wings ---- */
   .dsDragonInfo { text-align: center; display: flex; flex-direction: column; align-items: center; }
   .dsNameRow { display: flex; align-items: center; gap: 14px; }
   .dsNameWing { width: 46px; height: 22px; position: relative; }
@@ -122,12 +115,10 @@
   .dsNameWing.flip { transform: scaleX(-1); }
   .dsDragonName { font-family: 'Cinzel Decorative', cursive; font-weight: 900; font-size: clamp(24px, 6vw, 38px); letter-spacing: 4px; color: var(--neon, #fff); text-shadow: 0 0 12px var(--neon, #fff), 0 0 45px var(--neon, transparent), 0 2px 4px #000; line-height: 1.1; }
 
-  /* ---- tier banner ---- */
   .dsDragonTier { margin-top: 6px; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 3px; color: #dfe9f5; padding: 6px 26px; background: linear-gradient(180deg, #101d33, #0a1424); border: 2px solid #a97f45; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%); }
   .dsDragonTier span { color: #48e0ff; text-shadow: 0 0 8px rgba(72,224,255,0.6); }
   .dsDragonTier em { font-style: normal; color: rgba(255,255,255,0.35); margin: 0 8px; }
 
-  /* ---- XP row with hexagon badges ---- */
   .dsXpBarWrap { display: flex; align-items: center; gap: 10px; margin-top: 8px; width: min(86%, 460px); }
   .dsHexBadge { flex: 0 0 auto; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-family: 'Cinzel Decorative', cursive; font-weight: 900; font-size: 16px; color: #fff; background: linear-gradient(180deg, #f0d9a0, #6e5226); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); position: relative; }
   .dsHexBadge::before { content: ''; position: absolute; inset: 2px; background: linear-gradient(180deg, #16233d, #0a1424); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
@@ -139,10 +130,6 @@
   .dsXpBar { width: 100%; height: 10px; border-radius: 6px; background: rgba(6,14,28,0.75); border: 1px solid rgba(72,224,255,0.25); overflow: hidden; }
   .dsXpBarFill { height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #22d3ee, #48e0ff); box-shadow: 0 0 12px rgba(72,224,255,0.7); transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
 
-  /* ---- stage: dragon + arrows, laid out normally (no absolute image-anchoring) so
-         it can never end up off-screen or letterboxed — the glowing ring/flames
-         under the dragon are CSS, not part of the photo, so they're always
-         correctly aligned to the dragon regardless of the background crop ---- */
   .dsDragonStage { position: relative; width: 100%; max-width: 640px; height: clamp(150px, 28vh, 340px); min-height: 0; display: flex; align-items: center; justify-content: center; }
   .dsDragonImgWrap { width: min(58%, 340px); height: 100%; display: flex; align-items: center; justify-content: center; position: relative; animation: dsFloat 4s ease-in-out infinite; }
   @keyframes dsFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
@@ -156,10 +143,6 @@
   .dsArrowLeft { left: 10px; }
   .dsArrowRight { right: 10px; }
 
-  /* ---- power cards (2x2, per-stat colors) ---- */
-  /* Front-page stat cards are retired per request — stats now live only inside the
-     View Dragon modal (#ddmStats). Kept in the DOM (not deleted) and just hidden,
-     so main.js can keep populating it without needing a null-check. */
   #dsPowersGrid { display: none !important; }
   .dsPowersGrid { width: min(94%, 860px); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (min-width: 900px) { .dsPowersGrid { grid-template-columns: repeat(4, 1fr); } }
@@ -183,7 +166,6 @@
   .dsUpgradeBtn.maxed span { color: #ffd98a; }
   .dsUpgradeBtn i { color: #ffd98a; }
 
-  /* ---- select row: badge + VIEW DRAGON ---- */
   .dsSelectRow { display: flex; align-items: center; justify-content: center; gap: 14px; }
   .dsSelectBadge { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 2px; padding: 9px 22px; color: #ff6b6b; text-shadow: 0 0 10px rgba(255,107,107,0.5); background: linear-gradient(180deg, #141428, #0c0c18); border: 2px solid rgba(150,150,175,0.55); clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 100%, 0 100%); }
   .dsSelectBadge.selected { color: #ffd98a; text-shadow: 0 0 10px rgba(255,217,138,0.5); }
@@ -193,19 +175,16 @@
   .dsSelectBtn:active { filter: brightness(0.85); }
   .dsSelectBtn i { font-size: 18px; color: #ffd98a; text-shadow: 0 0 12px rgba(255,180,60,0.7); }
 
-  /* ---- ENTER BATTLE (shown once selected) ---- */
   .dsDragonAgeBtn { border: none; cursor: pointer; font-family: 'Cinzel Decorative', cursive; font-weight: 900; font-size: 14px; letter-spacing: 2px; color: #d6f7ff; text-shadow: 0 1px 3px rgba(0,0,0,0.85); background: linear-gradient(180deg, #9beaff 0%, #22a8cf 50%, #0f6d8c 100%); clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%); padding: 3px; transition: filter .15s; touch-action: manipulation; align-items: center; justify-content: center; gap: 8px; }
   .dsDragonAgeBtn span { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 38px; background: linear-gradient(180deg, #14384a 0%, #0a1f2c 100%); clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 16px 100%, 0 50%); }
   .dsDragonAgeBtn:hover { filter: brightness(1.3); }
 
-  /* ---- diamond nav dots ---- */
   .dsNavDots { display: flex; gap: 12px; justify-content: center; align-items: center; }
   .dsNavDot { width: 10px; height: 10px; transform: rotate(45deg); background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.25); cursor: pointer; transition: all 0.2s; touch-action: manipulation; }
   .dsNavDot.active { background: #ffd98a; border-color: #ffe9b8; box-shadow: 0 0 12px rgba(255,217,138,0.8); }
   @keyframes powerFlash { 0% { box-shadow: 0 0 0 rgba(72,224,255,0); } 50% { box-shadow: 0 0 22px rgba(72,224,255,0.5); border-color: rgba(72,224,255,0.6); } 100% { box-shadow: 0 0 0 rgba(72,224,255,0); } }
   .dsPowerCard.flash { animation: powerFlash 0.5s ease; }
 
-  /* ==================== VIEW DRAGON MODAL — ORNATE ==================== */
   #dragonDetailModal { z-index: 400; }
   .ddmOverlay { position: absolute; inset: 0; background: rgba(2,4,10,0.88); backdrop-filter: blur(6px); }
   .ddmBox { --neon: #ff6b35; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(92vw, 430px); max-height: 94dvh; overflow-y: auto; scrollbar-width: none; background: linear-gradient(180deg, #0b1220 0%, #070c17 100%); border: 2px solid var(--neon); border-radius: 18px; box-shadow: 0 0 50px color-mix(in srgb, var(--neon) 35%, transparent), inset 0 0 60px color-mix(in srgb, var(--neon) 8%, transparent); padding: 18px 18px 22px; }
@@ -250,7 +229,6 @@
   .ddmSelectBtn:active { filter: brightness(0.85); }
   .ddmSelectBtn i { color: #ffd98a; text-shadow: 0 0 12px rgba(255,180,60,0.7); }
 
-  /* ===== DRAGON AGE STAKE MODAL (Matchmaking) ===== */
   .daModalOverlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px); }
   .daStakeModal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 420px; background: linear-gradient(180deg, #0a1628 0%, #06122e 100%); border: 1px solid rgba(201, 168, 76, 0.3); border-radius: 16px; padding: 32px 24px; box-shadow: 0 0 60px rgba(0, 180, 216, 0.1), inset 0 0 40px rgba(201, 168, 76, 0.05); text-align: center; }
   .daStakeHeader { margin-bottom: 24px; }
@@ -279,7 +257,6 @@
   .daStakeBack { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.03); color: rgba(255, 255, 255, 0.5); font-family: 'Rajdhani', sans-serif; font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .daStakeBack:hover { border-color: rgba(0, 180, 216, 0.4); color: #00b4d8; }
 
-  /* ===== OPPONENT FOUND MODAL ===== */
   .daOpponentModal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 400px; background: linear-gradient(180deg, #0a1628 0%, #06122e 100%); border: 1px solid rgba(201, 168, 76, 0.4); border-radius: 16px; padding: 32px 24px; box-shadow: 0 0 60px rgba(201, 168, 76, 0.15), inset 0 0 40px rgba(201, 168, 76, 0.05); text-align: center; }
   .daOppHeader { margin-bottom: 20px; }
   .daOppHeader h2 { font-family: 'Cinzel Decorative', serif; font-size: 28px; color: #ffd700; text-shadow: 0 0 30px rgba(255, 215, 0, 0.4); margin: 12px 0 6px; letter-spacing: 3px; }
@@ -293,7 +270,6 @@
   .daOppCancel { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255, 68, 68, 0.3); background: rgba(255, 68, 68, 0.08); color: #ff6b6b; font-family: 'Rajdhani', sans-serif; font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .daOppCancel:hover { background: rgba(255, 68, 68, 0.15); border-color: rgba(255, 68, 68, 0.5); }
 
-  /* ===== SEARCH BATTLE — DRAGON AGE SEARCHING MODAL ===== */
   .daSearchModal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 420px; background: linear-gradient(180deg, #0a1628 0%, #06122e 100%); border: 1px solid rgba(201, 168, 76, 0.35); border-radius: 16px; padding: 40px 28px 32px; box-shadow: 0 0 70px rgba(0, 180, 216, 0.12), inset 0 0 50px rgba(201, 168, 76, 0.05); text-align: center; overflow: hidden; }
   .daSearchModal::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #c9a84c, transparent); }
   .daSearchRunes { position: absolute; inset: 0; pointer-events: none; }
@@ -314,13 +290,11 @@
   .daSearchCancel { width: 100%; padding: 13px; border-radius: 10px; border: 1px solid rgba(255,68,68,0.3); background: rgba(255,68,68,0.08); color: #ff8080; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .daSearchCancel:hover { background: rgba(255,68,68,0.16); border-color: rgba(255,68,68,0.55); }
 
-  /* ===== LOBBY COUNTDOWN ===== */
   #lobbyCountdown { width: 100%; margin-top: 12px; text-align: center; }
   .lobbyCountdownText { font-family: 'Rajdhani', sans-serif; font-size: 14px; color: #ffd700; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 215, 0, 0.3); margin-bottom: 8px; }
   .lobbyCountdownBar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.06); border-radius: 2px; overflow: hidden; }
   #lobbyCountdownFill { height: 100%; width: 100%; background: linear-gradient(90deg, #ffd700, #ff6b35); border-radius: 2px; transition: width 1s linear; }
 
-  /* ===== WALLET SELECTION MODAL ===== */
   .walletSelModal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 360px; background: linear-gradient(180deg, #0a1628 0%, #06122e 100%); border: 1px solid rgba(0, 180, 216, 0.3); border-radius: 16px; padding: 28px 24px; box-shadow: 0 0 40px rgba(0, 180, 216, 0.1); text-align: center; }
   .walletSelHeader { margin-bottom: 20px; }
   .walletSelHeader h2 { font-family: 'Cinzel Decorative', serif; font-size: 22px; color: #00b4d8; letter-spacing: 2px; margin-bottom: 6px; }
@@ -334,7 +308,6 @@
   .walletSelBack { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.4); font-family: 'Rajdhani', sans-serif; font-size: 12px; cursor: pointer; transition: all 0.2s; }
   .walletSelBack:hover { color: #00b4d8; border-color: rgba(0,180,216,0.3); }
 
-  /* ===== BETTING ARENA (Dragon Age Neo Blue + Dark Purple) ===== */
   .baOverlay { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(10, 22, 40, 0.95), rgba(6, 18, 46, 0.95)); }
   .baBox { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 92%; max-width: 440px; background: linear-gradient(180deg, #0d1b2a 0%, #0a1628 50%, #070d1a 100%); border: 1px solid rgba(0, 180, 216, 0.25); border-radius: 20px; padding: 28px 22px; box-shadow: 0 0 60px rgba(0, 180, 216, 0.08), inset 0 0 40px rgba(155, 77, 255, 0.04); }
   .baHeader { text-align: center; margin-bottom: 20px; }
@@ -365,7 +338,6 @@
   .baCancelBtn { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 68, 68, 0.2); background: rgba(255, 68, 68, 0.05); color: rgba(255, 107, 107, 0.7); font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
   .baCancelBtn:hover { background: rgba(255, 68, 68, 0.1); border-color: rgba(255, 68, 68, 0.4); color: #ff6b6b; }
 
-  /* ===== STAKE SETTLEMENT PANEL (Dragon Age) ===== */
   .goStakeBox {
     width: min(420px, 92%);
     margin: 18px auto 4px;
@@ -460,7 +432,6 @@
     .baTitle { font-size: 18px; }
   }
 
-  /* ==================== BOOT LOADER ==================== */
   #bootScreen {
     position: fixed; inset: 0; z-index: 9999;
     display: flex; align-items: center; justify-content: center;
@@ -539,29 +510,21 @@
     .bootTitle { font-size: 22px; letter-spacing: 3px; }
     .bootSub { font-size: 11px; letter-spacing: 6px; margin-bottom: 26px; }
   }
-  /* ==================== LOBBY — v41 (View-Dragon-modal design language) ====
-     Root cause of the scroll shake in v40: #lobbyScreen itself was the
-     scroll container AND the cover-bg host, so every scroll frame the
-     browser recomputed the cover-fit bg. Fix: the SCREEN keeps a FIXED
-     background (attachment: fixed) and holds a single .lobbyPanel that is
-     the actual scroll container — same pattern as the View Dragon modal.
-     The panel gets one continuous purple neon border, hidden scrollbar,
-     and section headers with gradient divider lines. */
+  
   #lobbyScreen {
-    --neon: #a855f7;             /* deep purple — matches Custom Modal */
-    --neon-red: #ef4444;         /* host slot (Ignis) */
-    --neon-blue: #60a5fa;        /* 1v1 opponent (Magnetron) */
-    --neon-pink: #ec4899;        /* FFA challengers 2/3 (Infinite) */
-    --neon-gold: #d4b071;        /* room code + accents */
+    --neon: #a855f7;
+    --neon-red: #ef4444;
+    --neon-blue: #60a5fa;
+    --neon-pink: #ec4899;
+    --neon-gold: #d4b071;
     overflow-y: auto !important; -webkit-overflow-scrolling: touch;
     padding: 0 !important;
   }
   #lobbyScreen.active {
-    display: block !important; /* NOT flex — flex+scroll causes reflow jitter */
+    display: block !important;
     background: #05060c url('/lobby/lobby-bg.png') center center / cover no-repeat fixed !important;
   }
   #lobbyScreen.active::before {
-    /* Soft vignette so the panel reads clearly over any bg brightness */
     content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
     background: radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(3,5,10,0.55) 70%, rgba(3,5,10,0.85) 100%);
   }
@@ -580,11 +543,8 @@
       0 24px 60px rgba(0,0,0,0.6);
     backdrop-filter: none;
   }
-
-  /* Kill the old Kimi top header entirely — the plaque IS the header now */
   .lobbyTopHeader { display: none !important; }
 
-  /* ----- Section titles: gradient divider lines + Cinzel neon (from ddm) ----- */
   #lobbyScreen .lobbySection {
     display: flex; align-items: center; gap: 10px;
     font-family: 'Cinzel Decorative', cursive; font-weight: 700;
@@ -602,7 +562,6 @@
     background: linear-gradient(90deg, color-mix(in srgb, var(--neon-gold) 55%, transparent), transparent);
   }
 
-  /* ----- Room code plaque — TOP PRIORITY, always visible ----- */
   #lobbyScreen .roomCodeRow {
     position: relative; display: flex; align-items: center; justify-content: center;
     gap: 10px; width: 100%; margin: 0 auto 4px;
@@ -636,9 +595,8 @@
       0 2px 4px #000;
     white-space: nowrap; user-select: all; cursor: pointer;
   }
-  #lobbyScreen .lobbyMeta { display: none; } /* meta text was redundant */
+  #lobbyScreen .lobbyMeta { display: none; }
 
-  /* ----- STAKE TIER: 4 CSS cards, no PNG, per-tier neon glow ----- */
   #lobbyScreen .lobbyTierSelector {
     display: block; width: 100%; margin: 0 auto 6px;
     padding: 0 !important; background: none !important;
@@ -682,7 +640,6 @@
     box-shadow: inset 0 0 22px rgba(255,255,255,0.05);
   }
   #tierBtns .tierBtn:disabled { cursor: not-allowed; opacity: 0.55; }
-  /* Per-tier selection glow: Small=green, Medium=gold, High=red, Custom=purple */
   #tierBtns .tierBtn.glow-small  { border-color: #22c55e !important; box-shadow: 0 0 20px rgba(34,197,94,0.5),  inset 0 0 20px rgba(34,197,94,0.15) !important; }
   #tierBtns .tierBtn.glow-medium { border-color: #eab308 !important; box-shadow: 0 0 20px rgba(234,179,8,0.5),  inset 0 0 20px rgba(234,179,8,0.15) !important; }
   #tierBtns .tierBtn.glow-high   { border-color: #ef4444 !important; box-shadow: 0 0 20px rgba(239,68,68,0.5),  inset 0 0 20px rgba(239,68,68,0.15) !important; }
@@ -702,7 +659,6 @@
     margin: 8px 0 0; text-transform: uppercase;
   }
 
-  /* ----- ARENA: soft panel, 4 real thumbnails ----- */
   #lobbyScreen .lobbyArenaSelector {
     position: relative; display: block; width: 100%; margin: 0;
     padding: 0 !important; background: none !important;
@@ -745,7 +701,6 @@
   }
   #lobbyScreen .lobbyArenaSelector .arenaThumb:disabled { cursor: not-allowed; }
 
-  /* ----- Player slot cards: obsidian + per-role neon border ----- */
   #lobbySlots {
     display: flex; flex-direction: column; gap: 10px;
     width: 100%; margin: 0 auto 6px;
@@ -761,7 +716,6 @@
     aspect-ratio: auto !important;
     transition: border-color .18s, box-shadow .2s;
   }
-  /* Host = red (Ignis) */
   #lobbySlots .lobbyPlayerCard.local,
   #lobbySlots .lobbyPlayerCard.role-host {
     border-color: var(--neon-red) !important;
@@ -769,7 +723,6 @@
       0 0 22px color-mix(in srgb, var(--neon-red) 30%, transparent),
       inset 0 0 18px color-mix(in srgb, var(--neon-red) 8%, transparent) !important;
   }
-  /* 1v1 opponent = blue (Magnetron) */
   #lobbySlots .lobbyPlayerCard.opponent,
   #lobbySlots .lobbyPlayerCard.role-opponent {
     border-color: var(--neon-blue) !important;
@@ -777,7 +730,6 @@
       0 0 22px color-mix(in srgb, var(--neon-blue) 30%, transparent),
       inset 0 0 18px color-mix(in srgb, var(--neon-blue) 8%, transparent) !important;
   }
-  /* FFA challengers 2/3 = pink (Infinite) */
   #lobbySlots .lobbyPlayerCard.role-ffa2,
   #lobbySlots .lobbyPlayerCard.role-ffa3 {
     border-color: var(--neon-pink) !important;
@@ -785,7 +737,6 @@
       0 0 22px color-mix(in srgb, var(--neon-pink) 30%, transparent),
       inset 0 0 18px color-mix(in srgb, var(--neon-pink) 8%, transparent) !important;
   }
-  /* Empty slot: quiet dashed, no glow */
   #lobbySlots .lobbyPlayerCard.empty {
     justify-content: center;
     border-style: dashed !important;
@@ -889,13 +840,11 @@
   #lobbySlots .joinDots span:nth-child(3) { animation-delay: 0.4s; }
   @keyframes joinBlink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
 
-  /* ----- Action buttons ----- */
   #lobbyScreen .lobbyActions {
     display: flex; flex-direction: column; gap: 10px;
     width: 100%; margin: 14px auto 0;
     align-items: center; padding-bottom: 8px;
   }
-  /* START GAME — molten gold chevron (matches SELECT DRAGON button) */
   #lobbyScreen #lobbyStartBtn,
   #lobbyScreen .startGameBtn {
     display: none; width: 100%; max-width: 100%; min-height: 54px; aspect-ratio: auto !important;
@@ -919,7 +868,6 @@
   #lobbyScreen #lobbyStartBtn:active:not(:disabled) { filter: brightness(0.9); transform: scale(0.98); }
   #lobbyScreen #lobbyStartBtn:disabled { filter: grayscale(0.8) brightness(0.5); opacity: 0.55; cursor: not-allowed; }
   #lobbyScreen .startGameBtn.visible { display: flex; }
-  /* DEPOSIT — same molten gold chevron */
   #lobbyScreen #lobbyDepositBtn {
     width: 100%; max-width: 100%; min-height: 52px;
     display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -934,7 +882,6 @@
     box-shadow: 0 0 22px rgba(201,168,106,0.35);
   }
   #lobbyScreen #lobbyDepositBtn:disabled { filter: grayscale(0.6); opacity: 0.55; cursor: not-allowed; }
-  /* LEAVE — ghost purple */
   #lobbyScreen #btnLeaveRoom {
     width: 100%; max-width: 100%; min-height: 42px;
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -958,11 +905,6 @@
   #lobbyScreen .depositStatusText.confirmed { color: #4ade80; text-shadow: 0 0 10px rgba(74,222,128,0.4); }
   #lobbyScreen .depositStatusText.pending { color: #ffb24d; }
 
-  /* ===== FFA 60s AUTO-START COUNTDOWN — small top-right widget ===== */
-  /* Anchored to .lobbyBox's top-right so it sits INSIDE the panel visually
-     but stacks above the section headers; z-index keeps it above the
-     player cards. Transparent bg, minimal footprint, non-blocking:
-     pointer-events: none so no click targets are hijacked. */
   #ffaCountdownWidget {
     position: absolute; top: 12px; right: 12px; z-index: 20;
     display: none; flex-direction: column; align-items: center; gap: 3px;
@@ -999,12 +941,8 @@
     0%, 100% { box-shadow: 0 0 14px color-mix(in srgb, var(--neon-gold) 25%, transparent); }
     50%      { box-shadow: 0 0 22px color-mix(in srgb, var(--neon-gold) 45%, transparent); }
   }
-  /* Legacy full-width panel kept hidden — the JS supports both IDs but the
-     v42 lobby only uses the widget. Killed here to guarantee it never renders
-     even if an older cached HTML pulls it in. */
   #ffaStartCountdown { display: none !important; }
 
-  /* ===== MATCHED LOBBY MODE: reuse lobby, hide code/pickers ===== */
   #lobbyScreen.matchedLobby .roomCodeRow,
   #lobbyScreen.matchedLobby .lobbyMeta,
   #lobbyScreen.matchedLobby #modeSelectorHost,
@@ -1013,7 +951,6 @@
   #lobbyScreen.matchedLobby .lobbySectionArena,
   #lobbyScreen.matchedLobby #lobbyArenaSelector { display: none !important; }
 
-  /* ===== CUSTOM STAKE MODAL — untouched (design reference) ===== */
   .customStakeModal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; }
   .customStakeModal.open { display: flex; }
   .customStakeModal .csmBackdrop { position: absolute; inset: 0; background: rgba(3,5,10,0.78); backdrop-filter: blur(3px); }
@@ -1042,7 +979,6 @@
   .customStakeModal .csmConfirm:hover:not(:disabled) { filter: brightness(1.12); }
   .customStakeModal .csmConfirm:disabled { filter: grayscale(0.7) opacity(0.5); opacity: 0.5; cursor: not-allowed; }
 
-  /* ===== MP MODE SELECT MODAL (same visual language as Custom Stake) ===== */
   .mpModeModal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; }
   .mpModeModal.open { display: flex; }
   .mpModeModal .mpmBackdrop { position: absolute; inset: 0; background: rgba(3,5,10,0.78); backdrop-filter: blur(3px); }
@@ -1112,17 +1048,13 @@
     transition: filter .15s, color .15s, border-color .15s;
   }
   .mpModeModal .mpmCancel:hover { border-color: #e08; color: #fbb; }
-
-  /* Kill the scroll-hint arrow — with hidden scrollbar and the panel now
-     sized to fit ~one screen on desktop, an animated arrow reads as a bug. */
   #lobbyScrollHint { display: none !important; }
 
 
-  /* =================================================================================
-     NEW VISUAL OVERRIDE FOR DIFFICULTY / TRIAL SELECTION
-     This perfectly overlays the uploaded select_trial.png while keeping the
-     hidden button IDs and event listeners completely intact.
-  ================================================================================= */
+  /* ==============================================================
+     NEW PNG OVERLAY FOR DIFFICULTY / TRIAL SELECTION
+     This CSS handles the visually dynamic elements injected by main.js
+  =============================================================== */
   #difficultyModal .difficultyBox {
       background: transparent !important;
       border: none !important;
@@ -1132,23 +1064,20 @@
       max-width: 500px;
       position: relative;
   }
-
   #difficultyModal .difficultyBox h2,
   #difficultyModal .difficultySub,
   .diffBtnInner {
       display: none !important;
   }
-
   #difficultyModal .difficultyGrid {
       width: 100%;
       height: auto;
-      aspect-ratio: 3 / 4.5; /* Adjust ratio if your image is different */
+      aspect-ratio: 3 / 4.5;
       background-image: url('./select_trial.png') !important;
       background-size: 100% 100% !important;
       background-repeat: no-repeat !important;
       position: relative;
   }
-
   #difficultyModal .diffBtn {
       background: transparent !important;
       border: none !important;
@@ -1160,13 +1089,10 @@
       cursor: pointer;
       z-index: 5;
   }
-
-  /* Invisible click zones perfectly aligned to the PNG */
   #difficultyModal .diffBtn[data-tier="easy"]   { top: 12%; }
   #difficultyModal .diffBtn[data-tier="medium"] { top: 38%; }
   #difficultyModal .diffBtn[data-tier="hard"]   { top: 64%; }
 
-  /* Back Button overlay at the bottom of the PNG */
   #btnDiffBack {
       position: absolute;
       background: transparent !important;
@@ -1185,7 +1111,7 @@
 </head>
 <body>
 
-<!-- ===== BOOT LOADER (shown instantly, removed only when every asset has loaded) ===== -->
+<!-- ===== BOOT LOADER ===== -->
 <div id="bootScreen">
   <div class="bootInner">
     <div class="bootLogo">&#8734;</div>
@@ -1363,7 +1289,7 @@
   </div>
 </div>
 
-<!-- ===== OPPONENT FOUND — streamlined stake confirmation (no room code) ===== -->
+<!-- ===== OPPONENT FOUND ===== -->
 <div id="opponentFoundScreen" class="screen">
   <div class="daModalOverlay"></div>
   <div class="daOpponentModal">
@@ -1380,7 +1306,7 @@
   </div>
 </div>
 
-<!-- ===== BETTING ARENA (Dragon Age Neo Blue + Dark Purple) ===== -->
+<!-- ===== BETTING ARENA ===== -->
 <div id="bettingArenaScreen" class="screen">
   <div class="baOverlay"></div>
   <div class="baBox">
@@ -1418,7 +1344,7 @@
   </div>
 </div>
 
-<!-- ===== LOBBY (manual rooms only) ===== -->
+<!-- ===== LOBBY ===== -->
 <div id="lobbyScreen" class="screen">
   <div id="customStakeModal" class="customStakeModal">
     <div class="csmBackdrop"></div>
@@ -1477,7 +1403,7 @@
   </div>
 </div>
 
-<!-- ===== MP MODE SELECT MODAL (styled like Custom Stake Modal) ===== -->
+<!-- ===== MP MODE SELECT MODAL ===== -->
 <div id="mpModeSelectModal" class="mpModeModal">
   <div class="mpmBackdrop"></div>
   <div class="mpmBox">
@@ -1554,7 +1480,7 @@
   </div>
 </div>
 
-<!-- ===== TIER COMPLETE (all 3 waves cleared on Easy/Medium/Hard) ===== -->
+<!-- ===== TIER COMPLETE ===== -->
 <div id="tierCompleteScreen" class="screen">
   <h1 id="tierCompleteTitle" style="font-family:'Cinzel Decorative',serif;font-size:40px;color:#4ade80;text-shadow:0 0 30px rgba(74,222,128,0.5);letter-spacing:3px;margin-bottom:14px;text-align:center;">TIER CLEARED</h1>
   <div id="tierCompleteRank" style="font-family:'Cinzel Decorative',serif;font-size:22px;color:#ffd700;text-shadow:0 0 24px rgba(255,215,0,0.5);letter-spacing:2px;margin-bottom:16px;text-align:center;">Rank Achieved: Emberborn</div>
@@ -1635,7 +1561,7 @@
   </div>
 </div>
 
-<!-- ===== WALLET SELECTION MODAL (Mobile) ===== -->
+<!-- ===== WALLET SELECTION MODAL ===== -->
 <div id="walletSelectionModal" class="screen">
   <div class="walletSelModal">
     <div class="walletSelHeader">
@@ -1674,6 +1600,10 @@
 <!-- ===== LOADING OVERLAY ===== -->
 <div id="loadingOverlay"><div class="loadSpin"></div><div class="loadText">Loading...</div></div>
 
+<!-- ============================================================= -->
+<!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          -->
+<!-- DO NOT DELETE THESE TAGS.                                     -->
+<!-- ============================================================= -->
 <script type="module" src="./src/main.js?v=41"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== -->
