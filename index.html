@@ -1089,8 +1089,10 @@
       border: none !important;
       box-shadow: none !important;
       padding: 0 !important;
-      width: 100%;
-      max-width: 500px;
+      height: min(100vh, 100dvh);
+      width: auto;
+      aspect-ratio: 2 / 3;
+      max-width: 96vw;
       margin: 0 auto;
       position: relative;
   }
@@ -1106,10 +1108,7 @@
   }
   #difficultyModal .difficultyGrid {
       width: 100%;
-      height: auto;
-      min-height: 520px;
-      max-height: 85vh;
-      aspect-ratio: 3 / 4.5;
+      height: 100%;
       background:
         radial-gradient(ellipse at 50% 20%, rgba(212,175,55,0.18) 0%, transparent 55%),
         radial-gradient(ellipse at 30% 60%, rgba(201,168,76,0.10) 0%, transparent 45%),
