@@ -27,8 +27,6 @@ class UIManager {
     this._modalDragon = null;
     this._connectedWalletType = null;
 
-    // FIX: clear stale room data on every fresh load so old "resume room"
-    // banners don't appear after a new deploy.
     try {
       localStorage.removeItem('currentRoom');
       localStorage.removeItem('roomCode');
@@ -50,17 +48,6 @@ class UIManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
-  // ==================== AI DIFFICULTY TIER + WAVE PROGRESSION ====================
-  // "vs AI" always opens the EASY/MEDIUM/HARD picker fresh - no cross-match
-  // memory. Whichever tier is picked runs the SAME wave1->wave2->wave3
-  // progression (3/7/10 dragons) in one continuous match; only AI
-  // toughness differs between tiers. Clearing all 3 waves shows the
-  // tier-complete screen (see showTierComplete()); wave-to-wave within a
-  // run is a brief automatic countdown (see showWaveClearedCountdown()),
-  // driven entirely from main.js (advanceToNextWave()/onTierCleared()).
-
-  // Called when a tier button (Easy/Medium/Hard) is picked - stores the
-  // choice and moves on to arena selection, same as before.
   selectDifficultyTier(tierId) {
     const tier = AI_DIFFICULTY_TIERS.find(t => t.id === tierId);
     if (!tier) return;
@@ -70,12 +57,6 @@ class UIManager {
     this.showScreen('arenaSelectModal');
   }
 
-  // Mid-match transition: fires WHILE the game screen is still active
-  // (canvas visible underneath), when a wave is cleared and there's a next
-  // one to continue into. Reuses the existing countdownOverlay element
-  // (normally used for the 3-2-1-GO pre-match countdown) instead of adding
-  // a new overlay - styles/text are restored afterward so the real
-  // countdown isn't affected the next time a fresh match starts.
   showWaveClearedCountdown(wave, onComplete) {
     const overlay = document.getElementById('countdownOverlay');
     const textEl = document.getElementById('countdownText');
@@ -122,8 +103,6 @@ class UIManager {
     setTimeout(tick, 1500);
   }
 
-  // Tier fully cleared (all 3 waves beaten). Shows rank + Restart/Advance/
-  // Main Menu. nextTier is null for Hard (Ultimate Victory - no Advance).
   showTierComplete(tier, nextTier) {
     const screen = document.getElementById('tierCompleteScreen');
     const titleEl = document.getElementById('tierCompleteTitle');
@@ -133,7 +112,6 @@ class UIManager {
     const restartBtn = document.getElementById('btnTierRestart');
     const isUltimate = !nextTier;
 
-    // Apply difficulty-specific theme
     if (screen) {
       screen.classList.remove('tier-easy', 'tier-medium', 'tier-hard');
       if (tier.id === 'easy') screen.classList.add('tier-easy');
@@ -184,41 +162,17 @@ class UIManager {
     const diffModal = document.createElement('div');
     diffModal.id = 'difficultyModal';
     diffModal.className = 'screen';
+    
+    /* 
+      NOTICE: The text and inner HTML for the buttons below have been removed.
+      The JS logic still fires, but the CSS in index.html now overlays the PNG.
+    */
     diffModal.innerHTML = `
       <div class="difficultyBox">
-        <h2>Select Trial</h2>
-        <p class="difficultySub">Choose your challenge. Clear all 3 waves to earn your rank.</p>
         <div class="difficultyGrid">
-          <button class="diffBtn" data-tier="easy">
-            <div class="diffBtnInner">
-              <div class="diffTierIcon">🟢</div>
-              <div>
-                <div class="diffTierName">Easy</div>
-                <div class="diffTierRank">Rank: Emberborn</div>
-                <div class="diffTierDesc">3 &rarr; 7 &rarr; 10 Dragons</div>
-              </div>
-            </div>
-          </button>
-          <button class="diffBtn" data-tier="medium">
-            <div class="diffBtnInner">
-              <div class="diffTierIcon">🟣</div>
-              <div>
-                <div class="diffTierName">Medium</div>
-                <div class="diffTierRank">Rank: Voidwalker</div>
-                <div class="diffTierDesc">3 &rarr; 7 &rarr; 10 Dragons</div>
-              </div>
-            </div>
-          </button>
-          <button class="diffBtn" data-tier="hard">
-            <div class="diffBtnInner">
-              <div class="diffTierIcon">🔴</div>
-              <div>
-                <div class="diffTierName">Hard</div>
-                <div class="diffTierRank">Rank: The Infinite Sovereign</div>
-                <div class="diffTierDesc">3 &rarr; 7 &rarr; 10 Dragons</div>
-              </div>
-            </div>
-          </button>
+          <button class="diffBtn" data-tier="easy"></button>
+          <button class="diffBtn" data-tier="medium"></button>
+          <button class="diffBtn" data-tier="hard"></button>
         </div>
         <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
       </div>`;
@@ -263,13 +217,6 @@ class UIManager {
 
   _tap(el, fn) {
     if (!el) return;
-    // Fire on pointerdown for snappy mobile response, BUT swallow the
-    // click/touch that the browser synthesizes from the same physical tap.
-    // Without this, a pointerdown that switches screens leaves the finger
-    // still down; the trailing click then lands on whatever element is now
-    // under that finger on the NEXT screen and fires it too - which is why
-    // tapping "Enter Match" flashed mode-select and bounced straight back
-    // to dragon-select. One physical tap must trigger exactly one action.
     let swallow = false;
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
@@ -613,8 +560,6 @@ class UIManager {
     if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen(this.selectedTierId ? 'difficultyModal' : 'modeSelectScreen'));
     const mpCreate = document.getElementById('btnMpCreate');
     if (mpCreate) mpCreate.addEventListener('click', () => { this._openModeSelectModal(); });
-    // Mode-select modal (styled like Custom Stake Modal): commits the chosen
-    // mode BEFORE createRoom fires, so the room is set up right the first time.
     const mpmCancel = document.getElementById('mpmCancel');
     if (mpmCancel) mpmCancel.addEventListener('click', () => this._closeModeSelectModal());
     const mpmBackdrop = document.querySelector('#mpModeSelectModal .mpmBackdrop');
@@ -670,8 +615,6 @@ class UIManager {
         if (btn.disabled) return;
         const tier = btn.dataset.tier;
         if (tier === 'Custom') {
-          // Custom opens a small modal (doesn't disturb the layout). The
-          // tier is only committed when the player Confirms a valid amount.
           this._openCustomStakeModal();
           return;
         }
@@ -681,7 +624,6 @@ class UIManager {
       });
     });
 
-    // ---- Custom stake modal wiring ----
     const csmInput = document.getElementById('csmInput');
     const csmConfirm = document.getElementById('csmConfirm');
     const csmCancel = document.getElementById('csmCancel');
@@ -723,7 +665,6 @@ class UIManager {
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
 
-    // Tier-complete screen (all 3 waves beaten on a difficulty)
     const btnTierAdvance = document.getElementById('btnTierAdvance');
     if (btnTierAdvance) btnTierAdvance.addEventListener('click', () => {
       if (this._pendingNextTierId) this.eventBus.emit('ui:tierAdvance', { tierId: this._pendingNextTierId });
@@ -757,12 +698,6 @@ class UIManager {
       this.eventBus.emit('wallet:signTestRequest');
     });
 
-    // FIX: wallet selection buttons now use _tap (pointerdown) for instant
-    // mobile response instead of delayed click events. Also calls window.game
-    // directly as fallback so no main.js changes needed.
-    // FIX: _tap uses pointerdown + preventDefault() which breaks on mobile
-    // for modal buttons (OS suppresses the activation). Wallet buttons
-    // use standard click + passive touchstart for instant mobile response.
     const btnSelectPhantom = document.getElementById('btnSelectPhantom');
     if (btnSelectPhantom) {
       const onPhantom = () => {
@@ -876,7 +811,6 @@ class UIManager {
       const countEl = document.getElementById('lobbyPlayerCount');
       if (countEl) countEl.textContent = `${players.length} / ${maxPlayers}`;
 
-      // Derive mode if not passed: 2 slots => 1v1, otherwise FFA.
       const inferredMode = (maxPlayers <= 2) ? '1v1' : 'FFA';
       const roomMode = mode || inferredMode;
       const isFFA = roomMode !== '1v1';
@@ -895,9 +829,6 @@ class UIManager {
             : `<div class="lobbyPlayerIcon">🐉</div>`;
         };
 
-        // Kick chip: only shown for HOST viewer, ONLY on UNSTAKED slots
-        // (never on staked players — that would break the refund flow).
-        // Rendered as a real button with a data attribute the delegate uses.
         const kickChip = (p) => {
           if (!isHost) return '';
           if (!p || p.isHost) return '';
@@ -919,7 +850,6 @@ class UIManager {
           return `<span class="roleShield">🛡</span> CHALLENGER ${i}`;
         };
 
-        // Build a row for a known player.
         const filledRow = (p, roleClass, roleIdx) => `
           <div class="lobbyPlayerCard ${roleClass}">
             ${portrait(p)}
@@ -934,7 +864,6 @@ class UIManager {
             </div>
           </div>`;
 
-        // Build an empty slot. In 1v1, this becomes the "joining…" placeholder.
         const emptyRow = (roleClass, roleIdx) => {
           if (roleClass === 'role-opponent' && !isFFA) {
             return `
@@ -956,15 +885,12 @@ class UIManager {
         };
 
         let html = '';
-        // Slot 0 = host
         html += host ? filledRow(host, 'role-host', 0) : emptyRow('role-host', 0);
 
         if (!isFFA) {
-          // 1v1: single opponent slot
           const opp = others[0];
           html += opp ? filledRow({ ...opp, isLocal: opp.isLocal }, 'role-opponent', 1) : emptyRow('role-opponent', 1);
         } else {
-          // FFA: three challenger slots (deep pink for 2 & 3, blue for slot 1)
           const roleClasses = ['role-opponent', 'role-ffa2', 'role-ffa3'];
           for (let i = 0; i < 3; i++) {
             const p = others[i];
@@ -976,9 +902,6 @@ class UIManager {
         slotsEl.innerHTML = html;
       }
 
-      // Delegate kick clicks once — the .kickBtn elements are re-rendered
-      // every snapshot so binding directly would leak. One capture-phase
-      // listener on the slots container handles the whole lifecycle.
       const slotsRoot = document.getElementById('lobbySlots');
       if (slotsRoot && !this._kickBound) {
         this._kickBound = true;
@@ -1028,31 +951,18 @@ class UIManager {
       allPlayersDeposited: allDepositedFromMain,
       mode,
     } = state;
-    // Prefer FFA-aware signals from main.js when present; fall back to the
-    // 1v1 host/opponent flags for callers that haven't been updated. This
-    // is what fixes the FFA "no place-bet button for players 3/4" bug —
-    // v41 gated on `bothStaked` (host+opponent), which flipped true the
-    // moment player 2 staked and then hid the button for every later
-    // joiner. The gate is now per-player: MY OWN deposit status decides
-    // whether I still see the button; ALL-players decides Start Game.
     const myDeposited = (myDepositedFromMain !== undefined)
       ? !!myDepositedFromMain
       : (isHost ? !!hostDeposited : !!opponentDeposited);
     const allPlayersDeposited = (allDepositedFromMain !== undefined)
       ? !!allDepositedFromMain
       : !!(hostDeposited && opponentDeposited);
-    // Remembered so updateLobby (which re-runs on every room snapshot)
-    // never re-shows Start before every player's stake is locked.
     this._stakingBothDeposited = allPlayersDeposited;
     const depositBtn = document.getElementById('lobbyDepositBtn');
     const label = document.getElementById('depositBtnLabel');
     const statusText = document.getElementById('depositStatusText');
     const startBtn = document.getElementById('lobbyStartBtn');
     const waitingText = document.getElementById('lobbyWaitingText');
-    // ONE morphing button slot: Place Bet occupies it from the moment a
-    // tier exists AND *I* haven't staked yet. Once I've staked it hides
-    // (I'm done); once EVERYONE has staked, Start Game takes the slot for
-    // the host and a "waiting for host..." message replaces it for guests.
     if (depositBtn) {
       depositBtn.style.display = (tier && !myDeposited) ? 'flex' : 'none';
       depositBtn.disabled = !!myDeposited;
@@ -1166,20 +1076,17 @@ class UIManager {
     const cx = w / 2, cy = h / 2;
     const R = Math.min(w, h) / 2;
 
-    // --- Clip everything to a circular scope ---
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
     ctx.clip();
 
-    // Dark radar backdrop with a faint radial vignette
     const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
     bg.addColorStop(0, 'rgba(10,20,36,0.92)');
     bg.addColorStop(1, 'rgba(4,9,18,0.96)');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
-    // Concentric range rings + crosshair
     ctx.strokeStyle = 'rgba(72,224,255,0.10)';
     ctx.lineWidth = 1;
     for (let i = 1; i <= 2; i++) {
@@ -1192,7 +1099,6 @@ class UIManager {
     ctx.moveTo(2, cy); ctx.lineTo(w - 2, cy);
     ctx.stroke();
 
-    // Viewport rectangle (what the camera currently sees)
     if (camera) {
       const viewW = (canvas.parentElement ? canvas.parentElement.clientWidth : w * camera.zoom) / camera.zoom;
       const viewH = (canvas.parentElement ? canvas.parentElement.clientHeight : h * camera.zoom) / camera.zoom;
@@ -1202,17 +1108,14 @@ class UIManager {
       ctx.strokeRect(topLeft.x, topLeft.y, viewW * scaleX, viewH * scaleY);
     }
 
-    // Food: faint infinity-blue motes
     ctx.fillStyle = 'rgba(72,224,255,0.35)';
     (foods || []).forEach(f => { const p = toMini(f.x, f.y); ctx.fillRect(p.x - 0.5, p.y - 0.5, 1.5, 1.5); });
 
-    // Dragons: local = cyan directional arrowhead with glow; enemies = red blips
     (dragons || []).forEach(d => {
       if (!d.alive) return;
       const p = toMini(d.head.x, d.head.y);
       const isLocal = d === this._localDragonRef || d.isLocalPlayer;
       if (isLocal || (!d.isRemote && !d.isAI)) {
-        // player blip: glowing cyan with a heading triangle
         ctx.save();
         ctx.shadowColor = '#48e0ff';
         ctx.shadowBlur = 6;
@@ -1237,9 +1140,8 @@ class UIManager {
       }
     });
 
-    ctx.restore(); // end circular clip
+    ctx.restore();
 
-    // --- Gold frame ring (drawn on top, unclipped) ---
     ctx.lineWidth = 2;
     const ring = ctx.createLinearGradient(0, 0, 0, h);
     ring.addColorStop(0, '#f0d9a0');
@@ -1249,7 +1151,6 @@ class UIManager {
     ctx.beginPath();
     ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
     ctx.stroke();
-    // subtle inner bevel
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1257,8 +1158,6 @@ class UIManager {
     ctx.stroke();
   }
 
-  // Called from main.js so the minimap can distinguish the local dragon
-  // reliably regardless of the isRemote/isAI flags on other dragons.
   setLocalDragonRef(d) { this._localDragonRef = d; }
 
   updateGameOver(stats = {}) {
@@ -1276,8 +1175,6 @@ class UIManager {
     else { titleEl.textContent = 'DEFEATED'; titleEl.style.color = '#ff4d4d'; }
   }
 
-  // Winner's forfeit screen: opponent quit or dropped. Shown on top of the
-  // normal settlement panel (they still get their full payout).
   showForfeitVictory() {
     const titleEl = document.getElementById('goTitle');
     const subEl = document.getElementById('goSubtitle');
@@ -1290,11 +1187,8 @@ class UIManager {
     this.showScreen('gameOverScreen');
   }
 
-  // Quitter's forfeit screen: THIS player lost their connection to the
-  // arena. Only Main Menu is offered (no Play Again on a forfeited stake).
-  // Best-effort - only renders if this client is still alive to show it.
   showForfeitDefeat() {
-    if (this._forfeitDefeatShown) return; // don't stack if fired twice
+    if (this._forfeitDefeatShown) return;
     this._forfeitDefeatShown = true;
     const titleEl = document.getElementById('goTitle');
     const subEl = document.getElementById('goSubtitle');
@@ -1304,7 +1198,6 @@ class UIManager {
       subEl.style.color = '#e0a3a3';
       subEl.style.display = 'block';
     }
-    // Forfeited stake - no rematch shortcut, just the way out.
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.style.display = 'none';
     const stakeBox = document.getElementById('goStakeBox');
@@ -1359,12 +1252,6 @@ class UIManager {
       return;
     }
 
-    // Delayed: 90s passed without the backend writing ANY settlement record.
-    // Most likely watchMatches.js on Railway isn't running, restarted mid-
-    // match, or lost its Firebase connection. Funds are safe (never moved
-    // out of the hot wallet); the room stays on-chain so a support-side
-    // restart of the watcher can still resolve it. Player-facing wording
-    // is neutral: no accusations, no "we broke it", just what to do.
     if (delayed) {
       title.textContent = 'SETTLEMENT DELAYED';
       rows.innerHTML = `
@@ -1375,12 +1262,6 @@ class UIManager {
       return;
     }
 
-    // Error: backend saw the match end but the payout / refund transaction
-    // itself failed on-chain (bad ATA, RPC hiccup, insufficient hot-wallet
-    // balance, etc.), or the room record was missing data. Backend wrote
-    // an error status to the settlement record; we surface it here instead
-    // of hanging on "Treasury weighing the stakes…" forever. Funds are
-    // still in the hot wallet; support can re-run settlement.
     if (error) {
       title.textContent = 'SETTLEMENT NEEDS REVIEW';
       const friendly = ({
@@ -1478,12 +1359,6 @@ class UIManager {
 
   hideResumeRoomBanner() { const banner = document.getElementById('resumeRoomBanner'); if (banner) banner.style.display = 'none'; }
 
-  // Shows the loading screen with a message for ~5s before routing to the
-  // destination, so leaving/forfeiting feels like real processing (refund
-  // being issued, match wrapping up) rather than an abrupt jump to menu.
-  // Validates the custom stake input and emits the tier only when the
-  // amount is within Wang's 1,000-10,000,000 bounds. Updates the hint text
-  // to guide the player; the Place Bet path re-validates before any tx.
   _emitCustomTier(rawValue) {
     const hint = document.getElementById('customStakeHint');
     const n = Math.floor(Number(rawValue));
@@ -1524,17 +1399,6 @@ class UIManager {
     if (m) m.classList.remove('open');
   }
 
-  // ===== FFA 60s host auto-start countdown =====
-  // Distinct from showLobbyCountdown (the 10s pre-game bar). This one fires
-  // when all N FFA players have staked. Host also sees the Start Game
-  // button and can end the countdown early; if the host never taps Start,
-  // main.js emits mp:startGame at 0 so the other players aren't stuck.
-  //
-  // UI is a small floating widget in the top-right corner of the lobby
-  // panel (id="ffaCountdownWidget"). Non-blocking: it doesn't push the
-  // lobby content around, doesn't cover the player cards, doesn't intercept
-  // clicks. Falls back to the legacy full-width panel (id="ffaStartCountdown")
-  // if the widget isn't in the DOM, so pre-Phase-2 index.html doesn't break.
   showFFACountdown(seconds = 60) {
     const widget = document.getElementById('ffaCountdownWidget');
     const legacy = document.getElementById('ffaStartCountdown');
@@ -1587,9 +1451,6 @@ class UIManager {
     }, 5000);
   }
 
-  // Shows a glowing down-arrow hint on the lobby when there's more content
-  // below the fold (Opponent frame + Leave Room), and hides it once the
-  // player scrolls near the bottom.
   _updateScrollHint(screenEl) {
     if (!screenEl || screenEl.id !== 'lobbyScreen') return;
     let hint = document.getElementById('lobbyScrollHint');
@@ -1609,7 +1470,6 @@ class UIManager {
         });
       }
     }
-    // Only show if there's actually more to scroll.
     const canScroll = screenEl.scrollHeight > screenEl.clientHeight + 40;
     hint.style.display = canScroll ? 'flex' : 'none';
     hint.style.opacity = '1';
@@ -1618,21 +1478,11 @@ class UIManager {
   showScreen(screenId) {    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
-    // Reveal every screen from the TOP. For the lobby this is essential:
-    // the room-code plaque is the first element, and if the screen opened
-    // mid-scroll the code sat above the viewport. Also refresh the scroll
-    // hint arrow for scrollable screens.
     const _shown = this.screens[screenId];
     if (_shown) {
       try { _shown.scrollTop = 0; } catch (_) {}
       setTimeout(() => { try { _shown.scrollTop = 0; } catch (_) {} this._updateScrollHint(_shown); }, 60);
     }
-    // Mark the switch time and, once, install a capture-phase guard that
-    // swallows any click/touch landing on the freshly-shown screen within
-    // a short window. This is the safety net for the ghost-tap bounce:
-    // even for cards bound with plain 'click' (not _tap), a tap that
-    // triggered this transition can't immediately fire an element on the
-    // new screen under the still-down finger.
     this._lastScreenSwitch = Date.now();
     if (!this._ghostTapGuardInstalled) {
       this._ghostTapGuardInstalled = true;
@@ -1646,8 +1496,6 @@ class UIManager {
     }
   }
 
-  // Step 1 of the matched flow: "Opponent Found" with Proceed + Cancel.
-  // Nothing is staked yet - purely confirm-to-continue.
   showOpponentFound(tier) {
     const tierName = (tier === 'Small' ? 'Low' : (tier || 'Unknown'));
     const disp = document.getElementById('oppFoundTierDisplay');
@@ -1656,9 +1504,6 @@ class UIManager {
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
   }
 
-  // Puts the shared lobby into MATCHED mode: shows lobby-bg, hides the
-  // room-code plaque and the mode/tier/arena pickers (pre-decided by
-  // matchmaking). Off = normal Create Room lobby with everything visible.
   setMatchedLobbyMode(on, tier) {
     const lobby = document.getElementById('lobbyScreen');
     if (lobby) lobby.classList.toggle('matchedLobby', !!on);
