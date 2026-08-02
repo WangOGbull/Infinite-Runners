@@ -1055,6 +1055,27 @@
      NEW PNG OVERLAY FOR DIFFICULTY / TRIAL SELECTION
      This CSS handles the visually dynamic elements injected by main.js
   =============================================================== */
+  #difficultyModal {
+      position: relative;
+      overflow: hidden;
+      background: #0a0500 !important;
+  }
+  #difficultyModal::before {
+      content: '';
+      position: absolute;
+      inset: -20%;
+      background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/select_trial.png');
+      background-size: cover;
+      background-position: center;
+      filter: blur(90px) saturate(1.5) brightness(0.55);
+      transform: scale(1.25);
+      z-index: 0;
+      pointer-events: none;
+  }
+  #difficultyModal > .difficultyBox {
+      position: relative;
+      z-index: 1;
+  }
   #difficultyModal .difficultyBox {
       background: transparent !important;
       border: none !important;
