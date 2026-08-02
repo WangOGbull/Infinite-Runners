@@ -1061,22 +1061,7 @@
       box-shadow: none !important;
       padding: 0 !important;
       width: 100%;
-      max-width: 500px;
-      margin: 0 auto;
-      position: relative;
-  }
-  #difficultyModal .difficultyBox h2,
-  #difficultyModal .difficultySub,
-  .diffBtnInner {
-      display: none !important;
-  }
-  #difficultyModal .difficultyBox {
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      padding: 0 !important;
-      width: 100%;
-      max-width: 500px;
+      max-width: min(680px, 92vw);
       margin: 0 auto;
       position: relative;
   }
@@ -1098,24 +1083,6 @@
         linear-gradient(180deg, #0a0500 0%, #0d0802 50%, #0a0500 100%);
       position: relative;
       overflow: hidden;
-  }
-  #difficultyModal .difficultyGrid::before,
-  #difficultyModal .difficultyGrid::after {
-      content: 'e';
-      position: absolute;
-      font-family: 'Cinzel Decorative', serif;
-      font-size: 16px;
-      color: rgba(255,220,140,0.85);
-      text-shadow: 0 0 12px rgba(212,175,55,0.9), 0 0 28px rgba(212,175,55,0.6), 0 0 48px rgba(212,175,55,0.3);
-      pointer-events: none;
-      z-index: 0;
-      animation: diffSymbolFloat 4s ease-in-out infinite;
-  }
-  #difficultyModal .difficultyGrid::before { top: 6%; left: 8%; animation-delay: 0s; }
-  #difficultyModal .difficultyGrid::after  { top: 58%; right: 6%; animation-delay: 2s; font-size: 22px; }
-  @keyframes diffSymbolFloat {
-      0%, 100% { opacity: 0.6; transform: translateY(0) scale(1); }
-      50%      { opacity: 1;   transform: translateY(-14px) scale(1.2); }
   }
   #difficultyModal .difficultyBgImg {
       position: absolute;
