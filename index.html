@@ -1104,18 +1104,18 @@
       content: 'e';
       position: absolute;
       font-family: 'Cinzel Decorative', serif;
-      font-size: 14px;
-      color: rgba(212,175,55,0.35);
-      text-shadow: 0 0 8px rgba(212,175,55,0.6), 0 0 18px rgba(212,175,55,0.3);
+      font-size: 16px;
+      color: rgba(255,220,140,0.85);
+      text-shadow: 0 0 12px rgba(212,175,55,0.9), 0 0 28px rgba(212,175,55,0.6), 0 0 48px rgba(212,175,55,0.3);
       pointer-events: none;
       z-index: 0;
-      animation: diffSymbolFloat 6s ease-in-out infinite;
+      animation: diffSymbolFloat 4s ease-in-out infinite;
   }
-  #difficultyModal .difficultyGrid::before { top: 8%; left: 12%; animation-delay: 0s; }
-  #difficultyModal .difficultyGrid::after  { top: 55%; right: 10%; animation-delay: 3s; font-size: 18px; }
+  #difficultyModal .difficultyGrid::before { top: 6%; left: 8%; animation-delay: 0s; }
+  #difficultyModal .difficultyGrid::after  { top: 58%; right: 6%; animation-delay: 2s; font-size: 22px; }
   @keyframes diffSymbolFloat {
-      0%, 100% { opacity: 0.25; transform: translateY(0) scale(1); }
-      50%      { opacity: 0.7;  transform: translateY(-10px) scale(1.15); }
+      0%, 100% { opacity: 0.6; transform: translateY(0) scale(1); }
+      50%      { opacity: 1;   transform: translateY(-14px) scale(1.2); }
   }
   #difficultyModal .difficultyBgImg {
       position: absolute;
