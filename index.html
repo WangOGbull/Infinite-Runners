@@ -1090,9 +1090,14 @@
       box-shadow: none !important;
       padding: 0 !important;
       width: 100%;
-      max-width: min(680px, 92vw);
+      max-width: 500px;
       margin: 0 auto;
       position: relative;
+  }
+  @media (min-width: 700px) {
+      #difficultyModal .difficultyBox {
+          max-width: 680px;
+      }
   }
   #difficultyModal .difficultyBox h2,
   #difficultyModal .difficultySub,
