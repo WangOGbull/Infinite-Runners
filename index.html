@@ -1116,6 +1116,71 @@
   /* Kill the scroll-hint arrow — with hidden scrollbar and the panel now
      sized to fit ~one screen on desktop, an animated arrow reads as a bug. */
   #lobbyScrollHint { display: none !important; }
+
+
+  /* =================================================================================
+     NEW VISUAL OVERRIDE FOR DIFFICULTY / TRIAL SELECTION
+     This perfectly overlays the uploaded select_trial.png while keeping the
+     hidden button IDs and event listeners completely intact.
+  ================================================================================= */
+  #difficultyModal .difficultyBox {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      width: 100%;
+      max-width: 500px;
+      position: relative;
+  }
+
+  #difficultyModal .difficultyBox h2,
+  #difficultyModal .difficultySub,
+  .diffBtnInner {
+      display: none !important;
+  }
+
+  #difficultyModal .difficultyGrid {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 3 / 4.5; /* Adjust ratio if your image is different */
+      background-image: url('./select_trial.png') !important;
+      background-size: 100% 100% !important;
+      background-repeat: no-repeat !important;
+      position: relative;
+  }
+
+  #difficultyModal .diffBtn {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      position: absolute;
+      width: 70%;
+      height: 18%;
+      left: 15%;
+      cursor: pointer;
+      z-index: 5;
+  }
+
+  /* Invisible click zones perfectly aligned to the PNG */
+  #difficultyModal .diffBtn[data-tier="easy"]   { top: 12%; }
+  #difficultyModal .diffBtn[data-tier="medium"] { top: 38%; }
+  #difficultyModal .diffBtn[data-tier="hard"]   { top: 64%; }
+
+  /* Back Button overlay at the bottom of the PNG */
+  #btnDiffBack {
+      position: absolute;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: transparent !important;
+      width: 40%;
+      height: 10%;
+      bottom: 5%;
+      left: 30%;
+      z-index: 5;
+      cursor: pointer;
+  }
+  #btnDiffBack i { display: none !important; }
 </style>
 </head>
 <body>
