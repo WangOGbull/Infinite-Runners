@@ -1076,12 +1076,21 @@
       min-height: 520px;
       max-height: 85vh;
       aspect-ratio: 3 / 4.5;
-      background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/select_trial.png') !important;
-      background-size: 100% 100% !important;
-      background-repeat: no-repeat !important;
-      background-position: center top !important;
       background-color: #0d0b08 !important;
       position: relative;
+      overflow: hidden;
+  }
+  #difficultyModal .difficultyBgImg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      z-index: 1;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
   }
   #difficultyModal .diffBtn {
       background: rgba(255,255,255,0.02) !important;
