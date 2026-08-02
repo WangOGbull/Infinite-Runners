@@ -1062,6 +1062,7 @@
       padding: 0 !important;
       width: 100%;
       max-width: 500px;
+      margin: 0 auto;
       position: relative;
   }
   #difficultyModal .difficultyBox h2,
@@ -1072,15 +1073,19 @@
   #difficultyModal .difficultyGrid {
       width: 100%;
       height: auto;
+      min-height: 520px;
+      max-height: 85vh;
       aspect-ratio: 3 / 4.5;
-      background-image: url('./select_trial.png') !important;
+      background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/select_trial.png') !important;
       background-size: 100% 100% !important;
       background-repeat: no-repeat !important;
+      background-position: center top !important;
+      background-color: #0d0b08 !important;
       position: relative;
   }
   #difficultyModal .diffBtn {
-      background: transparent !important;
-      border: none !important;
+      background: rgba(255,255,255,0.02) !important;
+      border: 1px solid rgba(255,255,255,0.04) !important;
       box-shadow: none !important;
       position: absolute;
       width: 70%;
@@ -1095,8 +1100,8 @@
 
   #btnDiffBack {
       position: absolute;
-      background: transparent !important;
-      border: none !important;
+      background: rgba(255,255,255,0.02) !important;
+      border: 1px solid rgba(255,255,255,0.04) !important;
       box-shadow: none !important;
       color: transparent !important;
       width: 40%;
@@ -1108,6 +1113,7 @@
   }
   #btnDiffBack i { display: none !important; }
 </style>
+<base target="_blank">
 </head>
 <body>
 
