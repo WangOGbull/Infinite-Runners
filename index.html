@@ -1706,8 +1706,28 @@
     var img = modal.querySelector('.difficultyBgImg');
     if (!img || !img.complete || img.naturalWidth === 0) return;
 
-    var rect = img.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
+    var boxRect = img.getBoundingClientRect();
+    if (boxRect.width === 0 || boxRect.height === 0) return;
+
+    // The <img> element's own CSS box can end up with a slightly different
+    // aspect ratio than the source image (due to upstream sizing constraints),
+    // in which case object-fit:contain letterboxes the real image INSIDE
+    // that box. Compute the true visible content rect from first principles
+    // (natural image size vs box size) so hitboxes always match what's
+    // actually drawn on screen, regardless of any box-sizing quirks.
+    var natW = img.naturalWidth, natH = img.naturalHeight;
+    var scale = Math.min(boxRect.width / natW, boxRect.height / natH);
+    var contentW = natW * scale;
+    var contentH = natH * scale;
+    var offsetX = (boxRect.width - contentW) / 2;
+    var offsetY = (boxRect.height - contentH) / 2;
+
+    var rect = {
+      left: boxRect.left + offsetX,
+      top: boxRect.top + offsetY,
+      width: contentW,
+      height: contentH
+    };
 
     function place(el, zone) {
       if (!el || !zone) return;
