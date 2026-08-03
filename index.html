@@ -1689,5 +1689,61 @@
   </div>
 </div>
 
+<script>
+(function () {
+  // Exact zone boundaries measured directly from the select_trial.png pixel data
+  // (fractions of the image's own height/width, not the viewport).
+  var ZONES = {
+    easy:   { top: 0.242, bottom: 0.434, left: 0.04, right: 0.96 },
+    medium: { top: 0.462, bottom: 0.650, left: 0.04, right: 0.96 },
+    hard:   { top: 0.678, bottom: 0.868, left: 0.04, right: 0.96 },
+    back:   { top: 0.885, bottom: 0.960, left: 0.28, right: 0.72 }
+  };
+
+  function positionHitboxes() {
+    var modal = document.getElementById('difficultyModal');
+    if (!modal || !modal.classList.contains('active')) return;
+    var img = modal.querySelector('.difficultyBgImg');
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+
+    var rect = img.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    function place(el, zone) {
+      if (!el || !zone) return;
+      el.style.position = 'fixed';
+      el.style.margin = '0';
+      el.style.left   = (rect.left + zone.left * rect.width) + 'px';
+      el.style.top    = (rect.top + zone.top * rect.height) + 'px';
+      el.style.width  = ((zone.right - zone.left) * rect.width) + 'px';
+      el.style.height = ((zone.bottom - zone.top) * rect.height) + 'px';
+    }
+
+    modal.querySelectorAll('.diffBtn').forEach(function (btn) {
+      place(btn, ZONES[btn.getAttribute('data-tier')]);
+    });
+    place(document.getElementById('btnDiffBack'), ZONES.back);
+  }
+
+  // Reposition whenever the modal is shown, the image finishes loading,
+  // or the viewport changes (rotation, resize, mobile URL bar collapse).
+  var observer = new MutationObserver(positionHitboxes);
+  function attachWhenReady() {
+    var modal = document.getElementById('difficultyModal');
+    if (!modal) { setTimeout(attachWhenReady, 200); return; }
+    observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    var img = modal.querySelector('.difficultyBgImg');
+    if (img) img.addEventListener('load', positionHitboxes);
+    positionHitboxes();
+  }
+  attachWhenReady();
+  window.addEventListener('resize', positionHitboxes);
+  window.addEventListener('orientationchange', positionHitboxes);
+  // Safety net: some mobile browsers resize the viewport slightly after
+  // the resize event fires (URL bar collapsing), so re-check shortly after.
+  window.addEventListener('resize', function () { setTimeout(positionHitboxes, 300); });
+})();
+</script>
+
 </body>
 </html>
