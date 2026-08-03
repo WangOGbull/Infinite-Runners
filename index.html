@@ -1157,6 +1157,124 @@
       cursor: pointer;
   }
   #btnDiffBack i { display: none !important; }
+  /* ==============================================================
+     SELECT ARENA SCREEN — Design A: Runestone Grid
+     Targets the existing real DOM (.arenaCard / .arenaPreview /
+     .arenaName / #btnArenaBack) — no overlays, no absolute-position
+     hitboxes, just normal flexbox/grid layout so overlap is structurally
+     impossible.
+  =============================================================== */
+  #arenaSelectModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      overflow-y: auto;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(150,110,40,0.10) 0%, transparent 60%),
+        linear-gradient(180deg, #0a0704 0%, #100c07 50%, #0a0704 100%);
+  }
+  #arenaSelectModal.active {
+      display: flex;
+      justify-content: center;
+  }
+  #arenaSelectModal .arenaSelectInner {
+      width: 100%;
+      max-width: 720px;
+      padding: 32px 20px 40px;
+      margin: 0 auto;
+  }
+  #arenaSelectModal h2 {
+      font-family: 'Cinzel Decorative', serif;
+      font-weight: 900;
+      text-align: center;
+      font-size: clamp(26px, 6vw, 40px);
+      letter-spacing: 0.05em;
+      background: linear-gradient(180deg, #f7e3b0 0%, #c9a86a 45%, #7a5c2c 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 30px rgba(201,164,78,0.25);
+      margin-bottom: 28px;
+  }
+  #arenaSelectModal .arenaGrid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+  }
+  @media (min-width: 640px) {
+      #arenaSelectModal .arenaGrid {
+          grid-template-columns: 1fr 1fr;
+      }
+  }
+  #arenaSelectModal .arenaCard {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(201,164,78,0.35);
+      background: #14100a;
+      cursor: pointer;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  #arenaSelectModal .arenaCard:hover,
+  #arenaSelectModal .arenaCard:focus-visible {
+      transform: translateY(-4px);
+      box-shadow: 0 14px 34px rgba(0,0,0,0.5), 0 0 0 1px var(--accent), 0 0 28px var(--accent-glow);
+      border-color: var(--accent);
+      outline: none;
+  }
+  #arenaSelectModal .arenaPreview {
+      height: 168px;
+      background-size: cover;
+      background-position: center;
+      position: relative;
+  }
+  #arenaSelectModal .arenaPreview::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(10,7,4,0) 45%, rgba(10,7,4,0.85) 100%),
+                  radial-gradient(circle at 50% 40%, var(--accent-glow) 0%, transparent 65%);
+  }
+  #arenaSelectModal .arenaName {
+      padding: 14px 16px 16px;
+      border-top: 1px solid rgba(201,164,78,0.18);
+      background: linear-gradient(180deg, rgba(20,16,10,0.9), rgba(12,9,5,0.98));
+      font-family: 'Cinzel Decorative', serif;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.03em;
+      color: var(--accent);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  #arenaSelectModal .arenaCard[data-arena="0"] { --accent:#c9a44e; --accent-glow:rgba(201,164,78,0.35); }
+  #arenaSelectModal .arenaCard[data-arena="1"] { --accent:#8fbf5a; --accent-glow:rgba(143,191,90,0.35); }
+  #arenaSelectModal .arenaCard[data-arena="2"] { --accent:#a874e8; --accent-glow:rgba(168,116,232,0.4); }
+  #arenaSelectModal .arenaCard[data-arena="3"] { --accent:#e8703a; --accent-glow:rgba(232,112,58,0.4); }
+
+  #btnArenaBack {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 32px auto 0;
+      width: fit-content;
+      padding: 12px 30px;
+      font-family: 'Cinzel Decorative', serif;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      font-size: 14px;
+      color: #c9a44e;
+      background: transparent;
+      border: 1px solid rgba(201,164,78,0.4);
+      border-radius: 999px;
+      cursor: pointer;
+  }
+  #btnArenaBack:hover {
+      background: rgba(201,164,78,0.08);
+  }
+  #btnArenaBack i {
+      width: 16px;
+      height: 16px;
+  }
 </style>
 <base target="_blank">
 </head>
