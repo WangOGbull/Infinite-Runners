@@ -740,6 +740,9 @@ class Game {
     this._waveTransitionPending = true;
     this.currentWaveIndex = currentIndex + 1;
     this.isPaused = true; // freezes update()/render() in loop() - no pause MENU, just frozen gameplay under the countdown
+    this.movementSystem.resetInput(); // the countdown overlay can swallow a
+    // touchend meant for the joystick if the player's finger is still down
+    // when it appears - clear it now so nothing gets stuck mid-drag.
     this.uiManager.showWaveClearedCountdown(nextWave, () => {
       // Reset the player dragon to starting size for the new wave challenge
       this._resetDragonToWaveStart(this.localDragon);
@@ -755,6 +758,9 @@ class Game {
       }
 
       this.spawnWaveDragons(nextWave.players - 1); // -1: the local player already counts as one of nextWave.players
+      this.movementSystem.resetInput(); // guarantee a clean input slate before
+      // gameplay resumes, regardless of what happened to touch state while
+      // the overlay was up.
       this.isPaused = false;
       this.lastTime = performance.now(); // avoid a huge deltaTime spike from the pause
       this._waveTransitionPending = false;
