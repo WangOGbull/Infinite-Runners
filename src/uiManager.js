@@ -120,15 +120,15 @@ class UIManager {
     }
 
     if (titleEl) {
-      titleEl.textContent = isUltimate ? 'ULTIMATE VICTORY' : 'TIER CLEARED';
+      titleEl.textContent = isUltimate ? 'ULTIMATE VICTORY' : 'VICTORY';
     }
     if (rankEl) {
       rankEl.innerHTML = `<span class="rank-label">Rank Achieved</span><span class="rank-name">${tier.rank}</span>`;
     }
     if (subEl) {
       subEl.textContent = isUltimate
-        ? 'You have conquered every trial the arena holds. There is nothing left to prove.'
-        : `Advance to ${nextTier.label} and face a greater challenge, or restart ${tier.label} to sharpen your skills.`;
+        ? `Congratulations, dragonrider. You have cleared every wave the arena holds and earned the rank of ${tier.rank}. Your name shall be remembered through every age of dragons to come.`
+        : `Congratulations. You have cleared every wave of ${tier.label} and earned the rank of ${tier.rank}. A new age of your legend begins — advance to ${nextTier.label}, or restart ${tier.label} to sharpen your skills.`;
     }
     if (advanceBtn) {
       advanceBtn.style.display = nextTier ? 'flex' : 'none';
@@ -187,10 +187,10 @@ class UIManager {
       <div class="arenaSelectInner">
         <h2>Select Arena</h2>
         <div class="arenaGrid">
-          <div class="arenaCard" data-arena="0"><div class="arenaPreview" style="background-image:url(/arenas/arena_stone.png)"></div><div class="arenaName">Stone Castle</div><div class="arenaTag">Ancient walls, steady ground</div></div>
-          <div class="arenaCard" data-arena="1"><div class="arenaPreview" style="background-image:url(/arenas/arena_grass.png)"></div><div class="arenaName">Grass Field</div><div class="arenaTag">Open plains, wide sightlines</div></div>
-          <div class="arenaCard" data-arena="2"><div class="arenaPreview" style="background-image:url(/arenas/arena_purple.png)"></div><div class="arenaName">Purple Magic</div><div class="arenaTag">Arcane storms, shifting tides</div></div>
-          <div class="arenaCard" data-arena="3"><div class="arenaPreview" style="background-image:url(/arenas/arena_fire.png)"></div><div class="arenaName">Fire Arena</div><div class="arenaTag">Molten ground, no mercy</div></div>
+          <div class="arenaCard" data-arena="0"><div class="arenaPreview" style="background-image:url(/arenas/arena_stone.png)"></div><div class="arenaName">Stone Castle</div></div>
+          <div class="arenaCard" data-arena="1"><div class="arenaPreview" style="background-image:url(/arenas/arena_grass.png)"></div><div class="arenaName">Grass Field</div></div>
+          <div class="arenaCard" data-arena="2"><div class="arenaPreview" style="background-image:url(/arenas/arena_purple.png)"></div><div class="arenaName">Purple Magic</div></div>
+          <div class="arenaCard" data-arena="3"><div class="arenaPreview" style="background-image:url(/arenas/arena_fire.png)"></div><div class="arenaName">Fire Arena</div></div>
         </div>
         <button id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
       </div>`;
