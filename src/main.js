@@ -1367,6 +1367,13 @@ class Game {
         localSpawn.y
       );
       this.initMatchStats(this.localDragon);
+      // Permanent speed bonus from cleared AI difficulty tiers (Emberborn/
+      // Voidwalker/etc - see uiManager.getTierSpeedMultiplier()). Local/AI
+      // matches only - never applied in staked multiplayer, where a
+      // permanent edge from unrelated progress would be unfair.
+      if (this.uiManager && typeof this.uiManager.getTierSpeedMultiplier === 'function') {
+        this.localDragon.speed *= this.uiManager.getTierSpeedMultiplier();
+      }
 
       const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
       for (let i = 1; i < maxPlayers; i++) {
