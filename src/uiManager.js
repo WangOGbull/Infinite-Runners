@@ -180,6 +180,17 @@ class UIManager {
     document.body.appendChild(diffModal);
     this.screens['difficultyModal'] = diffModal;
 
+    const spectateOverlay = document.createElement('div');
+    spectateOverlay.id = 'spectateOverlay';
+    spectateOverlay.innerHTML = `
+      <div class="spectateBanner">
+        <span class="spectateLabel">SPECTATING</span>
+        <span class="spectateTargetName" id="spectateTargetName"></span>
+        <button id="btnLeaveSpectate">Leave Match</button>
+      </div>`;
+    document.body.appendChild(spectateOverlay);
+    this._spectateOverlay = spectateOverlay;
+
     const arenaModal = document.createElement('div');
     arenaModal.id = 'arenaSelectModal';
     arenaModal.className = 'screen';
@@ -1232,6 +1243,31 @@ class UIManager {
   }
 
   hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
+
+  // Shown when the local player is eliminated but the match continues -
+  // lets them watch whoever killed them (or another survivor) instead of
+  // staring at a frozen screen, with a way to leave the match entirely.
+  showSpectateOverlay(targetDragon, onLeave) {
+    const overlay = this._spectateOverlay || document.getElementById('spectateOverlay');
+    if (!overlay) return;
+    const nameEl = document.getElementById('spectateTargetName');
+    if (nameEl) {
+      const label = (targetDragon && targetDragon.type) ? targetDragon.type : 'Survivor';
+      nameEl.textContent = `Watching ${label}`;
+    }
+    const leaveBtn = document.getElementById('btnLeaveSpectate');
+    if (leaveBtn) {
+      // Direct assignment (not addEventListener) so re-showing on a
+      // re-target never stacks duplicate handlers.
+      leaveBtn.onclick = () => { if (typeof onLeave === 'function') onLeave(); };
+    }
+    overlay.classList.add('active');
+  }
+
+  hideSpectateOverlay() {
+    const overlay = this._spectateOverlay || document.getElementById('spectateOverlay');
+    if (overlay) overlay.classList.remove('active');
+  }
 
   showStakeBreakdown({
     pending = false, draw = false, won = false,
