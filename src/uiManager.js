@@ -23,6 +23,7 @@ class UIManager {
     this.dragonsData = [];
     this.dragonPowers = {};
     this.playerCoins = 1000000;
+    this.clearedTiers = {}; // { easy: true, medium: true, hard: true } - persisted, tracks which AI difficulty tiers have been fully cleared at least once
     this.selectedDragonName = null;
     this._modalDragon = null;
     this._connectedWalletType = null;
@@ -104,6 +105,7 @@ class UIManager {
   }
 
   showTierComplete(tier, nextTier) {
+    this.markTierCleared(tier.id);
     const screen = document.getElementById('tierCompleteScreen');
     const titleEl = document.getElementById('tierCompleteTitle');
     const rankEl = document.getElementById('tierCompleteRank');
@@ -248,6 +250,8 @@ class UIManager {
     catch (e) { this.dragonPowers = {}; }
     try { const savedCoins = localStorage.getItem('playerCoins'); if (savedCoins) this.playerCoins = parseInt(savedCoins); }
     catch (e) {}
+    try { const savedTiers = localStorage.getItem('clearedTiers'); if (savedTiers) this.clearedTiers = JSON.parse(savedTiers); }
+    catch (e) { this.clearedTiers = {}; }
     this.renderCarousel();
     this.updateCoinDisplay();
   }
@@ -370,21 +374,7 @@ class UIManager {
         statsContainer.querySelectorAll('.ddmStatBar').forEach(b => { b.style.width = b.dataset.w + '%'; });
       }));
     }
-    const powersContainer = document.getElementById('ddmPowers');
-    if (powersContainer) {
-      const specialPowers = {
-        aegis: [{ name: 'Aegis Shield', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Iron Fortress', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
-        ignis: [{ name: 'Inferno Breath', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Phoenix Rebirth', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
-        infinite: [{ name: 'Time Warp', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Eternal Loop', desc: 'Unlock at Dragon Level 10', unlock: 10 }],
-        magnetron: [{ name: 'Magnetic Pull', desc: 'Unlock at Dragon Level 5', unlock: 5 }, { name: 'Gravity Crush', desc: 'Unlock at Dragon Level 10', unlock: 10 }]
-      };
-      const dragonPowers = specialPowers[key] || specialPowers.aegis;
-      powersContainer.innerHTML = dragonPowers.map(p => `
-        <div class="ddmPowerSlot locked">
-          <div class="ddmPowerIcon"><i class="fa-solid fa-lock"></i></div>
-          <div class="ddmPowerInfo"><div class="ddmPowerName">${p.name}</div><div class="ddmPowerDesc">${p.desc}</div></div>
-        </div>`).join('');
-    }
+    this.renderSpecialPowers(dragon);
     this._modalDragon = dragon;
     modal.classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -402,6 +392,26 @@ class UIManager {
       this.dragonPowers[dragonKey] = { ...(defaults[dragonKey] || { defense: 2, speed: 2, rush: 2, attack: 2 }) };
     }
     return this.dragonPowers[dragonKey];
+  }
+
+  // Special powers are earned by clearing AI difficulty tiers (Select
+  // Trial screen), not tied to any one dragon - the same three slots show
+  // for whichever dragon is selected, since the speed bonus applies
+  // account-wide via getTierSpeedMultiplier().
+  renderSpecialPowers(dragon) {
+    const powersContainer = document.getElementById('ddmPowers');
+    if (!powersContainer) return;
+    powersContainer.innerHTML = AI_DIFFICULTY_TIERS.map(tier => {
+      const unlocked = !!this.clearedTiers[tier.id];
+      return `
+        <div class="ddmPowerSlot ${unlocked ? 'unlocked' : 'locked'}">
+          <div class="ddmPowerIcon"><i class="fa-solid ${unlocked ? 'fa-check' : 'fa-lock'}"></i></div>
+          <div class="ddmPowerInfo">
+            <div class="ddmPowerName">${tier.rank}</div>
+            <div class="ddmPowerDesc">${unlocked ? '+5% speed — unlocked' : `Clear ${tier.label} to unlock +5% speed`}</div>
+          </div>
+        </div>`;
+    }).join('');
   }
 
   renderPowersGrid(dragonKey, color) {
@@ -463,6 +473,24 @@ class UIManager {
   updateCoinDisplay() {
     const el = document.getElementById('dsCoinAmount');
     if (el) el.textContent = this.playerCoins.toLocaleString();
+  }
+
+  // Called once when a tier's final wave is cleared (see showTierComplete).
+  // Persists the unlock permanently and, if the dragon detail modal happens
+  // to be open, refreshes its special-powers list immediately.
+  markTierCleared(tierId) {
+    if (!tierId || this.clearedTiers[tierId]) return; // already unlocked, nothing to do
+    this.clearedTiers[tierId] = true;
+    try { localStorage.setItem('clearedTiers', JSON.stringify(this.clearedTiers)); } catch (e) {}
+    if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
+  }
+
+  // Total permanent speed bonus earned from cleared tiers, applied to the
+  // local player's dragon at match start. +5% per tier cleared - simple,
+  // stacks up to +15% once all three (Easy/Medium/Hard) are cleared.
+  getTierSpeedMultiplier() {
+    const cleared = Object.values(this.clearedTiers).filter(Boolean).length;
+    return 1 + (cleared * 0.05);
   }
 
   renderNavDots() {
