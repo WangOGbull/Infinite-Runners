@@ -466,11 +466,13 @@ class Game {
         killer.kills = (killer.kills || 0) + 1;
         // Kill reward: +2 body segments
         this.growthSystem.grow(killer, CONFIG.KILL_SEGMENTS_GAIN || 2);
-        // Kill streak / combo announcements (full game: player, AI, MP)
+        // Kill streak / combo announcements — local player only. AI dragons
+        // still track their own killStreak for internal logic, but never
+        // trigger the on-screen combo banner.
         killer.killStreak = (killer.killStreak || 0) + 1;
-        this._checkCombo(killer);
         const killerIsLocal = killer === this.localDragon;
         if (killerIsLocal) {
+          this._checkCombo(killer);
           this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, neon || '#ffd700');
           this.effectsSystem.flashVignette(neon || '#ffd700', 0.35, 300);
           this.effectsSystem.playKillSound();
