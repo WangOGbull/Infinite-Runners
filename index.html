@@ -1447,6 +1447,30 @@
   #spectateOverlay #btnLeaveSpectate:hover {
       background: rgba(201,164,78,0.1);
   }
+  /* ==============================================================
+     MOBILE CONTROLS — larger touch targets
+     Base sizes live in styles.css (not visible here), so these are
+     forced overrides. Adjust the px values below if they land too
+     big/small once tested on a real device.
+  =============================================================== */
+  #joyArea {
+      width: 140px !important;
+      height: 140px !important;
+      border-radius: 50% !important;
+  }
+  #joyKnob {
+      width: 62px !important;
+      height: 62px !important;
+      border-radius: 50% !important;
+  }
+  #boostBtn {
+      width: 104px !important;
+      height: 104px !important;
+      border-radius: 50% !important;
+  }
+  #boostBtn span {
+      font-size: 12px !important;
+  }
 </style>
 <base target="_blank">
 </head>
@@ -1782,7 +1806,7 @@
     <div class="hudLeft">
       <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button>
       <div id="timerDisplay">0:00</div>
-      <div id="scoreDisplay"><i data-lucide="infinity"></i> <span id="scoreVal">0</span></div>
+      <div id="scoreDisplay"><span id="scoreVal">0</span></div>
     </div>
     <canvas id="minimapCanvas"></canvas>
   </div>
