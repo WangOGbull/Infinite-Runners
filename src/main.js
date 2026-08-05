@@ -2385,6 +2385,7 @@ class Game {
     this.isSpectating = false;
     this.spectateTarget = null;
     this.uiManager.hideSpectateOverlay();
+    this.uiManager.hideQuitConfirm();
     this.uiManager.showPauseOverlay(false);
     // Make sure the start-of-match countdown overlay isn't still on screen
     // when we jump to game-over - otherwise the loser briefly sees the "3,
