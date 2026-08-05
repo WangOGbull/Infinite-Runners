@@ -2297,18 +2297,27 @@ class Game {
       }
     }
 
-    // Check win condition (last standing with lives)
-    const livingWithLives = allDragons.filter(d => d.alive && d.lives > 0);
-    const totalWithLives = allDragons.filter(d => d.lives > 0);
+    // Check win condition (last standing with lives). Guarded on
+    // this.state === 'PLAYING' for the WHOLE block, not just the
+    // advance-branch - collisionSystem.checkAll() above can already have
+    // synchronously triggered dragon:death -> checkMatchEnd() ->
+    // onTierCleared()/endGame(), which shows its own screen and moves
+    // state off 'PLAYING'. Without this guard, this duplicate check ran
+    // anyway and immediately overwrote that screen with the generic
+    // game-over screen in the same frame.
+    if (this.state === 'PLAYING') {
+      const livingWithLives = allDragons.filter(d => d.alive && d.lives > 0);
+      const totalWithLives = allDragons.filter(d => d.lives > 0);
 
-    if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
-      if (this.state === 'PLAYING' && this.isWaveMode() && livingWithLives[0] === this.localDragon) {
-        this.advanceToNextWave();
+      if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
+        if (this.isWaveMode() && livingWithLives[0] === this.localDragon) {
+          this.advanceToNextWave();
+          return;
+        }
+        this.winner = livingWithLives[0];
+        this.endGame(true);
         return;
       }
-      this.winner = livingWithLives[0];
-      this.endGame(true);
-      return;
     }
 
     // Local player attack activation (ATTACK button / Space / click)
@@ -2318,7 +2327,8 @@ class Game {
     }
 
     const score = this.localDragon ? this.localDragon.score : 0;
-    this.uiManager.updateHUD(score, timeStr, this.localDragon);
+    const waveNum = this.isWaveMode() ? (this.currentWaveIndex + 1) : null;
+    this.uiManager.updateHUD(score, timeStr, this.localDragon, waveNum);
     this.uiManager.updateAttackMeter(this.localDragon);
 
     const minimap = document.getElementById('minimapCanvas');
