@@ -108,6 +108,18 @@ class MovementSystem {
     this.boosting.set(dragonId, active);
   }
 
+  // Force-clears any in-progress touch/drag state. Needed because full-screen
+  // overlays (e.g. the wave-transition countdown) sit on top of #joyArea and
+  // can swallow the touchend that would normally clear joystickActive - if
+  // that happens mid-drag, the joystick gets stuck "active" at stale
+  // coordinates and the player's dragon stops responding to input until
+  // something else (death, respawn) resets state through a different path.
+  resetInput() {
+    this.joystickActive = false;
+    this.attackHeld = false;
+    this.updateJoystickVisual();
+  }
+
   // Level-based attack input: true for as long as the player keeps the
   // button held. dragonManager drains the meter only while this is true.
   isAttackHeld() {
