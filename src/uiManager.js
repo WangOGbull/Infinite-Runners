@@ -193,6 +193,19 @@ class UIManager {
     document.body.appendChild(spectateOverlay);
     this._spectateOverlay = spectateOverlay;
 
+    const quitConfirm = document.createElement('div');
+    quitConfirm.id = 'quitConfirmDialog';
+    quitConfirm.innerHTML = `
+      <div class="quitConfirmBox">
+        <p>Leave match? Progress will be lost.</p>
+        <div class="quitConfirmActions">
+          <button id="btnQuitCancel">Cancel</button>
+          <button id="btnQuitConfirmed">Leave Match</button>
+        </div>
+      </div>`;
+    document.body.appendChild(quitConfirm);
+    this._quitConfirmDialog = quitConfirm;
+
     const arenaModal = document.createElement('div');
     arenaModal.id = 'arenaSelectModal';
     arenaModal.className = 'screen';
@@ -695,9 +708,15 @@ class UIManager {
     const resumeBtn = document.getElementById('btnResume');
     if (resumeBtn) resumeBtn.addEventListener('click', () => this.eventBus.emit('game:resume'));
     const quitBtn = document.getElementById('btnQuit');
-    if (quitBtn) quitBtn.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
-    const changeDragon = document.getElementById('btnChangeDragon');
-    if (changeDragon) changeDragon.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
+    if (quitBtn) quitBtn.addEventListener('click', () => this.showQuitConfirm());
+    const quitCancelBtn = document.getElementById('btnQuitCancel');
+    if (quitCancelBtn) quitCancelBtn.addEventListener('click', () => this.hideQuitConfirm());
+    const quitConfirmedBtn = document.getElementById('btnQuitConfirmed');
+    if (quitConfirmedBtn) quitConfirmedBtn.addEventListener('click', () => {
+      this.hideQuitConfirm();
+      this.eventBus.emit('game:quit');
+      this.showScreen('dragonSelectScreen');
+    });
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
     const mainMenu = document.getElementById('btnMainMenu');
@@ -1273,8 +1292,6 @@ class UIManager {
   showPauseOverlay(visible = true, isMultiplayer = false) {
     const el = document.getElementById('pauseOverlay');
     if (el) el.classList.toggle('active', !!visible);
-    const changeDragonBtn = document.getElementById('btnChangeDragon');
-    if (changeDragonBtn) changeDragonBtn.style.display = isMultiplayer ? 'none' : 'flex';
   }
 
   hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
@@ -1302,6 +1319,16 @@ class UIManager {
   hideSpectateOverlay() {
     const overlay = this._spectateOverlay || document.getElementById('spectateOverlay');
     if (overlay) overlay.classList.remove('active');
+  }
+
+  showQuitConfirm() {
+    const dialog = this._quitConfirmDialog || document.getElementById('quitConfirmDialog');
+    if (dialog) dialog.classList.add('active');
+  }
+
+  hideQuitConfirm() {
+    const dialog = this._quitConfirmDialog || document.getElementById('quitConfirmDialog');
+    if (dialog) dialog.classList.remove('active');
   }
 
   showStakeBreakdown({
