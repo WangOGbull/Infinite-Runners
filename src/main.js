@@ -169,6 +169,9 @@ class Game {
     this.gameStartTime = 0;
     this.gameTimer = 0;
     this.isPaused = false;
+    this.isSpectating = false;
+    this.spectateTarget = null;
+    this._lastKiller = null;
     this.lastTime = 0;
     this.animationFrame = null;
 
@@ -498,6 +501,10 @@ class Game {
       } else {
         // Eliminated - no lives left
         dragon.alive = false;
+        if (isLocal) {
+          // Remember who got the kill, for spectate mode to follow.
+          this._lastKiller = (killer && killer !== dragon) ? killer : null;
+        }
         // MULTIPLAYER CRITICAL: flush this final death state to Firebase
         // BEFORE checkMatchEnd() can end the game and stopNetworkSync().
         // The per-frame broadcast runs before the collision phase, so
@@ -712,7 +719,26 @@ class Game {
       const othersAlive = living.filter(d => d !== this.localDragon);
       if (othersAlive.length === 0) {
         this.endGame(true);
+      } else if (!this.isSpectating || !this.spectateTarget || !this.spectateTarget.alive) {
+        // First death, or our current spectate target just died too -
+        // (re-)enter spectate mode, preferring whoever actually killed us.
+        this.enterSpectateMode(othersAlive);
       }
+    }
+  }
+
+  // Local player has been eliminated but the match is still going (other
+  // dragons remain). Rather than leaving the camera frozen on the empty
+  // spot the player died at, follow whoever killed them (or, if that
+  // dragon has since died too, whoever's still alive) so there's always
+  // something to watch until the match actually ends.
+  enterSpectateMode(livingDragons) {
+    this.isSpectating = true;
+    let target = (this._lastKiller && this._lastKiller.alive) ? this._lastKiller : null;
+    if (!target) target = livingDragons[0] || null;
+    this.spectateTarget = target;
+    if (target) {
+      this.uiManager.showSpectateOverlay(target, () => this.endGame(false));
     }
   }
 
@@ -2258,7 +2284,10 @@ class Game {
       this.broadcastPosition();
     }
 
-    this.cameraSystem.update(this.localDragon, this.arenaManager);
+    const followDragon = (this.isSpectating && this.spectateTarget && this.spectateTarget.alive)
+      ? this.spectateTarget
+      : this.localDragon;
+    this.cameraSystem.update(followDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
     // Update time survived for all living dragons
@@ -2336,6 +2365,9 @@ class Game {
 
   endGame(hasWinner = false) {
     this.state = 'GAME_OVER';
+    this.isSpectating = false;
+    this.spectateTarget = null;
+    this.uiManager.hideSpectateOverlay();
     this.uiManager.showPauseOverlay(false);
     // Make sure the start-of-match countdown overlay isn't still on screen
     // when we jump to game-over - otherwise the loser briefly sees the "3,
