@@ -1515,4 +1515,389 @@
         <div class="baPlayerStatus" id="baOppStatus">Waiting...</div>
       </div>
     </div>
-   
+    <div class="baStakeDisplay">
+      <div class="baStakeLabel">Stake Amount</div>
+      <div class="baStakeValue" id="baStakeValue">-- INFINITE</div>
+    </div>
+    <button class="baPlaceBetBtn" id="baPlaceBetBtn"><i data-lucide="lock"></i> Place Bet</button>
+    <button class="baStartBtn" id="baStartBtn" disabled><i data-lucide="play"></i> Start Game</button>
+    <div class="baCountdown" id="baCountdown" style="display:none;">
+      <div class="baCountdownText">Auto-start in <span id="baCountdownNum">10</span>...</div>
+      <div class="baCountdownBar"><div id="baCountdownFill"></div></div>
+    </div>
+    <button class="baCancelBtn" id="baCancelBetting"><i data-lucide="x"></i> Cancel</button>
+  </div>
+</div>
+
+<!-- ===== LOBBY ===== -->
+<div id="lobbyScreen" class="screen">
+  <div id="customStakeModal" class="customStakeModal">
+    <div class="csmBackdrop"></div>
+    <div class="csmBox">
+      <div class="csmTitle">Custom Stake</div>
+      <div class="csmSub">Enter your wager (INFINITE)</div>
+      <input id="csmInput" type="number" inputmode="numeric" min="1000" max="10000000" step="1000" placeholder="Enter amount" />
+      <div id="csmHint" class="csmHint">Min 1,000 &nbsp;•&nbsp; Max 10,000,000</div>
+      <div class="csmActions">
+        <button id="csmCancel" class="csmCancel">Cancel</button>
+        <button id="csmConfirm" class="csmConfirm" disabled>Confirm</button>
+      </div>
+    </div>
+  </div>
+  <div class="lobbyBox">
+    <div class="roomCodeRow" id="roomCodeRow">
+      <div class="roomCodeDigits" id="roomCodeDisplay">------</div>
+    </div>
+    <div class="lobbySection lobbySectionTier">Stake Tier</div>
+    <div class="lobbyTierSelector" id="lobbyTierSelector">
+      <div class="tierBtns" id="tierBtns">
+        <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierAmt" id="tierAmtSmall">500K</span></button>
+        <button class="tierBtn" data-tier="Medium" id="tierMedium"><span class="tierAmt" id="tierAmtMedium">2M</span></button>
+        <button class="tierBtn" data-tier="High" id="tierHigh"><span class="tierAmt" id="tierAmtHigh">5M</span></button>
+        <button class="tierBtn" data-tier="Custom" id="tierCustom"><span class="tierAmt">1K–10M</span></button>
+      </div>
+      <p class="feeDisclosure" id="feeDisclosureText">2.5% platform fee applies to each player's stake.</p>
+    </div>
+    <div class="lobbySection lobbySectionArena">Arena</div>
+    <div class="lobbyArenaSelector" id="lobbyArenaSelector">
+      <div class="arenaThumbs" id="lobbyArenaThumbs">
+        <button data-arena="0" class="arenaThumb active" id="lobbyArena0"><img src="/arenas/arena_stone.png" alt="Stone"></button>
+        <button data-arena="1" class="arenaThumb" id="lobbyArena1"><img src="/arenas/arena_grass.png" alt="Grass"></button>
+        <button data-arena="2" class="arenaThumb" id="lobbyArena2"><img src="/arenas/arena_purple.png" alt="Purple"></button>
+        <button data-arena="3" class="arenaThumb" id="lobbyArena3"><img src="/arenas/arena_fire.png" alt="Fire"></button>
+      </div>
+    </div>
+    <div class="lobbySection lobbySectionPlayers">Players</div>
+    <div class="lobbySlots" id="lobbySlots"></div>
+    <button class="pBtn pBtnRes" id="lobbyDepositBtn" style="display:none;"><i data-lucide="lock"></i> <span id="depositBtnLabel">Lock Stake & Open Room</span></button>
+    <p id="depositStatusText" class="depositStatusText"></p>
+    <div class="lobbyActions">
+      <button class="pBtn pBtnRes" id="lobbyStartBtn" style="display:none;" disabled><i data-lucide="play"></i> Start Game</button>
+      <div id="lobbyWaitingText">Waiting for host...</div>
+      <button class="pBtn pBtnOut" id="btnLeaveRoom"><i data-lucide="log-out"></i> Leave Room</button>
+    </div>
+    <div id="lobbyCountdown" style="display:none;">
+      <div class="lobbyCountdownText">Game starts in <span id="lobbyCountdownNum">10</span>...</div>
+      <div class="lobbyCountdownBar"><div id="lobbyCountdownFill"></div></div>
+    </div>
+    <div id="ffaCountdownWidget">
+      <div class="ffaCdMiniLabel">Auto-start</div>
+      <div class="ffaCdMiniNum"><span id="ffaCdSeconds">60</span>s</div>
+      <div class="ffaCdMiniBar"><div id="ffaCdFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MP MODE SELECT MODAL ===== -->
+<div id="mpModeSelectModal" class="mpModeModal">
+  <div class="mpmBackdrop"></div>
+  <div class="mpmBox">
+    <div class="mpmTitle">Choose Battle Mode</div>
+    <div class="mpmSub">Select how many dragons enter the arena</div>
+    <div class="mpmCards">
+      <button class="mpmCard" data-mpmode="1v1">
+        <div class="mpmIcon"><i data-lucide="swords"></i></div>
+        <div class="mpmLabel">1v1 Duel</div>
+        <div class="mpmDesc">Head-to-head. Winner takes the pot.</div>
+      </button>
+      <button class="mpmCard" data-mpmode="FFA">
+        <div class="mpmIcon"><i data-lucide="flame"></i></div>
+        <div class="mpmLabel">4 Dragons FFA</div>
+        <div class="mpmDesc">Four-way brawl. Last dragon standing wins the pot.</div>
+      </button>
+    </div>
+    <div class="mpmActions">
+      <button id="mpmCancel" class="mpmCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING ===== -->
+<div id="loadingScreen" class="screen">
+  <div class="loadBox"><div class="infsym">&#8734;</div><div class="orbit1"></div><div class="orbit2"></div></div>
+  <h2 id="loadingMessage">Entering the Arena...</h2>
+  <div class="progbar"><div></div></div>
+</div>
+
+<!-- ===== GAME ===== -->
+<div id="gameScreen" class="screen">
+  <canvas id="gameCanvas"></canvas>
+  <div id="gameHud">
+    <div class="hudLeft">
+      <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button>
+      <div id="timerDisplay">0:00</div>
+      <div id="scoreDisplay"><i data-lucide="infinity"></i> <span id="scoreVal">0</span></div>
+    </div>
+    <canvas id="minimapCanvas"></canvas>
+  </div>
+  <div id="mobileControls">
+    <div id="joyArea"><div id="joyKnob"></div></div>
+    <div id="boostBtn"><span>ATTACK</span></div>
+  </div>
+  <div id="comboBanner"></div>
+  <div id="pauseOverlay" class="overlay">
+    <h2>PAUSED</h2>
+    <button class="pBtn pBtnRes" id="btnResume"><i data-lucide="play"></i> RESUME</button>
+    <button class="pBtn pBtnOut" id="btnChangeDragon"><i data-lucide="refresh-cw"></i> CHANGE DRAGON</button>
+    <button class="pBtn pBtnOut" id="btnQuit"><i data-lucide="log-out"></i> QUIT TO MENU</button>
+  </div>
+</div>
+
+<!-- ===== GAME OVER ===== -->
+<div id="gameOverScreen" class="screen">
+  <h1 id="goTitle">DEFEATED</h1>
+  <div id="goSubtitle" style="display:none;font-family:'Rajdhani',sans-serif;font-size:15px;letter-spacing:1px;color:#c8ccd8;text-align:center;margin:-8px 0 18px;"></div>
+  <div class="goStats">
+    <div class="goStat"><div class="num" id="goTime">0:00</div><div class="lbl">SURVIVED</div></div>
+    <div class="goStat"><div class="num" id="goCollect">0</div><div class="lbl">COLLECTED</div></div>
+    <div class="goStat"><div class="num" id="goKills">0</div><div class="lbl">KILLS</div></div>
+    <div class="goStat"><div class="num" id="goDeaths">0</div><div class="lbl">DEATHS</div></div>
+    <div class="goStat"><div class="num" id="goLives">0</div><div class="lbl">LIVES LEFT</div></div>
+  </div>
+  <div class="goStakeBox" id="goStakeBox" style="display:none;">
+    <div class="goStakeTitle" id="goStakeTitle">MATCH SETTLEMENT</div>
+    <div class="goStakeRows" id="goStakeRows"></div>
+    <a class="goStakeTx" id="goStakeTx" href="#" target="_blank" rel="noopener" style="display:none;"></a>
+  </div>
+  <div class="goActions">
+    <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
+    <button class="pBtn pBtnOut" id="btnMainMenu"><i data-lucide="home"></i> MAIN MENU</button>
+  </div>
+</div>
+
+<!-- ===== TIER COMPLETE ===== -->
+<div id="tierCompleteScreen" class="screen">
+  <h1 id="tierCompleteTitle" style="font-family:'Cinzel Decorative',serif;font-size:40px;color:#4ade80;text-shadow:0 0 30px rgba(74,222,128,0.5);letter-spacing:3px;margin-bottom:14px;text-align:center;">TIER CLEARED</h1>
+  <div id="tierCompleteRank" style="font-family:'Cinzel Decorative',serif;font-size:22px;color:#ffd700;text-shadow:0 0 24px rgba(255,215,0,0.5);letter-spacing:2px;margin-bottom:16px;text-align:center;">Rank Achieved: Emberborn</div>
+  <p id="tierCompleteSub" style="font-family:'Rajdhani',sans-serif;font-size:15px;color:#c8ccd8;max-width:480px;margin:0 auto 30px;line-height:1.6;text-align:center;"></p>
+  <div class="goActions" style="flex-wrap:wrap;justify-content:center;">
+    <button class="pBtn pBtnRes" id="btnTierAdvance"><i data-lucide="arrow-up-circle"></i> <span>ADVANCE</span></button>
+    <button class="pBtn pBtnOut" id="btnTierRestart"><i data-lucide="refresh-cw"></i> <span>RESTART</span></button>
+    <button class="pBtn pBtnOut" id="btnTierMainMenu"><i data-lucide="home"></i> Main Menu</button>
+  </div>
+</div>
+
+<!-- ===== HOW TO PLAY ===== -->
+<div id="howToPlayScreen" class="screen">
+  <button class="htpClose" id="btnHtpClose"><i data-lucide="x"></i></button>
+  <div class="htpInner">
+    <h2>HOW TO PLAY</h2>
+    <div class="htpTabs">
+      <button class="htpTab active" data-tab="controls">CONTROLS</button>
+      <button class="htpTab" data-tab="mechanics">MECHANICS</button>
+      <button class="htpTab" data-tab="tips">TIPS</button>
+    </div>
+    <div id="htpControls" class="htpPanel active">
+      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div>
+      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Boost</h4><p>Tap and hold the BOOST button for speed burst.</p></div>
+      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move=Mouse, Boost=Click/Space, Pause=ESC</p></div>
+    </div>
+    <div id="htpMechanics" class="htpPanel">
+      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter dies. Equal size = both shrink.</p></div>
+      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>Instant kill of the dragon whose tail was hit.</p></div>
+      <div class="htpCard"><h4><i data-lucide="zap"></i> Head vs Body</h4><p>Smaller dragon dies. Larger unaffected. Equal = both shrink.</p></div>
+      <div class="htpCard"><h4><i data-lucide="shield"></i> Tail vs Tail</h4><p>Nothing happens.</p></div>
+      <div class="htpCard"><h4><i data-lucide="infinity"></i> Collect &infin;</h4><p>Eat infinity symbols to grow. Start small, grow to max size.</p></div>
+      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated.</p></div>
+    </div>
+    <div id="htpTips" class="htpPanel">
+      <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div>
+      <div class="htpCard"><h4 style="color:#ff4d4d">Ignis</h4><p>Fast and aggressive. Rush opponents.</p></div>
+      <div class="htpCard"><h4 style="color:#00b4d8">Infinite</h4><p>Longest body. Trap and block enemies.</p></div>
+      <div class="htpCard"><h4 style="color:#ff00aa">Magnetron</h4><p>Tanky. Hard to kill.</p></div>
+    </div>
+    <button class="gotItBtn" id="btnGotIt">GOT IT</button>
+  </div>
+</div>
+
+<!-- ===== WALLET MODAL ===== -->
+<div id="walletModal" class="screen">
+  <div class="walletBox">
+    <button class="wClose" id="btnWalletClose"><i data-lucide="x"></i></button>
+    <h3>Connect Wallet</h3>
+    <div id="walletDisconnectedView" style="display:none">
+      <div class="wOpt" data-w="phantom" id="wOptPhantom">
+        <div class="wIcon" style="background:transparent; padding:0;"><img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:32px; height:32px; display:block;"></div>
+        <span>Phantom</span>
+      </div>
+      <div class="wOpt" data-w="jupiter" id="wOptJupiter">
+        <div class="wIcon" style="background:transparent; padding:0;"><img src="https://i.postimg.cc/T2FJ5G0P/jupiter.png" alt="Jupiter" style="width:32px; height:32px; display:block; border-radius:6px;"></div>
+        <span>Jupiter</span>
+      </div>
+      <p class="wHint">Solana wallet required to earn in-game rewards.</p>
+    </div>
+    <div id="walletConnectingView" style="display:none">
+      <div class="wSpinner"></div>
+      <p id="wConnectingText">Approve the connection in Phantom...</p>
+    </div>
+    <div id="walletConnectedView" style="display:none">
+      <div class="wAccountRow">
+        <div class="wIcon" style="background:transparent; padding:0;"><img id="wWalletIcon" src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom" style="width:28px; height:28px; display:block;"></div>
+        <div class="wAccountInfo">
+          <div class="wAddress" id="wAddressDisplay">-</div>
+          <div class="wBalance" id="wBalanceDisplay">Click Scan to load balance</div>
+        </div>
+      </div>
+      <button class="wTestBtn" id="btnWalletSignTest"><i data-lucide="pen-line"></i> Sign Test Message</button>
+      <div class="wSignResult" id="wSignResult"></div>
+      <button class="wDisconnectBtn" id="btnWalletDisconnect"><i data-lucide="log-out"></i> Disconnect</button>
+    </div>
+    <div class="wError" id="walletError" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ===== WALLET SELECTION MODAL ===== -->
+<div id="walletSelectionModal" class="screen">
+  <div class="walletSelModal">
+    <div class="walletSelHeader">
+      <h2>Select Wallet</h2>
+      <p>Choose your Solana wallet to connect</p>
+    </div>
+    <div class="walletSelOptions">
+      <button class="walletSelBtn" id="btnSelectPhantom">
+        <img src="https://i.postimg.cc/44mrJ4My/phantom-logo.webp" alt="Phantom">
+        <div><div class="wName">Phantom</div><div class="wDesc">Most popular Solana wallet</div></div>
+      </button>
+      <button class="walletSelBtn" id="btnSelectSolflare">
+        <img src="./Solflare.png" alt="Solflare">
+        <div><div class="wName">Solflare</div><div class="wDesc">Secure Solana wallet</div></div>
+      </button>
+    </div>
+    <button class="walletSelBack" id="btnWalletSelBack">Cancel</button>
+  </div>
+</div>
+
+<!-- ===== COUNTDOWN OVERLAY ===== -->
+<div id="countdownOverlay"><div id="countdownText">3</div></div>
+
+<!-- ===== MP GAME OVER ===== -->
+<div id="mpGameOver" class="screen">
+  <div class="mpGoPanel">
+    <h2 id="mpGameOverTitle">Victory!</h2>
+    <div id="mpGameOverStats"></div>
+    <div class="mpGoActions">
+      <button class="pBtn pBtnRes" id="btnReturnLobby"><i data-lucide="corner-up-left"></i> Return to Lobby</button>
+      <button class="pBtn pBtnOut" id="btnMpMainMenu"><i data-lucide="home"></i> Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING OVERLAY ===== -->
+<div id="loadingOverlay"><div class="loadSpin"></div><div class="loadText">Loading...</div></div>
+
+<!-- ============================================================= -->
+<!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          -->
+<!-- DO NOT DELETE THESE TAGS.                                     -->
+<!-- ============================================================= -->
+<script type="module" src="./src/main.js?v=41"></script>
+
+<!-- ===== DRAGON DETAIL MODAL ===== -->
+<div id="dragonDetailModal" class="screen">
+  <div class="ddmOverlay"></div>
+  <div class="ddmBox" id="ddmBox">
+    <button class="ddmClose" id="btnDdmClose"><i class="fa-solid fa-xmark"></i></button>
+    <div class="ddmHeader">
+      <div class="ddmImgWrap"><img id="ddmImg" src="" alt="Dragon"></div>
+      <div class="ddmName" id="ddmName">AEGIS</div>
+      <div class="ddmTierLine">TIER <span id="ddmTierNum">1</span><em>|</em>DRAGON LEVEL <span id="ddmDragonLevel">1</span></div>
+      <div class="ddmXpRow">
+        <div class="dsHexBadge"><b id="ddmXpStart">1</b></div>
+        <div class="dsXpMid"><div class="dsXpText" id="ddmXpText">0 / 5,200</div><div class="dsXpBar"><div class="dsXpBarFill" id="ddmXpFill"></div></div></div>
+        <div class="dsHexBadge"><b id="ddmXpEnd">2</b></div>
+      </div>
+    </div>
+    <div class="ddmSection">
+      <div class="ddmSectionTitle"><i class="fa-solid fa-shield-halved"></i> DRAGON STATS</div>
+      <div class="ddmStats" id="ddmStats"></div>
+    </div>
+    <div class="ddmSection">
+      <div class="ddmSectionTitle"><i class="fa-solid fa-bolt"></i> SPECIAL POWERS</div>
+      <div class="ddmPowers" id="ddmPowers">
+        <div class="ddmPowerSlot locked"><div class="ddmPowerIcon"><i data-lucide="lock"></i></div><div class="ddmPowerInfo"><div class="ddmPowerName">Ancient Flame</div><div class="ddmPowerDesc">Unlock at Dragon Level 5</div></div></div>
+        <div class="ddmPowerSlot locked"><div class="ddmPowerIcon"><i data-lucide="lock"></i></div><div class="ddmPowerInfo"><div class="ddmPowerName">Void Shield</div><div class="ddmPowerDesc">Unlock at Dragon Level 10</div></div></div>
+      </div>
+    </div>
+    <div class="ddmActions">
+      <button class="ddmSelectBtn" id="btnDdmSelect"><span><i class="fa-solid fa-dragon"></i> SELECT DRAGON</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Exact zone boundaries measured directly from the select_trial.png pixel data
+  // (fractions of the image's own height/width, not the viewport).
+  var ZONES = {
+    easy:   { top: 0.242, bottom: 0.434, left: 0.04, right: 0.96 },
+    medium: { top: 0.462, bottom: 0.650, left: 0.04, right: 0.96 },
+    hard:   { top: 0.678, bottom: 0.868, left: 0.04, right: 0.96 },
+    back:   { top: 0.885, bottom: 0.960, left: 0.28, right: 0.72 }
+  };
+
+  function positionHitboxes() {
+    var modal = document.getElementById('difficultyModal');
+    if (!modal || !modal.classList.contains('active')) return;
+    var img = modal.querySelector('.difficultyBgImg');
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+
+    var boxRect = img.getBoundingClientRect();
+    if (boxRect.width === 0 || boxRect.height === 0) return;
+
+    // The <img> element's own CSS box can end up with a slightly different
+    // aspect ratio than the source image (due to upstream sizing constraints),
+    // in which case object-fit:contain letterboxes the real image INSIDE
+    // that box. Compute the true visible content rect from first principles
+    // (natural image size vs box size) so hitboxes always match what's
+    // actually drawn on screen, regardless of any box-sizing quirks.
+    var natW = img.naturalWidth, natH = img.naturalHeight;
+    var scale = Math.min(boxRect.width / natW, boxRect.height / natH);
+    var contentW = natW * scale;
+    var contentH = natH * scale;
+    var offsetX = (boxRect.width - contentW) / 2;
+    var offsetY = (boxRect.height - contentH) / 2;
+
+    var rect = {
+      left: boxRect.left + offsetX,
+      top: boxRect.top + offsetY,
+      width: contentW,
+      height: contentH
+    };
+
+    function place(el, zone) {
+      if (!el || !zone) return;
+      el.style.position = 'fixed';
+      el.style.margin = '0';
+      el.style.left   = (rect.left + zone.left * rect.width) + 'px';
+      el.style.top    = (rect.top + zone.top * rect.height) + 'px';
+      el.style.width  = ((zone.right - zone.left) * rect.width) + 'px';
+      el.style.height = ((zone.bottom - zone.top) * rect.height) + 'px';
+    }
+
+    modal.querySelectorAll('.diffBtn').forEach(function (btn) {
+      place(btn, ZONES[btn.getAttribute('data-tier')]);
+    });
+    place(document.getElementById('btnDiffBack'), ZONES.back);
+  }
+
+  // Reposition whenever the modal is shown, the image finishes loading,
+  // or the viewport changes (rotation, resize, mobile URL bar collapse).
+  var observer = new MutationObserver(positionHitboxes);
+  function attachWhenReady() {
+    var modal = document.getElementById('difficultyModal');
+    if (!modal) { setTimeout(attachWhenReady, 200); return; }
+    observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    var img = modal.querySelector('.difficultyBgImg');
+    if (img) img.addEventListener('load', positionHitboxes);
+    positionHitboxes();
+  }
+  attachWhenReady();
+  window.addEventListener('resize', positionHitboxes);
+  window.addEventListener('orientationchange', positionHitboxes);
+  // Safety net: some mobile browsers resize the viewport slightly after
+  // the resize event fires (URL bar collapsing), so re-check shortly after.
+  window.addEventListener('resize', function () { setTimeout(positionHitboxes, 300); });
+})();
+</script>
+
+</body>
+</html>
