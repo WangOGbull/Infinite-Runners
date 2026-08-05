@@ -95,7 +95,7 @@ class MovementSystem {
       return;
     }
 
-    const maxDist = 25;
+    const maxDist = 38; // scaled up to match the larger #joyArea/#joyKnob CSS sizes
     const dx = this.joystickCurrent.x - this.joystickCenter.x;
     const dy = this.joystickCurrent.y - this.joystickCenter.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
