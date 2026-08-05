@@ -1043,11 +1043,18 @@ class UIManager {
     banner.classList.add('combo-show');
   }
 
-  updateHUD(score, timeStr, localDragon) {
-    if (score !== this._hudScore) {
-      this._hudScore = score;
+  updateHUD(score, timeStr, localDragon, waveNum = null) {
+    // In AI wave mode, the score counter was always stuck at 0 and told
+    // the player nothing useful - repurposed to show the current wave
+    // number instead ("Wave 1", "Wave 2"...). Non-wave modes (waveNum
+    // null) keep showing the real score as before.
+    const hudKey = waveNum !== null ? `wave:${waveNum}` : `score:${score}`;
+    if (hudKey !== this._hudScore) {
+      this._hudScore = hudKey;
       const scoreEl = document.getElementById('scoreVal');
-      if (scoreEl && score !== undefined) scoreEl.textContent = score;
+      if (scoreEl) {
+        scoreEl.textContent = waveNum !== null ? `Wave ${waveNum}` : (score !== undefined ? score : '');
+      }
     }
     if (timeStr !== this._hudTime) {
       this._hudTime = timeStr;
