@@ -11,6 +11,8 @@ class MovementSystem {
     this.joystickCurrent = { x: 0, y: 0 };
 
     this.mousePos = { x: 0, y: 0 };
+    this.hasMouseInput = false; // only true once a real mousemove has fired - stays false on touch-only devices
+    this.lastAngle = 0; // last angle actually steered toward, used as the "keep going straight" fallback
     this.keys = new Set();
 
     this.setupInputs();
@@ -34,6 +36,7 @@ class MovementSystem {
     window.addEventListener('mousemove', (e) => {
       this.mousePos.x = e.clientX;
       this.mousePos.y = e.clientY;
+      this.hasMouseInput = true;
     });
     window.addEventListener('mousedown', () => { this.attackHeld = true; });
     window.addEventListener('mouseup', () => { this.attackHeld = false; });
@@ -108,18 +111,6 @@ class MovementSystem {
     this.boosting.set(dragonId, active);
   }
 
-  // Force-clears any in-progress touch/drag state. Needed because full-screen
-  // overlays (e.g. the wave-transition countdown) sit on top of #joyArea and
-  // can swallow the touchend that would normally clear joystickActive - if
-  // that happens mid-drag, the joystick gets stuck "active" at stale
-  // coordinates and the player's dragon stops responding to input until
-  // something else (death, respawn) resets state through a different path.
-  resetInput() {
-    this.joystickActive = false;
-    this.attackHeld = false;
-    this.updateJoystickVisual();
-  }
-
   // Level-based attack input: true for as long as the player keeps the
   // button held. dragonManager drains the meter only while this is true.
   isAttackHeld() {
@@ -132,14 +123,26 @@ class MovementSystem {
       const dy = this.joystickCurrent.y - this.joystickCenter.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 5) {
-        return Math.atan2(dy, dx);
+        this.lastAngle = Math.atan2(dy, dx);
+        return this.lastAngle;
       }
+      // Finger down but too close to center to read a direction - hold
+      // the current heading rather than snapping anywhere.
+      return this.lastAngle;
     }
 
-    const screenPos = camera.worldToScreen(headX, headY);
-    const dx = this.mousePos.x - screenPos.x;
-    const dy = this.mousePos.y - screenPos.y;
-    return Math.atan2(dy, dx);
+    if (this.hasMouseInput) {
+      const screenPos = camera.worldToScreen(headX, headY);
+      const dx = this.mousePos.x - screenPos.x;
+      const dy = this.mousePos.y - screenPos.y;
+      this.lastAngle = Math.atan2(dy, dx);
+      return this.lastAngle;
+    }
+
+    // No joystick engaged and no real mouse input has ever fired (touch
+    // device between joystick touches) - keep going straight instead of
+    // steering toward the stale (0,0) mousePos default.
+    return this.lastAngle;
   }
 
   // boostActive is owned by the attack system (dragonManager's magazine
