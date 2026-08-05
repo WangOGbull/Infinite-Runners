@@ -1168,62 +1168,71 @@
       display: none;
       position: fixed;
       inset: 0;
-      overflow-y: auto;
+      overflow: hidden;
       background:
         radial-gradient(ellipse at 50% 0%, rgba(150,110,40,0.10) 0%, transparent 60%),
         linear-gradient(180deg, #0a0704 0%, #100c07 50%, #0a0704 100%);
   }
   #arenaSelectModal.active {
       display: flex;
+      align-items: center;
       justify-content: center;
   }
   #arenaSelectModal .arenaSelectInner {
       width: 100%;
-      max-width: 720px;
-      padding: 32px 20px 40px;
+      max-width: 640px;
+      height: min(100vh, 100dvh);
+      padding: 14px 14px 12px;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
   }
   #arenaSelectModal h2 {
       font-family: 'Cinzel Decorative', serif;
       font-weight: 900;
       text-align: center;
-      font-size: clamp(26px, 6vw, 40px);
+      font-size: clamp(20px, 5vw, 32px);
       letter-spacing: 0.05em;
       background: linear-gradient(180deg, #f7e3b0 0%, #c9a86a 45%, #7a5c2c 100%);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
       text-shadow: 0 0 30px rgba(201,164,78,0.25);
-      margin-bottom: 28px;
+      margin: 0;
+      flex: 0 0 auto;
   }
   #arenaSelectModal .arenaGrid {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 18px;
-  }
-  @media (min-width: 640px) {
-      #arenaSelectModal .arenaGrid {
-          grid-template-columns: 1fr 1fr;
-      }
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 10px;
+      flex: 1 1 auto;
+      min-height: 0;
   }
   #arenaSelectModal .arenaCard {
       position: relative;
-      border-radius: 14px !important;
+      border-radius: 10px !important;
       overflow: hidden !important;
       border: 1px solid rgba(201,164,78,0.35);
       background: #14100a;
       cursor: pointer;
-      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
   #arenaSelectModal .arenaCard:hover,
   #arenaSelectModal .arenaCard:focus-visible {
-      transform: translateY(-4px);
-      box-shadow: 0 14px 34px rgba(0,0,0,0.5), 0 0 0 1px var(--accent), 0 0 28px var(--accent-glow);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.5), 0 0 0 1px var(--accent), 0 0 20px var(--accent-glow);
       border-color: var(--accent);
       outline: none;
   }
   #arenaSelectModal .arenaPreview {
-      height: 168px;
+      flex: 1 1 auto;
+      min-height: 0;
       background-size: cover;
       background-position: center;
       position: relative;
@@ -1241,25 +1250,32 @@
       box-shadow: none !important;
       margin: 0 !important;
       outline: none !important;
+      flex: 0 0 auto;
   }
   #arenaSelectModal .arenaName {
-      padding: 14px 16px 2px;
+      padding: 6px 10px 0;
       border-top: 1px solid rgba(201,164,78,0.18) !important;
-      background: linear-gradient(180deg, rgba(20,16,10,0.9), rgba(12,9,5,0.98));
+      background: rgba(12,9,5,0.98);
       font-family: 'Cinzel Decorative', serif;
       font-weight: 700;
-      font-size: 18px;
-      letter-spacing: 0.03em;
+      font-size: clamp(12px, 3.2vw, 16px);
+      letter-spacing: 0.02em;
       color: var(--accent);
       text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
   }
   #arenaSelectModal .arenaTag {
-      padding: 2px 16px 14px;
+      padding: 0 10px 6px;
       background: rgba(12,9,5,0.98);
       font-family: 'EB Garamond', 'Rajdhani', serif;
       font-style: italic;
-      font-size: 13px;
+      font-size: clamp(9px, 2.4vw, 11px);
       color: #8f8060;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
   }
   #arenaSelectModal .arenaCard[data-arena="0"] { --accent:#c9a44e; --accent-glow:rgba(201,164,78,0.35); }
   #arenaSelectModal .arenaCard[data-arena="1"] { --accent:#8fbf5a; --accent-glow:rgba(143,191,90,0.35); }
@@ -1271,13 +1287,14 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      margin: 32px auto 0;
+      margin: 0 auto;
+      flex: 0 0 auto;
       width: fit-content;
-      padding: 12px 30px;
+      padding: 9px 26px;
       font-family: 'Cinzel Decorative', serif;
       font-weight: 700;
       letter-spacing: 0.1em;
-      font-size: 14px;
+      font-size: 13px;
       color: #c9a44e;
       background: transparent;
       border: 1px solid rgba(201,164,78,0.4);
