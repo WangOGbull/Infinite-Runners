@@ -1309,6 +1309,27 @@
       height: 16px;
   }
   /* ==============================================================
+     COUNTDOWN OVERLAY — fully opaque backdrop
+     Whatever transparency exists on this element in styles.css was
+     letting the arena (and any lingering combo/kill-streak popup)
+     show through during every 3-2-1 countdown, pre-match or between
+     waves. Forcing a solid opaque backdrop here so the countdown is
+     the only thing visible while it's active.
+  =============================================================== */
+  #countdownOverlay.active {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 9999 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background:
+        radial-gradient(ellipse at 50% 40%, rgba(40,30,15,0.4) 0%, transparent 65%),
+        #05040a !important;
+      opacity: 1 !important;
+      backdrop-filter: none !important;
+  }
+  /* ==============================================================
      WAVE-CLEARED TRANSITION BANNER
      #countdownText is normally sized for a single giant "3/2/1/GO!"
      digit. When showWaveClearedCountdown() stuffs multi-line sentence
