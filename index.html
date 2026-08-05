@@ -1387,6 +1387,66 @@
       margin-top: 6px;
       line-height: 1;
   }
+  /* ==============================================================
+     SPECTATE OVERLAY
+     Shown when the local player is eliminated but the match continues.
+     Deliberately small and pinned to one edge (not a full-screen modal)
+     so the player can actually watch the arena behind it.
+  =============================================================== */
+  #spectateOverlay {
+      display: none;
+      position: fixed;
+      top: env(safe-area-inset-top, 0px);
+      left: 0;
+      right: 0;
+      z-index: 400;
+      justify-content: center;
+      pointer-events: none;
+  }
+  #spectateOverlay.active {
+      display: flex;
+  }
+  #spectateOverlay .spectateBanner {
+      pointer-events: auto;
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(10,7,4,0.88);
+      border: 1px solid rgba(201,164,78,0.4);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      font-family: 'Cinzel Decorative', serif;
+  }
+  #spectateOverlay .spectateLabel {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #e94f4f;
+  }
+  #spectateOverlay .spectateTargetName {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f7e3b0;
+      white-space: nowrap;
+  }
+  #spectateOverlay #btnLeaveSpectate {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #c9a44e;
+      background: transparent;
+      border: 1px solid rgba(201,164,78,0.4);
+      border-radius: 999px;
+      padding: 5px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+  }
+  #spectateOverlay #btnLeaveSpectate:hover {
+      background: rgba(201,164,78,0.1);
+  }
 </style>
 <base target="_blank">
 </head>
