@@ -1536,6 +1536,147 @@
   #quitConfirmDialog #btnQuitConfirmed:hover {
       background: rgba(233,79,79,0.25);
   }
+  /* ==============================================================
+     TIER-COMPLETE VICTORY SCREEN — per-tier "age of dragons" designs
+     Default (no tier class yet) falls back to a neutral gold theme.
+     Each .tier-* class below gives its rank a genuinely distinct
+     palette + background treatment, not just a recolor.
+  =============================================================== */
+  #tierCompleteScreen {
+      --tc-accent: #c9a44e;
+      --tc-glow: rgba(201,164,78,0.4);
+      --tc-bg1: rgba(150,110,40,0.12);
+      --tc-bg2: transparent;
+      display: none;
+      position: fixed;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+      background:
+        radial-gradient(ellipse at 50% 15%, var(--tc-bg1) 0%, transparent 60%),
+        linear-gradient(180deg, #05040a 0%, #0a0704 50%, #05040a 100%);
+  }
+  #tierCompleteScreen.active { display: flex; }
+  #tierCompleteScreen .tierCompleteInner {
+      width: 100%;
+      max-width: 480px;
+      padding: 40px 24px;
+      text-align: center;
+  }
+  #tierCompleteScreen .tierCrest {
+      width: 84px;
+      height: 84px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: var(--tc-accent);
+      background: radial-gradient(circle, var(--tc-glow) 0%, transparent 70%);
+      border: 2px solid var(--tc-accent);
+      box-shadow: 0 0 30px var(--tc-glow), inset 0 0 20px var(--tc-glow);
+      animation: tierCrestPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes tierCrestPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+  }
+  #tierCompleteScreen #tierCompleteTitle {
+      font-family: 'Cinzel Decorative', serif;
+      font-weight: 900;
+      font-size: clamp(32px, 8vw, 44px);
+      letter-spacing: 0.08em;
+      margin: 0 0 14px;
+      background: linear-gradient(180deg, #ffffff 0%, var(--tc-accent) 60%, color-mix(in srgb, var(--tc-accent) 60%, black) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 40px var(--tc-glow);
+  }
+  #tierCompleteScreen .tierRankDivider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      max-width: 220px;
+      margin: 0 auto 14px;
+  }
+  #tierCompleteScreen .tierRankDivider span {
+      flex: 1 1 auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--tc-accent), transparent);
+      opacity: 0.6;
+  }
+  #tierCompleteScreen .tierRankDivider i {
+      font-size: 10px;
+      color: var(--tc-accent);
+  }
+  #tierCompleteScreen #tierCompleteRank {
+      margin-bottom: 20px;
+  }
+  #tierCompleteScreen .rank-label {
+      display: block;
+      font-family: 'EB Garamond', serif;
+      font-style: italic;
+      font-size: 13px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #8f8060;
+      margin-bottom: 4px;
+  }
+  #tierCompleteScreen .rank-name {
+      display: block;
+      font-family: 'Cinzel Decorative', serif;
+      font-weight: 800;
+      font-size: clamp(22px, 6vw, 30px);
+      letter-spacing: 0.05em;
+      color: var(--tc-accent);
+      text-shadow: 0 0 24px var(--tc-glow);
+  }
+  #tierCompleteScreen #tierCompleteSub {
+      font-family: 'EB Garamond', serif;
+      font-size: 15px;
+      color: #c8ccd8;
+      max-width: 440px;
+      margin: 0 auto 30px;
+      line-height: 1.6;
+  }
+
+  /* Easy / Emberborn - warm ember glow */
+  #tierCompleteScreen.tier-easy {
+      --tc-accent: #e8703a;
+      --tc-glow: rgba(232,112,58,0.45);
+      --tc-bg1: rgba(232,112,58,0.14);
+  }
+
+  /* Medium / Voidwalker - cool void/starfield glow */
+  #tierCompleteScreen.tier-medium {
+      --tc-accent: #a874e8;
+      --tc-glow: rgba(168,116,232,0.45);
+      --tc-bg1: rgba(88,60,168,0.16);
+      background:
+        radial-gradient(ellipse at 50% 15%, var(--tc-bg1) 0%, transparent 60%),
+        radial-gradient(circle at 20% 70%, rgba(168,116,232,0.06) 0%, transparent 2%),
+        radial-gradient(circle at 80% 30%, rgba(168,116,232,0.06) 0%, transparent 2%),
+        radial-gradient(circle at 60% 85%, rgba(168,116,232,0.05) 0%, transparent 2%),
+        linear-gradient(180deg, #05040a 0%, #0a0714 50%, #05040a 100%);
+  }
+
+  /* Hard / The Infinite Sovereign - radiant royal gold, more ornate */
+  #tierCompleteScreen.tier-hard {
+      --tc-accent: #f7e3b0;
+      --tc-glow: rgba(247,227,176,0.5);
+      --tc-bg1: rgba(201,164,78,0.18);
+  }
+  #tierCompleteScreen.tier-hard .tierCrest {
+      border-width: 3px;
+      box-shadow: 0 0 44px var(--tc-glow), inset 0 0 26px var(--tc-glow);
+  }
+  #tierCompleteScreen.tier-hard #tierCompleteTitle {
+      text-shadow: 0 0 60px var(--tc-glow), 0 0 100px rgba(247,227,176,0.25);
+  }
 </style>
 <base target="_blank">
 </head>
@@ -1911,13 +2052,20 @@
 
 <!-- ===== TIER COMPLETE ===== -->
 <div id="tierCompleteScreen" class="screen">
-  <h1 id="tierCompleteTitle" style="font-family:'Cinzel Decorative',serif;font-size:40px;color:#4ade80;text-shadow:0 0 30px rgba(74,222,128,0.5);letter-spacing:3px;margin-bottom:14px;text-align:center;">TIER CLEARED</h1>
-  <div id="tierCompleteRank" style="font-family:'Cinzel Decorative',serif;font-size:22px;color:#ffd700;text-shadow:0 0 24px rgba(255,215,0,0.5);letter-spacing:2px;margin-bottom:16px;text-align:center;">Rank Achieved: Emberborn</div>
-  <p id="tierCompleteSub" style="font-family:'Rajdhani',sans-serif;font-size:15px;color:#c8ccd8;max-width:480px;margin:0 auto 30px;line-height:1.6;text-align:center;"></p>
-  <div class="goActions" style="flex-wrap:wrap;justify-content:center;">
-    <button class="pBtn pBtnRes" id="btnTierAdvance"><i data-lucide="arrow-up-circle"></i> <span>ADVANCE</span></button>
-    <button class="pBtn pBtnOut" id="btnTierRestart"><i data-lucide="refresh-cw"></i> <span>RESTART</span></button>
-    <button class="pBtn pBtnOut" id="btnTierMainMenu"><i data-lucide="home"></i> Main Menu</button>
+  <div class="tierCompleteInner">
+    <div class="tierCrest"><i class="fa-solid" id="tierCrestIcon"></i></div>
+    <h1 id="tierCompleteTitle">VICTORY</h1>
+    <div class="tierRankDivider"><span></span><i class="fa-solid fa-gem"></i><span></span></div>
+    <div id="tierCompleteRank">
+      <span class="rank-label">Rank Achieved</span>
+      <span class="rank-name">Emberborn</span>
+    </div>
+    <p id="tierCompleteSub"></p>
+    <div class="goActions" style="flex-wrap:wrap;justify-content:center;">
+      <button class="pBtn pBtnRes" id="btnTierAdvance"><i data-lucide="arrow-up-circle"></i> <span>ADVANCE</span></button>
+      <button class="pBtn pBtnOut" id="btnTierRestart"><i data-lucide="refresh-cw"></i> <span>RESTART</span></button>
+      <button class="pBtn pBtnOut" id="btnTierMainMenu"><i data-lucide="home"></i> Main Menu</button>
+    </div>
   </div>
 </div>
 
