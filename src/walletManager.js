@@ -265,6 +265,35 @@ class WalletManager {
     window.addEventListener('pagehide', cleanup, { once: true });
   }
 
+  // Same visibility-based detection as _armMobileConnectFallback above, but
+  // for the deep-link-first connect strategy: if the tab is STILL visible
+  // 2500ms after firing the encrypted /ul/v1/connect link, that link never
+  // actually opened the wallet app (broken link, OS didn't intercept it,
+  // or the app isn't installed in a way that responds to it) - so instead
+  // of just surfacing an error, silently fall back to the known-working
+  // in-app-browser approach. This is the self-healing half of trying the
+  // cleaner no-reload flow first: if it doesn't work on this particular
+  // device/OS combination, the player still successfully connects, just
+  // via the older path, without needing to tap anything again.
+  _armMobileConnectFallbackWithRetry(walletLabel, walletType) {
+    const cleanup = () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', cleanup);
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === 'hidden') cleanup(); };
+    const timer = setTimeout(() => {
+      cleanup();
+      if (document.visibilityState === 'visible' && this.connecting) {
+        this._debugLog(`${walletLabel} deep-link never left the page - falling back to in-app browser`);
+        this.connecting = false;
+        this.openInWalletBrowser(walletType);
+      }
+    }, 2500);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', cleanup, { once: true });
+  }
+
   // FIX: now takes an explicit provider + walletType instead of always
   // re-resolving via getProvider() (which ONLY ever looks for Phantom).
   // Previously connectSolflare() called this with no args, which silently
@@ -764,14 +793,23 @@ class WalletManager {
         });
         throw new Error('Wallet provider not injected yet');
       }
-      // FIX: previously built an encrypted /ul/v1/connect deep link here -
-      // the exact mechanism behind nearly every mobile wallet bug tonight.
-      // Phantom's own docs are explicit that connecting only reliably
-      // works inside Phantom's own in-app browser. Relaunching there
-      // instead means connect (and every later stake transaction) happens
-      // as a native in-app sheet with no redirect at all.
-      this.openInWalletBrowser('phantom');
-      return { openedInWalletBrowser: true };
+      // Try the encrypted deep-link connect FIRST - this keeps the player
+      // in their original tab instead of reloading the whole game inside
+      // Phantom's browser. This exact approach caused real problems before
+      // (see the git history / previous version of this comment), so it is
+      // paired with an automatic, silent fallback to the known-working
+      // in-app-browser approach if the deep link doesn't actually open the
+      // wallet app (see _armMobileConnectFallbackWithRetry) - if this
+      // device/OS combination hits the same problem again, the player
+      // still successfully connects, just via the older path, with no
+      // dead end and no extra tap required from them.
+      this.connecting = true;
+      this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
+      const url = this._buildMobileConnectUrl('phantom');
+      this._debugLog('connect: trying encrypted deep-link first (anchor-click)');
+      this._navigateToUniversalLink(url);
+      this._armMobileConnectFallbackWithRetry('Phantom', 'phantom');
+      return { deepLinked: true };
     }
     window.open('https://phantom.app/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Phantom not installed.' });
@@ -887,9 +925,9 @@ class WalletManager {
       }
     }
     if (this.isMobile()) {
-      // No injected provider and we're in a regular mobile browser -
-      // relaunch this page inside Solflare's own in-app browser (same
-      // reasoning as connect() above). Guarded so it can never fire from
+      // Same reasoning as connect() above: try the encrypted deep-link
+      // first, self-healing fallback to the in-app-browser approach if it
+      // doesn't actually open the app. Guarded so it can never fire from
       // INSIDE a wallet in-app browser and loop the page.
       if (this._arrivedInWalletBrowser) {
         this.eventBus.emit('wallet:error', {
@@ -897,8 +935,13 @@ class WalletManager {
         });
         throw new Error('Wallet provider not injected yet');
       }
-      this.openInWalletBrowser('solflare');
-      return { openedInWalletBrowser: true };
+      this.connecting = true;
+      this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
+      const url = this._buildMobileConnectUrl('solflare');
+      this._debugLog('connectSolflare: trying encrypted deep-link first (anchor-click)');
+      this._navigateToUniversalLink(url);
+      this._armMobileConnectFallbackWithRetry('Solflare', 'solflare');
+      return { deepLinked: true };
     }
     window.open('https://solflare.com/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Solflare wallet not installed.' });
