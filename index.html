@@ -1677,6 +1677,267 @@
   #tierCompleteScreen.tier-hard #tierCompleteTitle {
       text-shadow: 0 0 60px var(--tc-glow), 0 0 100px rgba(247,227,176,0.25);
   }
+  /* ==============================================================
+     PROFILE ICON (top-left on title, top-right on dragon select)
+  =============================================================== */
+  .profileIconBtn {
+      position: absolute;
+      z-index: 50;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(10,7,4,0.7);
+      border: 2px solid rgba(201,164,78,0.5);
+      color: #c9a44e;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 0 16px rgba(201,164,78,0.25);
+  }
+  .profileIconBtn:hover {
+      background: rgba(201,164,78,0.15);
+  }
+  .profileIconTL { top: 16px; left: 16px; }
+  .profileIconTR { position: static; margin-left: auto; }
+
+  /* ==============================================================
+     AUTH SCREENS (login / username picker)
+  =============================================================== */
+  #loginScreen, #usernameScreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #05040a 0%, #0a0704 100%);
+  }
+  #loginScreen.active, #usernameScreen.active {
+      display: flex;
+  }
+  .authInner {
+      position: relative;
+      width: min(360px, 90vw);
+      padding: 32px 26px;
+      border-radius: 16px;
+      background: #14100a;
+      border: 1px solid rgba(201,164,78,0.35);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+      text-align: center;
+  }
+  .authCrest {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 14px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #c9a44e;
+      background: radial-gradient(circle, rgba(201,164,78,0.25) 0%, transparent 70%);
+      border: 2px solid #c9a44e;
+      box-shadow: 0 0 20px rgba(201,164,78,0.35);
+  }
+  .authTitle {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 22px;
+      color: #f7e3b0;
+      margin: 0 0 6px;
+  }
+  .authSub {
+      font-family: 'EB Garamond', serif;
+      font-style: italic;
+      font-size: 13px;
+      color: #8f8060;
+      margin: 0 0 20px;
+  }
+  .authGoogleBtn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #fff;
+      color: #222;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      margin-bottom: 18px;
+  }
+  .authGoogleBtn:hover { background: #f0f0f0; }
+  .authDivider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #6b5f45;
+      font-size: 12px;
+      font-family: 'EB Garamond', serif;
+      margin-bottom: 18px;
+  }
+  .authDivider span { flex: 1 1 auto; height: 1px; background: rgba(201,164,78,0.2); }
+  .authTabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      padding: 4px;
+  }
+  .authTab {
+      flex: 1 1 0;
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: #8f8060;
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+  }
+  .authTab.active {
+      background: rgba(201,164,78,0.18);
+      color: #f7e3b0;
+  }
+  .authForm {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+  }
+  .authForm input {
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(201,164,78,0.25);
+      color: #d8c9a3;
+      font-family: 'EB Garamond', serif;
+      font-size: 14px;
+  }
+  .authForm input:focus {
+      outline: none;
+      border-color: #c9a44e;
+  }
+  .authError {
+      color: #ff8080;
+      font-size: 12px;
+      min-height: 16px;
+      text-align: left;
+  }
+  .authSubmitBtn {
+      padding: 12px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #f7e3b0 0%, #c9a44e 100%);
+      color: #1a1206;
+      font-family: 'Cinzel Decorative', serif;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+  }
+  .authGuestLink {
+      display: block;
+      width: 100%;
+      margin-top: 18px;
+      background: transparent;
+      border: none;
+      color: #8f8060;
+      font-family: 'EB Garamond', serif;
+      font-style: italic;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: underline;
+  }
+  .authGuestLink span { opacity: 0.7; font-size: 11px; }
+
+  /* ==============================================================
+     PROFILE STATS MODAL
+  =============================================================== */
+  #profileModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.65);
+  }
+  #profileModal.active { display: flex; }
+  .profileModalBox {
+      position: relative;
+      width: min(320px, 88vw);
+      padding: 32px 24px 24px;
+      border-radius: 16px;
+      background: #14100a;
+      border: 1px solid rgba(201,164,78,0.35);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+      text-align: center;
+  }
+  .profileModalClose {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      border: none;
+      color: #8f8060;
+      cursor: pointer;
+  }
+  .profileModalCrest {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 12px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      color: #c9a44e;
+      background: radial-gradient(circle, rgba(201,164,78,0.25) 0%, transparent 70%);
+      border: 2px solid #c9a44e;
+      box-shadow: 0 0 20px rgba(201,164,78,0.35);
+  }
+  .profileModalName {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 19px;
+      color: #f7e3b0;
+  }
+  .profileModalRank {
+      font-family: 'EB Garamond', serif;
+      font-style: italic;
+      font-size: 13px;
+      color: #8f8060;
+      margin-bottom: 20px;
+  }
+  .profileStatsGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+  }
+  .profileStat {
+      padding: 12px 6px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+  }
+  .profileStatValue {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 20px;
+      color: #c9a44e;
+  }
+  .profileStatLabel {
+      font-family: 'EB Garamond', serif;
+      font-size: 10px;
+      color: #8f8060;
+      margin-top: 2px;
+  }
 </style>
 <base target="_blank">
 </head>
@@ -1704,6 +1965,7 @@
 <!-- ===== TITLE SCREEN ===== -->
 <div id="titleScreen" class="screen active" style="background-image:url('./shadow-drake-bg.png');background-size:cover;background-position:center;background-repeat:no-repeat;">
   <div class="darken"></div>
+  <button id="profileIconTitle" class="profileIconBtn profileIconTL"><i class="fa-solid fa-dragon"></i></button>
   <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button>
   <div id="resumeRoomBanner" style="display:none; position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:50; background:rgba(0,0,0,0.7); border:1px solid rgba(0,180,216,0.4); border-radius:12px; padding:14px 20px; text-align:center; max-width:90vw;">
     <div style="color:#c8ccd8; font-size:13px; margin-bottom:8px;">You have a room in progress</div>
@@ -1724,11 +1986,81 @@
   <span class="copyright">2025 Infinite Runners Dragons Arena. All rights reserved.</span>
 </div>
 
+<!-- ===== LOGIN ===== -->
+<div id="loginScreen" class="screen">
+  <div class="darken"></div>
+  <div class="authInner">
+    <div class="authCrest"><i class="fa-solid fa-dragon"></i></div>
+    <h2 class="authTitle">Infinite Runners</h2>
+    <p class="authSub">Sign in to save your progress and play multiplayer</p>
+
+    <button id="btnGoogleSignIn" class="authGoogleBtn"><i class="fa-brands fa-google"></i> Continue with Google</button>
+
+    <div class="authDivider"><span></span>or<span></span></div>
+
+    <div class="authTabs">
+      <button class="authTab active" id="authTabSignIn" data-authtab="signin">Sign In</button>
+      <button class="authTab" id="authTabSignUp" data-authtab="signup">Sign Up</button>
+    </div>
+
+    <form id="authForm" class="authForm">
+      <input type="email" id="authEmail" placeholder="Email" autocomplete="email" required>
+      <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" required>
+      <div id="authError" class="authError"></div>
+      <button type="submit" id="btnAuthSubmit" class="authSubmitBtn">Sign In</button>
+    </form>
+
+    <button id="btnContinueGuest" class="authGuestLink">Continue as Guest <span>(Easy AI mode only)</span></button>
+  </div>
+</div>
+
+<!-- ===== USERNAME PICKER ===== -->
+<div id="usernameScreen" class="screen">
+  <div class="darken"></div>
+  <div class="authInner">
+    <div class="authCrest"><i class="fa-solid fa-dragon"></i></div>
+    <h2 class="authTitle">Choose Your Name</h2>
+    <p class="authSub">This is how other dragonriders will see you</p>
+    <form id="usernameForm" class="authForm">
+      <input type="text" id="usernameInput" placeholder="Username" maxlength="20" required>
+      <div id="usernameError" class="authError"></div>
+      <button type="submit" id="btnUsernameSubmit" class="authSubmitBtn">Confirm</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===== PROFILE MODAL ===== -->
+<div id="profileModal" class="profileModalOverlay">
+  <div class="profileModalBox">
+    <button id="btnProfileClose" class="profileModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <div class="profileModalCrest"><i class="fa-solid fa-dragon"></i></div>
+    <div class="profileModalName" id="profileModalUsername">Player</div>
+    <div class="profileModalRank" id="profileModalRank">Wingling</div>
+    <div class="profileStatsGrid">
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatKills">0</div>
+        <div class="profileStatLabel">Dragon Kills</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatWins">0</div>
+        <div class="profileStatLabel">Matches Won</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatPlayed">0</div>
+        <div class="profileStatLabel">Matches Played</div>
+      </div>
+    </div>
+    <button id="btnProfileSignOut" class="authGuestLink">Sign Out</button>
+  </div>
+</div>
+
+
 <!-- ===== DRAGON SELECT ===== -->
 <div id="dragonSelectScreen" class="screen">
   <div class="dsInner" style="width:100%;height:100%;display:flex;flex-direction:column;">
     <div class="dsTopBar">
       <button class="dsBackBtn" id="btnDsBack"><span><i class="fa-solid fa-arrow-left"></i> BACK</span></button>
+      <button id="profileIconDragonSelect" class="profileIconBtn profileIconTR"><i class="fa-solid fa-dragon"></i></button>
     </div>
     <div class="dsCarouselWrap">
       <div class="dsDragonInfo">
