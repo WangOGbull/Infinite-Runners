@@ -82,6 +82,17 @@ class WalletManager {
     this.dappKeyPair = null;
     this.phantomWalletPublicKey = null;
 
+    // Wallet-account link bridge: when a logged-in player connects via the
+    // in-app-browser approach, that browser is a genuinely separate
+    // environment (its own storage, no shared session) from the tab they
+    // were logged in on. main.js sets pendingLinkCode to a short-lived code
+    // (registered in Firebase against their uid) right before triggering
+    // connect(); it rides along in the browse URL and comes back out via
+    // the wallet:connected event so main.js can attach the address to the
+    // right account even though this whole flow ran in an isolated context.
+    this.pendingLinkCode = null;
+    this._arrivedLinkCode = null;
+
     this._initConnection();
     this._bindProviderEvents();
     this._restoreMobileKeyPair();
@@ -150,6 +161,7 @@ class WalletManager {
   openInWalletBrowser(walletType) {
     const currentUrl = new URL(window.location.href.split('?')[0].split('#')[0]);
     currentUrl.searchParams.set('autoConnectWallet', walletType);
+    if (this.pendingLinkCode) currentUrl.searchParams.set('linkCode', this.pendingLinkCode);
     const browseUrl = this._buildBrowseUrl(walletType, currentUrl.toString());
     this._debugLog(`openInWalletBrowser: relaunching inside ${walletType}'s browser`);
     this._navigateToUniversalLink(browseUrl);
@@ -178,10 +190,15 @@ class WalletManager {
       // the whole session - openInWalletBrowser() must never fire again
       // from in here, or the page relaunches itself in a loop.
       this._arrivedInWalletBrowser = autoConnectWallet;
+      // Account-link bridge (see pendingLinkCode comment in constructor):
+      // if the tab that sent us here was logged in, this carries the code
+      // that ties whatever wallet connects here back to that account.
+      this._arrivedLinkCode = params.get('linkCode') || null;
       // Strip immediately so refreshing or sharing this URL later doesn't
       // re-trigger an unwanted auto-connect prompt.
       const cleanUrl = new URL(window.location.href);
       cleanUrl.searchParams.delete('autoConnectWallet');
+      cleanUrl.searchParams.delete('linkCode');
       window.history.replaceState({}, document.title, cleanUrl.toString());
 
       const startedAt = Date.now();
@@ -265,35 +282,6 @@ class WalletManager {
     window.addEventListener('pagehide', cleanup, { once: true });
   }
 
-  // Same visibility-based detection as _armMobileConnectFallback above, but
-  // for the deep-link-first connect strategy: if the tab is STILL visible
-  // 2500ms after firing the encrypted /ul/v1/connect link, that link never
-  // actually opened the wallet app (broken link, OS didn't intercept it,
-  // or the app isn't installed in a way that responds to it) - so instead
-  // of just surfacing an error, silently fall back to the known-working
-  // in-app-browser approach. This is the self-healing half of trying the
-  // cleaner no-reload flow first: if it doesn't work on this particular
-  // device/OS combination, the player still successfully connects, just
-  // via the older path, without needing to tap anything again.
-  _armMobileConnectFallbackWithRetry(walletLabel, walletType) {
-    const cleanup = () => {
-      clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', cleanup);
-    };
-    const onVisibilityChange = () => { if (document.visibilityState === 'hidden') cleanup(); };
-    const timer = setTimeout(() => {
-      cleanup();
-      if (document.visibilityState === 'visible' && this.connecting) {
-        this._debugLog(`${walletLabel} deep-link never left the page - falling back to in-app browser`);
-        this.connecting = false;
-        this.openInWalletBrowser(walletType);
-      }
-    }, 2500);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', cleanup, { once: true });
-  }
-
   // FIX: now takes an explicit provider + walletType instead of always
   // re-resolving via getProvider() (which ONLY ever looks for Phantom).
   // Previously connectSolflare() called this with no args, which silently
@@ -317,7 +305,7 @@ class WalletManager {
       this.connected = true;
       this.walletType = walletType;
       this._broadcastWalletSync();
-      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
@@ -333,7 +321,7 @@ class WalletManager {
       if (publicKey) {
         this.publicKey = publicKey;
         this._refreshBalance().then(() => {
-          this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+          this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         });
       } else {
         this.connected = false; this.publicKey = null; this.eventBus.emit('wallet:disconnected');
@@ -629,7 +617,7 @@ class WalletManager {
         this.connected = true;
         try { localStorage.setItem(addrKey, this.publicKey.toString()); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: null, walletType: this.walletType });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: null, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -662,7 +650,7 @@ class WalletManager {
 
   _notifyRestoredConnection() {
     if (this.connected && this.publicKey) {
-      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
@@ -699,7 +687,7 @@ class WalletManager {
         this._bindProviderEvents(provider, 'phantom');
         try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -726,7 +714,7 @@ class WalletManager {
         this._bindProviderEvents(provider, 'solflare');
         try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -793,23 +781,12 @@ class WalletManager {
         });
         throw new Error('Wallet provider not injected yet');
       }
-      // Try the encrypted deep-link connect FIRST - this keeps the player
-      // in their original tab instead of reloading the whole game inside
-      // Phantom's browser. This exact approach caused real problems before
-      // (see the git history / previous version of this comment), so it is
-      // paired with an automatic, silent fallback to the known-working
-      // in-app-browser approach if the deep link doesn't actually open the
-      // wallet app (see _armMobileConnectFallbackWithRetry) - if this
-      // device/OS combination hits the same problem again, the player
-      // still successfully connects, just via the older path, with no
-      // dead end and no extra tap required from them.
-      this.connecting = true;
-      this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
-      const url = this._buildMobileConnectUrl('phantom');
-      this._debugLog('connect: trying encrypted deep-link first (anchor-click)');
-      this._navigateToUniversalLink(url);
-      this._armMobileConnectFallbackWithRetry('Phantom', 'phantom');
-      return { deepLinked: true };
+      // Encrypted deep-link connect was tried and reverted (see prior
+      // history) - going straight to the known-working in-app-browser
+      // approach. Account sync for this flow is handled separately via
+      // pendingLinkCode (see main.js).
+      this.openInWalletBrowser('phantom');
+      return { openedInWalletBrowser: true };
     }
     window.open('https://phantom.app/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Phantom not installed.' });
@@ -834,7 +811,7 @@ class WalletManager {
         this.connected = true;
         this.walletType = 'jupiter';
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -908,7 +885,7 @@ class WalletManager {
         this.walletType = 'solflare';
         try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'solflare'); } catch (_) {}
         this._broadcastWalletSync();
-        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+        this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
         });
@@ -925,23 +902,17 @@ class WalletManager {
       }
     }
     if (this.isMobile()) {
-      // Same reasoning as connect() above: try the encrypted deep-link
-      // first, self-healing fallback to the in-app-browser approach if it
-      // doesn't actually open the app. Guarded so it can never fire from
-      // INSIDE a wallet in-app browser and loop the page.
+      // Encrypted deep-link connect was tried and reverted - going
+      // straight to the known-working in-app-browser approach. Guarded so
+      // it can never fire from INSIDE a wallet in-app browser and loop.
       if (this._arrivedInWalletBrowser) {
         this.eventBus.emit('wallet:error', {
           message: 'The wallet is still starting up. Wait a moment, then tap "Connect Wallet" again.'
         });
         throw new Error('Wallet provider not injected yet');
       }
-      this.connecting = true;
-      this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
-      const url = this._buildMobileConnectUrl('solflare');
-      this._debugLog('connectSolflare: trying encrypted deep-link first (anchor-click)');
-      this._navigateToUniversalLink(url);
-      this._armMobileConnectFallbackWithRetry('Solflare', 'solflare');
-      return { deepLinked: true };
+      this.openInWalletBrowser('solflare');
+      return { openedInWalletBrowser: true };
     }
     window.open('https://solflare.com/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Solflare wallet not installed.' });
@@ -981,7 +952,7 @@ class WalletManager {
       this.walletType = 'phantom';
       try { localStorage.setItem(EXT_WALLET_TYPE_KEY, 'phantom'); } catch (_) {}
       this._broadcastWalletSync();
-      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType });
+      this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
       });
