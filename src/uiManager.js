@@ -163,7 +163,8 @@ class UIManager {
       'matchmakingTierScreen','matchmakingSearchScreen','opponentFoundScreen',
       'bettingArenaScreen','lobbyScreen','loadingScreen','gameScreen',
       'gameOverScreen','howToPlayScreen','walletModal','walletSelectionModal',
-      'mpGameOver','loadingOverlay','dragonDetailModal','tierCompleteScreen'
+      'mpGameOver','loadingOverlay','dragonDetailModal','tierCompleteScreen',
+      'loginScreen','usernameScreen'
     ];
     ids.forEach(id => {
       const el = document.getElementById(id);
