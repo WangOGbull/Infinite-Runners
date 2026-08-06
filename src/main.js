@@ -557,13 +557,47 @@ class Game {
       this.uiManager.showProfileStats(stats || {});
     });
 
-    // Wallet-sync-at-signup: once a logged-in player connects a wallet,
-    // remember it on their account so it's associated with them going
-    // forward (not re-synced for guests, who have no account to attach it to).
-    this.eventBus.on('wallet:connected', ({ address }) => {
-      if (this.isGuest || !this.authUid || !this.db || !address) return;
+    // Wallet-sync-at-signup: once a wallet connects, remember it on the
+    // right account. Two cases: this tab is the logged-in one (authUid
+    // known locally - e.g. desktop extension connect), or this connection
+    // happened inside an isolated wallet-browser session that has no login
+    // of its own, in which case linkCode says whose account it belongs to.
+    this.eventBus.on('wallet:connected', ({ address, linkCode }) => {
+      if (!this.db || !address) return;
+      if (linkCode) {
+        this.db.ref('walletLinkRequests/' + linkCode).once('value').then((snap) => {
+          const req = snap.val();
+          if (req && req.uid) {
+            this.db.ref('users/' + req.uid + '/walletAddress').set(address).catch(() => {});
+          }
+          this.db.ref('walletLinkRequests/' + linkCode).remove().catch(() => {});
+        }).catch(() => {});
+        return;
+      }
+      if (this.isGuest || !this.authUid) return;
       this.db.ref('users/' + this.authUid + '/walletAddress').set(address).catch(() => {});
     });
+
+    // Called right after registering a link code (see wallet:connectRequest
+    // above) - listens for the wallet address to actually show up on this
+    // account (written from the OTHER, isolated session), and reflects it
+    // in this tab's UI without needing walletManager's own state to change
+    // (it never connected anything in THIS tab - the other session did).
+    this._watchWalletLinkSync = (uid) => {
+      if (!this.db) return;
+      const ref = this.db.ref('users/' + uid + '/walletAddress');
+      const handler = (snap) => {
+        const address = snap.val();
+        if (address) {
+          this.uiManager.showWalletSynced(address);
+          ref.off('value', handler);
+        }
+      };
+      ref.on('value', handler);
+      // Stop listening after 3 minutes regardless - the player either
+      // completed the connect flow by then or gave up.
+      setTimeout(() => ref.off('value', handler), 180000);
+    };
 
     this.eventBus.on('ui:showDragonSelect', () => {
       this.uiManager.showScreen('dragonSelectScreen');
@@ -769,6 +803,17 @@ class Game {
     });
 
     this.eventBus.on('wallet:connectRequest', () => {
+      if (this.authUid && this.db && !this.isGuest) {
+        // Logged-in player, mobile in-app-browser flow ahead: register a
+        // short-lived link code in Firebase (both this tab and the isolated
+        // wallet-browser session can reach Firebase, even though they can't
+        // reach each other directly) so the wallet address that connects
+        // over there gets attached to THIS account.
+        const code = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        this.db.ref('walletLinkRequests/' + code).set({ uid: this.authUid, ts: Date.now() }).catch(() => {});
+        this.walletManager.pendingLinkCode = code;
+        this._watchWalletLinkSync(this.authUid);
+      }
       this.walletManager.connect().catch(() => {});
     });
 
