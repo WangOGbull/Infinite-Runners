@@ -557,6 +557,14 @@ class Game {
       this.uiManager.showProfileStats(stats || {});
     });
 
+    // Wallet-sync-at-signup: once a logged-in player connects a wallet,
+    // remember it on their account so it's associated with them going
+    // forward (not re-synced for guests, who have no account to attach it to).
+    this.eventBus.on('wallet:connected', ({ address }) => {
+      if (this.isGuest || !this.authUid || !this.db || !address) return;
+      this.db.ref('users/' + this.authUid + '/walletAddress').set(address).catch(() => {});
+    });
+
     this.eventBus.on('ui:showDragonSelect', () => {
       this.uiManager.showScreen('dragonSelectScreen');
     });
