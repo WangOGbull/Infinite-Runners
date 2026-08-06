@@ -127,18 +127,37 @@ class ArenaManager {
       ctx.drawImage(this.selectedImage, bounds.minX, bounds.minY, this.width, this.height);
     }
 
-    // Grid overlay
+    // Grid overlay — only compute lines inside the camera's visible
+    // viewport (with a small margin), not the entire 4200x4200 arena.
+    // Previously this looped across the whole arena every frame
+    // regardless of zoom/position - real wasted CPU/GPU work that scales
+    // with arena size, not with what's actually on screen.
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 2;
     const grid = CONFIG.ARENA_GRID_SIZE;
-    for (let x = bounds.minX; x <= bounds.maxX; x += grid) {
-      ctx.moveTo(x, bounds.minY);
-      ctx.lineTo(x, bounds.maxY);
+
+    let gridMinX = bounds.minX, gridMaxX = bounds.maxX;
+    let gridMinY = bounds.minY, gridMaxY = bounds.maxY;
+    if (camera && camera.canvas && camera.zoom) {
+      const margin = grid; // one extra cell of margin so lines don't pop in at the edge
+      const viewW = camera.canvas.width / camera.zoom;
+      const viewH = camera.canvas.height / camera.zoom;
+      gridMinX = Math.max(bounds.minX, camera.x - viewW / 2 - margin);
+      gridMaxX = Math.min(bounds.maxX, camera.x + viewW / 2 + margin);
+      gridMinY = Math.max(bounds.minY, camera.y - viewH / 2 - margin);
+      gridMaxY = Math.min(bounds.maxY, camera.y + viewH / 2 + margin);
     }
-    for (let y = bounds.minY; y <= bounds.maxY; y += grid) {
-      ctx.moveTo(bounds.minX, y);
-      ctx.lineTo(bounds.maxX, y);
+    // Align the start to the grid so lines don't shift as the camera pans.
+    const startX = bounds.minX + Math.floor((gridMinX - bounds.minX) / grid) * grid;
+    const startY = bounds.minY + Math.floor((gridMinY - bounds.minY) / grid) * grid;
+    for (let x = startX; x <= gridMaxX; x += grid) {
+      ctx.moveTo(x, gridMinY);
+      ctx.lineTo(x, gridMaxY);
+    }
+    for (let y = startY; y <= gridMaxY; y += grid) {
+      ctx.moveTo(gridMinX, y);
+      ctx.lineTo(gridMaxX, y);
     }
     ctx.stroke();
 
