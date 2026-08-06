@@ -577,6 +577,63 @@ class UIManager {
   }
 
   bindEvents() {
+    // ===== AUTH / LOGIN =====
+    const btnGoogleSignIn = document.getElementById('btnGoogleSignIn');
+    if (btnGoogleSignIn) btnGoogleSignIn.addEventListener('click', () => {
+      this.clearAuthError();
+      this.eventBus.emit('auth:googleSignIn');
+    });
+
+    this._authMode = 'signin';
+    const authTabSignIn = document.getElementById('authTabSignIn');
+    const authTabSignUp = document.getElementById('authTabSignUp');
+    const submitBtn = document.getElementById('btnAuthSubmit');
+    const setAuthMode = (mode) => {
+      this._authMode = mode;
+      if (authTabSignIn) authTabSignIn.classList.toggle('active', mode === 'signin');
+      if (authTabSignUp) authTabSignUp.classList.toggle('active', mode === 'signup');
+      if (submitBtn) submitBtn.textContent = mode === 'signin' ? 'Sign In' : 'Sign Up';
+      this.clearAuthError();
+    };
+    if (authTabSignIn) authTabSignIn.addEventListener('click', () => setAuthMode('signin'));
+    if (authTabSignUp) authTabSignUp.addEventListener('click', () => setAuthMode('signup'));
+
+    const authForm = document.getElementById('authForm');
+    if (authForm) authForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.clearAuthError();
+      const email = document.getElementById('authEmail')?.value.trim();
+      const password = document.getElementById('authPassword')?.value;
+      if (!email || !password) return;
+      this.eventBus.emit('auth:emailSubmit', { mode: this._authMode, email, password });
+    });
+
+    const btnContinueGuest = document.getElementById('btnContinueGuest');
+    if (btnContinueGuest) btnContinueGuest.addEventListener('click', () => this.eventBus.emit('auth:continueAsGuest'));
+
+    const usernameForm = document.getElementById('usernameForm');
+    if (usernameForm) usernameForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const el = document.getElementById('usernameError');
+      if (el) el.textContent = '';
+      const username = document.getElementById('usernameInput')?.value.trim();
+      if (!username) return;
+      this.eventBus.emit('auth:submitUsername', { username });
+    });
+
+    // ===== PROFILE ICON / MODAL =====
+    const profileIconTitle = document.getElementById('profileIconTitle');
+    if (profileIconTitle) profileIconTitle.addEventListener('click', () => this.eventBus.emit('profile:open'));
+    const profileIconDragonSelect = document.getElementById('profileIconDragonSelect');
+    if (profileIconDragonSelect) profileIconDragonSelect.addEventListener('click', () => this.eventBus.emit('profile:open'));
+    const btnProfileClose = document.getElementById('btnProfileClose');
+    if (btnProfileClose) btnProfileClose.addEventListener('click', () => this.hideProfileModal());
+    const btnProfileSignOut = document.getElementById('btnProfileSignOut');
+    if (btnProfileSignOut) btnProfileSignOut.addEventListener('click', () => {
+      this.hideProfileModal();
+      this.eventBus.emit('auth:signOut');
+    });
+
     const btnPlay = document.getElementById('btnPlayNow');
     if (btnPlay) btnPlay.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
     const btnStart = document.getElementById('btnStartGame');
@@ -1335,6 +1392,42 @@ class UIManager {
   showQuitConfirm() {
     const dialog = this._quitConfirmDialog || document.getElementById('quitConfirmDialog');
     if (dialog) dialog.classList.add('active');
+  }
+
+  showAuthError(message) {
+    const el = document.getElementById('authError');
+    if (el) el.textContent = message || '';
+  }
+
+  clearAuthError() {
+    const el = document.getElementById('authError');
+    if (el) el.textContent = '';
+  }
+
+  showUsernameError(message) {
+    const el = document.getElementById('usernameError');
+    if (el) el.textContent = message || '';
+  }
+
+  showProfileStats(stats) {
+    const modal = document.getElementById('profileModal');
+    if (!modal) return;
+    const nameEl = document.getElementById('profileModalUsername');
+    const rankEl = document.getElementById('profileModalRank');
+    const killsEl = document.getElementById('profileStatKills');
+    const winsEl = document.getElementById('profileStatWins');
+    const playedEl = document.getElementById('profileStatPlayed');
+    if (nameEl) nameEl.textContent = (stats && stats.username) || 'Player';
+    if (rankEl) rankEl.textContent = (stats && stats.rank) || 'Wingling';
+    if (killsEl) killsEl.textContent = (stats && stats.dragonKills) || 0;
+    if (winsEl) winsEl.textContent = (stats && stats.multiplayerWins) || 0;
+    if (playedEl) playedEl.textContent = (stats && stats.matchesPlayed) || 0;
+    modal.classList.add('active');
+  }
+
+  hideProfileModal() {
+    const modal = document.getElementById('profileModal');
+    if (modal) modal.classList.remove('active');
   }
 
   hideQuitConfirm() {
