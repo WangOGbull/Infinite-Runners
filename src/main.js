@@ -312,6 +312,7 @@ class Game {
   // that transition happens post-login, so the boot loader's progress UI
   // never appears until the player is actually past login/guest selection.
   enterMainMenu() {
+    this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showScreen('titleScreen');
     this.loadGameAssets();
   }
@@ -370,14 +371,14 @@ class Game {
 
   // Decides which screen to show on boot: title (already logged in, or
   // returning guest), username picker (logged in but no username on file
-  // yet), or login (nobody logged in, no prior guest session). Hard-capped
-  // at AUTH_TIMEOUT_MS so the documented auth-domain-blocked failure mode
-  // (see setupFirebase()) degrades to guest mode instead of hanging the
-  // whole boot sequence forever.
+  // yet), or login (nobody logged in). Hard-capped at AUTH_TIMEOUT_MS so the
+  // documented auth-domain-blocked failure mode (see setupFirebase())
+  // degrades to guest mode instead of hanging the whole boot sequence
+  // forever. Guest status is intentionally NOT persisted to localStorage -
+  // every fresh page load re-requires login; only Firebase Auth's own
+  // (properly managed) session cache can skip it.
   async determineStartScreen() {
     const AUTH_TIMEOUT_MS = 4000;
-    let savedGuest = false;
-    try { savedGuest = localStorage.getItem('guestMode') === 'true'; } catch (_) {}
 
     if (!this.auth) {
       this.isGuest = true;
@@ -389,9 +390,8 @@ class Game {
       const finish = (screen) => { if (!settled) { settled = true; resolve(screen); } };
 
       const timeoutId = setTimeout(() => {
-        console.warn('[Auth] Timed out waiting for auth state - falling back to guest mode');
+        console.warn('[Auth] Timed out waiting for auth state - falling back to guest mode (this session only)');
         this.isGuest = true;
-        try { localStorage.setItem('guestMode', 'true'); } catch (_) {}
         finish('titleScreen');
       }, AUTH_TIMEOUT_MS);
 
@@ -410,9 +410,6 @@ class Game {
               }
             })
             .catch(() => finish('titleScreen'));
-        } else if (savedGuest) {
-          this.isGuest = true;
-          finish('titleScreen');
         } else {
           finish('loginScreen');
         }
@@ -426,7 +423,6 @@ class Game {
       const result = await this.auth.signInWithPopup(this.googleProvider);
       this.authUid = result.user.uid;
       this.isGuest = false;
-      try { localStorage.removeItem('guestMode'); } catch (_) {}
       const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
       if (snap.exists()) {
         this.username = snap.val();
@@ -446,7 +442,6 @@ class Game {
       const result = await this.auth.createUserWithEmailAndPassword(email, password);
       this.authUid = result.user.uid;
       this.isGuest = false;
-      try { localStorage.removeItem('guestMode'); } catch (_) {}
       // Claim the username right here as part of signup - the account now
       // exists either way, so on failure (name taken/invalid) fall back to
       // the dedicated username screen to retry rather than losing the flow.
@@ -467,7 +462,6 @@ class Game {
       const result = await this.auth.signInWithEmailAndPassword(email, password);
       this.authUid = result.user.uid;
       this.isGuest = false;
-      try { localStorage.removeItem('guestMode'); } catch (_) {}
       const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
       if (snap.exists()) {
         this.username = snap.val();
@@ -483,7 +477,6 @@ class Game {
 
   continueAsGuest() {
     this.isGuest = true;
-    try { localStorage.setItem('guestMode', 'true'); } catch (_) {}
     this.enterMainMenu();
   }
 
@@ -492,7 +485,7 @@ class Game {
     this.authUid = null;
     this.username = null;
     this.isGuest = false;
-    try { localStorage.removeItem('guestMode'); } catch (_) {}
+    this.uiManager.setAccount(null, this.db);
     this.uiManager.showScreen('loginScreen');
   }
 
