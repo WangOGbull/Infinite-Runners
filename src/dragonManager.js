@@ -309,6 +309,13 @@ export class DragonManager {
   render(ctx, camera) {
     for (const dragon of this.dragons) {
       if (!dragon.alive) continue;
+      // Skip dragons nowhere near the camera. Margin accounts for the
+      // dragon's full body length so a long dragon whose head just left
+      // view but whose tail is still visible doesn't pop out early.
+      const spacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
+      const bodyLength = (dragon.segments ? dragon.segments.length : 0) * spacing;
+      const margin = 200 + bodyLength;
+      if (camera && !camera.isInView(dragon.head.x, dragon.head.y, margin)) continue;
       this.renderDragon(ctx, dragon);
     }
   }
