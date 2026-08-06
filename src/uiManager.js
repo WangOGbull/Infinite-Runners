@@ -268,15 +268,37 @@ class UIManager {
     el.addEventListener('touchend', eat, true);
   }
 
+  // Called from main.js whenever auth state changes (login success, guest
+  // entry, sign out) so this file can read/write real per-account progress
+  // instead of per-device localStorage.
+  setAccount(uid, db) {
+    this._uid = uid;
+    this._db = db;
+  }
+
   initDragonCarousel(dragons) {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
-    try { const saved = localStorage.getItem('dragonPowers'); if (saved) this.dragonPowers = JSON.parse(saved); }
-    catch (e) { this.dragonPowers = {}; }
-    try { const savedCoins = localStorage.getItem('playerCoins'); if (savedCoins) this.playerCoins = parseInt(savedCoins); }
-    catch (e) {}
-    try { const savedTiers = localStorage.getItem('clearedTiers'); if (savedTiers) this.clearedTiers = JSON.parse(savedTiers); }
-    catch (e) { this.clearedTiers = {}; }
+    if (this._uid && this._db) {
+      // Logged-in account - real, cross-device progress from Firebase.
+      this._db.ref('users/' + this._uid).once('value').then((snap) => {
+        const data = snap.val() || {};
+        this.dragonPowers = data.dragonPowers || {};
+        this.playerCoins = (typeof data.playerCoins === 'number') ? data.playerCoins : 1000000;
+        this.clearedTiers = data.clearedTiers || {};
+        this.renderCarousel();
+        this.updateCoinDisplay();
+      }).catch(() => {
+        this.renderCarousel();
+        this.updateCoinDisplay();
+      });
+      return;
+    }
+    // Guest - no account to attach progress to, so nothing persists beyond
+    // this session (by design - see the guest-mode restrictions).
+    this.dragonPowers = {};
+    this.playerCoins = 1000000;
+    this.clearedTiers = {};
     this.renderCarousel();
     this.updateCoinDisplay();
   }
@@ -484,10 +506,12 @@ class UIManager {
     if (powers[stat] >= 10) return;
     this.playerCoins -= cost;
     powers[stat] = (powers[stat] || 1) + 1;
-    try {
-      localStorage.setItem('dragonPowers', JSON.stringify(this.dragonPowers));
-      localStorage.setItem('playerCoins', this.playerCoins.toString());
-    } catch (e) {}
+    if (this._uid && this._db) {
+      this._db.ref('users/' + this._uid).update({
+        dragonPowers: this.dragonPowers,
+        playerCoins: this.playerCoins
+      }).catch(() => {});
+    }
     const card = document.getElementById(`powerCard-${stat}`);
     if (card) { card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 500); }
     this.updateCoinDisplay();
@@ -506,7 +530,9 @@ class UIManager {
   markTierCleared(tierId) {
     if (!tierId || this.clearedTiers[tierId]) return; // already unlocked, nothing to do
     this.clearedTiers[tierId] = true;
-    try { localStorage.setItem('clearedTiers', JSON.stringify(this.clearedTiers)); } catch (e) {}
+    if (this._uid && this._db) {
+      this._db.ref('users/' + this._uid + '/clearedTiers').update({ [tierId]: true }).catch(() => {});
+    }
     if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
   }
 
