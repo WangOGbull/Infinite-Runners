@@ -240,17 +240,23 @@ class Game {
       // what caused the permanent "Entering the Arena..." freeze.
       let urlHasWalletReturn = false;
       try { urlHasWalletReturn = !!new URLSearchParams(window.location.search).get('walletReturn'); } catch (_) { /* ignore */ }
-      this.uiManager.showScreen(urlHasWalletReturn ? 'loadingScreen' : 'titleScreen');
 
-      // Safety net: even if a redirect IS genuinely in flight, don't ever
-      // strand the user here forever if restoration fails silently for
-      // some future, unforeseen reason. Fall back to the title screen.
       if (urlHasWalletReturn) {
+        this.uiManager.showScreen('loadingScreen');
+        // Safety net: even if a redirect IS genuinely in flight, don't ever
+        // strand the user here forever if restoration fails silently for
+        // some future, unforeseen reason. Fall back to the title screen.
         setTimeout(() => {
           if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
             this.uiManager.showScreen('titleScreen');
           }
         }, 6000);
+      } else {
+        // Normal boot (no wallet redirect in flight): route through login/
+        // guest/username as appropriate. This runs in parallel with asset
+        // preloading below, not blocking it - login and asset loading are
+        // independent of each other.
+        this.determineStartScreen().then(screen => this.uiManager.showScreen(screen));
       }
       // REMOVED: the "Resume Room" banner that used to appear here when a
       // lastRoomInfo entry existed. It was a workaround for Android
@@ -300,39 +306,232 @@ class Game {
       if (typeof firebase !== 'undefined') {
         this.firebaseApp = firebase.initializeApp(firebaseConfig);
         this.db = firebase.database();
+        this.auth = firebase.auth();
+        this.googleProvider = new firebase.auth.GoogleAuthProvider();
+        this.isGuest = false;
+        this.authUid = null;
         // Firebase-based automatic matchmaking (replaces Photon). Uses the
         // same db as every room/stake/settlement, and identifies the player
         // by their connected wallet when available so two tabs on one wallet
         // never match themselves.
         this.matchmaking = new FirebaseMatchmaking(this.eventBus, this.db, {
           getIdentity: () => ({
-            uid: (this.walletManager && this.walletManager.publicKey)
+            uid: this.authUid || ((this.walletManager && this.walletManager.publicKey)
               ? this.walletManager.publicKey.toString()
-              : 'anon_' + Math.random().toString(36).slice(2),
-            name: 'Player',
+              : 'anon_' + Math.random().toString(36).slice(2)),
+            name: this.username || 'Player',
           }),
         });
-        // Anonymous auth DISABLED for now. Database rules are currently
-        // wide open (.read: true, .write: true), so no write actually
-        // requires an auth token right now - and this has repeatedly been
-        // a real point of failure on networks that block Google's auth
-        // domains (identitytoolkit.googleapis.com earlier, oauth2.googleapis.com
-        // in WSL, now securetoken.googleapis.com). When the token refresh
-        // fails, the Realtime Database SDK enters an endless reconnect
-        // loop trying to attach a token it can't get - which can make the
-        // ENTIRE database connection hang, breaking room creation/joining
-        // even though nothing about them actually needed auth. Removing
-        // this dependency removes that entire failure mode. Re-enable
-        // once real database rules (requiring auth) are restored - see
-        // firebase-database-rules.json for the version that needs it.
-        this.authUid = null;
+        // Auth is now used deliberately for the required-login system (see
+        // determineStartScreen()). The network-blocking failure mode
+        // described below is real and still possible - determineStartScreen()
+        // guards against it with a hard timeout that falls back to guest
+        // mode rather than hanging forever, so this file previously
+        // disabled auth entirely; here it's back on with that specific
+        // failure mode handled instead of avoided.
+        //
+        // Original note, kept for context: on networks that block Google's
+        // auth domains (identitytoolkit.googleapis.com, oauth2.googleapis.com,
+        // securetoken.googleapis.com), a hanging token refresh can make the
+        // Realtime Database SDK enter an endless reconnect loop, which can
+        // stall the ENTIRE database connection - not just auth. Database
+        // rules remain wide open (.read: true, .write: true) so no write
+        // actually requires a token; this is purely for login/identity.
       }
     } catch (e) {
       console.log('Firebase not available, running in local mode');
     }
   }
 
+  // Decides which screen to show on boot: title (already logged in, or
+  // returning guest), username picker (logged in but no username on file
+  // yet), or login (nobody logged in, no prior guest session). Hard-capped
+  // at AUTH_TIMEOUT_MS so the documented auth-domain-blocked failure mode
+  // (see setupFirebase()) degrades to guest mode instead of hanging the
+  // whole boot sequence forever.
+  async determineStartScreen() {
+    const AUTH_TIMEOUT_MS = 4000;
+    let savedGuest = false;
+    try { savedGuest = localStorage.getItem('guestMode') === 'true'; } catch (_) {}
+
+    if (!this.auth) {
+      this.isGuest = true;
+      return 'titleScreen';
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (screen) => { if (!settled) { settled = true; resolve(screen); } };
+
+      const timeoutId = setTimeout(() => {
+        console.warn('[Auth] Timed out waiting for auth state - falling back to guest mode');
+        this.isGuest = true;
+        try { localStorage.setItem('guestMode', 'true'); } catch (_) {}
+        finish('titleScreen');
+      }, AUTH_TIMEOUT_MS);
+
+      this.auth.onAuthStateChanged((user) => {
+        clearTimeout(timeoutId);
+        if (user) {
+          this.authUid = user.uid;
+          this.isGuest = false;
+          this.db.ref('users/' + user.uid + '/username').once('value')
+            .then((snap) => {
+              if (snap.exists()) {
+                this.username = snap.val();
+                finish('titleScreen');
+              } else {
+                finish('usernameScreen');
+              }
+            })
+            .catch(() => finish('titleScreen'));
+        } else if (savedGuest) {
+          this.isGuest = true;
+          finish('titleScreen');
+        } else {
+          finish('loginScreen');
+        }
+      });
+    });
+  }
+
+  async signInWithGoogle() {
+    if (!this.auth) return { error: 'Login unavailable right now.' };
+    try {
+      const result = await this.auth.signInWithPopup(this.googleProvider);
+      this.authUid = result.user.uid;
+      this.isGuest = false;
+      try { localStorage.removeItem('guestMode'); } catch (_) {}
+      const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
+      if (snap.exists()) {
+        this.username = snap.val();
+        this.uiManager.showScreen('titleScreen');
+      } else {
+        this.uiManager.showScreen('usernameScreen');
+      }
+      return { success: true };
+    } catch (e) {
+      return { error: e.message || 'Google sign-in failed.' };
+    }
+  }
+
+  async signUpWithEmail(email, password) {
+    if (!this.auth) return { error: 'Login unavailable right now.' };
+    try {
+      const result = await this.auth.createUserWithEmailAndPassword(email, password);
+      this.authUid = result.user.uid;
+      this.isGuest = false;
+      try { localStorage.removeItem('guestMode'); } catch (_) {}
+      this.uiManager.showScreen('usernameScreen');
+      return { success: true };
+    } catch (e) {
+      return { error: e.message || 'Sign up failed.' };
+    }
+  }
+
+  async signInWithEmail(email, password) {
+    if (!this.auth) return { error: 'Login unavailable right now.' };
+    try {
+      const result = await this.auth.signInWithEmailAndPassword(email, password);
+      this.authUid = result.user.uid;
+      this.isGuest = false;
+      try { localStorage.removeItem('guestMode'); } catch (_) {}
+      const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
+      if (snap.exists()) {
+        this.username = snap.val();
+        this.uiManager.showScreen('titleScreen');
+      } else {
+        this.uiManager.showScreen('usernameScreen');
+      }
+      return { success: true };
+    } catch (e) {
+      return { error: e.message || 'Sign in failed.' };
+    }
+  }
+
+  continueAsGuest() {
+    this.isGuest = true;
+    try { localStorage.setItem('guestMode', 'true'); } catch (_) {}
+    this.uiManager.showScreen('titleScreen');
+  }
+
+  async signOut() {
+    try { if (this.auth) await this.auth.signOut(); } catch (_) {}
+    this.authUid = null;
+    this.username = null;
+    this.isGuest = false;
+    try { localStorage.removeItem('guestMode'); } catch (_) {}
+    this.uiManager.showScreen('loginScreen');
+  }
+
+  // Username uniqueness is checked against users/*/username before saving -
+  // O(n) scan is fine at this scale; move to a dedicated usernames/{name}
+  // index if the player base grows large enough for it to matter.
+  async claimUsername(desiredName) {
+    const name = (desiredName || '').trim();
+    if (name.length < 3 || name.length > 20) return { error: 'Username must be 3-20 characters.' };
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) return { error: 'Letters, numbers, and underscores only.' };
+    if (!this.authUid || !this.db) return { error: 'Not logged in.' };
+    try {
+      const allUsers = await this.db.ref('users').once('value');
+      const taken = Object.values(allUsers.val() || {}).some(
+        u => u && u.username && u.username.toLowerCase() === name.toLowerCase()
+      );
+      if (taken) return { error: 'That username is already taken.' };
+      await this.db.ref('users/' + this.authUid).update({
+        username: name,
+        rank: 'Wingling',
+        dragonKills: 0,
+        multiplayerWins: 0,
+        matchesPlayed: 0,
+        createdAt: Date.now()
+      });
+      this.username = name;
+      this.uiManager.showScreen('titleScreen');
+      return { success: true };
+    } catch (e) {
+      return { error: e.message || 'Could not save username.' };
+    }
+  }
+
+  async getProfileStats() {
+    if (!this.authUid || !this.db) return null;
+    try {
+      const snap = await this.db.ref('users/' + this.authUid).once('value');
+      return snap.val();
+    } catch (e) {
+      return null;
+    }
+  }
+
   setupEventListeners() {
+    // ===== AUTH / LOGIN =====
+    this.eventBus.on('auth:googleSignIn', async () => {
+      const result = await this.signInWithGoogle();
+      if (result.error) this.uiManager.showAuthError(result.error);
+    });
+    this.eventBus.on('auth:emailSubmit', async ({ mode, email, password }) => {
+      const result = mode === 'signup'
+        ? await this.signUpWithEmail(email, password)
+        : await this.signInWithEmail(email, password);
+      if (result.error) this.uiManager.showAuthError(result.error);
+    });
+    this.eventBus.on('auth:continueAsGuest', () => this.continueAsGuest());
+    this.eventBus.on('auth:submitUsername', async ({ username }) => {
+      const result = await this.claimUsername(username);
+      if (result.error) this.uiManager.showUsernameError(result.error);
+    });
+    this.eventBus.on('auth:signOut', () => this.signOut());
+    this.eventBus.on('profile:open', async () => {
+      if (this.isGuest || !this.authUid) {
+        // Guests have no account/stats to show - send them to login instead.
+        this.uiManager.showScreen('loginScreen');
+        return;
+      }
+      const stats = await this.getProfileStats();
+      this.uiManager.showProfileStats(stats || {});
+    });
+
     this.eventBus.on('ui:showDragonSelect', () => {
       this.uiManager.showScreen('dragonSelectScreen');
     });
@@ -359,6 +558,10 @@ class Game {
     // pendingArenaIndex (last picked arena) is reused so the player isn't
     // re-prompted for arena skin on every tier transition.
     this.eventBus.on('ui:tierAdvance', ({ tierId }) => {
+      // ui:tierAdvance only ever fires when moving to a NEW, harder tier
+      // (restarting the same tier goes through ui:tierRestart instead) -
+      // so any advance past Easy is gated for guests.
+      if (this.isGuest) { this.uiManager.showScreen('loginScreen'); return; }
       const tier = AI_DIFFICULTY_TIERS.find(t => t.id === tierId);
       if (tier) this.startWaveRun(tier);
     });
@@ -367,8 +570,14 @@ class Game {
       if (tier) this.startWaveRun(tier);
     });
 
-    this.eventBus.on('mp:createRoom', ({ mode }) => this.createRoom(mode));
-    this.eventBus.on('mp:joinRoom', ({ code }) => this.joinRoom(code));
+    this.eventBus.on('mp:createRoom', ({ mode }) => {
+      if (this.isGuest) { this.uiManager.showScreen('loginScreen'); return; }
+      this.createRoom(mode);
+    });
+    this.eventBus.on('mp:joinRoom', ({ code }) => {
+      if (this.isGuest) { this.uiManager.showScreen('loginScreen'); return; }
+      this.joinRoom(code);
+    });
     this.eventBus.on('mp:leaveRoom', () => this.leaveRoom());
     this.eventBus.on('mp:startGame', () => this.startMpGame());
     this.eventBus.on('lobby:kickPlayer', ({ playerId }) => this.kickPlayer(playerId));
@@ -479,6 +688,11 @@ class Game {
           this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, neon || '#ffd700');
           this.effectsSystem.flashVignette(neon || '#ffd700', 0.35, 300);
           this.effectsSystem.playKillSound();
+          if (this.authUid && this.db && typeof firebase !== 'undefined') {
+            this.db.ref('users/' + this.authUid + '/dragonKills')
+              .set(firebase.database.ServerValue.increment(1))
+              .catch(() => {});
+          }
         }
       }
 
@@ -2381,6 +2595,18 @@ class Game {
   }
 
   endGame(hasWinner = false) {
+    // Multiplayer stat tracking - roomRef only exists for actual multiplayer
+    // matches (AI/wave mode never creates one), and only for logged-in
+    // accounts (guests can't reach multiplayer at all - see the mp:createRoom/
+    // mp:joinRoom gates).
+    if (this.roomRef && this.authUid && this.db && typeof firebase !== 'undefined') {
+      const won = hasWinner && this.winner === this.localDragon;
+      const updates = {
+        matchesPlayed: firebase.database.ServerValue.increment(1)
+      };
+      if (won) updates.multiplayerWins = firebase.database.ServerValue.increment(1);
+      this.db.ref('users/' + this.authUid).update(updates).catch(() => {});
+    }
     this.state = 'GAME_OVER';
     this.isSpectating = false;
     this.spectateTarget = null;
