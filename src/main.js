@@ -251,12 +251,19 @@ class Game {
             this.uiManager.showScreen('titleScreen');
           }
         }, 6000);
+        // Time-critical redirect-resume flow - load assets right away
+        // rather than waiting on a login decision.
+        this.loadGameAssets();
       } else {
         // Normal boot (no wallet redirect in flight): route through login/
-        // guest/username as appropriate. This runs in parallel with asset
-        // preloading below, not blocking it - login and asset loading are
-        // independent of each other.
-        this.determineStartScreen().then(screen => this.uiManager.showScreen(screen));
+        // guest/username first. Asset preloading (and its boot-loader
+        // progress UI) is deliberately NOT started here - it only begins
+        // once enterMainMenu() actually runs, so the player sees login
+        // immediately instead of staring at "Summoning dragons..." first.
+        this.determineStartScreen().then(screen => {
+          if (screen === 'titleScreen') this.enterMainMenu();
+          else this.uiManager.showScreen(screen);
+        });
       }
       // REMOVED: the "Resume Room" banner that used to appear here when a
       // lastRoomInfo entry existed. It was a workaround for Android
@@ -266,13 +273,23 @@ class Game {
       // gone and the banner had become a recurring nuisance on refresh.
     }
 
+    if (this.roomRef) {
+      // Already resuming a room (wallet redirect resolved one synchronously
+      // above) - no login gate needed here, load assets immediately.
+      await this.loadGameAssets();
+    }
+
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
+  }
 
-    // Boot gate: load EVERY image with real progress, and only let the
-    // player past the boot screen once nothing is missing or broken.
-    const loadEverything = async () => {
+  // Guarded so it only ever runs once, however many places call it (see
+  // enterMainMenu() below and the wallet-return/room-resume paths in init()).
+  async loadGameAssets() {
+    if (this._assetsLoadStarted) return;
+    this._assetsLoadStarted = true;
+    const run = async () => {
       await AssetLoader.preloadAll(
         (done, total) => this.bootLoader.setProgress(done, total),
         bootExtraImages()
@@ -284,11 +301,19 @@ class Game {
       this.bootLoader.finish();
     };
     try {
-      await loadEverything();
+      await run();
     } catch (e) {
       console.error('Asset load failed:', e);
-      this.bootLoader.fail(loadEverything);
+      this.bootLoader.fail(run);
     }
+  }
+
+  // Shows the title screen and kicks off asset preloading - the ONE place
+  // that transition happens post-login, so the boot loader's progress UI
+  // never appears until the player is actually past login/guest selection.
+  enterMainMenu() {
+    this.uiManager.showScreen('titleScreen');
+    this.loadGameAssets();
   }
 
   async setupFirebase() {
@@ -405,7 +430,7 @@ class Game {
       const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
       if (snap.exists()) {
         this.username = snap.val();
-        this.uiManager.showScreen('titleScreen');
+        this.enterMainMenu();
       } else {
         this.uiManager.showScreen('usernameScreen');
       }
@@ -415,14 +440,21 @@ class Game {
     }
   }
 
-  async signUpWithEmail(email, password) {
+  async signUpWithEmail(email, password, username) {
     if (!this.auth) return { error: 'Login unavailable right now.' };
     try {
       const result = await this.auth.createUserWithEmailAndPassword(email, password);
       this.authUid = result.user.uid;
       this.isGuest = false;
       try { localStorage.removeItem('guestMode'); } catch (_) {}
-      this.uiManager.showScreen('usernameScreen');
+      // Claim the username right here as part of signup - the account now
+      // exists either way, so on failure (name taken/invalid) fall back to
+      // the dedicated username screen to retry rather than losing the flow.
+      const claim = await this.claimUsername(username);
+      if (claim.error) {
+        this.uiManager.showScreen('usernameScreen');
+        this.uiManager.showUsernameError(claim.error);
+      }
       return { success: true };
     } catch (e) {
       return { error: e.message || 'Sign up failed.' };
@@ -439,7 +471,7 @@ class Game {
       const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
       if (snap.exists()) {
         this.username = snap.val();
-        this.uiManager.showScreen('titleScreen');
+        this.enterMainMenu();
       } else {
         this.uiManager.showScreen('usernameScreen');
       }
@@ -452,7 +484,7 @@ class Game {
   continueAsGuest() {
     this.isGuest = true;
     try { localStorage.setItem('guestMode', 'true'); } catch (_) {}
-    this.uiManager.showScreen('titleScreen');
+    this.enterMainMenu();
   }
 
   async signOut() {
@@ -487,7 +519,7 @@ class Game {
         createdAt: Date.now()
       });
       this.username = name;
-      this.uiManager.showScreen('titleScreen');
+      this.enterMainMenu();
       return { success: true };
     } catch (e) {
       return { error: e.message || 'Could not save username.' };
@@ -510,9 +542,9 @@ class Game {
       const result = await this.signInWithGoogle();
       if (result.error) this.uiManager.showAuthError(result.error);
     });
-    this.eventBus.on('auth:emailSubmit', async ({ mode, email, password }) => {
+    this.eventBus.on('auth:emailSubmit', async ({ mode, email, password, username }) => {
       const result = mode === 'signup'
-        ? await this.signUpWithEmail(email, password)
+        ? await this.signUpWithEmail(email, password, username)
         : await this.signInWithEmail(email, password);
       if (result.error) this.uiManager.showAuthError(result.error);
     });
