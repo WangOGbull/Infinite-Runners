@@ -594,6 +594,8 @@ class UIManager {
       if (authTabSignIn) authTabSignIn.classList.toggle('active', mode === 'signin');
       if (authTabSignUp) authTabSignUp.classList.toggle('active', mode === 'signup');
       if (submitBtn) submitBtn.textContent = mode === 'signin' ? 'Sign In' : 'Sign Up';
+      const usernameField = document.getElementById('authUsername');
+      if (usernameField) usernameField.style.display = mode === 'signup' ? 'block' : 'none';
       this.clearAuthError();
     };
     if (authTabSignIn) authTabSignIn.addEventListener('click', () => setAuthMode('signin'));
@@ -605,8 +607,13 @@ class UIManager {
       this.clearAuthError();
       const email = document.getElementById('authEmail')?.value.trim();
       const password = document.getElementById('authPassword')?.value;
+      const username = document.getElementById('authUsername')?.value.trim();
       if (!email || !password) return;
-      this.eventBus.emit('auth:emailSubmit', { mode: this._authMode, email, password });
+      if (this._authMode === 'signup' && !username) {
+        this.showAuthError('Please choose a username.');
+        return;
+      }
+      this.eventBus.emit('auth:emailSubmit', { mode: this._authMode, email, password, username });
     });
 
     const btnContinueGuest = document.getElementById('btnContinueGuest');
