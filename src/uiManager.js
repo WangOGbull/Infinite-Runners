@@ -902,8 +902,7 @@ class UIManager {
       this.setWalletModalState('connected');
       this.updateWalletDisplay(address, balance, walletType);
       if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
-    });
-    this.eventBus.on('wallet:disconnected', () => {
+    });    this.eventBus.on('wallet:disconnected', () => {
       this._connectedWalletType = null;
       this.updateWalletButton(null);
       if (this.currentScreen === 'walletModal') this.showScreen('titleScreen');
@@ -1555,6 +1554,16 @@ class UIManager {
     Object.entries(views).forEach(([key, el]) => { if (el) el.style.display = key === state ? 'block' : 'none'; });
     const errEl = document.getElementById('walletError');
     if (errEl && state !== 'disconnected') errEl.style.display = 'none';
+  }
+
+  // Called when a wallet connects in an ISOLATED session (Solflare/Phantom's
+  // own in-app browser) and syncs back to this account via the link-code
+  // bridge (see main.js _watchWalletLinkSync). This tab's walletManager
+  // never actually connected anything itself - just reflect the now-synced
+  // address in the UI the same way a real connection would display.
+  showWalletSynced(address) {
+    this.setWalletModalState('connected');
+    this.updateWalletDisplay(address, null, 'synced');
   }
 
   updateWalletDisplay(address, balance, walletType) {
