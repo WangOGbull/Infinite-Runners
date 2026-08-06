@@ -125,7 +125,18 @@ class UIManager {
       titleEl.textContent = isUltimate ? 'ULTIMATE VICTORY' : 'VICTORY';
     }
     if (rankEl) {
-      rankEl.innerHTML = `<span class="rank-label">Rank Achieved</span><span class="rank-name">${tier.rank}</span>`;
+      const labelEl = rankEl.querySelector('.rank-label');
+      const nameEl = rankEl.querySelector('.rank-name');
+      if (labelEl) labelEl.textContent = 'Rank Achieved';
+      if (nameEl) nameEl.textContent = tier.rank;
+    }
+    const crestIcon = document.getElementById('tierCrestIcon');
+    if (crestIcon) {
+      crestIcon.className = 'fa-solid ' + (
+        tier.id === 'easy' ? 'fa-fire' :
+        tier.id === 'medium' ? 'fa-meteor' :
+        'fa-crown'
+      );
     }
     if (subEl) {
       subEl.textContent = isUltimate
