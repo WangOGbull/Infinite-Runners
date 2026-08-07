@@ -241,9 +241,9 @@ class WalletManager {
   // encryption logic, which was already correct.
   _navigateToUniversalLink(url) {
     // Use window.location.href for same-tab navigation.
-    // window.location.replace() was not triggering OS app interception
-    // reliably on Android - the wallet would flash open and bounce back
-    // to a new tab instead of staying in the wallet for approval.
+    // The anchor+target=_self trick was still opening a new tab on some
+    // Android browsers. Direct location assignment is the only reliable way
+    // to trigger OS-level app interception for Universal Links.
     window.location.href = url;
   }
 
@@ -468,10 +468,12 @@ class WalletManager {
     if (this.pendingLinkCode) redirectUrlRaw += `&linkCode=${encodeURIComponent(this.pendingLinkCode)}`;
     const redirectUrl = encodeURIComponent(redirectUrlRaw);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
+    // Use native app scheme for mobile wallets - https:// Universal Links
+    // fall back to browser on many Android devices, breaking the flow.
     const base = walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/connect'
       : walletType === 'solflare'
-        ? 'https://solflare.com/ul/v1/connect'
+        ? 'solflare://ul/v1/connect'
         : 'https://phantom.app/ul/v1/connect';
     return `${base}?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrl}&cluster=${PHANTOM_CLUSTER}`;
   }
@@ -646,12 +648,15 @@ class WalletManager {
   }
 
   _notifyRestoredConnection() {
-    // On mobile redirect back from wallet, decrypt the response from
-    // URL params (data + nonce) using the ephemeral key pair saved before
-    // redirecting. The wallet encrypts the address in the 'data' param.
-    const params = new URLSearchParams(window.location.search);
-    const dataB64 = params.get('data');
-    const nonceB64 = params.get('nonce');
+    // On mobile redirect back from wallet, decrypt the response using the
+    // params we saved BEFORE cleaning the URL in _handleMobileRedirect().
+    const dataB64 = this._walletReturnData;
+    const nonceB64 = this._walletReturnNonce;
+    const linkCode = this._walletReturnLinkCode;
+    // Clear stored params so a refresh doesn't re-process them
+    this._walletReturnData = null;
+    this._walletReturnNonce = null;
+    this._walletReturnLinkCode = null;
     if (dataB64 && nonceB64) {
       try {
         const keyPair = this._restoreMobileKeyPair();
@@ -678,7 +683,6 @@ class WalletManager {
           this.connected = true;
           this._saveSession();
           this._debugLog('Mobile session restored, emitting wallet:connected');
-          const linkCode = params.get('linkCode');
           this.eventBus.emit('wallet:connected', {
             address: this.publicKey,
             walletType: this._walletType,
