@@ -240,20 +240,11 @@ class WalletManager {
   // real <a> click instead fixes this without touching URL-building or
   // encryption logic, which was already correct.
   _navigateToUniversalLink(url) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.rel = 'noopener';
-    // FIX: index.html has <base target="_blank"> in <head>, which makes
-    // every <a> without an explicit target attribute default to opening in
-    // a NEW tab/window. On mobile, forcing this Universal Link open as a
-    // "new tab" is what silently broke the Phantom hand-off - the OS
-    // reliably intercepts a same-tab top-level navigation to a Universal
-    // Link, but not one launched via a new-window anchor click, so tapping
-    // "Phantom" appeared to do nothing at all.
-    a.target = '_self';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    // Use direct top-level navigation instead of anchor click.
+    // The anchor+target=_self trick was still opening a new tab on some
+    // Android browsers. window.location.replace() is a true same-tab
+    // navigation that the OS reliably intercepts for Universal Links.
+    window.location.replace(url);
   }
 
   // If a mobile deep link actually opens the wallet app, this tab gets
@@ -469,9 +460,7 @@ class WalletManager {
     const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
-    let redirectUrlRaw = `${redirectBase}?walletReturn=connect&dsk=${dsk}&walletType=${walletType}`;
-    if (this.pendingLinkCode) redirectUrlRaw += `&linkCode=${encodeURIComponent(this.pendingLinkCode)}`;
-    const redirectUrl = encodeURIComponent(redirectUrlRaw);
+    const redirectUrl = encodeURIComponent(`${redirectBase}?walletReturn=connect&dsk=${dsk}&walletType=${walletType}`);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const base = walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/connect'
@@ -651,6 +640,54 @@ class WalletManager {
   }
 
   _notifyRestoredConnection() {
+    // On mobile redirect back from wallet, decrypt the response from
+    // URL params (data + nonce) using the ephemeral key pair saved before
+    // redirecting. The wallet encrypts the address in the 'data' param.
+    const params = new URLSearchParams(window.location.search);
+    const dataB64 = params.get('data');
+    const nonceB64 = params.get('nonce');
+    if (dataB64 && nonceB64) {
+      try {
+        const keyPair = this._restoreMobileKeyPair();
+        if (!keyPair) {
+          this._debugLog('No mobile key pair found to decrypt wallet response');
+          return;
+        }
+        const data = base58.decode(dataB64);
+        const nonce = base58.decode(nonceB64);
+        const walletPubKey = this._getWalletPublicKey();
+        if (!walletPubKey) {
+          this._debugLog('No wallet public key available for decryption');
+          return;
+        }
+        const decrypted = nacl.box.open(data, nonce, walletPubKey, keyPair.secretKey);
+        if (!decrypted) {
+          this._debugLog('Failed to decrypt wallet response');
+          return;
+        }
+        const response = JSON.parse(new TextDecoder().decode(decrypted));
+        this._debugLog('Decrypted wallet response:', response);
+        if (response.public_key) {
+          this.publicKey = new PublicKey(response.public_key);
+          this.connected = true;
+          this._saveSession();
+          this._debugLog('Mobile session restored, emitting wallet:connected');
+          const linkCode = params.get('linkCode');
+          this.eventBus.emit('wallet:connected', {
+            address: this.publicKey,
+            walletType: this._walletType,
+            linkCode: linkCode || null
+          });
+          this._refreshBalance().then(() => {
+            this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+          });
+          return;
+        }
+      } catch (e) {
+        this._debugLog('Error decrypting wallet response:', e);
+      }
+    }
+    // Fallback: if we already have a connected session (e.g. desktop extension)
     if (this.connected && this.publicKey) {
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
@@ -773,22 +810,22 @@ class WalletManager {
     const provider = this.getProvider();
     if (provider) return this._connectProvider(provider);
     if (this.isMobile()) {
-      // Deep-link redirect flow: Phantom opens, user taps Connect,
-      // Phantom redirects back to the original browser with the session.
-      // This preserves Firebase auth (email login) because we return to
-      // the same browser, not a wallet in-app browser that has no access
-      // to the original session cookies/localStorage.
+      // Never relaunch from INSIDE a wallet's own in-app browser - if the
+      // provider isn't injected yet, relaunching just loops the page. The
+      // auto-connect poller is already waiting for injection; tell the
+      // player to give it a moment instead.
       if (this._arrivedInWalletBrowser) {
         this.eventBus.emit('wallet:error', {
           message: 'The wallet is still starting up. Wait a moment, then tap "Connect Wallet" again.'
         });
         throw new Error('Wallet provider not injected yet');
       }
-      const url = this._buildMobileConnectUrl('phantom');
-      this._debugLog(`connectPhantomMobile: navigating deep-link redirect`);
-      this._navigateToUniversalLink(url);
-      this._armMobileConnectFallback('Phantom');
-      return { deepLinked: true };
+      // Encrypted deep-link connect was tried and reverted (see prior
+      // history) - going straight to the known-working in-app-browser
+      // approach. Account sync for this flow is handled separately via
+      // pendingLinkCode (see main.js).
+      this.openInWalletBrowser('phantom');
+      return { openedInWalletBrowser: true };
     }
     window.open('https://phantom.app/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Phantom not installed.' });
@@ -904,19 +941,17 @@ class WalletManager {
       }
     }
     if (this.isMobile()) {
-      // Deep-link redirect flow: Solflare opens, user taps Connect,
-      // Solflare redirects back to the original browser with the session.
+      // Encrypted deep-link connect was tried and reverted - going
+      // straight to the known-working in-app-browser approach. Guarded so
+      // it can never fire from INSIDE a wallet in-app browser and loop.
       if (this._arrivedInWalletBrowser) {
         this.eventBus.emit('wallet:error', {
           message: 'The wallet is still starting up. Wait a moment, then tap "Connect Wallet" again.'
         });
         throw new Error('Wallet provider not injected yet');
       }
-      const url = this._buildMobileConnectUrl('solflare');
-      this._debugLog(`connectSolflareMobile: navigating deep-link redirect`);
-      this._navigateToUniversalLink(url);
-      this._armMobileConnectFallback('Solflare');
-      return { deepLinked: true };
+      this.openInWalletBrowser('solflare');
+      return { openedInWalletBrowser: true };
     }
     window.open('https://solflare.com/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Solflare wallet not installed.' });
