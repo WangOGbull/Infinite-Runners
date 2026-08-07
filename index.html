@@ -1699,6 +1699,57 @@
   .profileIconBtn:hover {
       background: rgba(201,164,78,0.15);
   }
+
+  /* ===== LOGIN DROP-DOWN BANNER ===== */
+  #loginDropBanner {
+    animation: loginDropIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+               loginDropHold 2.4s 0.6s linear forwards,
+               loginDropOut 0.4s 3s ease forwards;
+  }
+  @keyframes loginDropIn {
+    0% { opacity: 0; transform: translateX(-50%) translateY(-40px); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(12px); }
+  }
+  @keyframes loginDropHold {
+    0%, 100% { opacity: 1; transform: translateX(-50%) translateY(12px); }
+  }
+  @keyframes loginDropOut {
+    0% { opacity: 1; transform: translateX(-50%) translateY(12px); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  }
+  .loginDropInner {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 24px;
+    background: linear-gradient(180deg, rgba(20,16,8,0.92), rgba(10,8,5,0.95));
+    border: 1px solid rgba(212,175,55,0.45);
+    border-radius: 999px;
+    box-shadow: 0 0 24px rgba(212,175,55,0.12), inset 0 0 30px rgba(0,0,0,0.6);
+  }
+  .loginDropSymbol {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 20px;
+    color: #00b4d8;
+    text-shadow: 0 0 12px rgba(0,180,216,0.6);
+    line-height: 1;
+  }
+  .loginDropName {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #f7e3b0;
+    text-shadow: 0 0 14px rgba(201,168,76,0.5);
+    letter-spacing: 1px;
+  }
+  .loginDropLabel {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: #c8ccd8;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
   .profileIconTL { top: 16px; left: 16px; }
   .profileIconTR { position: static; margin-left: auto; }
 
@@ -1989,9 +2040,11 @@
     <h2>^Dragons Arena^</h2>
     <h3>Chronicles of the Void</h3>
     <p class="subtitle">^ Free to Play ^</p>
-    <div id="playerWelcomeBanner" style="display:none; margin:6px 0 16px; text-align:center;">
-      <div style="font-family:'Cinzel Decorative', serif; font-size:clamp(16px, 4vw, 22px); color:#f7e3b0; text-shadow:0 0 20px rgba(201,168,76,0.5), 0 2px 4px rgba(0,0,0,0.8); letter-spacing:2px;">
-        <span id="playerNameDisplay">Player</span> <span style="font-family:'Rajdhani',sans-serif; font-size:13px; color:#c8ccd8; letter-spacing:1px; text-transform:uppercase;">Login</span> <i class="fa-solid fa-dragon" style="color:#c9a44e; margin-left:4px;"></i>
+    <div id="loginDropBanner" style="display:none; position:absolute; top:0; left:50%; transform:translateX(-50%); z-index:100; text-align:center; pointer-events:none;">
+      <div class="loginDropInner">
+        <span class="loginDropSymbol">&#8734;</span>
+        <span id="loginDropName" class="loginDropName">Player</span>
+        <span class="loginDropLabel">Logged-in</span>
       </div>
     </div>
     <button class="playBtn" id="btnPlayNow"><i data-lucide="play"></i> PLAY NOW</button>
