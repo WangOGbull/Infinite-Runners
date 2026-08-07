@@ -240,11 +240,11 @@ class WalletManager {
   // real <a> click instead fixes this without touching URL-building or
   // encryption logic, which was already correct.
   _navigateToUniversalLink(url) {
-    // Use direct top-level navigation instead of anchor click.
-    // The anchor+target=_self trick was still opening a new tab on some
-    // Android browsers. window.location.replace() is a true same-tab
-    // navigation that the OS reliably intercepts for Universal Links.
-    window.location.replace(url);
+    // Use window.location.href for same-tab navigation.
+    // window.location.replace() was not triggering OS app interception
+    // reliably on Android - the wallet would flash open and bounce back
+    // to a new tab instead of staying in the wallet for approval.
+    window.location.href = url;
   }
 
   // If a mobile deep link actually opens the wallet app, this tab gets
@@ -457,10 +457,16 @@ class WalletManager {
 
   _buildMobileConnectUrl(walletType = 'phantom') {
     const keyPair = this._getOrCreateDappKeyPair();
+    // Save key pair to localStorage BEFORE redirecting - we'll retrieve it
+    // when the wallet sends the user back. Don't put the secret key in the
+    // redirect URL - it makes the URL too long and some wallets reject it.
+    this._saveMobileKeyPair(keyPair);
     const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
-    const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
-    const redirectUrl = encodeURIComponent(`${redirectBase}?walletReturn=connect&dsk=${dsk}&walletType=${walletType}`);
+    // Build clean redirect URL - wallet will append data + nonce params
+    let redirectUrlRaw = `${redirectBase}?walletReturn=connect&walletType=${walletType}`;
+    if (this.pendingLinkCode) redirectUrlRaw += `&linkCode=${encodeURIComponent(this.pendingLinkCode)}`;
+    const redirectUrl = encodeURIComponent(redirectUrlRaw);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const base = walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/connect'
@@ -653,8 +659,8 @@ class WalletManager {
           this._debugLog('No mobile key pair found to decrypt wallet response');
           return;
         }
-        const data = base58.decode(dataB64);
-        const nonce = base58.decode(nonceB64);
+        const data = bs58.decode(dataB64);
+        const nonce = bs58.decode(nonceB64);
         const walletPubKey = this._getWalletPublicKey();
         if (!walletPubKey) {
           this._debugLog('No wallet public key available for decryption');
