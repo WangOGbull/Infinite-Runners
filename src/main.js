@@ -77,6 +77,17 @@ class BootLoader {
     this.hideNetWarning();
   }
 
+  // Call this the moment actual asset fetching begins (not at construction
+  // time) - BootLoader gets created before Firebase setup, wallet redirect
+  // handling, and the login-gate decision run, all of which take real time
+  // before a single image request even fires. Without this, that setup
+  // time was silently eating into the 10s stall grace period, so a
+  // perfectly healthy connection could trip the "weak network" warning
+  // before loading had genuinely had a fair chance to prove itself.
+  startWatchdog() {
+    this.lastTick = Date.now();
+  }
+
   showNetWarning() {
     if (this.netBox) this.netBox.classList.add('show');
   }
@@ -300,6 +311,7 @@ class Game {
   async loadGameAssets() {
     if (this._assetsLoadStarted) return;
     this._assetsLoadStarted = true;
+    this.bootLoader.startWatchdog();
     const run = async () => {
       await AssetLoader.preloadAll(
         (done, total) => this.bootLoader.setProgress(done, total),
@@ -583,6 +595,13 @@ class Game {
           }
           this.db.ref('walletLinkRequests/' + linkCode).remove().catch(() => {});
         }).catch(() => {});
+        // This connection happened inside the isolated Solflare/Phantom
+        // browser (that's the only place a linkCode ever arrives from) -
+        // show the plain "you're done here, go back" screen instead of
+        // letting it fall through to the normal title screen, which has
+        // no account session of its own and would confusingly show login
+        // prompts right after the player just successfully connected.
+        this.uiManager.showScreen('walletSyncedScreen');
         return;
       }
       if (this.isGuest || !this.authUid) return;
