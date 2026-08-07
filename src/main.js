@@ -240,15 +240,16 @@ class Game {
       // what caused the permanent "Entering the Arena..." freeze.
       let urlHasWalletReturn = false;
       try {
+        // walletReturn (encrypted deep-link redirect) is still safe to read
+        // from the URL directly - nothing strips it this early. But
+        // autoConnectWallet is NOT: WalletManager's constructor (which runs
+        // before this, in Game's own constructor) already stripped it via
+        // history.replaceState inside _checkAutoConnectQueryParam(), so by
+        // the time this code runs the URL no longer has it - reading the
+        // URL for it here always returns false. Check the property that
+        // survives that stripping instead.
         const params = new URLSearchParams(window.location.search);
-        // Both wallet-flow entry points must skip the login gate:
-        // walletReturn (encrypted deep-link redirect) and autoConnectWallet
-        // (the in-app-browser relaunch used by openInWalletBrowser). Missing
-        // the second one meant arriving inside Solflare/Phantom's own
-        // browser re-ran the FULL login check in a session that was never
-        // logged in to begin with - wasting time (or hitting the documented
-        // auth-domain-blocking issue) before asset loading even started.
-        urlHasWalletReturn = !!(params.get('walletReturn') || params.get('autoConnectWallet'));
+        urlHasWalletReturn = !!(params.get('walletReturn') || this.walletManager._arrivedInWalletBrowser);
       } catch (_) { /* ignore */ }
 
       if (urlHasWalletReturn) {
