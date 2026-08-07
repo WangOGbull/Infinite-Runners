@@ -275,17 +275,15 @@ class Game {
         }, 6000);
         // Time-critical redirect-resume flow - load assets right away
         // rather than waiting on a login decision.
-        this.loadGameAssets();
+        await this.loadGameAssets();
       } else {
-        // Normal boot (no wallet redirect in flight): route through login/
-        // guest/username first. Asset preloading (and its boot-loader
-        // progress UI) is deliberately NOT started here - it only begins
-        // once enterMainMenu() actually runs, so the player sees login
-        // immediately instead of staring at "Summoning dragons..." first.
-        this.determineStartScreen().then(screen => {
-          if (screen === 'titleScreen') this.enterMainMenu();
-          else this.uiManager.showScreen(screen);
-        });
+        // NORMAL BOOT: Load assets FIRST with progress bar, then route.
+        // New players see login after loading. Returning players auto-login
+        // and land on the title screen with their username displayed.
+        await this.loadGameAssets();
+        const screen = await this.determineStartScreen();
+        if (screen === 'titleScreen') this.enterMainMenu();
+        else this.uiManager.showScreen(screen);
       }
       // REMOVED: the "Resume Room" banner that used to appear here when a
       // lastRoomInfo entry existed. It was a workaround for Android
@@ -312,22 +310,22 @@ class Game {
     if (this._assetsLoadStarted) return;
     this._assetsLoadStarted = true;
     this.bootLoader.startWatchdog();
-    const run = async () => {
-      await AssetLoader.preloadAll(
-        (done, total) => this.bootLoader.setProgress(done, total),
-        bootExtraImages()
-      );
-      await this.arenaManager.preloadAll();
-      this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
-      this.assetsLoaded = true;
-      console.log('[Assets] All dragon and arena assets loaded successfully');
-      this.bootLoader.finish();
-    };
-    try {
-      await run();
-    } catch (e) {
-      console.error('Asset load failed:', e);
-      this.bootLoader.fail(run);
+    while (true) {
+      try {
+        await AssetLoader.preloadAll(
+          (done, total) => this.bootLoader.setProgress(done, total),
+          bootExtraImages()
+        );
+        await this.arenaManager.preloadAll();
+        this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
+        this.assetsLoaded = true;
+        console.log('[Assets] All dragon and arena assets loaded successfully');
+        this.bootLoader.finish();
+        return;
+      } catch (e) {
+        console.error('Asset load failed:', e);
+        await new Promise(resolve => this.bootLoader.fail(resolve));
+      }
     }
   }
 
@@ -337,6 +335,7 @@ class Game {
   enterMainMenu() {
     this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showScreen('titleScreen');
+    this.uiManager.showPlayerWelcome(this.username, this.isGuest);
     this.loadGameAssets();
   }
 
@@ -489,6 +488,8 @@ class Game {
       const result = await this.auth.createUserWithEmailAndPassword(email, password);
       this.authUid = result.user.uid;
       this.isGuest = false;
+      // Send email verification immediately after account creation
+      await result.user.sendEmailVerification();
       // Claim the username right here as part of signup - the account now
       // exists either way, so on failure (name taken/invalid) fall back to
       // the dedicated username screen to retry rather than losing the flow.
