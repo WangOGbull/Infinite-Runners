@@ -338,7 +338,7 @@ class Game {
   enterMainMenu() {
     this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showScreen('titleScreen');
-    this.uiManager.showPlayerWelcome(this.username, this.isGuest);
+    this.uiManager.showLoginDrop(this.username, this.isGuest);
     // If wallet connected while auth was still resolving, link it now
     if (this._pendingWalletLink && this.authUid && this.db) {
       const { address, linkCode } = this._pendingWalletLink;
