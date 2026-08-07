@@ -198,6 +198,9 @@ class Game {
     this.lobbyTier = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
 
+    // Wallet link that arrived before Firebase auth restored (mobile redirect)
+    this._pendingWalletLink = null;
+
     this.localPlayerId = null;
     this.playerIds = [];
     this.roomPlayers = {};
@@ -336,6 +339,22 @@ class Game {
     this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showScreen('titleScreen');
     this.uiManager.showPlayerWelcome(this.username, this.isGuest);
+    // If wallet connected while auth was still resolving, link it now
+    if (this._pendingWalletLink && this.authUid && this.db) {
+      const { address, linkCode } = this._pendingWalletLink;
+      this._pendingWalletLink = null;
+      if (linkCode) {
+        this.db.ref('walletLinkRequests/' + linkCode).once('value').then((snap) => {
+          const req = snap.val();
+          if (req && req.uid) {
+            this.db.ref('users/' + req.uid + '/walletAddress').set(address).catch(() => {});
+          }
+          this.db.ref('walletLinkRequests/' + linkCode).remove().catch(() => {});
+        }).catch(() => {});
+      } else {
+        this.db.ref('users/' + this.authUid + '/walletAddress').set(address).catch(() => {});
+      }
+    }
     this.loadGameAssets();
   }
 
@@ -422,6 +441,24 @@ class Game {
         if (user) {
           this.authUid = user.uid;
           this.isGuest = false;
+          // Process any wallet link that arrived BEFORE auth restored
+          // (mobile wallet redirect back to browser before Firebase session
+          // was ready). Link the wallet to this account immediately.
+          if (this._pendingWalletLink) {
+            const { address, linkCode } = this._pendingWalletLink;
+            this._pendingWalletLink = null;
+            if (linkCode) {
+              this.db.ref('walletLinkRequests/' + linkCode).once('value').then((snap) => {
+                const req = snap.val();
+                if (req && req.uid) {
+                  this.db.ref('users/' + req.uid + '/walletAddress').set(address).catch(() => {});
+                }
+                this.db.ref('walletLinkRequests/' + linkCode).remove().catch(() => {});
+              }).catch(() => {});
+            } else {
+              this.db.ref('users/' + this.authUid + '/walletAddress').set(address).catch(() => {});
+            }
+          }
           this.db.ref('users/' + user.uid + '/username').once('value')
             .then((snap) => {
               if (snap.exists()) {
@@ -612,6 +649,14 @@ class Game {
     // of its own, in which case linkCode says whose account it belongs to.
     this.eventBus.on('wallet:connected', ({ address, linkCode }) => {
       if (!this.db || !address) return;
+      // If auth hasn't restored yet (e.g. fresh page load after mobile wallet
+      // redirect), queue the wallet link. Once Firebase auth fires in
+      // determineStartScreen(), we'll process it and link the wallet to the
+      // correct account automatically.
+      if (!this.authUid) {
+        this._pendingWalletLink = { address, linkCode };
+        return;
+      }
       if (linkCode) {
         this.db.ref('walletLinkRequests/' + linkCode).once('value').then((snap) => {
           const req = snap.val();
