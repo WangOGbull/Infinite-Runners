@@ -1750,6 +1750,37 @@
     letter-spacing: 2px;
     text-transform: uppercase;
   }
+
+  /* ===== PASSWORD TOGGLE ===== */
+  .authPasswordWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .authPasswordWrap input {
+    width: 100%;
+    padding-right: 44px;
+  }
+  .authTogglePassword {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #8f8060;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 6px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .authTogglePassword:hover {
+    color: #c9a44e;
+  }
   .profileIconTL { top: 16px; left: 16px; }
   .profileIconTR { position: static; margin-left: auto; }
 
@@ -2077,7 +2108,10 @@
     <form id="authForm" class="authForm">
       <input type="text" id="authUsername" placeholder="Username" maxlength="20" style="display:none;">
       <input type="email" id="authEmail" placeholder="Email" autocomplete="email" required>
+      <div class="authPasswordWrap">
       <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" required>
+      <button type="button" id="btnTogglePassword" class="authTogglePassword"><i class="fa-solid fa-eye"></i></button>
+    </div>
       <div id="authError" class="authError"></div>
       <button type="submit" id="btnAuthSubmit" class="authSubmitBtn">Sign In</button>
     </form>
