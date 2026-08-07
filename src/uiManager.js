@@ -645,6 +645,17 @@ class UIManager {
     const btnContinueGuest = document.getElementById('btnContinueGuest');
     if (btnContinueGuest) btnContinueGuest.addEventListener('click', () => this.eventBus.emit('auth:continueAsGuest'));
 
+    // Password visibility toggle
+    const btnTogglePassword = document.getElementById('btnTogglePassword');
+    const authPassword = document.getElementById('authPassword');
+    if (btnTogglePassword && authPassword) {
+      btnTogglePassword.addEventListener('click', () => {
+        const isHidden = authPassword.type === 'password';
+        authPassword.type = isHidden ? 'text' : 'password';
+        btnTogglePassword.innerHTML = isHidden ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+      });
+    }
+
     const usernameForm = document.getElementById('usernameForm');
     if (usernameForm) usernameForm.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -1471,15 +1482,15 @@ class UIManager {
       banner.style.display = 'none';
       return;
     }
+    nameEl.textContent = username;
     // Reset animation by removing and re-adding the element
-    const parent = banner.parentNode;
-    const clone = banner.cloneNode(true);
-    clone.style.display = 'block';
-    clone.querySelector('#loginDropName').textContent = username;
-    parent.replaceChild(clone, banner);
-    // Auto-hide after animation completes (3.4s total: 0.6s drop + 2.4s hold + 0.4s fade)
+    banner.style.display = 'block';
+    banner.style.animation = 'none';
+    banner.offsetHeight; // force reflow
+    banner.style.animation = 'loginDropIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards, loginDropHold 2.4s 0.6s linear forwards, loginDropOut 0.4s 3s ease forwards';
+    // Auto-hide after animation completes (3.4s total)
     setTimeout(() => {
-      if (clone.parentNode) clone.style.display = 'none';
+      if (banner) banner.style.display = 'none';
     }, 3400);
   }
 
