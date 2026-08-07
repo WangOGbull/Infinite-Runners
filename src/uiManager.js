@@ -1463,16 +1463,24 @@ class UIManager {
     if (modal) modal.classList.remove('active');
   }
 
-  showPlayerWelcome(username, isGuest) {
-    const banner = document.getElementById('playerWelcomeBanner');
-    const nameEl = document.getElementById('playerNameDisplay');
+  showLoginDrop(username, isGuest) {
+    const banner = document.getElementById('loginDropBanner');
+    const nameEl = document.getElementById('loginDropName');
     if (!banner || !nameEl) return;
     if (isGuest || !username) {
       banner.style.display = 'none';
       return;
     }
-    nameEl.textContent = username;
-    banner.style.display = 'block';
+    // Reset animation by removing and re-adding the element
+    const parent = banner.parentNode;
+    const clone = banner.cloneNode(true);
+    clone.style.display = 'block';
+    clone.querySelector('#loginDropName').textContent = username;
+    parent.replaceChild(clone, banner);
+    // Auto-hide after animation completes (3.4s total: 0.6s drop + 2.4s hold + 0.4s fade)
+    setTimeout(() => {
+      if (clone.parentNode) clone.style.display = 'none';
+    }, 3400);
   }
 
   hideQuitConfirm() {
