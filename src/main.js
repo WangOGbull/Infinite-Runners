@@ -239,7 +239,17 @@ class Game {
       // nothing was ever going to transition it away. This is exactly
       // what caused the permanent "Entering the Arena..." freeze.
       let urlHasWalletReturn = false;
-      try { urlHasWalletReturn = !!new URLSearchParams(window.location.search).get('walletReturn'); } catch (_) { /* ignore */ }
+      try {
+        const params = new URLSearchParams(window.location.search);
+        // Both wallet-flow entry points must skip the login gate:
+        // walletReturn (encrypted deep-link redirect) and autoConnectWallet
+        // (the in-app-browser relaunch used by openInWalletBrowser). Missing
+        // the second one meant arriving inside Solflare/Phantom's own
+        // browser re-ran the FULL login check in a session that was never
+        // logged in to begin with - wasting time (or hitting the documented
+        // auth-domain-blocking issue) before asset loading even started.
+        urlHasWalletReturn = !!(params.get('walletReturn') || params.get('autoConnectWallet'));
+      } catch (_) { /* ignore */ }
 
       if (urlHasWalletReturn) {
         this.uiManager.showScreen('loadingScreen');
