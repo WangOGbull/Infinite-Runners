@@ -440,6 +440,30 @@ class Game {
     });
   }
 
+  // Translates Firebase's raw auth error codes into something a player can
+  // actually act on. network-request-failed specifically means the request
+  // never reached Google's servers - the documented auth-domain-blocking
+  // issue this project has hit before, not a bug in this code to "fix".
+  _friendlyAuthError(e) {
+    const code = e && e.code;
+    if (code === 'auth/network-request-failed') {
+      return "Connection trouble reaching the login server. Try again in a moment, or tap Continue as Guest for now.";
+    }
+    if (code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      return 'Incorrect email or password.';
+    }
+    if (code === 'auth/email-already-in-use') {
+      return 'An account already exists with that email - try Sign In instead.';
+    }
+    if (code === 'auth/weak-password') {
+      return 'Password should be at least 6 characters.';
+    }
+    if (code === 'auth/invalid-email') {
+      return 'That email address doesn\'t look right.';
+    }
+    return (e && e.message) || 'Something went wrong. Please try again.';
+  }
+
   async signInWithGoogle() {
     if (!this.auth) return { error: 'Login unavailable right now.' };
     try {
@@ -455,7 +479,7 @@ class Game {
       }
       return { success: true };
     } catch (e) {
-      return { error: e.message || 'Google sign-in failed.' };
+      return { error: this._friendlyAuthError(e) };
     }
   }
 
@@ -475,7 +499,7 @@ class Game {
       }
       return { success: true };
     } catch (e) {
-      return { error: e.message || 'Sign up failed.' };
+      return { error: this._friendlyAuthError(e) };
     }
   }
 
@@ -494,7 +518,7 @@ class Game {
       }
       return { success: true };
     } catch (e) {
-      return { error: e.message || 'Sign in failed.' };
+      return { error: this._friendlyAuthError(e) };
     }
   }
 
