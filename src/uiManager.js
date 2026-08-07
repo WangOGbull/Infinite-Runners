@@ -164,7 +164,7 @@ class UIManager {
       'bettingArenaScreen','lobbyScreen','loadingScreen','gameScreen',
       'gameOverScreen','howToPlayScreen','walletModal','walletSelectionModal',
       'mpGameOver','loadingOverlay','dragonDetailModal','tierCompleteScreen',
-      'loginScreen','usernameScreen'
+      'loginScreen','usernameScreen','walletSyncedScreen'
     ];
     ids.forEach(id => {
       const el = document.getElementById(id);
