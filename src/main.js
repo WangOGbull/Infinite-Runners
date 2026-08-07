@@ -483,7 +483,10 @@ class Game {
   _friendlyAuthError(e) {
     const code = e && e.code;
     if (code === 'auth/network-request-failed') {
-      return "Connection trouble reaching the login server. Tap Sign Up again to retry, or tap Continue as Guest for now.";
+      return "Connection trouble reaching the login server. Tap Sign Up / Sign In again to retry, or tap Continue as Guest for now.";
+    }
+    if (code === 'auth/operation-not-allowed') {
+      return "Google Sign-In is not enabled in Firebase Console. Please enable it in Authentication > Sign-in method > Google.";
     }
     if (code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
       return 'Incorrect email or password.';
@@ -537,6 +540,26 @@ class Game {
       }
       return { success: true };
     } catch (e) {
+      // Auto-retry once on network failure - Firebase Auth cold-start on
+      // new devices often needs a second attempt to establish the connection.
+      if (e && e.code === 'auth/network-request-failed') {
+        this.uiManager.showAuthError('Connection slow... retrying in 2 seconds');
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const result = await this.auth.createUserWithEmailAndPassword(email, password);
+          this.authUid = result.user.uid;
+          this.isGuest = false;
+          await result.user.sendEmailVerification();
+          const claim = await this.claimUsername(username);
+          if (claim.error) {
+            this.uiManager.showScreen('usernameScreen');
+            this.uiManager.showUsernameError(claim.error);
+          }
+          return { success: true };
+        } catch (e2) {
+          return { error: this._friendlyAuthError(e2) };
+        }
+      }
       return { error: this._friendlyAuthError(e) };
     }
   }
@@ -556,6 +579,26 @@ class Game {
       }
       return { success: true };
     } catch (e) {
+      // Auto-retry once on network failure
+      if (e && e.code === 'auth/network-request-failed') {
+        this.uiManager.showAuthError('Connection slow... retrying in 2 seconds');
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const result = await this.auth.signInWithEmailAndPassword(email, password);
+          this.authUid = result.user.uid;
+          this.isGuest = false;
+          const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
+          if (snap.exists()) {
+            this.username = snap.val();
+            this.enterMainMenu();
+          } else {
+            this.uiManager.showScreen('usernameScreen');
+          }
+          return { success: true };
+        } catch (e2) {
+          return { error: this._friendlyAuthError(e2) };
+        }
+      }
       return { error: this._friendlyAuthError(e) };
     }
   }
