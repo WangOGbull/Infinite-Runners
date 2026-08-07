@@ -1463,6 +1463,18 @@ class UIManager {
     if (modal) modal.classList.remove('active');
   }
 
+  showPlayerWelcome(username, isGuest) {
+    const banner = document.getElementById('playerWelcomeBanner');
+    const nameEl = document.getElementById('playerNameDisplay');
+    if (!banner || !nameEl) return;
+    if (isGuest || !username) {
+      banner.style.display = 'none';
+      return;
+    }
+    nameEl.textContent = username;
+    banner.style.display = 'block';
+  }
+
   hideQuitConfirm() {
     const dialog = this._quitConfirmDialog || document.getElementById('quitConfirmDialog');
     if (dialog) dialog.classList.remove('active');
