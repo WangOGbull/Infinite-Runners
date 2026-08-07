@@ -278,7 +278,7 @@ class Game {
         }, 6000);
         // Time-critical redirect-resume flow - load assets right away
         // rather than waiting on a login decision.
-        await this.loadGameAssets();
+        this.loadGameAssets();
       } else {
         // NORMAL BOOT: Load assets FIRST with progress bar, then route.
         // New players see login after loading. Returning players auto-login
@@ -483,7 +483,7 @@ class Game {
   _friendlyAuthError(e) {
     const code = e && e.code;
     if (code === 'auth/network-request-failed') {
-      return "Connection trouble reaching the login server. Try again in a moment, or tap Continue as Guest for now.";
+      return "Connection trouble reaching the login server. Tap Sign Up again to retry, or tap Continue as Guest for now.";
     }
     if (code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
       return 'Incorrect email or password.';
