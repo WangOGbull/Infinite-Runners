@@ -191,7 +191,7 @@ class WalletManager {
     if (this.pendingResumeRoom) currentUrl.searchParams.set('resumeRoom', this.pendingResumeRoom);
     const browseUrl = this._buildBrowseUrl(walletType, currentUrl.toString());
     this._debugLog(`openInWalletBrowser: relaunching inside ${walletType}'s browser (handoff=${this.pendingHandoffCode ? 'yes' : 'no'} room=${this.pendingResumeRoom || 'none'})`);
-    this._navigateToWalletBrowser(browseUrl);
+    this._navigateTopLevel(browseUrl);
   }
 
   // Runs once on every page load. If we just arrived here via
@@ -277,24 +277,17 @@ class WalletManager {
   // than a committed one. Routing every mobile wallet deep link through a
   // real <a> click instead fixes this without touching URL-building or
   // encryption logic, which was already correct.
-  // BROWSE deeplinks specifically. A "browse" link is MEANT to hand the
-  // player over to the wallet app's own in-app browser - leaving this page
-  // is the entire point of it, unlike the encrypted /ul/v1 links below
-  // which are supposed to bounce back.
+  // Used for BOTH the browse deeplink (which hands the player over to the
+  // wallet's in-app browser) and the encrypted /ul/v1 connect deeplink
+  // (which opens the wallet app and bounces back here). Both are universal
+  // links, and both need a real top-level, user-gesture navigation.
   //
-  // FIX: this used to route through _navigateToUniversalLink(), which loads
-  // the URL in a HIDDEN IFRAME. That technique is an old one and modern
-  // iOS Safari and Android Chrome both block cross-origin iframe
-  // navigations to custom schemes and universal links unless they're a
-  // top-level, user-initiated navigation. The result was a tap that
-  // appeared to do nothing at all. That function's own comment also claims
-  // it "keeps the current browser tab on the game page", which is correct
-  // for an encrypted connect round-trip but is the exact OPPOSITE of what a
-  // browse link needs to do.
-  //
-  // A real top-level navigation inside the click's user-gesture window is
-  // what the OS actually honours.
-  _navigateToWalletBrowser(url) {
+  // FIX: these used to route through _navigateToUniversalLink(), which
+  // loads the URL in a HIDDEN IFRAME. Modern iOS Safari and Android Chrome
+  // both block cross-origin iframe navigations to universal links unless
+  // they are top-level and user-initiated, so the tap frequently did
+  // nothing at all.
+  _navigateTopLevel(url) {
     try {
       window.location.href = url;
     } catch (_) {
@@ -856,12 +849,29 @@ class WalletManager {
         });
         throw new Error('Wallet provider not injected yet');
       }
-      // Encrypted deep-link connect was tried and reverted (see prior
-      // history) - going straight to the known-working in-app-browser
-      // approach. Account sync for this flow is handled separately via
-      // pendingLinkCode (see main.js).
-      this.openInWalletBrowser('phantom');
-      return { openedInWalletBrowser: true };
+      // ENCRYPTED DEEPLINK, not a browse link. This opens the Phantom APP,
+      // shows its native Connect / Cancel sheet, and then returns the
+      // player to THIS Chrome/Safari tab with the result appended to the
+      // redirect URL. The game never loads inside Phantom's browser.
+      //
+      // The redirect is driven entirely by Phantom, only after the player
+      // approves: on Connect it appends phantom_encryption_public_key,
+      // nonce, and data; on Cancel it appends errorCode instead. There is
+      // no path where we come back holding a decryptable payload without a
+      // real approval, and _handleMobileRedirect() only marks the wallet
+      // connected once that payload actually decrypts.
+      //
+      // Staking is deliberately NOT handled this way - handleDeposit() in
+      // main.js hands the player into the wallet's in-app browser for the
+      // signature, because per-transaction deeplink round-trips are where
+      // this flow gets fragile with real money involved.
+      this.connecting = true;
+      this.eventBus.emit('wallet:connecting', { wallet: 'phantom' });
+      const url = this._buildMobileConnectUrl('phantom');
+      this._debugLog('connect: encrypted deeplink to Phantom (staying in this browser)');
+      this._navigateTopLevel(url);
+      this._armMobileConnectFallback('Phantom');
+      return { deepLinked: true };
     }
     window.open('https://phantom.app/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Phantom not installed.' });
@@ -977,17 +987,26 @@ class WalletManager {
       }
     }
     if (this.isMobile()) {
-      // Encrypted deep-link connect was tried and reverted - going
-      // straight to the known-working in-app-browser approach. Guarded so
-      // it can never fire from INSIDE a wallet in-app browser and loop.
+      // Guarded so it can never fire from INSIDE a wallet in-app browser
+      // and loop the page.
       if (this._arrivedInWalletBrowser) {
         this.eventBus.emit('wallet:error', {
           message: 'The wallet is still starting up. Wait a moment, then tap "Connect Wallet" again.'
         });
         throw new Error('Wallet provider not injected yet');
       }
-      this.openInWalletBrowser('solflare');
-      return { openedInWalletBrowser: true };
+      // ENCRYPTED DEEPLINK - same reasoning as the Phantom path in
+      // connect(). Solflare implements the same /ul/v1 protocol, so the
+      // player sees Solflare's native approval sheet and is returned to
+      // this tab afterwards. The game never loads inside Solflare's
+      // in-app browser for a plain connect.
+      this.connecting = true;
+      this.eventBus.emit('wallet:connecting', { wallet: 'solflare' });
+      const url = this._buildMobileConnectUrl('solflare');
+      this._debugLog('connectSolflare: encrypted deeplink (staying in this browser)');
+      this._navigateTopLevel(url);
+      this._armMobileConnectFallback('Solflare');
+      return { deepLinked: true };
     }
     window.open('https://solflare.com/', '_blank');
     this.eventBus.emit('wallet:error', { message: 'Solflare wallet not installed.' });
@@ -1111,7 +1130,7 @@ class WalletManager {
     // matching the connected walletType.
     const signProvider = this._activeProvider();
     if (this.isMobile() && !signProvider) {
-      this._navigateToUniversalLink(this._buildMobileSignMessageUrl(encoded));
+      this._navigateTopLevel(this._buildMobileSignMessageUrl(encoded));
       return { deepLinked: true };
     }
     if (!signProvider) throw new Error('Wallet not connected.');
@@ -1131,7 +1150,7 @@ class WalletManager {
     }
     if (this.isMobile()) {
       const serialized = transaction.serialize({ requireAllSignatures: false });
-      this._navigateToUniversalLink(this._buildMobileSignTransactionUrl(serialized, pendingAction));
+      this._navigateTopLevel(this._buildMobileSignTransactionUrl(serialized, pendingAction));
       return { deepLinked: true };
     }
     throw new Error('No wallet provider available.');
