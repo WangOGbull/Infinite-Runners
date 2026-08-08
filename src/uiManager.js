@@ -861,6 +861,18 @@ class UIManager {
     if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
     const wOpt = document.getElementById('wOptPhantom');
     if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
+    // The second tile in this modal used to be Jupiter, which had NO click
+    // handler at all - it rendered but did nothing when tapped. It is now
+    // Solflare, wired to the same path as the walletSelectionModal's
+    // Solflare button so both entry points behave identically.
+    const wOptSolflare = document.getElementById('wOptSolflare');
+    if (wOptSolflare) {
+      wOptSolflare.addEventListener('click', () => {
+        this.eventBus.emit('wallet:selectSolflare');
+        const wm = window.game?.walletManager;
+        if (wm) wm.connectSolflare();
+      });
+    }
     document.addEventListener('click', (e) => { if (e.target.closest('#btnWalletDisconnect')) this.eventBus.emit('wallet:disconnectRequest'); });
     const signTest = document.getElementById('btnWalletSignTest');
     if (signTest) signTest.addEventListener('click', () => {
