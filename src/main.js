@@ -8,9 +8,9 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=45';
+import UIManager from './uiManager.js?v=48';
 import EffectsSystem from './effectsSystem.js';
-import WalletManager from './walletManager.js?v=45';
+import WalletManager from './walletManager.js?v=48';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -346,20 +346,27 @@ class Game {
         // Time-critical redirect-resume flow - load assets right away
         // rather than waiting on a login decision.
         this.loadGameAssets().then(() => {
-          // Assets finishing can leave the loading screen up. If a room was
-          // restored at any point during the load, land the player in it
-          // rather than on a dead loader or the title screen.
-          if (this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
-            this.uiManager.showScreen('lobbyScreen');
+          // NEVER touch the screen or room state while a staking resume is
+          // still running. _resumeStakingAction() rejoins the room and then
+          // awaits _verifyTxLanded(), which polls for up to ~9s BEFORE it
+          // calls _markDeposited(). Calling enterMainMenu() (which kicks
+          // off another loadGameAssets()) or _autoResumeLastRoom() (which
+          // calls _rejoinRoom()) underneath it trampled that sequence, and
+          // the deposit never got written to Firebase - the stake appeared
+          // to fail silently even though the tokens had already moved
+          // on-chain. The staking resume owns this window.
+          if (this._stakingResumeInFlight) return;
+          if (this.roomRef) {
+            if (this.uiManager.currentScreen === 'loadingScreen') {
+              this.uiManager.showScreen('lobbyScreen');
+            }
             return;
           }
-          if (!this.roomRef) {
-            // The redirect payload didn't carry us back into the room -
-            // Android dropped it, or it landed in a fresh tab. Fall back to
-            // the durable last-room record and rejoin by room code.
-            this.enterMainMenu();
-            this._autoResumeLastRoom();
-          }
+          // Only reached when there was no staking resume at all - i.e.
+          // Android dropped the redirect payload. Fall back to the durable
+          // last-room record and rejoin by room code.
+          this.enterMainMenu();
+          this._autoResumeLastRoom();
         });
       } else {
         // NORMAL BOOT: Load assets FIRST with progress bar, then route.
@@ -626,10 +633,21 @@ class Game {
   // The countdown is reassurance, not a wait: we jump the moment Firebase
   // confirms the room exists, which is normally well under a second.
   async _autoResumeLastRoom() {
-    if (this.roomRef) return;              // staking resume already got us in
-    if (!this.db) return;
+    // Every exit below is now VISIBLE. This function previously returned
+    // silently in three separate cases, which made "nothing happened at
+    // all" indistinguishable from "it tried and failed" - and left no way
+    // to tell them apart without a console. On a phone, that's useless.
+    if (this.roomRef) return;              // already in a room - nothing to do, correctly silent
+    const showFail = (m) => {
+      if (this.uiManager.showResumeFailed) this.uiManager.showResumeFailed(m);
+      console.warn('[Resume]', m);
+    };
+    if (!this.db) { showFail('Resume unavailable: no database connection.'); return; }
     const ctx = this._getLastRoom();
-    if (!ctx || !ctx.roomCode) return;
+    if (!ctx || !ctx.roomCode) {
+      showFail('No saved room to resume.');
+      return;
+    }
 
     const RESUME_LIMIT_MS = 5000;
     let finished = false;
@@ -673,6 +691,11 @@ class Game {
       // they were - including their existing seat, not a new one.
       this._rejoinRoom(ctx);
       if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
+      // Same straggler protection as the staking resume: if a late async
+      // boot step calls showScreen() after we've landed, put the player
+      // back where they belong.
+      setTimeout(() => this._assertLobbyScreen(), 400);
+      setTimeout(() => this._assertLobbyScreen(), 1200);
       console.log('[Resume] rejoined room', ctx.roomCode);
     } catch (err) {
       stop();
@@ -680,6 +703,19 @@ class Game {
         this.uiManager.showResumeFailed('Could not rejoin your room. Tap Play to continue.');
       }
       console.warn('[Resume] failed:', err?.message || err);
+    }
+  }
+
+  // Puts the player back on the lobby screen IF they genuinely belong in a
+  // room and a boot-time screen (loading or title) is currently showing.
+  // Never overrides an in-progress match, a settlement screen, or any other
+  // deliberate navigation - only the two screens boot can leave behind.
+  _assertLobbyScreen() {
+    if (!this.roomRef) return;
+    const cur = this.uiManager.currentScreen;
+    if (cur === 'loadingScreen' || cur === 'titleScreen') {
+      this.uiManager.showScreen('lobbyScreen');
+      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
     }
   }
 
@@ -1843,6 +1879,21 @@ class Game {
       return await this._resumeStakingActionInner(pendingAction, signature);
     } finally {
       this._stakingResumeInFlight = false;
+      // The resume owns the screen for its whole duration, so it is also
+      // responsible for landing the player somewhere sensible at the end.
+      //
+      // This deliberately corrects the TITLE screen as well as the loading
+      // screen. "Lobby flashes, then title screen" happens when some other
+      // async boot step resolves late and calls showScreen() after
+      // _rejoinRoom() already put the player in the lobby. Since we know a
+      // room is genuinely restored here, the lobby is the correct screen
+      // and anything that moved off it was wrong.
+      this._assertLobbyScreen();
+      // Re-assert once shortly after, to beat any straggler that resolves a
+      // few hundred ms later (asset loads, auth callbacks). Cheap, and it
+      // closes the race without having to hunt down every late caller.
+      setTimeout(() => this._assertLobbyScreen(), 400);
+      setTimeout(() => this._assertLobbyScreen(), 1200);
     }
   }
 
@@ -1966,6 +2017,13 @@ class Game {
       return;
     }
     this.eventBus.emit('staking:pending', { label: 'Forging your stake into the arena…' });
+    // Belt and braces before ANY wallet hand-off: the deeplink is about to
+    // navigate this tab away, and the return may land in a brand new tab
+    // with nothing but localStorage to go on. _persistLastRoom() is the
+    // record _autoResumeLastRoom() reads to get the player back into this
+    // exact room, so write it here rather than relying on it having been
+    // written earlier in the room's life.
+    this._persistLastRoom();
     try {
       if (this.isHost) {
         if (!this.lobbyTier) {
