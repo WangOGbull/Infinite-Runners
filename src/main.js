@@ -256,6 +256,10 @@ class Game {
     // Awaited deliberately. A ~200-400ms round trip here is far cheaper
     // than a duplicated seat in a room with real money staked in it.
     this._handoffResumeRoom = await this._redeemAuthHandoff();
+    this.walletManager._debugLog(
+      `handoff: code=${this.walletManager._arrivedHandoffCode ? 'present' : 'none'} ` +
+      `uid=${this.authUid ? 'restored' : 'MISSING'} room=${this._handoffResumeRoom || 'none'}`
+    );
 
     this.walletManager.processMobileRedirect();
 
@@ -285,7 +289,36 @@ class Game {
         urlHasWalletReturn = !!(params.get('walletReturn') || this.walletManager._arrivedInWalletBrowser);
       } catch (_) { /* ignore */ }
 
-      if (urlHasWalletReturn) {
+      if (this.walletManager._arrivedInWalletBrowser) {
+        // ARRIVED INSIDE A WALLET'S IN-APP BROWSER (Place Bet handoff).
+        //
+        // This is NOT the same situation as an encrypted-redirect resume
+        // below, and it must not share that path: this is a cold boot in a
+        // brand new browser, so assets genuinely have to load, and the
+        // session was just restored from a handoff code. Routing it through
+        // determineStartScreen() would show the LOGIN screen, because that
+        // function's onAuthStateChanged callback can resolve before
+        // signInWithCustomToken() has propagated - the player would be
+        // asked to log in again with a stake sitting open, which is exactly
+        // what this whole handoff exists to prevent.
+        this.uiManager.showScreen('loadingScreen');
+        await this.loadGameAssets();
+        if (this.authUid && this._handoffResumeRoom) {
+          this.enterMainMenu();
+          this._beginRoomResume(this._handoffResumeRoom);
+        } else if (this.authUid) {
+          // Session restored but no room named - land on the title screen
+          // signed in rather than at a login prompt.
+          this.enterMainMenu();
+        } else {
+          // Handoff genuinely failed (backend unreachable, code expired, or
+          // the player was a guest). Fall back to the normal decision so
+          // they can log in rather than being stranded on a loader.
+          const screen = await this.determineStartScreen();
+          if (screen === 'titleScreen') this.enterMainMenu();
+          else this.uiManager.showScreen(screen);
+        }
+      } else if (urlHasWalletReturn) {
         this.uiManager.showScreen('loadingScreen');
         // Safety net: even if a redirect IS genuinely in flight, don't ever
         // strand the user here forever if restoration fails silently for
