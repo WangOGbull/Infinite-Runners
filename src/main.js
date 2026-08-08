@@ -8,9 +8,9 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=43';
+import UIManager from './uiManager.js?v=44';
 import EffectsSystem from './effectsSystem.js';
-import WalletManager from './walletManager.js?v=43';
+import WalletManager from './walletManager.js?v=44';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -319,7 +319,16 @@ class Game {
           else this.uiManager.showScreen(screen);
         }
       } else if (urlHasWalletReturn) {
-        this.uiManager.showScreen('loadingScreen');
+        // processMobileRedirect() above runs BEFORE this branch, and its
+        // staking resume path calls _rejoinRoom() SYNCHRONOUSLY - which
+        // already puts the player back on the lobby screen. Blindly showing
+        // the loading screen here would overwrite that lobby a fraction of
+        // a second after it appeared, which is exactly the "redirected back
+        // but landed on the title screen" symptom: the room was restored
+        // correctly (the stake even marked STAKED in Firebase), but the
+        // screen got taken away from underneath it.
+        const alreadyRestored = !!this.roomRef;
+        if (!alreadyRestored) this.uiManager.showScreen('loadingScreen');
         // Safety net: even if a redirect IS genuinely in flight, don't ever
         // strand the user here forever if restoration fails silently for
         // some future, unforeseen reason. Fall back to the title screen.
@@ -328,9 +337,7 @@ class Game {
           // still in flight. _resumeStakingAction() rejoins the room and
           // then awaits _verifyTxLanded(), which polls for up to ~9s - so
           // this 6s fallback could fire mid-verification and throw the
-          // player out of the very lobby they just staked into, with the
-          // room reference lost. That is what "lobby flashed, then title
-          // screen" was.
+          // player out of the very lobby they just staked into.
           if (this._stakingResumeInFlight) return;
           if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
             this.uiManager.showScreen('titleScreen');
@@ -338,7 +345,14 @@ class Game {
         }, 6000);
         // Time-critical redirect-resume flow - load assets right away
         // rather than waiting on a login decision.
-        this.loadGameAssets();
+        this.loadGameAssets().then(() => {
+          // Assets finishing can leave the loading screen up. If a room was
+          // restored at any point during the load, land the player in it
+          // rather than on a dead loader or the title screen.
+          if (this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
+            this.uiManager.showScreen('lobbyScreen');
+          }
+        });
       } else {
         // NORMAL BOOT: Load assets FIRST with progress bar, then route.
         // New players see login after loading. Returning players auto-login
