@@ -8,9 +8,9 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=44';
+import UIManager from './uiManager.js?v=45';
 import EffectsSystem from './effectsSystem.js';
-import WalletManager from './walletManager.js?v=44';
+import WalletManager from './walletManager.js?v=45';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -351,6 +351,14 @@ class Game {
           // rather than on a dead loader or the title screen.
           if (this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
             this.uiManager.showScreen('lobbyScreen');
+            return;
+          }
+          if (!this.roomRef) {
+            // The redirect payload didn't carry us back into the room -
+            // Android dropped it, or it landed in a fresh tab. Fall back to
+            // the durable last-room record and rejoin by room code.
+            this.enterMainMenu();
+            this._autoResumeLastRoom();
           }
         });
       } else {
@@ -368,8 +376,16 @@ class Game {
           this._beginRoomResume(this._handoffResumeRoom);
         } else {
           const screen = await this.determineStartScreen();
-          if (screen === 'titleScreen') this.enterMainMenu();
-          else this.uiManager.showScreen(screen);
+          if (screen === 'titleScreen') {
+            this.enterMainMenu();
+            // Covers the case where the wallet return produced no detectable
+            // redirect at all and boot looked completely ordinary - which is
+            // what a fresh Android tab looks like. If there's a live room on
+            // record, take the player back to it.
+            this._autoResumeLastRoom();
+          } else {
+            this.uiManager.showScreen(screen);
+          }
         }
       }
       // REMOVED: the "Resume Room" banner that used to appear here when a
@@ -593,6 +609,77 @@ class Game {
         .catch((err) => giveUp(err?.message || 'Rejoin failed.'));
     } catch (err) {
       giveUp(err?.message || 'Rejoin failed.');
+    }
+  }
+
+  // Auto-rejoins the room this player was last in, from the TITLE SCREEN,
+  // with a visible 5-second countdown.
+  //
+  // WHY THIS IS THE DURABLE PATH: it does not depend on the wallet redirect
+  // surviving at all. Android routinely opens the return in a NEW TAB and
+  // can drop the redirect payload entirely - both are OS-level behaviours
+  // JS cannot override. The staking resume (_resumeStakingAction) handles
+  // the good case where the redirect data DID survive; this handles every
+  // other case, including a brand new tab with nothing but localStorage,
+  // which is shared across all tabs on this origin.
+  //
+  // The countdown is reassurance, not a wait: we jump the moment Firebase
+  // confirms the room exists, which is normally well under a second.
+  async _autoResumeLastRoom() {
+    if (this.roomRef) return;              // staking resume already got us in
+    if (!this.db) return;
+    const ctx = this._getLastRoom();
+    if (!ctx || !ctx.roomCode) return;
+
+    const RESUME_LIMIT_MS = 5000;
+    let finished = false;
+    let remaining = Math.round(RESUME_LIMIT_MS / 1000);
+
+    if (this.uiManager.showResumeBanner) {
+      this.uiManager.showResumeBanner(ctx.roomCode, remaining);
+    }
+    const ticker = setInterval(() => {
+      remaining -= 1;
+      if (this.uiManager.updateResumeBanner) this.uiManager.updateResumeBanner(remaining);
+    }, 1000);
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      clearInterval(ticker);
+      if (this.uiManager.showResumeFailed) {
+        this.uiManager.showResumeFailed(`Couldn't rejoin room ${ctx.roomCode} in time. Tap Play to continue.`);
+      }
+    }, RESUME_LIMIT_MS);
+
+    const stop = () => { finished = true; clearTimeout(timer); clearInterval(ticker); };
+
+    try {
+      // Confirm the room is actually still there before restoring into it -
+      // rejoining a room that has been settled or abandoned would strand
+      // the player in a dead lobby.
+      const snap = await this.db.ref('rooms/' + ctx.roomCode).once('value');
+      if (finished) return;               // countdown already gave up
+      if (!snap.exists()) {
+        stop();
+        try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
+        if (this.uiManager.showResumeFailed) {
+          this.uiManager.showResumeFailed(`Room ${ctx.roomCode} is no longer available.`);
+        }
+        return;
+      }
+      stop();
+      // _rejoinRoom restores isHost / localPlayerId / tier from the saved
+      // context and shows the lobby, so the player lands back exactly where
+      // they were - including their existing seat, not a new one.
+      this._rejoinRoom(ctx);
+      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
+      console.log('[Resume] rejoined room', ctx.roomCode);
+    } catch (err) {
+      stop();
+      if (this.uiManager.showResumeFailed) {
+        this.uiManager.showResumeFailed('Could not rejoin your room. Tap Play to continue.');
+      }
+      console.warn('[Resume] failed:', err?.message || err);
     }
   }
 
