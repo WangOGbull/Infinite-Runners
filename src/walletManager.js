@@ -240,11 +240,22 @@ class WalletManager {
   // real <a> click instead fixes this without touching URL-building or
   // encryption logic, which was already correct.
   _navigateToUniversalLink(url) {
-    // Use window.location.href for same-tab navigation.
-    // The anchor+target=_self trick was still opening a new tab on some
-    // Android browsers. Direct location assignment is the only reliable way
-    // to trigger OS-level app interception for Universal Links.
-    window.location.href = url;
+    // Load the wallet deep link in a hidden iframe so the current browser
+    // tab (Chrome) stays on the game page. The OS intercepts the iframe's
+    // navigation and opens the wallet app separately. After the player taps
+    // Connect in the wallet, the wallet redirects back to Chrome's game
+    // tab — the game never leaves Chrome, never reloads in a wallet browser.
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    // Remove the iframe after a short delay so it doesn't linger in DOM
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 3000);
   }
 
   // If a mobile deep link actually opens the wallet app, this tab gets
@@ -457,23 +468,15 @@ class WalletManager {
 
   _buildMobileConnectUrl(walletType = 'phantom') {
     const keyPair = this._getOrCreateDappKeyPair();
-    // Save key pair to localStorage BEFORE redirecting - we'll retrieve it
-    // when the wallet sends the user back. Don't put the secret key in the
-    // redirect URL - it makes the URL too long and some wallets reject it.
-    this._saveMobileKeyPair(keyPair);
     const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
-    // Build clean redirect URL - wallet will append data + nonce params
-    let redirectUrlRaw = `${redirectBase}?walletReturn=connect&walletType=${walletType}`;
-    if (this.pendingLinkCode) redirectUrlRaw += `&linkCode=${encodeURIComponent(this.pendingLinkCode)}`;
-    const redirectUrl = encodeURIComponent(redirectUrlRaw);
+    const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
+    const redirectUrl = encodeURIComponent(`${redirectBase}?walletReturn=connect&dsk=${dsk}&walletType=${walletType}`);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
-    // Use native app scheme for mobile wallets - https:// Universal Links
-    // fall back to browser on many Android devices, breaking the flow.
     const base = walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/connect'
       : walletType === 'solflare'
-        ? 'solflare://ul/v1/connect'
+        ? 'https://solflare.com/ul/v1/connect'
         : 'https://phantom.app/ul/v1/connect';
     return `${base}?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrl}&cluster=${PHANTOM_CLUSTER}`;
   }
@@ -648,56 +651,6 @@ class WalletManager {
   }
 
   _notifyRestoredConnection() {
-    // On mobile redirect back from wallet, decrypt the response using the
-    // params we saved BEFORE cleaning the URL in _handleMobileRedirect().
-    const dataB64 = this._walletReturnData;
-    const nonceB64 = this._walletReturnNonce;
-    const linkCode = this._walletReturnLinkCode;
-    // Clear stored params so a refresh doesn't re-process them
-    this._walletReturnData = null;
-    this._walletReturnNonce = null;
-    this._walletReturnLinkCode = null;
-    if (dataB64 && nonceB64) {
-      try {
-        const keyPair = this._restoreMobileKeyPair();
-        if (!keyPair) {
-          this._debugLog('No mobile key pair found to decrypt wallet response');
-          return;
-        }
-        const data = bs58.decode(dataB64);
-        const nonce = bs58.decode(nonceB64);
-        const walletPubKey = this._getWalletPublicKey();
-        if (!walletPubKey) {
-          this._debugLog('No wallet public key available for decryption');
-          return;
-        }
-        const decrypted = nacl.box.open(data, nonce, walletPubKey, keyPair.secretKey);
-        if (!decrypted) {
-          this._debugLog('Failed to decrypt wallet response');
-          return;
-        }
-        const response = JSON.parse(new TextDecoder().decode(decrypted));
-        this._debugLog('Decrypted wallet response:', response);
-        if (response.public_key) {
-          this.publicKey = new PublicKey(response.public_key);
-          this.connected = true;
-          this._saveSession();
-          this._debugLog('Mobile session restored, emitting wallet:connected');
-          this.eventBus.emit('wallet:connected', {
-            address: this.publicKey,
-            walletType: this._walletType,
-            linkCode: linkCode || null
-          });
-          this._refreshBalance().then(() => {
-            this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
-          });
-          return;
-        }
-      } catch (e) {
-        this._debugLog('Error decrypting wallet response:', e);
-      }
-    }
-    // Fallback: if we already have a connected session (e.g. desktop extension)
     if (this.connected && this.publicKey) {
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
