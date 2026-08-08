@@ -8,9 +8,9 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=42';
+import UIManager from './uiManager.js?v=43';
 import EffectsSystem from './effectsSystem.js';
-import WalletManager from './walletManager.js?v=42';
+import WalletManager from './walletManager.js?v=43';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -324,6 +324,14 @@ class Game {
         // strand the user here forever if restoration fails silently for
         // some future, unforeseen reason. Fall back to the title screen.
         setTimeout(() => {
+          // Do NOT bounce to the title screen while a staking resume is
+          // still in flight. _resumeStakingAction() rejoins the room and
+          // then awaits _verifyTxLanded(), which polls for up to ~9s - so
+          // this 6s fallback could fire mid-verification and throw the
+          // player out of the very lobby they just staked into, with the
+          // room reference lost. That is what "lobby flashed, then title
+          // screen" was.
+          if (this._stakingResumeInFlight) return;
           if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
             this.uiManager.showScreen('titleScreen');
           }
@@ -1727,6 +1735,17 @@ class Game {
 
   async _resumeStakingAction(pendingAction, signature) {
     if (!pendingAction) return;
+    // Held for the whole resume so the boot-time fallback timer can't
+    // yank the screen away mid-verification (see init()).
+    this._stakingResumeInFlight = true;
+    try {
+      return await this._resumeStakingActionInner(pendingAction, signature);
+    } finally {
+      this._stakingResumeInFlight = false;
+    }
+  }
+
+  async _resumeStakingActionInner(pendingAction, signature) {
     if (!this.roomRef) {
       const ctx = this._consumeLobbyContext();
       if (ctx && this.db) this._rejoinRoom(ctx);
