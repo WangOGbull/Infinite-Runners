@@ -15,6 +15,12 @@ import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
 
+// Railway service that runs watchMatches.js. It also hosts the auth
+// handoff endpoints (/handoff/create, /handoff/redeem) that carry a
+// signed-in Firebase session into a wallet's in-app browser. Health check:
+// https://infiniterunners-firebase-backend-production.up.railway.app/healthz
+const BACKEND_URL = 'https://infiniterunners-firebase-backend-production.up.railway.app';
+
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
 // Separate from LOBBY_CONTEXT_KEY (which is ephemeral - consumed the moment
 // a deposit confirms) - this one persists as long as you're plausibly still
@@ -238,6 +244,19 @@ class Game {
     // 'wallet:txError', which in turn can call showScreen('lobbyScreen') via
     // _rejoinRoom() - so we only default to the title screen if that didn't
     // already happen.
+    // AUTH HANDOFF - must run BEFORE processMobileRedirect() and before any
+    // screen routing. If we arrived here inside a wallet's in-app browser
+    // carrying a handoff code, this restores the Firebase session so
+    // this.authUid is set. joinRoom()'s GUARD 3 depends on authUid to reuse
+    // the player's EXISTING seat; without it, the join pushes a second
+    // player record and the original seat (still holding pubkey/deposited)
+    // becomes a duplicate dragon - which in a 4-player FFA makes the room
+    // read as full and locks the real player out.
+    //
+    // Awaited deliberately. A ~200-400ms round trip here is far cheaper
+    // than a duplicated seat in a room with real money staked in it.
+    this._handoffResumeRoom = await this._redeemAuthHandoff();
+
     this.walletManager.processMobileRedirect();
 
     if (!this.roomRef) {
@@ -284,9 +303,19 @@ class Game {
         // New players see login after loading. Returning players auto-login
         // and land on the title screen with their username displayed.
         await this.loadGameAssets();
-        const screen = await this.determineStartScreen();
-        if (screen === 'titleScreen') this.enterMainMenu();
-        else this.uiManager.showScreen(screen);
+        // If the handoff restored a session AND named a room, go to the
+        // title screen and rejoin from there rather than running
+        // determineStartScreen() - which would send this already-signed-in
+        // player to the login screen, since its onAuthStateChanged callback
+        // can fire before signInWithCustomToken has propagated.
+        if (this.authUid && this._handoffResumeRoom) {
+          this.enterMainMenu();
+          this._beginRoomResume(this._handoffResumeRoom);
+        } else {
+          const screen = await this.determineStartScreen();
+          if (screen === 'titleScreen') this.enterMainMenu();
+          else this.uiManager.showScreen(screen);
+        }
       }
       // REMOVED: the "Resume Room" banner that used to appear here when a
       // lastRoomInfo entry existed. It was a workaround for Android
@@ -356,6 +385,160 @@ class Game {
       }
     }
     this.loadGameAssets();
+  }
+
+  // Mints a single-use auth handoff code for the CURRENTLY signed-in
+  // player. Returns null on any failure - every caller treats a null code
+  // as "carry on without the handoff", because losing the session in the
+  // wallet browser degrades the experience but must never block a stake.
+  //
+  // The ID token proves to the backend who is asking; the backend verifies
+  // it (with checkRevoked) and stores the resulting code against that uid
+  // for 120 seconds. See monitor/authHandoff.js.
+  async _createAuthHandoffCode(roomCode) {
+    try {
+      if (!this.auth || !this.auth.currentUser || this.isGuest) return null;
+      const idToken = await this.auth.currentUser.getIdToken();
+      const resp = await fetch(`${BACKEND_URL}/handoff/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, roomCode: roomCode || null }),
+      });
+      if (!resp.ok) {
+        console.warn('[AuthHandoff] create failed with status', resp.status);
+        return null;
+      }
+      const data = await resp.json();
+      if (!data || !data.ok || !data.code) return null;
+      console.log('[AuthHandoff] code minted for room', roomCode || 'none');
+      return data.code;
+    } catch (err) {
+      console.warn('[AuthHandoff] create error (continuing without handoff):', err?.message || err);
+      return null;
+    }
+  }
+
+  // Runs on boot INSIDE the wallet's in-app browser. Exchanges the code
+  // that rode in on the URL for a Firebase custom token and signs in with
+  // it, so this.authUid is populated BEFORE anything tries to join a room.
+  //
+  // This ordering is the whole point: joinRoom()'s GUARD 3 reuses an
+  // existing seat only when authUid is set. If we joined first and signed
+  // in after, the duplicate player record would already have been pushed.
+  //
+  // Returns the room code to resume, or null.
+  async _redeemAuthHandoff() {
+    const code = this.walletManager && this.walletManager._arrivedHandoffCode;
+    const arrivedRoom = (this.walletManager && this.walletManager._arrivedResumeRoom) || null;
+    if (!code) return arrivedRoom;
+    // Consume it locally too, so a later re-entry into this function (a
+    // retry, a re-init) can't attempt a second redeem of a dead code.
+    this.walletManager._arrivedHandoffCode = null;
+
+    try {
+      const resp = await fetch(`${BACKEND_URL}/handoff/redeem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data || !data.ok || !data.customToken) {
+        console.warn('[AuthHandoff] redeem rejected:', data && data.reason);
+        return arrivedRoom;
+      }
+      if (!this.auth) return data.roomCode || arrivedRoom;
+      const result = await this.auth.signInWithCustomToken(data.customToken);
+      this.authUid = result.user.uid;
+      this.isGuest = false;
+      // Pull the username across too, so the wallet browser shows the same
+      // identity the player had in Chrome rather than a bare "Player".
+      try {
+        const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
+        if (snap.exists()) this.username = snap.val();
+      } catch (_) { /* non-fatal */ }
+      console.log('[AuthHandoff] session restored for uid', this.authUid);
+      return data.roomCode || arrivedRoom;
+    } catch (err) {
+      console.warn('[AuthHandoff] redeem error:', err?.message || err);
+      return arrivedRoom;
+    }
+  }
+
+  // Rejoins the room the player was in before they were handed over to the
+  // wallet's in-app browser.
+  //
+  // DESIGN: the countdown is a VISIBLE reassurance, not a wait. Realtime
+  // Database holds an open socket, so the room usually resolves in well
+  // under a second; we jump the instant joinRoom() succeeds rather than
+  // sitting out the full timer. The timer exists only so that a slow or
+  // failed rejoin ends in a clear message and a usable Play button instead
+  // of a player stranded on a menu while their stake sits open.
+  //
+  // Runs from the TITLE SCREEN deliberately - it's a stable place to render
+  // status, and it avoids the flash of a half-built arena.
+  _beginRoomResume(roomCode) {
+    if (!roomCode || !this.db) return;
+    const RESUME_LIMIT_MS = 5000;
+
+    let finished = false;
+    const banner = this.uiManager.showResumeBanner
+      ? this.uiManager.showResumeBanner(roomCode, Math.round(RESUME_LIMIT_MS / 1000))
+      : null;
+
+    const succeed = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      clearInterval(ticker);
+      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
+    };
+
+    const giveUp = (message) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      clearInterval(ticker);
+      if (this.uiManager.showResumeFailed) {
+        this.uiManager.showResumeFailed(message || `Couldn't rejoin room ${roomCode}. Tap Play to continue.`);
+      } else if (this.uiManager.hideResumeBanner) {
+        this.uiManager.hideResumeBanner();
+      }
+      console.warn('[Resume]', message || 'rejoin failed');
+    };
+
+    let remaining = Math.round(RESUME_LIMIT_MS / 1000);
+    const ticker = setInterval(() => {
+      remaining -= 1;
+      if (remaining >= 0 && this.uiManager.updateResumeBanner) {
+        this.uiManager.updateResumeBanner(remaining);
+      }
+    }, 1000);
+
+    const timer = setTimeout(() => {
+      giveUp(`Couldn't rejoin room ${roomCode} in time. Tap Play to continue.`);
+    }, RESUME_LIMIT_MS);
+
+    // joinRoom() carries its own guards (already-in-a-room, in-progress,
+    // and the authUid seat-reclaim). We call it exactly as a normal join
+    // would - the ONLY thing that makes this a reclaim rather than a fresh
+    // join is that _redeemAuthHandoff() has already set this.authUid.
+    try {
+      if (!this.authUid) {
+        giveUp('Session did not carry over - tap Play to continue.');
+        return;
+      }
+      Promise.resolve(this.joinRoom(roomCode))
+        .then(() => {
+          // Success is signalled by actually being in a room. joinRoom
+          // resolves either way (room-not-found writes an inline error), so
+          // check the state rather than trusting the resolution.
+          if (this.roomRef) succeed();
+          else giveUp(`Room ${roomCode} is no longer available.`);
+        })
+        .catch((err) => giveUp(err?.message || 'Rejoin failed.'));
+    } catch (err) {
+      giveUp(err?.message || 'Rejoin failed.');
+    }
   }
 
   async setupFirebase() {
@@ -1602,6 +1785,37 @@ class Game {
       this.uiManager.showScreen('walletModal');
       return;
     }
+
+    // MOBILE HANDOFF. Signing needs an injected wallet provider. In Chrome
+    // or Safari on a phone there isn't one, so the stake has to happen
+    // inside the wallet app's own in-app browser, where the wallet injects
+    // itself exactly like a desktop extension and the approval is a native
+    // sheet with no redirect.
+    //
+    // Before handing over we mint an auth handoff code and pass the room
+    // code, so the player arrives SIGNED IN and lands back in this same
+    // lobby - rather than signed out at a login screen, which is what
+    // caused a second player record to be pushed for a seat they already
+    // held. Guarded against firing from INSIDE a wallet browser, where a
+    // provider is already present and another browse link would loop.
+    const hasInjectedProvider = !!this.walletManager._activeProvider();
+    if (this.walletManager.isMobile()
+        && !hasInjectedProvider
+        && !this.walletManager._arrivedInWalletBrowser) {
+      const walletType = this.walletManager.walletType === 'solflare' ? 'solflare' : 'phantom';
+      this.eventBus.emit('staking:pending', { label: `Opening ${walletType === 'solflare' ? 'Solflare' : 'Phantom'} to approve your stake…` });
+      this._persistLobbyContext();
+      // Null code is tolerated: the handoff is a convenience, and a backend
+      // hiccup must never be what stops a player from staking. They'd land
+      // signed out and be asked to log in, which is the pre-existing
+      // behaviour rather than a new failure.
+      const handoffCode = await this._createAuthHandoffCode(this.roomCode);
+      this.walletManager.pendingHandoffCode = handoffCode;
+      this.walletManager.pendingResumeRoom = this.roomCode || null;
+      this.walletManager.openInWalletBrowser(walletType);
+      return;
+    }
+
     const roomIdNum = parseInt(this.roomCode, 10);
     if (!roomIdNum) {
       this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
