@@ -8,9 +8,9 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js';
+import UIManager from './uiManager.js?v=42';
 import EffectsSystem from './effectsSystem.js';
-import WalletManager from './walletManager.js';
+import WalletManager from './walletManager.js?v=42';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -1819,36 +1819,27 @@ class Game {
       return;
     }
 
-    // MOBILE HANDOFF. Signing needs an injected wallet provider. In Chrome
-    // or Safari on a phone there isn't one, so the stake has to happen
-    // inside the wallet app's own in-app browser, where the wallet injects
-    // itself exactly like a desktop extension and the approval is a native
-    // sheet with no redirect.
+    // MOBILE STAKING - stays in THIS browser.
     //
-    // Before handing over we mint an auth handoff code and pass the room
-    // code, so the player arrives SIGNED IN and lands back in this same
-    // lobby - rather than signed out at a login screen, which is what
-    // caused a second player record to be pushed for a seat they already
-    // held. Guarded against firing from INSIDE a wallet browser, where a
-    // provider is already present and another browse link would loop.
-    const hasInjectedProvider = !!this.walletManager._activeProvider();
-    if (this.walletManager.isMobile()
-        && !hasInjectedProvider
-        && !this.walletManager._arrivedInWalletBrowser) {
-      const walletType = this.walletManager.walletType === 'solflare' ? 'solflare' : 'phantom';
-      this.eventBus.emit('staking:pending', { label: `Opening ${walletType === 'solflare' ? 'Solflare' : 'Phantom'} to approve your stake…` });
-      this._persistLobbyContext();
-      // Null code is tolerated: the handoff is a convenience, and a backend
-      // hiccup must never be what stops a player from staking. They'd land
-      // signed out and be asked to log in, which is the pre-existing
-      // behaviour rather than a new failure.
-      const handoffCode = await this._createAuthHandoffCode(this.roomCode);
-      this.walletManager.pendingHandoffCode = handoffCode;
-      this.walletManager.pendingResumeRoom = this.roomCode || null;
-      this.walletManager.openInWalletBrowser(walletType);
-      return;
-    }
-
+    // We deliberately do NOT hand the player into the wallet's in-app
+    // browser here any more. That approach kept landing them on a login
+    // screen: the wallet browser is a genuinely separate browser with its
+    // own IndexedDB, so the Firebase session never carries over on its own,
+    // and rebuilding it from a handoff code adds a whole extra failure
+    // surface between a player and a stake they've already committed to.
+    //
+    // Instead we use the SAME encrypted deeplink protocol that connect()
+    // now uses. The wallet app opens, shows its native approval sheet for
+    // the transaction, and returns the player to THIS tab - still signed
+    // in, still in this lobby, because the tab never went anywhere.
+    // sendTransaction() below already implements this: with no injected
+    // provider on mobile it builds a signAndSendTransaction deeplink, and
+    // _resumeStakingAction() picks the flow back up on return, verifying
+    // the transaction actually landed before marking the deposit.
+    //
+    // The auth handoff machinery is kept intact (backend + walletManager
+    // plumbing) because it remains the right tool if we ever DO need the
+    // in-app browser - but the staking path no longer depends on it.
     const roomIdNum = parseInt(this.roomCode, 10);
     if (!roomIdNum) {
       this.eventBus.emit('staking:error', { message: 'No active room to stake into.' });
