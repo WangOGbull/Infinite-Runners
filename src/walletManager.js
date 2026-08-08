@@ -93,6 +93,25 @@ class WalletManager {
     this.pendingLinkCode = null;
     this._arrivedLinkCode = null;
 
+    // AUTH HANDOFF (see authHandoff.js on the backend).
+    // The wallet's in-app browser is a separate browser with its own
+    // IndexedDB, so Firebase Auth persistence does NOT carry across and the
+    // player arrives SIGNED OUT. That matters far beyond a login prompt:
+    // main.js joinRoom() GUARD 3 reuses an existing seat only when
+    // this.authUid is set. Signed out, it pushes a SECOND player record
+    // while the original seat still holds pubkey/deposited - the duplicate
+    // dragon that makes an FFA room read as full.
+    //
+    // main.js sets pendingHandoffCode (a single-use code minted by the
+    // backend against the signed-in uid) and pendingResumeRoom right before
+    // triggering the browse deeplink. Both ride along in the URL and come
+    // back out as _arrivedHandoffCode / _arrivedResumeRoom, which main.js
+    // reads on boot to restore the session BEFORE any room join happens.
+    this.pendingHandoffCode = null;
+    this.pendingResumeRoom = null;
+    this._arrivedHandoffCode = null;
+    this._arrivedResumeRoom = null;
+
     this._initConnection();
     this._bindProviderEvents();
     this._restoreMobileKeyPair();
@@ -162,9 +181,17 @@ class WalletManager {
     const currentUrl = new URL(window.location.href.split('?')[0].split('#')[0]);
     currentUrl.searchParams.set('autoConnectWallet', walletType);
     if (this.pendingLinkCode) currentUrl.searchParams.set('linkCode', this.pendingLinkCode);
+    // Auth handoff: `handoff` is a single-use code, NOT a credential on its
+    // own - it is exchanged over HTTPS POST for a Firebase custom token on
+    // arrival, so no token ever appears in an address bar, a Referer
+    // header, or a server access log. `resumeRoom` tells the arriving page
+    // which lobby to go straight back to instead of booting to the title
+    // screen and stranding the player.
+    if (this.pendingHandoffCode) currentUrl.searchParams.set('handoff', this.pendingHandoffCode);
+    if (this.pendingResumeRoom) currentUrl.searchParams.set('resumeRoom', this.pendingResumeRoom);
     const browseUrl = this._buildBrowseUrl(walletType, currentUrl.toString());
-    this._debugLog(`openInWalletBrowser: relaunching inside ${walletType}'s browser`);
-    this._navigateToUniversalLink(browseUrl);
+    this._debugLog(`openInWalletBrowser: relaunching inside ${walletType}'s browser (handoff=${this.pendingHandoffCode ? 'yes' : 'no'} room=${this.pendingResumeRoom || 'none'})`);
+    this._navigateToWalletBrowser(browseUrl);
   }
 
   // Runs once on every page load. If we just arrived here via
@@ -194,11 +221,22 @@ class WalletManager {
       // if the tab that sent us here was logged in, this carries the code
       // that ties whatever wallet connects here back to that account.
       this._arrivedLinkCode = params.get('linkCode') || null;
+      // Auth handoff payload (see the constructor comment). main.js reads
+      // these off this object during init() - they must be captured HERE
+      // because this method strips them from the URL moments later, and
+      // WalletManager's constructor runs before Game.init() ever does.
+      this._arrivedHandoffCode = params.get('handoff') || null;
+      this._arrivedResumeRoom = params.get('resumeRoom') || null;
       // Strip immediately so refreshing or sharing this URL later doesn't
-      // re-trigger an unwanted auto-connect prompt.
+      // re-trigger an unwanted auto-connect prompt. Stripping `handoff` is
+      // security-relevant on top of that: the code is single-use, but a URL
+      // left sitting in an address bar can be screenshotted or shared
+      // within its validity window.
       const cleanUrl = new URL(window.location.href);
       cleanUrl.searchParams.delete('autoConnectWallet');
       cleanUrl.searchParams.delete('linkCode');
+      cleanUrl.searchParams.delete('handoff');
+      cleanUrl.searchParams.delete('resumeRoom');
       window.history.replaceState({}, document.title, cleanUrl.toString());
 
       const startedAt = Date.now();
@@ -239,6 +277,41 @@ class WalletManager {
   // than a committed one. Routing every mobile wallet deep link through a
   // real <a> click instead fixes this without touching URL-building or
   // encryption logic, which was already correct.
+  // BROWSE deeplinks specifically. A "browse" link is MEANT to hand the
+  // player over to the wallet app's own in-app browser - leaving this page
+  // is the entire point of it, unlike the encrypted /ul/v1 links below
+  // which are supposed to bounce back.
+  //
+  // FIX: this used to route through _navigateToUniversalLink(), which loads
+  // the URL in a HIDDEN IFRAME. That technique is an old one and modern
+  // iOS Safari and Android Chrome both block cross-origin iframe
+  // navigations to custom schemes and universal links unless they're a
+  // top-level, user-initiated navigation. The result was a tap that
+  // appeared to do nothing at all. That function's own comment also claims
+  // it "keeps the current browser tab on the game page", which is correct
+  // for an encrypted connect round-trip but is the exact OPPOSITE of what a
+  // browse link needs to do.
+  //
+  // A real top-level navigation inside the click's user-gesture window is
+  // what the OS actually honours.
+  _navigateToWalletBrowser(url) {
+    try {
+      window.location.href = url;
+    } catch (_) {
+      // Extremely defensive: if assignment is blocked for any reason, fall
+      // back to a synthesised anchor click, which some WebViews accept when
+      // direct assignment is refused.
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 1000);
+      } catch (_) { /* nothing further we can do */ }
+    }
+  }
+
   _navigateToUniversalLink(url) {
     // Load the wallet deep link in a hidden iframe so the current browser
     // tab (Chrome) stays on the game page. The OS intercepts the iframe's
