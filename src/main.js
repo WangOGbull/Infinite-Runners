@@ -645,7 +645,6 @@ class Game {
     if (!this.db) { showFail('Resume unavailable: no database connection.'); return; }
     const ctx = this._getLastRoom();
     if (!ctx || !ctx.roomCode) {
-      showFail('No saved room to resume.');
       return;
     }
 
