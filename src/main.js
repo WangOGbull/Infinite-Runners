@@ -286,7 +286,7 @@ class Game {
         // URL for it here always returns false. Check the property that
         // survives that stripping instead.
         const params = new URLSearchParams(window.location.search);
-        urlHasWalletReturn = !!(params.get('walletReturn') || this.walletManager._arrivedInWalletBrowser);
+        urlHasWalletReturn = !!(params.get('walletReturn') || this.walletManager._walletReturnType || this.walletManager._arrivedInWalletBrowser);
       } catch (_) { /* ignore */ }
 
       if (this.walletManager._arrivedInWalletBrowser) {
@@ -1360,11 +1360,11 @@ class Game {
 
     this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
 
-    // REMOVED: the 'ui:resumeRoom' handler (Resume Room banner) - obsolete
-    // now that wallet flows run inside the wallet's in-app browser. Any
-    // stale lastRoomInfo still sitting in a player's localStorage from the
-    // old flow is cleared here once so nothing can ever act on it again.
-    this._clearLastRoom();
+    // NOTE: _clearLastRoom() was removed from here. Clearing LAST_ROOM_KEY
+    // on every boot broke the stake redirect resume — the player returns
+    // from Phantom to a title screen with no saved room because the record
+    // was deleted during initialization. The key is now only cleared on
+    // explicit leaveRoom() or when a match ends.
 
     // ===== SEARCH BATTLE (Photon matchmaking, tier-first) =====
     // Player picks a stake tier BEFORE searching; Photon only matches them
