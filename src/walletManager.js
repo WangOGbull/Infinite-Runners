@@ -506,7 +506,9 @@ class WalletManager {
             localStorage.removeItem('wmDebug');
             const stale = document.getElementById('wmDebugOverlay');
             if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
-          }
+          }  setBeforeRedirectCallback(cb) { this._beforeRedirectCallback = cb; }
+
+
         } catch (_) { this._debugOverlayEnabled = false; }
       }
       if (!this._debugOverlayEnabled) return;
@@ -541,6 +543,7 @@ class WalletManager {
   }
 
   _buildMobileConnectUrl(walletType = 'phantom') {
+    if (this._beforeRedirectCallback) this._beforeRedirectCallback();
     const keyPair = this._getOrCreateDappKeyPair();
     const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
@@ -595,6 +598,7 @@ class WalletManager {
     const storageKey = this.walletType === 'phantom' ? PHANTOM_PENDING_ACTION_KEY : JUPITER_PENDING_ACTION_KEY;
     try { localStorage.setItem(storageKey, JSON.stringify(pendingAction || null)); } catch (_) {}
 
+    if (this._beforeRedirectCallback) this._beforeRedirectCallback();
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
     let redirectUrl = `${redirectBase}?walletReturn=signTransaction&dsk=${dsk}&walletType=${this.walletType}`;
