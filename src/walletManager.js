@@ -537,14 +537,17 @@ class WalletManager {
     const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
-    const redirectUrl = encodeURIComponent(`${redirectBase}?walletReturn=connect&dsk=${dsk}&walletType=${walletType}`);
+    let redirectUrl = `${redirectBase}?walletReturn=connect&dsk=${dsk}&walletType=${walletType}`;
+    if (this.pendingHandoffCode) redirectUrl += `&handoff=${encodeURIComponent(this.pendingHandoffCode)}`;
+    if (this.pendingResumeRoom) redirectUrl += `&resumeRoom=${encodeURIComponent(this.pendingResumeRoom)}`;
+    const redirectUrlEncoded = encodeURIComponent(redirectUrl);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const base = walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/connect'
       : walletType === 'solflare'
         ? 'https://solflare.com/ul/v1/connect'
         : 'https://phantom.app/ul/v1/connect';
-    return `${base}?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrl}&cluster=${PHANTOM_CLUSTER}`;
+    return `${base}?app_url=${appUrl}&dapp_encryption_public_key=${dappPubKey}&redirect_link=${redirectUrlEncoded}&cluster=${PHANTOM_CLUSTER}`;
   }
 
   _buildMobileSignMessageUrl(message) {
@@ -556,7 +559,10 @@ class WalletManager {
     const encryptedPayload = nacl.box.after(new TextEncoder().encode(JSON.stringify(payload)), nonce, sharedSecret);
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
-    const redirectUrl = encodeURIComponent(`${redirectBase}?walletReturn=signMessage&dsk=${dsk}&walletType=${this.walletType}`);
+    let redirectUrl = `${redirectBase}?walletReturn=signMessage&dsk=${dsk}&walletType=${this.walletType}`;
+    if (this.pendingHandoffCode) redirectUrl += `&handoff=${encodeURIComponent(this.pendingHandoffCode)}`;
+    if (this.pendingResumeRoom) redirectUrl += `&resumeRoom=${encodeURIComponent(this.pendingResumeRoom)}`;
+    const redirectUrlEncoded = encodeURIComponent(redirectUrl);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const nonceParam = encodeURIComponent(b58encode(nonce));
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
@@ -565,7 +571,7 @@ class WalletManager {
       : this.walletType === 'solflare'
         ? 'https://solflare.com/ul/v1/signMessage'
         : 'https://phantom.app/ul/v1/signMessage';
-    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
+    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}`;
   }
 
   _buildMobileSignTransactionUrl(serializedTransaction, pendingAction) {
@@ -583,7 +589,10 @@ class WalletManager {
 
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
-    const redirectUrl = encodeURIComponent(`${redirectBase}?walletReturn=signTransaction&dsk=${dsk}&walletType=${this.walletType}`);
+    let redirectUrl = `${redirectBase}?walletReturn=signTransaction&dsk=${dsk}&walletType=${this.walletType}`;
+    if (this.pendingHandoffCode) redirectUrl += `&handoff=${encodeURIComponent(this.pendingHandoffCode)}`;
+    if (this.pendingResumeRoom) redirectUrl += `&resumeRoom=${encodeURIComponent(this.pendingResumeRoom)}`;
+    const redirectUrlEncoded = encodeURIComponent(redirectUrl);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const nonceParam = encodeURIComponent(b58encode(nonce));
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
@@ -592,13 +601,21 @@ class WalletManager {
       : this.walletType === 'solflare'
         ? 'https://solflare.com/ul/v1/signTransaction'
         : 'https://phantom.app/ul/v1/signTransaction';
-    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrl}&payload=${payloadParam}`;
+    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}`;
   }
 
   _handleMobileRedirect() {
     const urlParams = new URLSearchParams(window.location.search);
     const returnType = urlParams.get('walletReturn');
     const walletType = urlParams.get('walletType') || 'phantom';
+    // FIX: capture handoff/resumeRoom from encrypted deeplink returns BEFORE
+    // stripping the URL. _checkAutoConnectQueryParam only captures them for
+    // the browse-in-wallet flow (autoConnectWallet param); encrypted deeplink
+    // returns (walletReturn=connect/signTransaction) need them captured here.
+    const handoff = urlParams.get('handoff');
+    const resumeRoom = urlParams.get('resumeRoom');
+    if (handoff) this._arrivedHandoffCode = handoff;
+    if (resumeRoom) this._arrivedResumeRoom = resumeRoom;
     // FIX: expose return type before the URL is stripped so main.js can
     // detect that a wallet redirect happened even after history.replaceState.
     this._walletReturnType = returnType || null;
@@ -608,7 +625,7 @@ class WalletManager {
     // debug overlay used to show nothing whatsoever for that attempt,
     // making it impossible to tell "no redirect happened" apart from
     // "redirect happened but something else broke."
-    this._debugLog(`redirect check: raw search="${window.location.search}" returnType=${returnType || 'NONE'}`);
+    this._debugLog(`redirect check: raw search="${window.location.search}" returnType=${returnType || 'NONE'} handoff=${handoff ? 'present' : 'none'}`);
     if (!returnType) { this._notifyRestoredConnection(); return; }
 
     this._debugLog(`redirect: type=${returnType} walletType=${walletType} errorCode=${urlParams.get('errorCode') || 'none'} hasNonce=${!!urlParams.get('nonce')} hasData=${!!urlParams.get('data')} hasDsk=${!!urlParams.get('dsk')}`);
@@ -820,7 +837,7 @@ class WalletManager {
   }
 
   _consumePendingAction(walletType) {
-    const key = walletType === 'jupiter' ? JUPITER_PENDING_ACTION_KEY : PHANTOM_PENDING_ACTION_KEY;
+    const key = walletType === 'phantom' ? PHANTOM_PENDING_ACTION_KEY : JUPITER_PENDING_ACTION_KEY;
     try {
       const raw = localStorage.getItem(key);
       localStorage.removeItem(key);
