@@ -178,6 +178,7 @@ class Game {
     // of resuming the lobby. We now call walletManager.processMobileRedirect()
     // explicitly from init(), after listeners and Firebase are ready.
     this.walletManager = new WalletManager(this.eventBus);
+    this.walletManager.setBeforeRedirectCallback(() => this._saveAuthSnapshot());
     this.stakingManager = new StakingManager(this.eventBus, this.walletManager);
     this.matchmaking = null; // created once Firebase db is ready (see setup)
     this.aiController = null;
@@ -234,6 +235,7 @@ class Game {
 
   async init() {
     this.bootLoader = new BootLoader();
+    this._loadAuthSnapshot();
     this.setupEventListeners();
     await this.setupFirebase();
     this.effectsSystem.init();
@@ -628,6 +630,41 @@ class Game {
       }
     });
   }
+  _saveAuthSnapshot() {
+    if (!this.authUid || this.isGuest) return;
+    try {
+      localStorage.setItem('ir_auth_snapshot', JSON.stringify({
+        authUid: this.authUid,
+        username: this.username || '',
+        isGuest: !!this.isGuest,
+        roomCode: this.roomCode || null,
+        ts: Date.now()
+      }));
+    } catch (_) {}
+  }
+
+  _loadAuthSnapshot() {
+    try {
+      const raw = localStorage.getItem('ir_auth_snapshot');
+      if (!raw) return false;
+      const snap = JSON.parse(raw);
+      if (!snap.ts || Date.now() - snap.ts > 5 * 60 * 1000) {
+        localStorage.removeItem('ir_auth_snapshot');
+        return false;
+      }
+      this.authUid = snap.authUid || null;
+      this.username = snap.username || '';
+      this.isGuest = !!snap.isGuest;
+      if (snap.roomCode) this.roomCode = snap.roomCode;
+      console.log('[AuthSnapshot] restored from localStorage:', this.authUid, this.username);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  _clearAuthSnapshot() {
+    try { localStorage.removeItem('ir_auth_snapshot'); } catch (_) {}
+  }
+
   async _beginRoomResume(roomCode) {
     if (!roomCode || !this.db) return;
     if (!this.authUid) await this._tryRestoreFirebaseAuth();
@@ -854,6 +891,10 @@ class Game {
   // every fresh page load re-requires login; only Firebase Auth's own
   // (properly managed) session cache can skip it.
   async determineStartScreen() {
+    // If auth was restored from localStorage snapshot, skip the async wait
+    // and go straight to the title screen. Firebase will still confirm in
+    // the background via onAuthStateChanged.
+    if (this.authUid) return 'titleScreen';
     const AUTH_TIMEOUT_MS = 4000;
 
     if (!this.auth) {
@@ -1045,6 +1086,7 @@ class Game {
 
   async signOut() {
     try { if (this.auth) await this.auth.signOut(); } catch (_) {}
+    this._clearAuthSnapshot();
     this.authUid = null;
     this.username = null;
     this.isGuest = false;
