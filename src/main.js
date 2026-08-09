@@ -255,13 +255,18 @@ class Game {
     //
     // Awaited deliberately. A ~200-400ms round trip here is far cheaper
     // than a duplicated seat in a room with real money staked in it.
+    this.walletManager.processMobileRedirect();
     this._handoffResumeRoom = await this._redeemAuthHandoff();
+    // If auth was restored by the handoff and we're already in a room,
+    // sync the account UI now (rejoinRoom may have run before auth was ready).
+    if (this.authUid && this.roomRef) {
+      this.uiManager.setAccount(this.authUid, this.db);
+      this.uiManager.showLoginDrop(this.username, this.isGuest);
+    }
     this.walletManager._debugLog(
       `handoff: code=${this.walletManager._arrivedHandoffCode ? 'present' : 'none'} ` +
       `uid=${this.authUid ? 'restored' : 'MISSING'} room=${this._handoffResumeRoom || 'none'}`
     );
-
-    this.walletManager.processMobileRedirect();
 
     if (!this.roomRef) {
       // Only show the loading screen if we're ACTUALLY processing a
@@ -305,7 +310,7 @@ class Game {
         await this.loadGameAssets();
         if (this.authUid && this._handoffResumeRoom) {
           this.enterMainMenu();
-          this._beginRoomResume(this._handoffResumeRoom);
+          await this._beginRoomResume(this._handoffResumeRoom);
         } else if (this.authUid) {
           // Session restored but no room named - land on the title screen
           // signed in rather than at a login prompt.
@@ -387,7 +392,7 @@ class Game {
         // can fire before signInWithCustomToken has propagated.
         if (this.authUid && this._handoffResumeRoom) {
           this.enterMainMenu();
-          this._beginRoomResume(this._handoffResumeRoom);
+          await this._beginRoomResume(this._handoffResumeRoom);
         } else {
           const screen = await this.determineStartScreen();
           if (screen === 'titleScreen') {
@@ -623,8 +628,9 @@ class Game {
       }
     });
   }
-  _beginRoomResume(roomCode) {
+  async _beginRoomResume(roomCode) {
     if (!roomCode || !this.db) return;
+    if (!this.authUid) await this._tryRestoreFirebaseAuth();
     const RESUME_LIMIT_MS = 5000;
 
     let finished = false;
@@ -1826,13 +1832,14 @@ class Game {
     }
   }
 
-  _restoreLobbyContextIfPresent() {
+  async _restoreLobbyContextIfPresent() {
     if (this.roomRef) return;
     const ctx = this._consumeLobbyContext();
-    if (ctx && this.db) this._rejoinRoom(ctx);
+    if (ctx && this.db) await this._rejoinRoom(ctx);
   }
 
-  _rejoinRoom(ctx) {
+  async _rejoinRoom(ctx) {
+    if (!this.authUid) await this._tryRestoreFirebaseAuth();
     this.roomCode = ctx.roomCode;
     this.isHost = ctx.isHost;
     this.localPlayerId = ctx.localPlayerId;
@@ -1977,7 +1984,7 @@ class Game {
   async _resumeStakingActionInner(pendingAction, signature) {
     if (!this.roomRef) {
       const ctx = this._consumeLobbyContext();
-      if (ctx && this.db) this._rejoinRoom(ctx);
+      if (ctx && this.db) await this._rejoinRoom(ctx);
     }
 
     // CRITICAL — mobile deep-link flow: Phantom/Solflare hand us a signature
