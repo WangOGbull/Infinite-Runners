@@ -211,6 +211,14 @@ class WalletManager {
   _checkAutoConnectQueryParam() {
     try {
       const params = new URLSearchParams(window.location.search);
+      // Capture handoff/resumeRoom unconditionally — they may ride on
+      // encrypted deeplink returns (walletReturn=...) even when
+      // autoConnectWallet is absent.
+      const handoff = params.get('handoff');
+      const resumeRoom = params.get('resumeRoom');
+      if (handoff) this._arrivedHandoffCode = handoff;
+      if (resumeRoom) this._arrivedResumeRoom = resumeRoom;
+
       const autoConnectWallet = params.get('autoConnectWallet');
       if (!autoConnectWallet) return;
       // We are now INSIDE this wallet's in-app browser. Remember that for
