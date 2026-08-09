@@ -1305,8 +1305,12 @@ class Game {
       }
     });
 
-    this.eventBus.on('wallet:connectRequest', () => {
+    this.eventBus.on('wallet:connectRequest', async () => {
       if (this.authUid && this.db && !this.isGuest) {
+        // Auth handoff: mint a code so the wallet redirect (which may open
+        // in a new tab on Android) can restore the Firebase session there.
+        const handoffCode = await this._createAuthHandoffCode();
+        if (handoffCode) this.walletManager.pendingHandoffCode = handoffCode;
         // Logged-in player, mobile in-app-browser flow ahead: register a
         // short-lived link code in Firebase (both this tab and the isolated
         // wallet-browser session can reach Firebase, even though they can't
@@ -2023,6 +2027,16 @@ class Game {
     // exact room, so write it here rather than relying on it having been
     // written earlier in the room's life.
     this._persistLastRoom();
+    // Auth handoff: the encrypted deeplink return may open a new tab on
+    // Android. Mint a code so that tab can restore Firebase auth and
+    // rejoin the correct room instead of landing signed-out on the title.
+    if (this.authUid && !this.isGuest) {
+      const handoffCode = await this._createAuthHandoffCode(this.roomCode);
+      if (handoffCode) {
+        this.walletManager.pendingHandoffCode = handoffCode;
+        this.walletManager.pendingResumeRoom = this.roomCode;
+      }
+    }
     try {
       if (this.isHost) {
         if (!this.lobbyTier) {
