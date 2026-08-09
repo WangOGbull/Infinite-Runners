@@ -345,7 +345,7 @@ class Game {
         }, 6000);
         // Time-critical redirect-resume flow - load assets right away
         // rather than waiting on a login decision.
-        this.loadGameAssets().then(() => {
+        this.loadGameAssets().then(async () => {
           // NEVER touch the screen or room state while a staking resume is
           // still running. _resumeStakingAction() rejoins the room and then
           // awaits _verifyTxLanded(), which polls for up to ~9s BEFORE it
@@ -357,6 +357,13 @@ class Game {
           // on-chain. The staking resume owns this window.
           if (this._stakingResumeInFlight) return;
           if (this.roomRef) {
+            // Auth handoff may have succeeded (or Firebase persistence may
+            // have the session), but we skipped enterMainMenu() which is the
+            // only place that syncs the account UI. Do it here so the lobby
+            // shows the correct logged-in identity.
+            if (!this.authUid) await this._tryRestoreFirebaseAuth();
+            this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
+            this.uiManager.showLoginDrop(this.username, this.isGuest);
             if (this.uiManager.currentScreen === 'loadingScreen') {
               this.uiManager.showScreen('lobbyScreen');
             }
@@ -513,33 +520,44 @@ class Game {
     // retry, a re-init) can't attempt a second redeem of a dead code.
     this.walletManager._arrivedHandoffCode = null;
 
-    try {
-      const resp = await fetch(`${BACKEND_URL}/handoff/redeem`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-      const data = await resp.json().catch(() => null);
-      if (!resp.ok || !data || !data.ok || !data.customToken) {
-        console.warn('[AuthHandoff] redeem rejected:', data && data.reason);
+    // Try twice: first attempt immediately, second after 1s if the first
+    // was a network hiccup (backend 404 / error is NOT retried).
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        console.log('[AuthHandoff] retrying redemption in 1s...');
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      try {
+        const resp = await fetch(`${BACKEND_URL}/handoff/redeem`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok || !data || !data.ok || !data.customToken) {
+          console.warn('[AuthHandoff] redeem rejected:', data && data.reason);
+          // Don't retry on backend errors (invalid code, expired, etc.)
+          return arrivedRoom;
+        }
+        if (!this.auth) return data.roomCode || arrivedRoom;
+        const result = await this.auth.signInWithCustomToken(data.customToken);
+        this.authUid = result.user.uid;
+        this.isGuest = false;
+        // Pull the username across too, so the wallet browser shows the same
+        // identity the player had in Chrome rather than a bare "Player".
+        try {
+          const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
+          if (snap.exists()) this.username = snap.val();
+        } catch (_) { /* non-fatal */ }
+        console.log('[AuthHandoff] session restored for uid', this.authUid);
+        return data.roomCode || arrivedRoom;
+      } catch (err) {
+        console.warn('[AuthHandoff] redeem error (attempt ' + (attempt + 1) + '):', err?.message || err);
+        if (attempt === 0) continue; // retry on network error
         return arrivedRoom;
       }
-      if (!this.auth) return data.roomCode || arrivedRoom;
-      const result = await this.auth.signInWithCustomToken(data.customToken);
-      this.authUid = result.user.uid;
-      this.isGuest = false;
-      // Pull the username across too, so the wallet browser shows the same
-      // identity the player had in Chrome rather than a bare "Player".
-      try {
-        const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
-        if (snap.exists()) this.username = snap.val();
-      } catch (_) { /* non-fatal */ }
-      console.log('[AuthHandoff] session restored for uid', this.authUid);
-      return data.roomCode || arrivedRoom;
-    } catch (err) {
-      console.warn('[AuthHandoff] redeem error:', err?.message || err);
-      return arrivedRoom;
     }
+    return arrivedRoom;
   }
 
   // Rejoins the room the player was in before they were handed over to the
@@ -554,6 +572,57 @@ class Game {
   //
   // Runs from the TITLE SCREEN deliberately - it's a stable place to render
   // status, and it avoids the flash of a half-built arena.
+
+  // Checks for an existing Firebase Auth session that the browser already
+  // persisted (IndexedDB / localStorage). This is the fallback when the
+  // auth handoff code fails or wasn't present: Chrome tabs on the same
+  // origin SHARE Firebase persistence, so a session from the original
+  // tab should be visible here too. We never relied on this before because
+  // the redirect path skipped determineStartScreen() entirely, which is
+  // where the onAuthStateChanged listener normally lives.
+  async _tryRestoreFirebaseAuth() {
+    if (!this.auth || this.authUid) return;
+    // Synchronous check first: if the SDK has already hydrated from storage
+    if (this.auth.currentUser) {
+      this.authUid = this.auth.currentUser.uid;
+      this.isGuest = false;
+      try {
+        const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
+        if (snap.exists()) this.username = snap.val();
+      } catch (_) {}
+      console.log('[Auth] restored from persisted session (sync):', this.authUid);
+      return;
+    }
+    // Async: wait for the SDK to finish reading from storage (up to 2s).
+    // onAuthStateChanged fires immediately with the current state once the
+    // SDK has loaded it, so this short wait catches the normal case.
+    return new Promise((resolve) => {
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) { resolved = true; if (unsubscribe) unsubscribe(); resolve(); }
+      }, 2000);
+      let unsubscribe;
+      try {
+        unsubscribe = this.auth.onAuthStateChanged((user) => {
+          if (resolved) return;
+          if (user) {
+            resolved = true; clearTimeout(timeout); if (unsubscribe) unsubscribe();
+            this.authUid = user.uid;
+            this.isGuest = false;
+            this.db.ref('users/' + this.authUid + '/username').once('value')
+              .then((snap) => { if (snap.exists()) this.username = snap.val(); })
+              .catch(() => {})
+              .finally(resolve);
+          } else {
+            // No persisted session
+            resolved = true; clearTimeout(timeout); if (unsubscribe) unsubscribe(); resolve();
+          }
+        });
+      } catch (err) {
+        resolved = true; clearTimeout(timeout); resolve();
+      }
+    });
+  }
   _beginRoomResume(roomCode) {
     if (!roomCode || !this.db) return;
     const RESUME_LIMIT_MS = 5000;
@@ -1771,6 +1840,11 @@ class Game {
     this.selectedMpMode = ctx.selectedMpMode || this.selectedMpMode;
     this.lobbyTier = ctx.lobbyTier;
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
+    // Sync account UI so the lobby shows the logged-in identity even when
+    // we bypassed enterMainMenu() (which is the only other place that
+    // calls setAccount / showLoginDrop).
+    this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
+    this.uiManager.showLoginDrop(this.username, this.isGuest);
     this.uiManager.showScreen('lobbyScreen');
     this._attachRoomListener();
     this._ensurePresence();
