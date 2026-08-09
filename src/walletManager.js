@@ -599,6 +599,9 @@ class WalletManager {
     const urlParams = new URLSearchParams(window.location.search);
     const returnType = urlParams.get('walletReturn');
     const walletType = urlParams.get('walletType') || 'phantom';
+    // FIX: expose return type before the URL is stripped so main.js can
+    // detect that a wallet redirect happened even after history.replaceState.
+    this._walletReturnType = returnType || null;
     // FIX: log this BEFORE the early return, not after - if the wallet's
     // redirect never carried our query params at all (lost along the way,
     // or the OS/app handled the hand-off differently than expected), the
