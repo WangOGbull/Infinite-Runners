@@ -636,7 +636,7 @@ class WalletManager {
       return;
     }
 
-    const phantomPubKeyParam = urlParams.get('phantom_encryption_public_key');
+    const encPubKeyParam = urlParams.get('phantom_encryption_public_key') || urlParams.get('solflare_encryption_public_key');
     const nonceParam = urlParams.get('nonce');
     const dataParam = urlParams.get('data');
     if (!nonceParam || !dataParam) {
@@ -646,7 +646,7 @@ class WalletManager {
       // setting errorCode, or a redirect that lost query params somewhere
       // along the way - the user was left staring at "wallet not
       // connected" with no explanation and no way to tell what happened.
-      this._debugLog(`=> INCOMPLETE RETURN: hasPhantomKey=${!!phantomPubKeyParam} hasNonce=${!!nonceParam} hasData=${!!dataParam}`);
+      this._debugLog(`=> INCOMPLETE RETURN: hasEncKey=${!!encPubKeyParam} hasNonce=${!!nonceParam} hasData=${!!dataParam}`);
       this.eventBus.emit('wallet:error', {
         message: 'The wallet connection response was incomplete. Please try connecting again.'
       });
@@ -663,7 +663,7 @@ class WalletManager {
       } else {
         keyPair = this._getOrCreateDappKeyPair();
       }
-      const phantomPubKey = phantomPubKeyParam ? b58decode(phantomPubKeyParam) : this.phantomWalletPublicKey;
+      const phantomPubKey = encPubKeyParam ? b58decode(encPubKeyParam) : this.phantomWalletPublicKey;
       if (!phantomPubKey) throw new Error('No wallet public key available.');
       const sharedSecret = nacl.box.before(phantomPubKey, keyPair.secretKey);
       const decrypted = nacl.box.open.after(b58decode(dataParam), b58decode(nonceParam), sharedSecret);
