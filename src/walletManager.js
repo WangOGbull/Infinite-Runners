@@ -675,15 +675,19 @@ class WalletManager {
         this.phantomWalletPublicKey = phantomPubKey;
         this.mobileSession = result.session;
         this.walletType = walletType;
-        // Non-phantom mobile wallets share the generic ALT session slots;
-        // the actual wallet type is persisted separately so restores and
-        // future deeplinks (signMessage/signTransaction) target the right app.
         const sessionKey = walletType === 'phantom' ? PHANTOM_SESSION_KEY : JUPITER_SESSION_KEY;
         const pubkeyKey = walletType === 'phantom' ? PHANTOM_WALLET_PUBKEY_KEY : JUPITER_WALLET_PUBKEY_KEY;
         const addrKey = walletType === 'phantom' ? PHANTOM_USER_ADDRESS_KEY : JUPITER_USER_ADDRESS_KEY;
         localStorage.setItem(sessionKey, this.mobileSession);
         try { localStorage.setItem('irWalletType', walletType); } catch (_) {}
         try { localStorage.setItem(pubkeyKey, b58encode(phantomPubKey)); } catch (_) {}
+        // FIX: clear the OTHER wallet's session so it can never shadow this one
+        const otherSessionKey = walletType === 'phantom' ? JUPITER_SESSION_KEY : PHANTOM_SESSION_KEY;
+        const otherPubkeyKey  = walletType === 'phantom' ? JUPITER_WALLET_PUBKEY_KEY : PHANTOM_WALLET_PUBKEY_KEY;
+        const otherAddrKey    = walletType === 'phantom' ? JUPITER_USER_ADDRESS_KEY : PHANTOM_USER_ADDRESS_KEY;
+        try { localStorage.removeItem(otherSessionKey); } catch (_) {}
+        try { localStorage.removeItem(otherPubkeyKey); } catch (_) {}
+        try { localStorage.removeItem(otherAddrKey); } catch (_) {}
         this.publicKey = new solanaWeb3.PublicKey(result.public_key);
         this.connected = true;
         try { localStorage.setItem(addrKey, this.publicKey.toString()); } catch (_) {}
