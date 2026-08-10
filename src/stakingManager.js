@@ -277,8 +277,7 @@ class StakingManager {
     // exist on-chain. The hot wallet ATA is global (same address for every
     // player), so once created it never needs to be created again. Removing
     // this instruction when unnecessary shrinks the serialized transaction,
-    // which shrinks the encrypted deeplink URL that Solflare mobile must
-    // parse — Solflare truncates URLs above ~2000 chars.
+    // which shrinks the encrypted deeplink URL that Phantom mobile uses.
     let hotWalletAtaIxs = [];
     if (!_knownAtaCache.has(HOT_WALLET_ATA_CACHE_KEY)) {
       const hotAtaInfo = await _timed(
