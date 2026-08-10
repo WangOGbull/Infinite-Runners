@@ -124,6 +124,61 @@ class WalletManager {
     setTimeout(() => this._trySilentExtensionReconnect(), 0);
 
     this.eventBus.on('wallet:scanRequest', () => { this.scanBalances(); });
+
+    // Solflare in-app browser auto-execute: if the game loaded inside
+    // Solflare's browser (window.solflare is injected) and there's a pending
+    // stake transaction in localStorage, execute it natively. This fires
+    // regardless of how we got here — browse URL, deeplink fallback, or
+    // user manually opened the game in Solflare's browser.
+    this._trySolflareAutoExecute();
+  }
+
+  _trySolflareAutoExecute() {
+    if (!window?.solflare) return;
+    const txB58 = localStorage.getItem('solflarePendingTx');
+    const tsRaw = localStorage.getItem('solflarePendingTs');
+    if (!txB58 || !tsRaw) return;
+    const ts = parseInt(tsRaw, 10);
+    if (Date.now() - ts > 5 * 60 * 1000) {
+      // Stale (> 5 min) — clear and ignore
+      localStorage.removeItem('solflarePendingTx');
+      localStorage.removeItem('solflarePendingAction');
+      localStorage.removeItem('solflarePendingTs');
+      return;
+    }
+    this._debugLog('_trySolflareAutoExecute: detected pending tx in Solflare browser');
+    setTimeout(async () => {
+      try {
+        const txBytes = b58decode(txB58);
+        const tx = solanaWeb3.Transaction.from(txBytes);
+        const actionRaw = localStorage.getItem('solflarePendingAction');
+        this._debugLog('_trySolflareAutoExecute: submitting via injected provider');
+        let signature;
+        if (typeof window.solflare.signAndSendTransaction === 'function') {
+          const result = await window.solflare.signAndSendTransaction(tx);
+          signature = result.signature;
+        } else if (typeof window.solflare.signTransaction === 'function') {
+          const signed = await window.solflare.signTransaction(tx);
+          signature = await this.connection.sendRawTransaction(signed.serialize());
+        } else {
+          throw new Error('Solflare provider has no sign method');
+        }
+        localStorage.removeItem('solflarePendingTx');
+        localStorage.removeItem('solflarePendingAction');
+        localStorage.removeItem('solflarePendingTs');
+        const pendingAction = actionRaw ? JSON.parse(actionRaw) : null;
+        this._debugLog(`_trySolflareAutoExecute: SUCCESS sig=${String(signature).slice(0, 8)}…`);
+        this.eventBus.emit('wallet:txConfirmed', { signature, pendingAction });
+      } catch (err) {
+        this._debugLog(`_trySolflareAutoExecute: FAILED — ${err?.message || err}`);
+        localStorage.removeItem('solflarePendingTx');
+        localStorage.removeItem('solflarePendingAction');
+        localStorage.removeItem('solflarePendingTs');
+        this.eventBus.emit('wallet:txError', {
+          message: err?.message || 'Transaction failed in Solflare browser. Please try again.'
+        });
+      }
+    }, 1200);
   }
 
   processMobileRedirect() {
@@ -156,6 +211,8 @@ class WalletManager {
     const encodedUrl = encodeURIComponent(targetUrl);
     const encodedRef = encodeURIComponent(window.location.origin);
     if (walletType === 'solflare') {
+      // Solflare browse URL format is not publicly documented.
+      // Trying the most likely universal-link pattern first.
       return `https://solflare.com/ul/v1/browse/${encodedUrl}?ref=${encodedRef}`;
     }
     return `https://phantom.app/ul/browse/${encodedUrl}?ref=${encodedRef}`;
@@ -219,59 +276,6 @@ class WalletManager {
       if (handoff) this._arrivedHandoffCode = handoff;
       if (resumeRoom) this._arrivedResumeRoom = resumeRoom;
 
-      // Solflare browse-in-wallet auto-execute: the game opened inside
-      // Solflare's in-app browser with a pending stake transaction saved
-      // to localStorage. Execute it natively via the injected provider.
-      const autoExecuteStake = params.get('autoExecuteStake');
-      if (autoExecuteStake === '1') {
-        this._arrivedInWalletBrowser = 'solflare';
-        const startedAt = Date.now();
-        const executeStake = async () => {
-          if (Date.now() - startedAt > 15000) {
-            this._debugLog('autoExecuteStake: Solflare provider never injected after 15s');
-            this.eventBus.emit('wallet:txError', {
-              message: 'Solflare did not load in time. Please try placing your bet again.'
-            });
-            return;
-          }
-          if (!window?.solflare) {
-            setTimeout(executeStake, 300);
-            return;
-          }
-          try {
-            const txB58 = localStorage.getItem('solflarePendingTx');
-            const actionRaw = localStorage.getItem('solflarePendingAction');
-            if (!txB58) {
-              this._debugLog('autoExecuteStake: no pending tx found in localStorage');
-              this.eventBus.emit('wallet:txError', {
-                message: 'No pending transaction found. Please try placing your bet again.'
-              });
-              return;
-            }
-            const txBytes = b58decode(txB58);
-            const tx = solanaWeb3.Transaction.from(txBytes);
-            this._debugLog('autoExecuteStake: submitting tx via injected Solflare provider');
-            const { signature } = await window.solflare.signAndSendTransaction(tx);
-            localStorage.removeItem('solflarePendingTx');
-            localStorage.removeItem('solflarePendingAction');
-            const pendingAction = actionRaw ? JSON.parse(actionRaw) : null;
-            this.eventBus.emit('wallet:txConfirmed', { signature, pendingAction });
-          } catch (err) {
-            this._debugLog(`autoExecuteStake: failed — ${err?.message || err}`);
-            localStorage.removeItem('solflarePendingTx');
-            localStorage.removeItem('solflarePendingAction');
-            this.eventBus.emit('wallet:txError', {
-              message: err?.message || 'Transaction failed in Solflare. Please try again.'
-            });
-          }
-        };
-        setTimeout(executeStake, 500);
-        // Strip the param so refreshing doesn't re-trigger
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.searchParams.delete('autoExecuteStake');
-        window.history.replaceState({}, document.title, cleanUrl.toString());
-      }
-
       const autoConnectWallet = params.get('autoConnectWallet');
       if (!autoConnectWallet) return;
       // We are now INSIDE this wallet's in-app browser. Remember that for
@@ -298,6 +302,7 @@ class WalletManager {
       cleanUrl.searchParams.delete('linkCode');
       cleanUrl.searchParams.delete('handoff');
       cleanUrl.searchParams.delete('resumeRoom');
+      cleanUrl.searchParams.delete('autoExecuteStake');
       window.history.replaceState({}, document.title, cleanUrl.toString());
 
       const startedAt = Date.now();
@@ -706,7 +711,23 @@ class WalletManager {
     // making it impossible to tell "no redirect happened" apart from
     // "redirect happened but something else broke."
     this._debugLog(`redirect check: raw search="${window.location.search}" returnType=${returnType || 'NONE'} handoff=${handoff ? 'present' : 'none'}`);
-    if (!returnType) { this._notifyRestoredConnection(); return; }
+    if (!returnType) {
+      // Solflare browse fallback: if we came back from Solflare with NO params
+      // (browse URL failed or tx wasn't executed), and there's a pending tx in
+      // localStorage, emit a specific error so main.js can show guidance.
+      const pendingTx = localStorage.getItem('solflarePendingTx');
+      if (pendingTx && this.walletType === 'solflare') {
+        this._debugLog('redirect: returned from Solflare browse with empty params and pending tx');
+        this.eventBus.emit('wallet:txError', {
+          message: 'Solflare could not confirm the stake. Please open this game inside Solflare's browser and try again.'
+        });
+        localStorage.removeItem('solflarePendingTx');
+        localStorage.removeItem('solflarePendingAction');
+        localStorage.removeItem('solflarePendingTs');
+      }
+      this._notifyRestoredConnection();
+      return;
+    }
 
     this._debugLog(`redirect: type=${returnType} walletType=${walletType} errorCode=${urlParams.get('errorCode') || 'none'} hasNonce=${!!urlParams.get('nonce')} hasData=${!!urlParams.get('data')} hasDsk=${!!urlParams.get('dsk')}`);
 
@@ -1279,38 +1300,30 @@ class WalletManager {
 
   async sendTransaction(transaction, pendingAction) {
     if (!this.connected) throw new Error('Wallet not connected.');
-    // Sign strictly through the provider matching the CONNECTED walletType
-    // - never through whatever this.provider happens to hold. This is the
-    // guarantee that Place Bet opens the same wallet whose logo is shown.
     const provider = this._activeProvider();
     if (provider && provider.signAndSendTransaction) {
       const { signature } = await provider.signAndSendTransaction(transaction);
       return { signature };
     }
     if (this.isMobile()) {
-      // Solflare mobile: encrypted deeplink URLs with large token-transfer
-      // transactions exceed browser/wallet URL limits (~2000-4000 chars) and
-      // Solflare silently rejects them. Instead, open the game INSIDE
-      // Solflare's in-app browser where the injected provider is available,
-      // save the transaction to localStorage, and auto-execute it there.
+      const serialized = transaction.serialize({ requireAllSignatures: false });
+      const serializedB58 = b58encode(serialized);
+      try {
+        localStorage.setItem('solflarePendingTx', serializedB58);
+        localStorage.setItem('solflarePendingAction', JSON.stringify(pendingAction || null));
+        localStorage.setItem('solflarePendingTs', String(Date.now()));
+      } catch (_) {}
+
       if (this.walletType === 'solflare') {
-        const serialized = transaction.serialize({ requireAllSignatures: false });
-        try {
-          localStorage.setItem('solflarePendingTx', b58encode(serialized));
-          localStorage.setItem('solflarePendingAction', JSON.stringify(pendingAction || null));
-        } catch (_) {}
-        const currentUrl = new URL(window.location.href.split('?')[0].split('#')[0]);
-        currentUrl.searchParams.set('autoExecuteStake', '1');
-        if (this.pendingHandoffCode) currentUrl.searchParams.set('handoff', this.pendingHandoffCode);
-        if (this.pendingResumeRoom) currentUrl.searchParams.set('resumeRoom', this.pendingResumeRoom);
-        const browseUrl = this._buildBrowseUrl('solflare', currentUrl.toString());
-        this._debugLog('sendTransaction: opening Solflare in-app browser for native tx execution');
+        // Open the game inside Solflare's in-app browser with a CLEAN URL
+        // (no query params). The browser will detect window.solflare + the
+        // pending tx in localStorage and auto-execute.
+        const baseUrl = window.location.href.split('?')[0].split('#')[0];
+        const browseUrl = this._buildBrowseUrl('solflare', baseUrl);
+        this._debugLog(`sendTransaction: Solflare browse URL=${browseUrl.slice(0, 120)}…`);
         this._navigateTopLevel(browseUrl);
         return { deepLinked: true };
       }
-      // Phantom mobile: encrypted deeplink works fine (small payload on connect,
-      // and Phantom handles large signTransaction URLs better than Solflare).
-      const serialized = transaction.serialize({ requireAllSignatures: false });
       this._navigateTopLevel(this._buildMobileSignTransactionUrl(serialized, pendingAction));
       return { deepLinked: true };
     }
