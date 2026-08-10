@@ -1197,22 +1197,102 @@ class UIManager {
     if (label) label.textContent = active ? 'ATTACK!' : 'ATTACK';
   }
 
+  // ===== UPDATED COMBO BANNER =====
   showComboBanner(killer, streak) {
+    // Only show if streak >= 3
+    if (streak < 3) return;
     const banner = document.getElementById('comboBanner');
     if (!banner) return;
     const neon = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[killer.type]) || '#ffd700';
     const name = (killer.type || 'dragon').toUpperCase();
-    let title;
-    if (streak === 3) title = 'TRIPLE KILL';
-    else if (streak === 7) title = 'RAMPAGE';
-    else if (streak === 15) title = 'DRAGONSLAYER';
-    else title = `LEGENDARY x${streak}`;
+
     banner.innerHTML =
-      `<div class="combo-title" style="color:${neon};text-shadow:0 0 18px ${neon},0 0 46px ${neon};">${title}</div>` +
-      `<div class="combo-sub">${name} &middot; ${streak} KILL STREAK</div>`;
+      `<div class="combo-title" style="color:${neon};text-shadow:0 0 18px ${neon},0 0 46px ${neon};">${streak}x COMBO!</div>` +
+      `<div class="combo-sub">${name} &middot; ${streak} KILLS IN 4 SECONDS</div>`;
+
     banner.classList.remove('combo-show');
     void banner.offsetWidth;
     banner.classList.add('combo-show');
+  }
+
+  // ==================== STONE AGE BAR ====================
+  showStoneAgeBar() {
+    const bar = document.getElementById('stoneAgeBar');
+    if (bar) bar.style.display = 'block';
+  }
+
+  hideStoneAgeBar() {
+    const bar = document.getElementById('stoneAgeBar');
+    if (bar) bar.style.display = 'none';
+  }
+
+  updateStoneAgeBar(segments, maxSegments = 50) {
+    const fill = document.getElementById('stoneAgeBarFill');
+    const number = document.getElementById('stoneAgeBarNumber');
+    if (!fill || !number) return;
+
+    const pct = Math.min(100, (segments / maxSegments) * 100);
+    fill.style.width = pct + '%';
+    number.textContent = segments;
+
+    // Update milestone highlights
+    const milestones = document.querySelectorAll('#stoneAgeMilestones .milestone');
+    milestones.forEach(el => {
+      const seg = parseInt(el.dataset.seg);
+      el.classList.toggle('active', segments >= seg);
+      el.classList.toggle('reached', segments >= seg);
+    });
+  }
+
+  // ==================== GROWTH POPUP ====================
+  showGrowthPopup(stage, text, color) {
+    const popup = document.getElementById('growthPopup');
+    const stageEl = document.getElementById('growthPopupStage');
+    const textEl = document.getElementById('growthPopupText');
+    if (!popup || !stageEl || !textEl) return;
+
+    stageEl.textContent = stage;
+    stageEl.style.color = color;
+    stageEl.style.textShadow = `0 0 20px ${color}, 0 0 40px ${color}`;
+    textEl.textContent = text;
+    textEl.style.color = color;
+
+    popup.classList.remove('show');
+    void popup.offsetWidth;
+    popup.classList.add('show');
+
+    // Auto-hide after 2 seconds
+    clearTimeout(this._growthPopupTimer);
+    this._growthPopupTimer = setTimeout(() => {
+      popup.classList.remove('show');
+    }, 2000);
+  }
+
+  // ==================== KILL FEED ====================
+  showKillFeed(killerName, victimName, killerColor) {
+    const feed = document.getElementById('killFeed');
+    const content = document.getElementById('killFeedContent');
+    if (!feed || !content) return;
+
+    // Cancel victim name with X mark
+    content.innerHTML = `
+      <span class="kill-killer" style="color:${killerColor}">${killerName}</span>
+      <span class="kill-icon">🐉</span>
+      <span class="kill-victim">
+        <span class="kill-victim-name">${victimName}</span>
+        <span class="kill-xmark">✕</span>
+      </span>
+    `;
+
+    feed.classList.remove('show');
+    void feed.offsetWidth;
+    feed.classList.add('show');
+
+    // Auto-hide after 2.5 seconds
+    clearTimeout(this._killFeedTimer);
+    this._killFeedTimer = setTimeout(() => {
+      feed.classList.remove('show');
+    }, 2500);
   }
 
   updateHUD(score, timeStr, localDragon, waveNum = null) {
