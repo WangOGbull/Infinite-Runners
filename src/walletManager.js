@@ -596,7 +596,12 @@ class WalletManager {
 
     // Non-phantom mobile wallets share the generic ALT session slots.
     const storageKey = this.walletType === 'phantom' ? PHANTOM_PENDING_ACTION_KEY : JUPITER_PENDING_ACTION_KEY;
-    try { localStorage.setItem(storageKey, JSON.stringify(pendingAction || null)); } catch (_) {}
+    const fallbackKey = this.walletType === 'phantom' ? JUPITER_PENDING_ACTION_KEY : PHANTOM_PENDING_ACTION_KEY;
+    try {
+      const payload = JSON.stringify(pendingAction || null);
+      localStorage.setItem(storageKey, payload);
+      localStorage.setItem(fallbackKey, payload);
+    } catch (_) {}
 
     if (this._beforeRedirectCallback) this._beforeRedirectCallback();
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
@@ -732,6 +737,21 @@ class WalletManager {
         });
       } else if (returnType === 'signTransaction') {
         const pendingAction = this._consumePendingAction(walletType);
+        // Solflare (and some other wallets) may not preserve the walletType
+        // query param on redirect, causing pendingAction to be read from the
+        // wrong localStorage slot. If it's null here, the _resumeStakingAction
+        // handler in main.js will try to reconstruct it from room context.
+        if (!pendingAction) {
+          this._debugLog('=> signTransaction: pendingAction is null (walletType mismatch?) - main.js will attempt fallback recovery');
+        }
+        // Ensure publicKey is available before we try to submit. On a fresh
+        // page load after redirect, _restoreMobileKeyPair() should have set
+        // it, but if anything went wrong we need to know now.
+        if (!this.publicKey) {
+          this._debugLog('=> signTransaction: publicKey missing - cannot submit');
+          this.eventBus.emit('wallet:txError', { message: 'Wallet address not available after redirect. Please reconnect your wallet.', pendingAction });
+          return;
+        }
         const signedTxBytes = b58decode(result.transaction);
         this.connection.sendRawTransaction(signedTxBytes)
           .then(signature => { this.eventBus.emit('wallet:txConfirmed', { signature, pendingAction }); })
@@ -849,12 +869,19 @@ class WalletManager {
   }
 
   _consumePendingAction(walletType) {
-    const key = walletType === 'phantom' ? PHANTOM_PENDING_ACTION_KEY : JUPITER_PENDING_ACTION_KEY;
-    try {
-      const raw = localStorage.getItem(key);
-      localStorage.removeItem(key);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) { return null; }
+    const primary = walletType === 'phantom' ? PHANTOM_PENDING_ACTION_KEY : JUPITER_PENDING_ACTION_KEY;
+    const fallback = walletType === 'phantom' ? JUPITER_PENDING_ACTION_KEY : PHANTOM_PENDING_ACTION_KEY;
+    for (const key of [primary, fallback]) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          localStorage.removeItem(primary);
+          localStorage.removeItem(fallback);
+          return JSON.parse(raw);
+        }
+      } catch (_) {}
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------
