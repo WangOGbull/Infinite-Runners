@@ -506,9 +506,7 @@ class WalletManager {
             localStorage.removeItem('wmDebug');
             const stale = document.getElementById('wmDebugOverlay');
             if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
-          }  setBeforeRedirectCallback(cb) { this._beforeRedirectCallback = cb; }
-
-
+          }
         } catch (_) { this._debugOverlayEnabled = false; }
       }
       if (!this._debugOverlayEnabled) return;
@@ -525,6 +523,8 @@ class WalletManager {
       box.scrollTop = box.scrollHeight;
     } catch (_) {}
   }
+
+  setBeforeRedirectCallback(cb) { this._beforeRedirectCallback = cb; }
 
   _getOrCreateDappKeyPair() {
     if (this.dappKeyPair) return this.dappKeyPair;
