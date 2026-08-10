@@ -719,7 +719,7 @@ class WalletManager {
       if (pendingTx && this.walletType === 'solflare') {
         this._debugLog('redirect: returned from Solflare browse with empty params and pending tx');
         this.eventBus.emit('wallet:txError', {
-          message: 'Solflare could not confirm the stake. Please open this game inside Solflare's browser and try again.'
+          message: "Solflare could not confirm the stake. Please open this game inside Solflare's browser and try again."
         });
         localStorage.removeItem('solflarePendingTx');
         localStorage.removeItem('solflarePendingAction');
