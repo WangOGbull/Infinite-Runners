@@ -97,6 +97,12 @@ function buildCreateAtaIdempotentIx(payer, owner, ata, mint = INFINITE_MINT) {
 
 const _knownAtaCache = new Map();
 
+// The hot wallet's ATA is a GLOBAL address (same for every player). Once it
+// exists on-chain it never needs to be created again. Caching this saves one
+// instruction from every stake transaction, which directly shrinks the
+// serialized tx and therefore the encrypted deeplink URL length.
+const HOT_WALLET_ATA_CACHE_KEY = `hotwallet:${HOT_WALLET.toString()}:${INFINITE_MINT.toString()}`;
+
 async function ensureAtaInstructions(connection, payer, owner, mint = INFINITE_MINT) {
   const ata = getAssociatedTokenAddress(owner, mint);
   const cacheKey = `${owner.toString()}:${mint.toString()}`;
@@ -267,7 +273,24 @@ class StakingManager {
     );
 
     const hotWalletAta = getAssociatedTokenAddress(HOT_WALLET);
-    const ensureHotWalletAtaIx = buildCreateAtaIdempotentIx(hostPubkey, HOT_WALLET, hotWalletAta);
+    // FIX: only include hot-wallet ATA creation if the ATA does not already
+    // exist on-chain. The hot wallet ATA is global (same address for every
+    // player), so once created it never needs to be created again. Removing
+    // this instruction when unnecessary shrinks the serialized transaction,
+    // which shrinks the encrypted deeplink URL that Solflare mobile must
+    // parse — Solflare truncates URLs above ~2000 chars.
+    let hotWalletAtaIxs = [];
+    if (!_knownAtaCache.has(HOT_WALLET_ATA_CACHE_KEY)) {
+      const hotAtaInfo = await _timed(
+        'connection.getAccountInfo(hotWalletAta)',
+        () => connection.getAccountInfo(hotWalletAta)
+      );
+      if (hotAtaInfo) {
+        _knownAtaCache.set(HOT_WALLET_ATA_CACHE_KEY, true);
+      } else {
+        hotWalletAtaIxs = [buildCreateAtaIdempotentIx(hostPubkey, HOT_WALLET, hotWalletAta)];
+      }
+    }
 
     const transferIx = buildTransferCheckedIx({
       source: hostAta,
@@ -277,7 +300,7 @@ class StakingManager {
     });
 
     return this._sendTx(
-      [...ataIxs, ensureHotWalletAtaIx, transferIx],
+      [...ataIxs, ...hotWalletAtaIxs, transferIx],
       { type: 'createRoom', roomId, tier, customAmount: amount }
     );
   }
@@ -293,7 +316,19 @@ class StakingManager {
     );
 
     const hotWalletAta = getAssociatedTokenAddress(HOT_WALLET);
-    const ensureHotWalletAtaIx = buildCreateAtaIdempotentIx(opponentPubkey, HOT_WALLET, hotWalletAta);
+    // FIX: same hot-wallet ATA dedup as createStakedRoom.
+    let hotWalletAtaIxs = [];
+    if (!_knownAtaCache.has(HOT_WALLET_ATA_CACHE_KEY)) {
+      const hotAtaInfo = await _timed(
+        'connection.getAccountInfo(hotWalletAta)',
+        () => connection.getAccountInfo(hotWalletAta)
+      );
+      if (hotAtaInfo) {
+        _knownAtaCache.set(HOT_WALLET_ATA_CACHE_KEY, true);
+      } else {
+        hotWalletAtaIxs = [buildCreateAtaIdempotentIx(opponentPubkey, HOT_WALLET, hotWalletAta)];
+      }
+    }
 
     const transferIx = buildTransferCheckedIx({
       source: opponentAta,
@@ -303,7 +338,7 @@ class StakingManager {
     });
 
     return this._sendTx(
-      [...ataIxs, ensureHotWalletAtaIx, transferIx],
+      [...ataIxs, ...hotWalletAtaIxs, transferIx],
       { type: 'joinRoom', roomId, tier, customAmount: amount }
     );
   }
