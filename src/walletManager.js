@@ -577,12 +577,13 @@ class WalletManager {
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const nonceParam = encodeURIComponent(b58encode(nonce));
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
+    const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
     const base = this.walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/signMessage'
       : this.walletType === 'solflare'
         ? 'https://solflare.com/ul/v1/signMessage'
         : 'https://phantom.app/ul/v1/signMessage';
-    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}`;
+    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}&app_url=${appUrl}`;
   }
 
   _buildMobileSignTransactionUrl(serializedTransaction, pendingAction) {
@@ -598,27 +599,36 @@ class WalletManager {
     const storageKey = this.walletType === 'phantom' ? PHANTOM_PENDING_ACTION_KEY : JUPITER_PENDING_ACTION_KEY;
     const fallbackKey = this.walletType === 'phantom' ? JUPITER_PENDING_ACTION_KEY : PHANTOM_PENDING_ACTION_KEY;
     try {
-      const payload = JSON.stringify(pendingAction || null);
-      localStorage.setItem(storageKey, payload);
-      localStorage.setItem(fallbackKey, payload);
+      const payloadStr = JSON.stringify(pendingAction || null);
+      localStorage.setItem(storageKey, payloadStr);
+      localStorage.setItem(fallbackKey, payloadStr);
     } catch (_) {}
 
     if (this._beforeRedirectCallback) this._beforeRedirectCallback();
     const redirectBase = window.location.href.split('?')[0].split('#')[0];
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
-    let redirectUrl = `${redirectBase}?walletReturn=signTransaction&dsk=${dsk}&walletType=${this.walletType}`;
+    // Solflare's signAndSendTransaction returns signature directly (wallet
+    // submits the tx itself). Phantom uses signTransaction and we submit.
+    const returnType = this.walletType === 'solflare' ? 'signAndSendTransaction' : 'signTransaction';
+    let redirectUrl = `${redirectBase}?walletReturn=${returnType}&dsk=${dsk}&walletType=${this.walletType}`;
     if (this.pendingHandoffCode) redirectUrl += `&handoff=${encodeURIComponent(this.pendingHandoffCode)}`;
     if (this.pendingResumeRoom) redirectUrl += `&resumeRoom=${encodeURIComponent(this.pendingResumeRoom)}`;
     const redirectUrlEncoded = encodeURIComponent(redirectUrl);
     const dappPubKey = encodeURIComponent(b58encode(keyPair.publicKey));
     const nonceParam = encodeURIComponent(b58encode(nonce));
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
+    const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
     const base = this.walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/signTransaction'
       : this.walletType === 'solflare'
-        ? 'https://solflare.com/ul/v1/signTransaction'
+        ? 'https://solflare.com/ul/v1/signAndSendTransaction'
         : 'https://phantom.app/ul/v1/signTransaction';
-    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}`;
+    const url = `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}&app_url=${appUrl}`;
+    this._debugLog(`signTransaction deeplink length: ${url.length} chars`);
+    if (url.length > 8000) {
+      this._debugLog('WARNING: deeplink URL exceeds 8000 chars - may be truncated by browser/wallet');
+    }
+    return url;
   }
 
   _handleMobileRedirect() {
@@ -735,7 +745,7 @@ class WalletManager {
           signatureHex: Array.from(b58decode(result.signature)).map(b => b.toString(16).padStart(2, '0')).join(''),
           publicKey: this.publicKey ? this.publicKey.toString() : ''
         });
-      } else if (returnType === 'signTransaction') {
+      } else if (returnType === 'signTransaction' || returnType === 'signAndSendTransaction') {
         const pendingAction = this._consumePendingAction(walletType);
         // Solflare (and some other wallets) may not preserve the walletType
         // query param on redirect, causing pendingAction to be read from the
@@ -743,6 +753,19 @@ class WalletManager {
         // handler in main.js will try to reconstruct it from room context.
         if (!pendingAction) {
           this._debugLog('=> signTransaction: pendingAction is null (walletType mismatch?) - main.js will attempt fallback recovery');
+        }
+        // signAndSendTransaction: wallet already submitted the tx and returns
+        // the signature directly. No need to call sendRawTransaction ourselves.
+        if (result.signature) {
+          this._debugLog(`=> signAndSendTransaction OK: sig=${String(result.signature).slice(0, 8)}…`);
+          this.eventBus.emit('wallet:txConfirmed', { signature: result.signature, pendingAction });
+          return;
+        }
+        // signTransaction: we receive the signed tx bytes and submit ourselves.
+        if (!result.transaction) {
+          this._debugLog('=> signTransaction: neither signature nor transaction in response');
+          this.eventBus.emit('wallet:txError', { message: 'Transaction response was incomplete. Please try placing your bet again.', pendingAction });
+          return;
         }
         // Ensure publicKey is available before we try to submit. On a fresh
         // page load after redirect, _restoreMobileKeyPair() should have set
