@@ -219,6 +219,59 @@ class WalletManager {
       if (handoff) this._arrivedHandoffCode = handoff;
       if (resumeRoom) this._arrivedResumeRoom = resumeRoom;
 
+      // Solflare browse-in-wallet auto-execute: the game opened inside
+      // Solflare's in-app browser with a pending stake transaction saved
+      // to localStorage. Execute it natively via the injected provider.
+      const autoExecuteStake = params.get('autoExecuteStake');
+      if (autoExecuteStake === '1') {
+        this._arrivedInWalletBrowser = 'solflare';
+        const startedAt = Date.now();
+        const executeStake = async () => {
+          if (Date.now() - startedAt > 15000) {
+            this._debugLog('autoExecuteStake: Solflare provider never injected after 15s');
+            this.eventBus.emit('wallet:txError', {
+              message: 'Solflare did not load in time. Please try placing your bet again.'
+            });
+            return;
+          }
+          if (!window?.solflare) {
+            setTimeout(executeStake, 300);
+            return;
+          }
+          try {
+            const txB58 = localStorage.getItem('solflarePendingTx');
+            const actionRaw = localStorage.getItem('solflarePendingAction');
+            if (!txB58) {
+              this._debugLog('autoExecuteStake: no pending tx found in localStorage');
+              this.eventBus.emit('wallet:txError', {
+                message: 'No pending transaction found. Please try placing your bet again.'
+              });
+              return;
+            }
+            const txBytes = b58decode(txB58);
+            const tx = solanaWeb3.Transaction.from(txBytes);
+            this._debugLog('autoExecuteStake: submitting tx via injected Solflare provider');
+            const { signature } = await window.solflare.signAndSendTransaction(tx);
+            localStorage.removeItem('solflarePendingTx');
+            localStorage.removeItem('solflarePendingAction');
+            const pendingAction = actionRaw ? JSON.parse(actionRaw) : null;
+            this.eventBus.emit('wallet:txConfirmed', { signature, pendingAction });
+          } catch (err) {
+            this._debugLog(`autoExecuteStake: failed — ${err?.message || err}`);
+            localStorage.removeItem('solflarePendingTx');
+            localStorage.removeItem('solflarePendingAction');
+            this.eventBus.emit('wallet:txError', {
+              message: err?.message || 'Transaction failed in Solflare. Please try again.'
+            });
+          }
+        };
+        setTimeout(executeStake, 500);
+        // Strip the param so refreshing doesn't re-trigger
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('autoExecuteStake');
+        window.history.replaceState({}, document.title, cleanUrl.toString());
+      }
+
       const autoConnectWallet = params.get('autoConnectWallet');
       if (!autoConnectWallet) return;
       // We are now INSIDE this wallet's in-app browser. Remember that for
@@ -1235,6 +1288,28 @@ class WalletManager {
       return { signature };
     }
     if (this.isMobile()) {
+      // Solflare mobile: encrypted deeplink URLs with large token-transfer
+      // transactions exceed browser/wallet URL limits (~2000-4000 chars) and
+      // Solflare silently rejects them. Instead, open the game INSIDE
+      // Solflare's in-app browser where the injected provider is available,
+      // save the transaction to localStorage, and auto-execute it there.
+      if (this.walletType === 'solflare') {
+        const serialized = transaction.serialize({ requireAllSignatures: false });
+        try {
+          localStorage.setItem('solflarePendingTx', b58encode(serialized));
+          localStorage.setItem('solflarePendingAction', JSON.stringify(pendingAction || null));
+        } catch (_) {}
+        const currentUrl = new URL(window.location.href.split('?')[0].split('#')[0]);
+        currentUrl.searchParams.set('autoExecuteStake', '1');
+        if (this.pendingHandoffCode) currentUrl.searchParams.set('handoff', this.pendingHandoffCode);
+        if (this.pendingResumeRoom) currentUrl.searchParams.set('resumeRoom', this.pendingResumeRoom);
+        const browseUrl = this._buildBrowseUrl('solflare', currentUrl.toString());
+        this._debugLog('sendTransaction: opening Solflare in-app browser for native tx execution');
+        this._navigateTopLevel(browseUrl);
+        return { deepLinked: true };
+      }
+      // Phantom mobile: encrypted deeplink works fine (small payload on connect,
+      // and Phantom handles large signTransaction URLs better than Solflare).
       const serialized = transaction.serialize({ requireAllSignatures: false });
       this._navigateTopLevel(this._buildMobileSignTransactionUrl(serialized, pendingAction));
       return { deepLinked: true };
