@@ -262,11 +262,6 @@ class WalletManager {
       setTimeout(poll, 300);
     } catch (_) { /* best-effort only */ }
   }
-      // Small initial delay: (per the setTimeout(0) comment above) ensures
-      // the EventBus is already wired up before anything emits through it.
-      setTimeout(poll, 300);
-    } catch (_) { /* best-effort only */ }
-  }
 
   // FIX (bug 2): script-invoked window.location.replace()/href to a
   // Universal Link is handled less reliably by iOS/Android than a real
