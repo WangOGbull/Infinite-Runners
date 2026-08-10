@@ -431,7 +431,7 @@ class WalletManager {
     // at fire time. Listeners can't be reliably removed when the player
     // switches wallets (each extension keeps its own emitter), so without
     // this guard the OTHER wallet firing a late 'connect' event would
-    // silently flip walletType - Phantom logo appearing on a Solflare
+  // silently flip walletType - Phantom logo appearing on a Solflare
     // session and Place Bet opening the wrong wallet.
     provider.on('connect', (publicKey) => {
       if (this.provider !== provider) return; // stale listener from a previous wallet
@@ -676,13 +676,39 @@ class WalletManager {
     const nonceParam = encodeURIComponent(b58encode(nonce));
     const payloadParam = encodeURIComponent(b58encode(encryptedPayload));
     const appUrl = encodeURIComponent(window.location.href.split('?')[0].split('#')[0]);
+
+    // FIX: Solflare native scheme is shorter than HTTPS universal link,
+    // and we drop the optional app_url param for Solflare to save chars.
+    // The encrypted payload (full stake tx) can still exceed Solflare's
+    // ~2000 char URL limit; we detect that below and surface a clear error
+    // instead of letting the wallet silently truncate and redirect back empty.
     const base = this.walletType === 'jupiter'
       ? 'https://jup.ag/wallet/v1/signTransaction'
       : this.walletType === 'solflare'
-        ? 'https://solflare.com/ul/v1/signAndSendTransaction'
+        ? 'solflare://ul/v1/signAndSendTransaction'
         : 'https://phantom.app/ul/v1/signTransaction';
-    const url = `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}&app_url=${appUrl}`;
+
+    let url = `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}`;
+    // app_url is optional for Solflare and costs ~100+ chars; omit it.
+    if (this.walletType !== 'solflare') {
+      url += `&app_url=${appUrl}`;
+    }
+
     this._debugLog(`signTransaction deeplink length: ${url.length} chars`);
+
+    // Solflare truncates deeplink URLs above ~2000 chars. Even with the
+    // native scheme and dropped app_url, a Token-2022 stake tx can still
+    // push the encrypted payload past that limit. Rather than letting the
+    // wallet open for 1 second, fail to parse the truncated URL, and
+    // redirect back empty with no signature, we catch it here and tell the
+    // player exactly what to do.
+    if (this.walletType === 'solflare' && url.length > 1800) {
+      const err = new Error('SOLFLARE_URL_TOO_LONG');
+      err._solflareUrlTooLong = true;
+      err.message = `This stake transaction is too large for Solflare's mobile deeplink (${url.length} chars). Please use Phantom wallet, or open this game inside Solflare's browser and connect there.`;
+      throw err;
+    }
+
     if (url.length > 8000) {
       this._debugLog('WARNING: deeplink URL exceeds 8000 chars - may be truncated by browser/wallet');
     }
@@ -1229,8 +1255,8 @@ class WalletManager {
     if (provider) { try { await provider.disconnect(); } catch (_) {} }
     this.connected = false; this.publicKey = null; this.balance = null;
     this.mobileSession = null; this.phantomWalletPublicKey = null; this.walletType = null;
-    [PHANTOM_SESSION_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
-     JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY,
+    [PHANTOM_SESSION_KEY, PHANTOM_KEYPAIR_KEY, PHANTOM_WALLET_PUBKEY_KEY, PHANTOM_USER_ADDRESS_KEY,
+     JUPITER_SESSION_KEY, JUPITER_WALLET_PUBKEY_KEY, JUPITER_USER_ADDRESS_KEY, WALLET_SYNC_KEY,
      'irWalletType', EXT_WALLET_TYPE_KEY].forEach(k => localStorage.removeItem(k));
     this._broadcastWalletSync();
     this.eventBus.emit('wallet:disconnected');
@@ -1308,22 +1334,33 @@ class WalletManager {
     if (this.isMobile()) {
       const serialized = transaction.serialize({ requireAllSignatures: false });
       const serializedB58 = b58encode(serialized);
+
+      // SOLFLARE MOBILE: try the optimized encrypted deeplink FIRST so the
+      // player stays in Chrome/Safari. The native scheme (solflare://) and
+      // dropping the optional app_url param both shrink the URL. If the
+      // stake tx is still too large for Solflare's ~2000 char limit, we
+      // catch it and show a clear error instead of silently failing.
+      if (this.walletType === 'solflare') {
+        try {
+          const url = this._buildMobileSignTransactionUrl(serialized, pendingAction);
+          this._debugLog(`sendTransaction: Solflare optimized deeplink (${url.length} chars)`);
+          this._navigateTopLevel(url);
+          return { deepLinked: true };
+        } catch (err) {
+          if (err._solflareUrlTooLong) {
+            this.eventBus.emit('wallet:txError', { message: err.message });
+            return { deepLinked: false, error: err.message };
+          }
+          throw err;
+        }
+      }
+
+      // Phantom / Jupiter / other wallets: encrypted deeplink with full params
       try {
         localStorage.setItem('solflarePendingTx', serializedB58);
         localStorage.setItem('solflarePendingAction', JSON.stringify(pendingAction || null));
         localStorage.setItem('solflarePendingTs', String(Date.now()));
       } catch (_) {}
-
-      if (this.walletType === 'solflare') {
-        // Open the game inside Solflare's in-app browser with a CLEAN URL
-        // (no query params). The browser will detect window.solflare + the
-        // pending tx in localStorage and auto-execute.
-        const baseUrl = window.location.href.split('?')[0].split('#')[0];
-        const browseUrl = this._buildBrowseUrl('solflare', baseUrl);
-        this._debugLog(`sendTransaction: Solflare browse URL=${browseUrl.slice(0, 120)}…`);
-        this._navigateTopLevel(browseUrl);
-        return { deepLinked: true };
-      }
       this._navigateTopLevel(this._buildMobileSignTransactionUrl(serialized, pendingAction));
       return { deepLinked: true };
     }
