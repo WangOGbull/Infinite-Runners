@@ -1997,12 +1997,33 @@ class Game {
   }
 
   async _resumeStakingAction(pendingAction, signature) {
-    if (!pendingAction) return;
+    // If pendingAction is missing (e.g. Solflare redirected back without
+    // the expected walletType param, so localStorage lookup missed), try
+    // to reconstruct it from the room we know we're in.
+    if (!pendingAction) {
+      const ctx = this._consumeLobbyContext();
+      if (ctx && this.db && !this.roomRef) await this._rejoinRoom(ctx);
+      if (this.roomRef && this.isHost) {
+        pendingAction = { type: 'createRoom', tier: this.lobbyTier };
+      } else if (this.roomRef) {
+        pendingAction = { type: 'joinRoom' };
+      } else {
+        this.eventBus.emit('staking:error', {
+          message: 'Stake resume failed: no room context found. Please try placing your bet again.'
+        });
+        return;
+      }
+    }
     // Held for the whole resume so the boot-time fallback timer can't
     // yank the screen away mid-verification (see init()).
     this._stakingResumeInFlight = true;
     try {
       return await this._resumeStakingActionInner(pendingAction, signature);
+    } catch (err) {
+      console.error('[Staking] resume failed:', err);
+      this.eventBus.emit('staking:error', {
+        message: err?.message || 'Stake confirmation failed. Please try placing your bet again.'
+      });
     } finally {
       this._stakingResumeInFlight = false;
       // The resume owns the screen for its whole duration, so it is also
