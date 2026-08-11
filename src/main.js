@@ -238,6 +238,7 @@ class Game {
     this.bootLoader = new BootLoader();
     this._loadAuthSnapshot();
     this.setupEventListeners();
+    this._setupSprintButton();
     await this.setupFirebase();
     this.effectsSystem.init();
 
@@ -1424,7 +1425,7 @@ class Game {
           const killerName = this._getUsernameForDragon(killer) || killer.type || 'Unknown';
           const victimName = this._getUsernameForDragon(dragon) || dragon.type || 'Unknown';
           const killerColor = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[killer.type]) || '#ffd700';
-          this.uiManager.showKillFeed(killerName, victimName, killerColor);
+          this._showKillFeed(killerName, victimName, killerColor);
         }
 
         // ---- Track kill streak for local player ----
@@ -2401,6 +2402,8 @@ class Game {
         localSpawn.y
       );
       this.localDragon.playerId = this.localPlayerId;
+      this.localDragon.sprintCharge = 100;
+      this.localDragon.baseSpeed = this.localDragon.speed;
       this.initMatchStats(this.localDragon);
 
       for (let i = 0; i < this.playerIds.length; i++) {
@@ -2429,6 +2432,8 @@ class Game {
         localSpawn.x,
         localSpawn.y
       );
+      this.localDragon.sprintCharge = 100;
+      this.localDragon.baseSpeed = this.localDragon.speed;
       this.initMatchStats(this.localDragon);
       // Permanent speed bonus from cleared AI difficulty tiers (Emberborn/
       // Voidwalker/etc - see uiManager.getTierSpeedMultiplier()). Local/AI
@@ -3398,6 +3403,11 @@ class Game {
       this.localDragon.attackHeld = this.localDragon.alive && this.movementSystem.isAttackHeld();
     }
 
+    // ---- SPRINT BUTTON ----
+    if (this.localDragon) {
+      this._updateSprint(deltaTime);
+    }
+
     const score = this.localDragon ? this.localDragon.score : 0;
     const waveNum = this.isWaveMode() ? (this.currentWaveIndex + 1) : null;
     this.uiManager.updateHUD(score, timeStr, this.localDragon, waveNum);
@@ -3455,6 +3465,17 @@ class Game {
     // ---- HIDE STONE AGE BAR ----
     const sab = document.getElementById('stoneAgeBar');
     if (sab) sab.style.display = 'none';
+
+    // ---- RESET SPRINT ----
+    if (this.localDragon) {
+      this.localDragon.sprintHeld = false;
+      this.localDragon.sprintActive = false;
+    }
+    const sprintBtn = document.getElementById('sprintBtn');
+    if (sprintBtn) {
+      sprintBtn.classList.remove('sprint-ready', 'sprint-active');
+      sprintBtn.style.setProperty('--sprint-fill', '0%');
+    }
 
     // Multiplayer stat tracking - roomRef only exists for actual multiplayer
     // matches (AI/wave mode never creates one), and only for logged-in
@@ -3565,6 +3586,74 @@ class Game {
         break; // Only show one popup at a time
       }
     }
+  }
+
+  _setupSprintButton() {
+    const sprintBtn = document.getElementById('sprintBtn');
+    if (!sprintBtn) return;
+    const start = (e) => { e.preventDefault(); if (this.localDragon) this.localDragon.sprintHeld = true; };
+    const end = (e) => { e.preventDefault(); if (this.localDragon) this.localDragon.sprintHeld = false; };
+    sprintBtn.addEventListener('mousedown', start);
+    sprintBtn.addEventListener('mouseup', end);
+    sprintBtn.addEventListener('mouseleave', end);
+    sprintBtn.addEventListener('touchstart', start, { passive: false });
+    sprintBtn.addEventListener('touchend', end);
+    sprintBtn.addEventListener('touchcancel', end);
+  }
+
+  _updateSprint(deltaTime) {
+    const dragon = this.localDragon;
+    if (!dragon || !dragon.alive) return;
+    if (dragon.baseSpeed === undefined) dragon.baseSpeed = dragon.speed;
+    if (dragon.sprintCharge === undefined) dragon.sprintCharge = 100;
+
+    // Recharge: 25% per second
+    dragon.sprintCharge = Math.min(100, dragon.sprintCharge + deltaTime * 0.025);
+
+    // Drain while held: 35% per second, speed boost 1.5x
+    if (dragon.sprintHeld && dragon.sprintCharge > 0) {
+      dragon.sprintActive = true;
+      dragon.sprintCharge -= deltaTime * 0.035;
+      dragon.speed = dragon.baseSpeed * 1.5;
+    } else {
+      dragon.sprintActive = false;
+      dragon.speed = dragon.baseSpeed;
+    }
+    if (dragon.sprintCharge < 0) dragon.sprintCharge = 0;
+
+    // Update visual
+    const btn = document.getElementById('sprintBtn');
+    if (btn) {
+      btn.style.setProperty('--sprint-fill', dragon.sprintCharge + '%');
+      if (dragon.sprintActive) {
+        btn.classList.add('sprint-active');
+        btn.classList.remove('sprint-ready');
+      } else if (dragon.sprintCharge >= 100) {
+        btn.classList.add('sprint-ready');
+        btn.classList.remove('sprint-active');
+      } else {
+        btn.classList.remove('sprint-ready', 'sprint-active');
+      }
+    }
+  }
+
+  _showKillFeed(killerName, victimName, killerColor) {
+    const feed = document.getElementById('killFeed');
+    const content = document.getElementById('killFeedContent');
+    if (!feed || !content) return;
+    content.innerHTML = `
+      <span class="kill-killer" style="color:${killerColor || '#d4af37'};">${killerName || 'Unknown'}</span>
+      <span class="kill-action">Slayed</span>
+      <span class="kill-divider"></span>
+      <span class="kill-victim">${victimName || 'Unknown'}</span>
+    `;
+    feed.classList.add('show');
+    feed.style.display = 'block';
+    if (this._killFeedTimer) clearTimeout(this._killFeedTimer);
+    this._killFeedTimer = setTimeout(() => {
+      feed.classList.remove('show');
+      setTimeout(() => { feed.style.display = 'none'; }, 400);
+    }, 3000);
   }
 
   _getStageName(segments) {
