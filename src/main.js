@@ -1,3 +1,4 @@
+// ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
 import { DragonManager } from './dragonManager.js';
@@ -2665,4 +2666,1011 @@ class Game {
 
   _attachRoomListener() {
     if (!this.roomRef) return;
-   
+    this.roomRef.on('value', snap => {
+      const data = snap.val();
+      if (!data) return;
+      this.roomPlayers = data.players || {};
+      this.playerIds = Object.keys(this.roomPlayers);
+      this.lobbyTier = data.tier || null;
+      this._customStakeAmount = data.customAmount || null;
+      this.stakingState = {
+        hostDeposited: !!(data.staking && data.staking.hostDeposited),
+        opponentDeposited: !!(data.staking && data.staking.opponentDeposited),
+      };
+      if (data.arenaIndex !== undefined && data.arenaIndex !== this.lobbyArenaIndex) {
+        this.lobbyArenaIndex = data.arenaIndex;
+        this.uiManager.updateLobbyArena(data.arenaIndex, this.isHost);
+      }
+
+      // Host role migration (deterministic across clients on the same snap):
+      // whoever has the earliest joinedAt among current players IS the host.
+      // If the original host has left the room, this promotes the next-oldest
+      // remaining player automatically. Every client on the same snapshot
+      // agrees on the new host id, so no coordination write is required.
+      const stampedHostId = data.hostId || data.host || 'local';
+      let computedHostId = stampedHostId;
+      if (!this.roomPlayers[stampedHostId]) {
+        // Original host isn't in the room anymore → pick earliest joiner.
+        const sorted = Object.entries(this.roomPlayers)
+          .map(([id, p]) => ({ id, joinedAt: (p && p.joinedAt) || 0 }))
+          .sort((a, b) => a.joinedAt - b.joinedAt);
+        if (sorted.length) computedHostId = sorted[0].id;
+      }
+      // If I am the newly-promoted host AND the room record hasn't caught up
+      // yet, persist the migration so late-joiners see the same authoritative
+      // host id. Only the promoted client writes, so no thundering herd.
+      if (computedHostId !== stampedHostId && this.localPlayerId === computedHostId) {
+        try { this.roomRef.update({ hostId: computedHostId }); } catch (_) {}
+      }
+      this.isHost = (this.localPlayerId === computedHostId);
+
+      // The player's Firebase key is what the host needs to kick them, and
+      // FFA cards need per-player deposited flags (the 2-player room-level
+      // staking flags don't cover challenger slots 3/4). Both are surfaced
+      // here so updateLobby can render kick chips and STAKED badges correctly.
+      const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
+        ...p,
+        id,
+        isLocal: id === this.localPlayerId,
+        isHost: id === computedHostId,
+        deposited: (p && p.deposited !== undefined)
+          ? !!p.deposited
+          : (id === stampedHostId ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited),
+      }));
+      const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
+      const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
+      const roomMode = data.mode || this.selectedMpMode || (roomMax <= 2 ? '1v1' : 'FFA');
+
+      // Matched games use the SAME lobby UI as Create Room, with matched
+      // styling (bg shown, code + pickers hidden). Both paired players are
+      // equals - they stake, and the instant BOTH stakes are in, the match
+      // AUTO-STARTS (no manual Start tap).
+      this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost, roomMode);
+      this._refreshStakingUI();
+      if (this._matchedMode && this.stakingState.hostDeposited && this.stakingState.opponentDeposited
+          && this.isHost && this.state !== 'PLAYING' && this.state !== 'GAME_OVER' && data.status !== 'playing') {
+        this.startMpGame();
+      }
+
+      // FFA auto-start: when the pot is full and everyone has staked, run a
+      // 60s local countdown on every client. Host also sees Start Game and
+      // can end it early; if the timer hits 0, host emits mp:startGame so
+      // the other players aren't stuck on an AFK host. Guests just watch —
+      // their expiry does nothing; they'll pick up status='playing' from
+      // the next room snapshot.
+      if (this._shouldRunFFACountdown(data, players, roomMode)) {
+        this._startFFACountdown();
+      } else {
+        this._stopFFACountdown();
+      }
+
+      // "Last player standing" auto-leave: when the room drops from 2+ down
+      // to just me AND the match hasn't started, auto-leave. leaveRoom()
+      // removes my player record → backend sees the whole room empty AND
+      // still-staked → handleRoomRemoved refunds me and returns me to menu.
+      // Guard on prev-count so this doesn't fire when I first create a room
+      // (1 player → still 1 player, no leaves happened).
+      const prevCount = this._lastPlayerCount || 0;
+      if (prevCount >= 2 && players.length === 1
+          && this.localPlayerId === players[0].id
+          && data.status !== 'playing'
+          && this.state !== 'PLAYING' && this.state !== 'GAME_OVER') {
+        console.log('[Room] Last player standing — auto-leaving to main menu');
+        this.eventBus.emit('staking:pending', {
+          label: 'Everyone else left this room — returning you to the menu.',
+        });
+        setTimeout(() => this.leaveRoom(), 400);
+      }
+      this._lastPlayerCount = players.length;
+
+      // AUTO-REPLAY BUG FIX: the previous condition (data.status==='playing'
+      // && state!=='PLAYING' && !isHost) re-fired startLocalGame on EVERY
+      // room update while status was still 'playing' — including the
+      // settlement write that happens AFTER game over — dragging non-host
+      // clients back into a bogus "settling on chain" replay of an
+      // already-finished match. Explicitly bail if the local player has
+      // already reached GAME_OVER for this match; the finished-match state
+      // is server-authoritative from that point.
+      if (data.status === 'playing'
+          && this.state !== 'PLAYING'
+          && this.state !== 'GAME_OVER'
+          && !this.isHost) {
+        const gameConfig = data.gameConfig || {};
+        this.selectedMode = gameConfig.mode || data.mode || 'FFA';
+        this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
+        this.isMultiplayer = true;
+        this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
+      }
+    });
+  }
+
+  // Owner-side: create the matched Firebase room the moment the pair is
+  // confirmed (before Proceed), and publish its code so the other player
+  // can join. Does NOT navigate - createRoom in matched mode shows the
+  // lobby, so we suppress that by deferring the screen switch to Proceed.
+  _prepareMatchedRoomAsOwner(tier) {
+    this._suppressMatchedNav = true;
+    this.createRoom(this.selectedMpMode || 'FFA', tier, true);
+    this._suppressMatchedNav = false;
+    if (this.roomCode && this.matchmaking) this.matchmaking.announceRoomReady(this.roomCode);
+  }
+
+  // Host-only: remove an unstaked player from the room. Kicking a STAKED
+  // player would strand their tokens (custodial hot-wallet model refunds
+  // on room-remove, not on individual player-remove), so the UI only ever
+  // shows the kick button on unstaked slots — this method double-checks
+  // the same invariant before writing to Firebase.
+  kickPlayer(playerId) {
+    if (!this.isHost || !this.roomRef || !playerId) return;
+    if (playerId === 'local') return; // host can't kick themselves
+    const p = (this.roomPlayers && this.roomPlayers[playerId]) || null;
+    // Staking is tracked at the room level (hostDeposited / opponentDeposited)
+    // in the 2-player era; for FFA the per-player deposited flag lives on the
+    // player record itself. Refuse if either signal says "staked".
+    const staked = !!(p && (p.deposited || p.staked));
+    if (staked) {
+      console.warn('kickPlayer: refusing to kick staked player', playerId);
+      return;
+    }
+    try {
+      this.roomRef.child('players/' + playerId).remove();
+    } catch (e) { console.warn('kickPlayer error:', e); }
+  }
+
+  // ===== FFA 60s host auto-start countdown =====
+  // Purely local timer on every client. Every client renders the same UI so
+  // all 4 dragons see the same visible clock, but only the HOST's expiry
+  // actually emits mp:startGame — guests are passive observers who react to
+  // status='playing' the same way they always do. No Firebase schema
+  // changes; the countdown is derived from the existing "all staked" signal.
+  _shouldRunFFACountdown(roomData, players, roomMode) {
+    if (roomMode === '1v1') return false;
+    if (!roomData || roomData.status === 'playing') return false;
+    if (this._matchedMode) return false; // matched games auto-start on both stakes
+    if (!Array.isArray(players) || players.length < 2) return false;
+    // Everyone in the room is staked. In FFA the pot is only "full" when
+    // maxPlayers seats are filled AND every seated player has deposited.
+    const maxPlayers = roomData.maxPlayers || 4;
+    if (players.length < maxPlayers) return false;
+    return players.every(p => !!p.deposited);
+  }
+  _startFFACountdown() {
+    if (this._ffaCountdownActive) return;
+    this._ffaCountdownActive = true;
+    this._ffaCountdownSecs = 60;
+    if (this.uiManager && this.uiManager.showFFACountdown) {
+      this.uiManager.showFFACountdown(60);
+    }
+    this._ffaCountdownTimer = setInterval(() => {
+      this._ffaCountdownSecs -= 1;
+      if (this.uiManager && this.uiManager.updateFFACountdown) {
+        this.uiManager.updateFFACountdown(this._ffaCountdownSecs);
+      }
+      if (this._ffaCountdownSecs <= 0) {
+        this._stopFFACountdown();
+        // Only the host actually starts the game. Guests just wait for the
+        // 'playing' status to arrive via the room snapshot.
+        if (this.isHost && this.state !== 'PLAYING') {
+          this.startMpGame();
+        }
+      }
+    }, 1000);
+  }
+  _stopFFACountdown() {
+    if (this._ffaCountdownTimer) {
+      clearInterval(this._ffaCountdownTimer);
+      this._ffaCountdownTimer = null;
+    }
+    this._ffaCountdownActive = false;
+    this._ffaCountdownSecs = 0;
+    if (this.uiManager && this.uiManager.hideFFACountdown) {
+      this.uiManager.hideFFACountdown();
+    }
+  }
+
+  leaveRoom() {
+    // Local view of my own stake status. In the dual-format schema my
+    // deposited flag lives on the player record itself (players/{id}) for
+    // FFA, and also as a role-level flag (staking.hostDeposited /
+    // opponentDeposited) for 1v1 legacy. Either is enough to know I'm
+    // owed a refund.
+    const myRecord = (this.roomPlayers && this.localPlayerId)
+      ? this.roomPlayers[this.localPlayerId] : null;
+    const iStakedPerPlayer = !!(myRecord && myRecord.deposited);
+    const iStakedLegacy = this.isHost
+      ? this.stakingState.hostDeposited
+      : this.stakingState.opponentDeposited;
+    const iStaked = iStakedPerPlayer || iStakedLegacy;
+    const matchStarted = this.state === 'PLAYING' || this.state === 'GAME_OVER';
+
+    if (iStaked && matchStarted) {
+      // Leaving a LIVE staked match is a forfeit — the backend awards the
+      // pot to whoever's left. Don't promise a refund that isn't coming.
+      this.eventBus.emit('staking:error', {
+        message: 'Leaving a match in progress counts as a forfeit — your opponent(s) will be awarded the pot.'
+      });
+    } else if (iStaked) {
+      this.eventBus.emit('staking:pending', {
+        label: 'Refund in progress — your stake is being returned in full. Check your wallet in ~30 seconds to confirm your balance.'
+      });
+    }
+
+    this.stopNetworkSync();
+    this._stopFFACountdown();
+
+    if (this.roomRef && this.localPlayerId) {
+      // Host and non-host both remove only their OWN player record now.
+      // Removing the whole room used to be host-only; that made host
+      // leaves auto-refund every player at once and killed FFA rooms just
+      // because the host walked away. The new rule: host leaves like
+      // anyone else — remaining players stay, host role migrates
+      // deterministically by joinedAt (handled in _attachRoomListener),
+      // backend refunds this specific player via the child_removed listener.
+      // The room record dies naturally when the last player leaves, and
+      // handleRoomRemoved then refunds whoever's still staked (which will
+      // be nobody, since everyone already got refunded individually).
+      try {
+        this.roomRef.off();
+      } catch (_) {}
+      try {
+        this.roomRef.child('players/' + this.localPlayerId).remove();
+      } catch (_) {}
+      // If I'm the last player OR I'm the ORIGINAL host in a 1v1 legacy
+      // room where opponent already left / never joined, also remove the
+      // whole room record so it doesn't linger. Safe because the backend's
+      // handleRoomRemoved won't double-refund (the individualRefunds/
+      // marker written when my player record was removed short-circuits
+      // the room-removed path).
+      const remainingCount = Math.max(0, this.playerIds.length - 1);
+      if (remainingCount === 0) {
+        try { this.roomRef.remove(); } catch (_) {}
+      }
+      this.roomRef = null;
+    }
+
+    this.isHost = false;
+    this.roomCode = '';
+    this.localPlayerId = null;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this._lastPlayerCount = 0;
+    this.isMultiplayer = false;
+    this._matchedMode = false;
+    this.lobbyArenaIndex = 0;
+    this.lobbyTier = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this._consumeLobbyContext();
+    this._clearLastRoom();
+
+    // Drive the exit screen based on what's actually happening:
+    //  - never staked            -> straight to menu (NO refund screen)
+    //  - staked, match NOT started -> refund is coming, show processing
+    //  - staked, match WAS live    -> forfeit (opponent paid), not a refund,
+    //                                 so no refund screen - just exit
+    if (iStaked && !matchStarted) {
+      this.uiManager.returnToMenuWithProcessing('titleScreen', 'Processing your refund…');
+    } else {
+      this.uiManager.showScreen('titleScreen');
+    }
+  }
+
+  startMpGame() {
+    // Staking is mandatory: no tier picked means no stakes locked, so the
+    // match cannot start - and with a tier picked, EVERY seated player
+    // must have deposited. Backs up the disabled button so the rule holds
+    // even if the UI state is ever stale.
+    if (!this.lobbyTier) {
+      this.eventBus.emit('staking:error', { message: 'Pick a stake tier and place your bet before starting.' });
+      return;
+    }
+    // FFA-aware guard. In 1v1 the top-level staking flags are the source
+    // of truth (host + opponent); in FFA the per-player deposited flag on
+    // each player record is authoritative. If ANY seated player hasn't
+    // deposited, refuse to start regardless of role.
+    const players = Object.values(this.roomPlayers || {});
+    const isFFA = (this.selectedMpMode || '') !== '1v1' && players.length > 2;
+    let everyoneStaked;
+    if (isFFA) {
+      everyoneStaked = players.length >= 2 && players.every(p => !!(p && p.deposited));
+    } else {
+      everyoneStaked = this.stakingState.hostDeposited && this.stakingState.opponentDeposited;
+    }
+    if (!everyoneStaked) {
+      this.eventBus.emit('staking:error', { message: 'All players must deposit their stake before the match can start.' });
+      return;
+    }
+    if (this.roomRef && this.isHost) {
+      this.roomRef.update({
+        status: 'playing',
+        gameConfig: {
+          mode: this.selectedMpMode || 'FFA',
+          arenaIndex: this.lobbyArenaIndex,
+          playerIds: this.playerIds
+        }
+      });
+    }
+    this.isMultiplayer = true;
+    this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced', this.lobbyArenaIndex);
+  }
+
+  startNetworkSync() {
+    if (!this.roomRef) return;
+    this.positionsRef = this.roomRef.child('positions');
+    this.positionsListenerSet = false;
+    this.lastBroadcast = 0;
+    this._watchSettlement();
+    this._startConnectionWatchdog();
+  }
+
+  // Local-side forfeit feedback. If THIS player's connection drops during a
+  // live staked match, the server will (after the silence window) award the
+  // pot to the opponent - but this client, if it's still alive at all, has
+  // no other way to learn it lost. This watchdog shows the defeat screen
+  // the moment it can tell the connection is gone, so the quitter isn't
+  // left staring at a frozen arena. Best-effort by nature: if the tab was
+  // truly killed there's nothing left to render, which is fine - the payout
+  // outcome is server-authoritative regardless.
+  _startConnectionWatchdog() {
+    if (!this.lobbyTier) return; // only meaningful for staked matches
+    this._clearConnectionWatchdog();
+    const onOffline = () => {
+      if (this.state !== 'PLAYING') return;
+      this.uiManager.showForfeitDefeat();
+    };
+    this._offlineHandler = onOffline;
+    window.addEventListener('offline', onOffline);
+    // Also watch Firebase's own connection state - catches drops that the
+    // browser 'offline' event misses (e.g. server unreachable but wifi up).
+    try {
+      this._connRef = firebase.database().ref('.info/connected');
+      this._connListener = this._connRef.on('value', (snap) => {
+        if (snap.val() === false && this.state === 'PLAYING') {
+          // brief grace so a momentary blip doesn't flash the screen
+          clearTimeout(this._connDropTimer);
+          this._connDropTimer = setTimeout(() => {
+            if (this.state === 'PLAYING') this.uiManager.showForfeitDefeat();
+          }, 6000);
+        } else if (snap.val() === true) {
+          clearTimeout(this._connDropTimer);
+        }
+      });
+    } catch (_) {}
+  }
+
+  _clearConnectionWatchdog() {
+    if (this._offlineHandler) { try { window.removeEventListener('offline', this._offlineHandler); } catch (_) {} this._offlineHandler = null; }
+    if (this._connRef && this._connListener) { try { this._connRef.off('value', this._connListener); } catch (_) {} }
+    clearTimeout(this._connDropTimer);
+    this._connRef = null; this._connListener = null;
+  }
+
+  // Watches rooms/{code}/settlement - the node the always-on backend
+  // (watchMatches.js) writes after it determines the winner and pays out
+  // on-chain. This is the authoritative result for staked matches: it ends
+  // a match still running locally, corrects/confirm a locally-ended result,
+  // and surfaces the payout transaction to both players.
+  _watchSettlement() {
+    if (!this.roomRef) return;
+    if (this._settlementRef && this._settlementListener) {
+      try { this._settlementRef.off('value', this._settlementListener); } catch (_) {}
+    }
+    this._settlementHandled = false;
+    // Diagnostic timeout: if the backend hasn't written settlement (of any
+    // status) within 90s of the match ending, the "Treasury is weighing
+    // the stakes…" panel switches to a plain-language delay message
+    // instead of hanging forever. Doesn't ADVANCE the settlement — funds
+    // are still owed and the room stays alive for backend recovery — but
+    // it tells the player "your funds are safe, this is delayed, contact
+    // support with this room code" so they aren't stranded on a screen
+    // that looks broken. Fires only for staked matches (this.lobbyTier).
+    if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
+    if (this.lobbyTier) {
+      const stuckRoom = this.roomCode;
+      this._settlementTimeoutId = setTimeout(() => {
+        if (this._settlementHandled) return;
+        console.warn(`[Settlement] no result after 90s for room ${stuckRoom} — showing delay message`);
+        this.uiManager.showStakeBreakdown({
+          delayed: true,
+          roomCode: stuckRoom,
+        });
+      }, 90000);
+    }
+    this._settlementRef = this.roomRef.child('settlement');
+    this._settlementListener = this._settlementRef.on('value', snap => {
+      const s = snap.val();
+      if (!s || this._settlementHandled) return;
+      if (s.status === 'draw_needs_dispute_resolution') {
+        this._settlementHandled = true;
+        if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
+        this.uiManager.showStakeBreakdown({ draw: true });
+        return;
+      }
+      // Error settlement statuses — backend saw the match end but the
+      // payout / refund transaction itself failed, or the room record was
+      // missing data needed to settle. Surface it instead of hanging the
+      // UI on "Treasury weighing the stakes…" forever. Funds are still in
+      // the hot wallet; manual review is written to the settlement record
+      // for support-side triage.
+      if (typeof s.status === 'string' && s.status.startsWith('error_')) {
+        this._settlementHandled = true;
+        if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
+        console.error(`[Settlement] backend error status for room ${this.roomCode}: ${s.status}`, s);
+        this.uiManager.showStakeBreakdown({
+          error: true,
+          errorStatus: s.status,
+          errorMessage: s.errorMessage || null,
+          roomCode: this.roomCode,
+        });
+        return;
+      }
+      if (s.status !== 'settled') return;
+      this._settlementHandled = true;
+      if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
+      // FFA-aware win check. Backend writes both `winner` ('host'|'opponent'
+      // for 1v1) and `winnerId` (the Firebase key, for any player count).
+      // Prefer winnerId — it's correct for all modes; the 'host'/'opponent'
+      // string is only meaningful for 1v1 and would misattribute the win
+      // in FFA (where winnerSide is a Firebase key, not one of two roles).
+      let iWon;
+      if (s.winnerId) {
+        iWon = this.localPlayerId
+          ? (this.localPlayerId === s.winnerId)
+          : (this.isHost && s.winnerId === 'local');
+      } else {
+        iWon = (s.winner === 'host') === !!this.isHost;
+      }
+      if (this.state === 'PLAYING') {
+        // Match still running on this client - end it now with the
+        // server-settled outcome instead of any local approximation.
+        const all = this.dragonManager.getAllDragons();
+        this.winner = iWon
+          ? this.localDragon
+          : (all.find(d => d !== this.localDragon) || null);
+        this.endGame(true);
+      } else if (this._lastStats) {
+        // Game already ended locally - make sure the title matches the
+        // authoritative settled result (winner object only needs .id for
+        // showMatchStats to compare against the local stat entry).
+        const localStat = this._lastStats.find(st => st.isLocal);
+        this.winner = iWon && localStat ? { id: localStat.id } : { id: '__remote__' };
+        this.uiManager.showMatchStats(this._lastStats, this.winner);
+      }
+      if (s.signature) {
+        this.eventBus.emit('staking:confirmed', {
+          label: `Match settled on-chain - payout sent (tx ${String(s.signature).slice(0, 8)}…).`
+        });
+      }
+      // On a forfeit win, surface "opponent left the arena" messaging on
+      // the game-over screen (the winner is the one still connected, so
+      // this reliably reaches them).
+      if (s.forfeit && iWon) {
+        this.uiManager.showForfeitVictory();
+      }
+      // Fill the Dragon Age settlement breakdown (stakes, pot, 2.5% Treasury
+      // fee, payout, tx link) on the game-over screen.
+      this._showStakeBreakdown(iWon, s);
+    });
+  }
+
+  stopNetworkSync() {
+    if (this.positionsRef) {
+      this.positionsRef.off();
+      this.positionsRef = null;
+    }
+    this.positionsListenerSet = false;
+    this.remotePositions = {};
+    this._clearConnectionWatchdog();
+  }
+
+  // ===== OLD COMBO METHOD (REPLACED BY NEW LOGIC IN DRAGON:DEATH) =====
+  // Kept for reference but no longer used.
+  _checkCombo(killer) {
+    // This is now handled inside dragon:death with a 4-second timer.
+    // Keeping this empty stub to avoid breaking any references.
+  }
+
+  broadcastPosition() {
+    if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
+    const now = Date.now();
+    if (this.lastBroadcast && now - this.lastBroadcast < 50) return;
+    this.lastBroadcast = now;
+    this.positionsRef.child(this.localPlayerId).set({
+      x: this.localDragon.head.x,
+      y: this.localDragon.head.y,
+      angle: this.localDragon.angle,
+      score: this.localDragon.score || 0,
+      // Segment count is required by the server-side match simulator to
+      // correctly replicate collisionSystem.js's head-to-head death rule
+      // (shorter dragon dies) - without this the server cannot independently
+      // verify who won.
+      segments: this.localDragon.segments.length,
+      // lives/alive: each client is only authoritative for its OWN
+      // dragon's death/respawn state (see collisionSystem.js - it no
+      // longer lets a client declare a remote dragon dead based on its own
+      // local, lerped approximation of that dragon's position). Other
+      // clients now sync the real lives/alive state from here instead of
+      // computing it themselves, which is what was causing the opponent to
+      // vanish on one client but not the other.
+      lives: this.localDragon.lives,
+      alive: this.localDragon.alive,
+      attackActive: !!this.localDragon.attackActive,
+      t: now
+    });
+  }
+
+  applyRemotePositions() {
+    if (!this.positionsRef) return;
+    if (!this.positionsListenerSet) {
+      this.positionsListenerSet = true;
+      this.positionsRef.on('value', snap => {
+        this.remotePositions = snap.val() || {};
+      });
+    }
+    if (!this.remotePositions) return;
+    for (const dragon of this.dragonManager.getAllDragons()) {
+      if (!dragon.isRemote || !dragon.playerId) continue;
+      const pos = this.remotePositions[dragon.playerId];
+      if (!pos) continue;
+      dragon.remoteTarget = { x: pos.x, y: pos.y };
+      dragon.angle = pos.angle;
+      // Sync attack state (drives the open-mouth head + kill gate)
+      dragon.attackActive = !!pos.attackActive;
+      dragon.boostActive = dragon.attackActive;
+      // Sync this dragon's actual size to the network's authoritative
+      // segment count. broadcastPosition() already sends `segments`, but
+      // nothing was ever reading it back - each client was instead letting
+      // its OWN local food collisions grow remote dragons (collision:eat
+      // fires for any dragon, including remote ones), and food isn't
+      // networked at all. Two clients running independent, unsynced growth
+      // simulations for the same remote dragon is exactly why the size
+      // looked different on phone vs PC. This forces it back in line every
+      // network tick (~50ms), so any local drift self-corrects almost
+      // immediately instead of accumulating.
+      if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
+        this._resizeRemoteDragon(dragon, pos.segments);
+      }
+      // Sync lives/alive from the network - collisionSystem.js no longer
+      // lets any client declare a remote dragon dead on its own, so this
+      // is the only place a remote dragon's death/respawn state actually
+      // changes. The existing per-frame win-check in update() already
+      // re-evaluates allDragons every tick, so a real death arriving here
+      // is picked up automatically without needing anything extra.
+      if (typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
+        dragon.lives = pos.lives;
+      }
+      if (typeof pos.alive === 'boolean' && pos.alive !== dragon.alive) {
+        dragon.alive = pos.alive;
+      }
+    }
+  }
+
+  // Grows or shrinks a REMOTE dragon's segment array to match targetLength.
+  // Deliberately bypasses growthSystem (that's for the local player's own
+  // eating/growthProgress bookkeeping only) so remote dragons are purely
+  // network-driven and can never desync from what's authoritative on the
+  // client that actually owns them.
+  _resizeRemoteDragon(dragon, targetLength) {
+    const baseSpacing = CONFIG.DRAGON_SEGMENT_SPACING * 35;
+    const fatSpacing = baseSpacing * 2;
+    while (dragon.segments.length < targetLength && dragon.segments.length < CONFIG.DRAGON_MAX_SEGMENTS) {
+      const spacing = dragon.segments.length >= 25 ? fatSpacing : baseSpacing;
+      const tailSeg = dragon.segments[dragon.segments.length - 1];
+      const beforeTail = dragon.segments.length > 1
+        ? dragon.segments[dragon.segments.length - 2]
+        : dragon.head;
+      const angle = Math.atan2(tailSeg.y - beforeTail.y, tailSeg.x - beforeTail.x);
+      dragon.segments.push({
+        x: tailSeg.x + Math.cos(angle) * spacing,
+        y: tailSeg.y + Math.sin(angle) * spacing
+      });
+    }
+    while (dragon.segments.length > targetLength && dragon.segments.length > CONFIG.DRAGON_START_SEGMENTS) {
+      dragon.segments.pop();
+    }
+  }
+
+  startGameLoop() {
+    this.state = 'PLAYING';
+    this.isPaused = false;
+    this.gameStartTime = Date.now();
+    // Let the minimap identify the local player's dragon for the cyan
+    // heading blip (vs red enemy blips).
+    if (this.uiManager.setLocalDragonRef) this.uiManager.setLocalDragonRef(this.localDragon);
+
+    // ---- SHOW STONE AGE BAR ----
+    this.uiManager.showStoneAgeBar();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        this.cameraSystem.canvas = canvas;
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    this.uiManager.showScreen('gameScreen');
+    this.uiManager.showCountdown(3, () => {
+      this.lastTime = performance.now();
+      this.loop();
+    });
+  }
+
+  loop() {
+    if (this.state !== 'PLAYING') return;
+    const now = performance.now();
+    let deltaTime = now - this.lastTime;
+    this.lastTime = now;
+    if (deltaTime > CONFIG.MAX_DELTA_TIME) deltaTime = CONFIG.MAX_DELTA_TIME;
+    if (!this.isPaused) {
+      this.update(deltaTime);
+      this.render();
+    }
+    this.animationFrame = requestAnimationFrame(() => this.loop());
+  }
+
+  update(deltaTime) {
+    this.gameTimer = Date.now() - this.gameStartTime;
+    const minutes = Math.floor(this.gameTimer / 60000);
+    const seconds = Math.floor((this.gameTimer % 60000) / 1000);
+    const timeStr = minutes + ':' + seconds.toString().padStart(2, '0');
+
+    this.foodSystem.update(deltaTime);
+    this.movementSystem.update(this.dragonManager, this.cameraSystem, deltaTime);
+    this.effectsSystem.update(deltaTime);
+
+    const inputMap = new Map();
+    const allDragons = this.dragonManager.getAllDragons();
+
+    for (const dragon of this.dragonManager.getLivingDragons()) {
+      let angle;
+      if (dragon === this.localDragon) {
+        angle = this.movementSystem.getInputAngle(
+          dragon.id,
+          dragon.head.x,
+          dragon.head.y,
+          this.cameraSystem
+        );
+      } else if (dragon.isRemote) {
+        angle = dragon.angle;
+      } else if (this.aiController) {
+        angle = this.aiController.getInputAngle(dragon, allDragons);
+        // AI attack (magazine model): hold while it has charge and a live
+        // hunt target; the meter drains only during the hold, so the AI
+        // naturally saves leftover charge when it breaks off.
+        dragon.attackHeld = !!(dragon.aiHuntTarget && dragon.aiHuntTarget.alive &&
+                               (dragon.attackCharge || 0) > 0);
+      } else {
+        angle = dragon.angle || 0;
+      }
+      inputMap.set(dragon.id, angle);
+    }
+
+    this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getInnerBounds());
+
+    if (this.isMultiplayer) {
+      this.applyRemotePositions();
+      this.broadcastPosition();
+    }
+
+    const followDragon = (this.isSpectating && this.spectateTarget && this.spectateTarget.alive)
+      ? this.spectateTarget
+      : this.localDragon;
+    this.cameraSystem.update(followDragon, this.arenaManager);
+    this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
+
+    // Update time survived for all living dragons
+    for (const dragon of this.dragonManager.getLivingDragons()) {
+      if (this.matchStats[dragon.id]) {
+        this.matchStats[dragon.id].timeSurvived = Date.now() - this.matchStats[dragon.id].startTime;
+      }
+    }
+
+    // Check win condition (last standing with lives). Guarded on
+    // this.state === 'PLAYING' for the WHOLE block, not just the
+    // advance-branch - collisionSystem.checkAll() above can already have
+    // synchronously triggered dragon:death -> checkMatchEnd() ->
+    // onTierCleared()/endGame(), which shows its own screen and moves
+    // state off 'PLAYING'. Without this guard, this duplicate check ran
+    // anyway and immediately overwrote that screen with the generic
+    // game-over screen in the same frame.
+    if (this.state === 'PLAYING') {
+      const livingWithLives = allDragons.filter(d => d.alive && d.lives > 0);
+      const totalWithLives = allDragons.filter(d => d.lives > 0);
+
+      if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
+        if (this.isWaveMode() && livingWithLives[0] === this.localDragon) {
+          this.advanceToNextWave();
+          return;
+        }
+        this.winner = livingWithLives[0];
+        this.endGame(true);
+        return;
+      }
+    }
+
+    // Local player attack activation (ATTACK button / Space / click)
+    // Hold-to-attack: dragonManager drains the magazine only while held.
+    if (this.localDragon) {
+      this.localDragon.attackHeld = this.localDragon.alive && this.movementSystem.isAttackHeld();
+    }
+
+    const score = this.localDragon ? this.localDragon.score : 0;
+    const waveNum = this.isWaveMode() ? (this.currentWaveIndex + 1) : null;
+    this.uiManager.updateHUD(score, timeStr, this.localDragon, waveNum);
+    this.uiManager.updateAttackMeter(this.localDragon);
+
+    // ---- STONE AGE BAR ----
+    if (this.localDragon && this.localDragon.segments) {
+      const segments = this.localDragon.segments.length;
+      this.uiManager.updateStoneAgeBar(segments, CONFIG.DRAGON_MAX_SEGMENTS || 50);
+    }
+
+    const minimap = document.getElementById('minimapCanvas');
+    if (minimap) {
+      this.uiManager.renderMinimap(
+        minimap,
+        this.cameraSystem,
+        this.arenaManager,
+        this.dragonManager.getAllDragons(),
+        this.foodSystem.getFoods()
+      );
+    }
+  }
+
+  render() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      this.cameraSystem.canvas = canvas;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const shake = this.effectsSystem.getShake();
+    this.cameraSystem.apply(ctx, shake.x, shake.y);
+    this.arenaManager.render(ctx, this.cameraSystem);
+    this.foodSystem.render(ctx, this.cameraSystem);
+    this.effectsSystem.renderParticles(ctx, this.cameraSystem);
+    this.dragonManager.render(ctx, this.cameraSystem);
+    this.cameraSystem.reset(ctx);
+    this.effectsSystem.renderVignette(ctx, canvas);
+  }
+
+  pauseGame() {
+    this.isPaused = true;
+    this.uiManager.showPauseOverlay(true, this.isMultiplayer);
+  }
+
+  resumeGame() {
+    this.isPaused = false;
+    this.uiManager.showPauseOverlay(false);
+    this.lastTime = performance.now();
+  }
+
+  endGame(hasWinner = false) {
+    // ---- HIDE STONE AGE BAR ----
+    this.uiManager.hideStoneAgeBar();
+
+    // Multiplayer stat tracking - roomRef only exists for actual multiplayer
+    // matches (AI/wave mode never creates one), and only for logged-in
+    // accounts (guests can't reach multiplayer at all - see the mp:createRoom/
+    // mp:joinRoom gates).
+    if (this.roomRef && this.authUid && this.db && typeof firebase !== 'undefined') {
+      const won = hasWinner && this.winner === this.localDragon;
+      const updates = {
+        matchesPlayed: firebase.database.ServerValue.increment(1)
+      };
+      if (won) updates.multiplayerWins = firebase.database.ServerValue.increment(1);
+      this.db.ref('users/' + this.authUid).update(updates).catch(() => {});
+    }
+    this.state = 'GAME_OVER';
+    this.isSpectating = false;
+    this.spectateTarget = null;
+    this.uiManager.hideSpectateOverlay();
+    this.uiManager.hideQuitConfirm();
+    this.uiManager.showPauseOverlay(false);
+    // Make sure the start-of-match countdown overlay isn't still on screen
+    // when we jump to game-over - otherwise the loser briefly sees the "3,
+    // 2, 1" countdown flash on top of the DEFEATED screen.
+    this.uiManager.hideCountdown();
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.stopNetworkSync();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Build stats for all dragons
+    const allDragons = this.dragonManager.getAllDragons();
+    const stats = allDragons.map(d => ({
+      id: d.id,
+      name: d.type,
+      isLocal: d === this.localDragon,
+      kills: d.kills || 0,
+      deaths: d.deaths || 0,
+      timeSurvived: this.matchStats[d.id] ? this.matchStats[d.id].timeSurvived : 0,
+      infiniteCoin: 0,
+      lives: d.lives || 0,
+      collected: d.collected || 0
+    }));
+
+    const localStats = {
+      time: document.getElementById('timerDisplay').textContent,
+      collected: this.localDragon ? this.localDragon.collected : 0,
+      kills: this.localDragon ? this.localDragon.kills : 0,
+      deaths: this.localDragon ? this.localDragon.deaths : 0,
+      lives: this.localDragon ? this.localDragon.lives : 0
+    };
+
+    this.uiManager.updateGameOver(localStats);
+    this.uiManager.showMatchStats(stats, this.winner);
+    this.uiManager.showScreen('gameOverScreen');
+    // Kept so a later server-settlement update can correct/confirm the
+    // result title without re-deriving stats (see _watchSettlement).
+    this._lastStats = stats;
+
+    if (this.isMultiplayer) {
+      // Match is over - clear any saved lobby/room context so the title
+      // screen stops offering "Resume Room" for a finished match.
+      try { localStorage.removeItem(LOBBY_CONTEXT_KEY); } catch (_) {}
+      try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
+      // Play Again makes no sense for a multiplayer/staked match - the room
+      // is gone and each rematch would need a fresh room + fresh stakes.
+      // Only Main Menu is offered. (Solo play keeps Play Again below.)
+      const playAgain = document.getElementById('btnPlayAgain');
+      if (playAgain) playAgain.style.display = 'none';
+      // For staked matches, show the settlement panel in its pending state
+      // until the backend writes rooms/{code}/settlement.
+      if (this.lobbyTier) this.uiManager.showStakeBreakdown({ pending: true });
+    } else {
+      // Solo play: always restore Play Again (a prior MP match hides it on
+      // this shared screen), whether the player won or lost.
+      const playAgain = document.getElementById('btnPlayAgain');
+      if (playAgain) playAgain.style.display = 'flex';
+      // NOTE: AI wave-mode wins no longer reach this branch at all - they're
+      // intercepted earlier by advanceToNextWave()/onTierCleared() (see
+      // checkMatchEnd() and update()'s inline win-check), which show the
+      // wave countdown or the tier-complete screen instead of ending the
+      // match here. This else-branch only runs for normal losses/deaths,
+      // or a genuine non-wave-mode win (e.g. 1v1AI).
+    }
+  }
+
+  // ===== NEW: GROWTH POPUP CHECK =====
+  _checkGrowthPopup(dragon) {
+    const segments = dragon.segments ? dragon.segments.length : 0;
+    if (!dragon._shownPopups) dragon._shownPopups = {};
+
+    const milestones = [
+      { seg: 10, stage: 'DRAKE', text: 'The Arena begins to recognize your name.' },
+      { seg: 15, stage: 'WYRM', text: 'The fire in your chest burns brighter.' },
+      { seg: 25, stage: 'ANCIENT', text: 'The Arena is yours to conquer.' }
+    ];
+
+    for (const m of milestones) {
+      if (segments >= m.seg && !dragon._shownPopups[m.seg]) {
+        dragon._shownPopups[m.seg] = true;
+        const color = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[dragon.type]) || '#ffd700';
+        this.uiManager.showGrowthPopup(m.stage, m.text, color);
+        break; // Only show one popup at a time
+      }
+    }
+  }
+
+  // ===== NEW: GET USERNAME FOR DRAGON (KILL FEED) =====
+  _getUsernameForDragon(dragon) {
+    if (!dragon) return null;
+
+    // If it's the local dragon
+    if (dragon === this.localDragon) {
+      return this.username || 'You';
+    }
+
+    // If it's a remote player (multiplayer)
+    if (dragon.isRemote && dragon.playerId) {
+      const player = this.roomPlayers ? this.roomPlayers[dragon.playerId] : null;
+      if (player && player.name) {
+        return player.name;
+      }
+      // Try to get from roomPlayers by matching dragon type
+      if (this.roomPlayers) {
+        for (const [id, p] of Object.entries(this.roomPlayers)) {
+          if (p.dragon && p.dragon.toLowerCase() === dragon.type.toLowerCase()) {
+            return p.name || dragon.type;
+          }
+        }
+      }
+    }
+
+    // If it's an AI dragon
+    if (dragon.isAI) {
+      return dragon.type || 'AI';
+    }
+
+    return dragon.type || null;
+  }
+
+  // Builds the Dragon Age settlement breakdown on the game-over screen once
+  // the backend has settled the match on-chain. Amounts come from the live
+  // on-chain tier config (stakingManager), the result/tx from the
+  // rooms/{code}/settlement node written by watchMatches.js.
+  async _showStakeBreakdown(iWon, settlement) {
+    try {
+      const tiers = await this.stakingManager.getDisplayTiers();
+      const tierName = String(settlement?.tier || this.lobbyTier || '').toLowerCase();
+      const tierKey = Object.keys(tiers).find(k => k.toLowerCase() === tierName);
+      const parseAmt = (v) => Number(String(v).replace(/[^0-9.]/g, '')) || 0;
+      const stake = tierKey ? parseAmt(tiers[tierKey]) : 0;
+      const feePct = Number(tiers.feePercent) || 2.5;
+      const pot = stake * 2;
+      const fee = pot * (feePct / 100);
+      const payout = pot - fee;
+      const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      this.uiManager.showStakeBreakdown({
+        won: iWon,
+        stakeText: stake ? `${fmt(stake)} INFINITE` : null,
+        potText: stake ? `${fmt(pot)} INFINITE` : null,
+        feeText: stake ? `-${fmt(fee)} INFINITE` : null,
+        payoutText: stake ? `${fmt(payout)} INFINITE` : null,
+        feePct,
+        signature: settlement?.signature || null,
+        cluster: settlement?.cluster || 'devnet',
+      });
+    } catch (err) {
+      console.warn('[Staking] settlement breakdown display failed:', err?.message || err);
+    }
+  }
+
+  restartGame() {
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.uiManager.showPauseOverlay(false);
+    this.dragonManager.clear();
+    this.stopNetworkSync();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    this.startLocalGame(
+      this.selectedMode || 'FFA',
+      this.aiDifficulty || 'advanced',
+      this.pendingArenaIndex !== null ? this.pendingArenaIndex : Math.floor(Math.random() * 4)
+    );
+  }
+
+  quitGame() {
+    this.state = 'MENU';
+    this.uiManager.showPauseOverlay(false);
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.dragonManager.clear();
+    this.isPaused = false;
+    this.stopNetworkSync();
+
+    const canvas = document.getElementById('gameCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  window.game = new Game();
+});
+// ==================== END OF main.js ====================
