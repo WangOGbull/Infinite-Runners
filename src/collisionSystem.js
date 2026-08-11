@@ -12,7 +12,6 @@ class CollisionSystem {
     // Food collisions
     for (const dragon of dragons) {
       if (!dragon.alive) continue;
-      // Skip if dragon has spawn immunity
       if (dragon.immunityTimer > 0) continue;
       const head = dragon.head;
       for (let i = foods.length - 1; i >= 0; i--) {
@@ -39,7 +38,6 @@ class CollisionSystem {
   }
 
   checkDragonCollisions(d1, d2) {
-    // Skip if either has spawn immunity
     if (d1.immunityTimer > 0 || d2.immunityTimer > 0) return;
 
     const dx = d1.head.x - d2.head.x;
@@ -48,7 +46,7 @@ class CollisionSystem {
     const headHitDist = (d1.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS) +
                         (d2.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS);
 
-    // HEAD vs HEAD collision
+    // ===== HEAD vs HEAD =====
     if (dist < headHitDist) {
       const mx = (d1.head.x + d2.head.x) / 2;
       const my = (d1.head.y + d2.head.y) / 2;
@@ -57,31 +55,17 @@ class CollisionSystem {
       const len1 = d1.segments ? d1.segments.length : 0;
       const len2 = d2.segments ? d2.segments.length : 0;
 
-      // IMPORTANT: only ever declare a death/shrink outcome for a dragon
-      // that ISN'T remote. Every client runs this exact same collision
-      // check locally, including for the opponent's dragon - but each
-      // client's copy of the remote dragon is a lerped approximation, not
-      // ground truth. If we let every client independently decide the
-      // remote dragon's fate, they disagree (that's what caused PC to
-      // think the opponent died - and stop rendering them - while the
-      // opponent's own client never agreed). A dragon's fate is only ever
-      // decided on the client that actually owns it; everyone else finds
-      // out via the network (see applyRemotePositions() in main.js, which
-      // now syncs `lives`/`alive` the same way it already synced segments).
       if (len1 < len2) {
-        // d1 is shorter.
+        // d1 is smaller → dies (or shrinks if not being attacked)
         if (d2.attackActive) {
-          // d2 attacking: d1 dies outright, no exceptions.
           if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else if (len1 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
-          // d2 not attacking, but d1 is too small to survive the hit at all.
           if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else {
-          // d2 not attacking, d1 big enough to survive - shrinks to start size instead.
           if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'head_clash' });
         }
       } else if (len2 < len1) {
-        // Mirrored: d2 is shorter.
+        // d2 is smaller → dies (or shrinks if not being attacked)
         if (d1.attackActive) {
           if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
         } else if (len2 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
@@ -90,15 +74,14 @@ class CollisionSystem {
           if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'head_clash' });
         }
       } else {
-        // Equal size -> both shrink to start size (NOT die), and get shoved
-        // apart (knockback handled in main.js via the `other` reference).
+        // Equal size → both recoil
         if (!d1.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d1, reason: 'equal_head', other: d2 });
         if (!d2.isRemote) this.eventBus.emit('dragon:shrink', { dragon: d2, reason: 'equal_head', other: d1 });
       }
       return;
     }
 
-    // HEAD vs BODY collision
+    // ===== HEAD vs BODY =====
     this.checkHeadVsBody(d1, d2);
     this.checkHeadVsBody(d2, d1);
   }
@@ -111,7 +94,6 @@ class CollisionSystem {
     const bodyRadius = bodyDragon.headRadius || CONFIG.DRAGON_COLLISION_RADIUS;
     const lastIdx = bodyDragon.segments.length - 1;
 
-    // Check headDragon's head against bodyDragon's body segments (skip head)
     for (let i = 1; i < bodyDragon.segments.length; i++) {
       const seg = bodyDragon.segments[i];
       const dx = head.x - seg.x;
@@ -123,51 +105,31 @@ class CollisionSystem {
         const isTailHit = (i === lastIdx);
 
         if (isTailHit) {
-          // HEAD vs TAIL - size decides the outcome first, Attack only
-          // matters for the underdog case:
+          // ===== HEAD vs TAIL =====
           const headLen = headDragon.segments.length;
           const bodyLen = bodyDragon.segments.length;
 
-          if (headLen >= bodyLen) {
-            // Attacker is bigger or equal: a tail bite is always lethal,
-            // Attack button or not - big/equal dragon dominance holds.
+          if (headLen > bodyLen) {
+            // Bigger attacks Smaller's tail → Smaller dies
             if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
-          } else if (headDragon.attackActive) {
-            // Attacker is the SMALLER dragon, but landed the bite with
-            // Attack charged: doesn't kill, but takes a real bite out of
-            // the bigger dragon - this is the small dragon's actual threat.
-            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:tailDamage', { victim: bodyDragon, attacker: headDragon });
+          } else if (headLen < bodyLen) {
+            // Smaller attacks Bigger's tail
+            if (headDragon.attackActive) {
+              // 30% damage
+              if (!bodyDragon.isRemote) this.eventBus.emit('dragon:tailDamage', { victim: bodyDragon, attacker: headDragon });
+            } else {
+              // Minor nibble (20%)
+              if (!bodyDragon.isRemote) this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
+            }
           } else {
-            // Smaller dragon nibbling without Attack: just the existing
-            // minor cut, no real threat.
-            if (!bodyDragon.isRemote) this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
+            // Equal size → both recoil (NO death)
+            if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_tail', other: bodyDragon });
+            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_tail', other: headDragon });
           }
         } else {
-          // HEAD vs BODY (non-tail): the SMALLER dragon dies outright
-          // (previously it only shrank). Equal size still shrinks both -
-          // "smaller dies" doesn't apply when there's no smaller one.
-          // (Unchanged - not part of the small-vs-big tail/head-on rules.)
-          const len1 = headDragon.segments.length;
-          const len2 = bodyDragon.segments.length;
-
-          if (len1 < len2) {
-            // headDragon is smaller: it dies ONLY if bodyDragon is attacking
-            if (bodyDragon.attackActive) {
-              if (!headDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: headDragon, killer: bodyDragon });
-            } else {
-              if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'body_hit' });
-            }
-          } else if (len2 < len1) {
-            // bodyDragon is smaller: it dies ONLY if headDragon is attacking
-            if (headDragon.attackActive) {
-              if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
-            } else {
-              if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'body_hit' });
-            }
-          } else {
-            if (!headDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: headDragon, reason: 'equal_body', other: bodyDragon });
-            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:shrink', { dragon: bodyDragon, reason: 'equal_body', other: headDragon });
-          }
+          // ===== HEAD vs BODY (non-tail) =====
+          // DO NOTHING — body hits have no effect
+          return;
         }
         return;
       }
