@@ -354,19 +354,22 @@ class WalletManager {
   // they are top-level and user-initiated, so the tap frequently did
   // nothing at all.
   _navigateTopLevel(url) {
+    // Universal links (phantom.app/ul/v1/..., solflare.com/ul/v1/...) MUST
+    // be triggered by a real user-gesture anchor click. Script-assigned
+    // window.location.href is treated as a soft/interceptable navigation by
+    // iOS/Android and is a known cause of "app opens then bounces back"
+    // without ever showing the confirm sheet.
     try {
-      window.location.href = url;
+      const a = document.createElement('a');
+      a.href = url;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 1000);
     } catch (_) {
-      // Extremely defensive: if assignment is blocked for any reason, fall
-      // back to a synthesised anchor click, which some WebViews accept when
-      // direct assignment is refused.
+      // Fallback to direct assignment if the anchor approach is blocked
       try {
-        const a = document.createElement('a');
-        a.href = url;
-        a.rel = 'noopener';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { if (a.parentNode) a.parentNode.removeChild(a); }, 1000);
+        window.location.href = url;
       } catch (_) { /* nothing further we can do */ }
     }
   }
@@ -641,7 +644,7 @@ class WalletManager {
       : this.walletType === 'solflare'
         ? 'https://solflare.com/ul/v1/signMessage'
         : 'https://phantom.app/ul/v1/signMessage';
-    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}&app_url=${appUrl}`;
+    return `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}&app_url=${appUrl}&cluster=${PHANTOM_CLUSTER}`;
   }
 
   _buildMobileSignTransactionUrl(serializedTransaction, pendingAction) {
@@ -667,7 +670,7 @@ class WalletManager {
     const dsk = encodeURIComponent(b58encode(keyPair.secretKey));
     // Solflare's signAndSendTransaction returns signature directly (wallet
     // submits the tx itself). Phantom uses signTransaction and we submit.
-    const returnType = this.walletType === 'solflare' ? 'signAndSendTransaction' : 'signTransaction';
+    const returnType = (this.walletType === 'solflare' || this.walletType === 'phantom') ? 'signAndSendTransaction' : 'signTransaction';
     let redirectUrl = `${redirectBase}?walletReturn=${returnType}&dsk=${dsk}&walletType=${this.walletType}`;
     if (this.pendingHandoffCode) redirectUrl += `&handoff=${encodeURIComponent(this.pendingHandoffCode)}`;
     if (this.pendingResumeRoom) redirectUrl += `&resumeRoom=${encodeURIComponent(this.pendingResumeRoom)}`;
@@ -680,8 +683,8 @@ class WalletManager {
       ? 'https://jup.ag/wallet/v1/signTransaction'
       : this.walletType === 'solflare'
         ? 'https://solflare.com/ul/v1/signAndSendTransaction'
-        : 'https://phantom.app/ul/v1/signTransaction';
-    const url = `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}&app_url=${appUrl}`;
+        : 'https://phantom.app/ul/v1/signAndSendTransaction';
+    const url = `${base}?dapp_encryption_public_key=${dappPubKey}&nonce=${nonceParam}&redirect_link=${redirectUrlEncoded}&payload=${payloadParam}&app_url=${appUrl}&cluster=${PHANTOM_CLUSTER}`;
     this._debugLog(`signTransaction deeplink length: ${url.length} chars`);
     if (url.length > 8000) {
       this._debugLog('WARNING: deeplink URL exceeds 8000 chars - may be truncated by browser/wallet');
