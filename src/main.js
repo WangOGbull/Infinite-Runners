@@ -3592,6 +3592,9 @@ class Game {
       label.classList.remove('stage-pop');
       void label.offsetWidth;
       label.classList.add('stage-pop');
+      fill.classList.remove('bar-pulse');
+      void fill.offsetWidth;
+      fill.classList.add('bar-pulse');
     }
   }
 
