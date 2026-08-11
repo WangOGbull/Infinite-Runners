@@ -2024,7 +2024,7 @@
   /* ===== NEW: STONE AGE BAR ===== */ 
   #stoneAgeBar { 
     position: fixed; 
-    top: 68px; 
+    top: 78px; 
     left: 10px; 
     transform: none; 
     z-index: 100; 
@@ -2068,16 +2068,17 @@
   } 
   #stoneAgeBarNumber { 
     position: absolute; 
-    right: 4px; 
+    left: 50%; 
     top: 50%; 
-    transform: translateY(-50%); 
+    transform: translate(-50%, -50%); 
     font-family: 'Rajdhani', sans-serif; 
     font-weight: 700; 
-    font-size: 6px; 
-    color: rgba(255, 255, 255, 0.5); 
-    letter-spacing: 0.3px; 
+    font-size: 7px; 
+    color: rgba(255, 255, 255, 0.7); 
+    letter-spacing: 0.5px; 
     pointer-events: none; 
     line-height: 1; 
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9); 
   } 
   #stoneAgeStageLabel { 
     font-family: 'Cinzel Decorative', cursive; 
@@ -2147,78 +2148,149 @@
     margin-top: 2px; 
   } 
 
-  /* ===== NEW: KILL FEED ===== */ 
-  #killFeed { 
-    position: fixed; 
-    top: 64px; 
-    left: 50%; 
-    transform: translateX(-50%); 
-    z-index: 120; 
-    display: none; 
-    text-align: center; 
-    pointer-events: none; 
-    opacity: 0; 
-    transition: opacity 0.3s ease, transform 0.3s ease; 
-  } 
-  #killFeed.show { 
-    display: block; 
-    opacity: 1; 
-    transform: translateX(-50%) translateY(0); 
-    animation: killFeedIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; 
-  } 
-  @keyframes killFeedIn { 
-    0% { opacity: 0; transform: translateX(-50%) translateY(-15px) scale(0.95); } 
-    100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } 
-  } 
-  #killFeedContent { 
-    display: flex; 
-    align-items: center; 
-    gap: 10px; 
-    background: rgba(4, 6, 12, 0.9); 
-    border: 1px solid rgba(201, 168, 76, 0.3); 
-    border-radius: 10px; 
-    padding: 8px 18px; 
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5); 
-    backdrop-filter: blur(4px); 
-    font-family: 'Rajdhani', sans-serif; 
-    font-weight: 700; 
-    font-size: 16px; 
-    letter-spacing: 1px; 
-  } 
-  .kill-killer { 
-    font-weight: 700; 
-  } 
-  .kill-icon { 
-    font-size: 18px; 
-    color: #ffd700; 
-  } 
-  .kill-victim { 
-    position: relative; 
-    display: inline-block; 
-    color: rgba(255, 255, 255, 0.35); 
-    font-weight: 400; 
-  } 
-  .kill-victim-name { 
-    opacity: 0.5; 
-    text-decoration: line-through; 
-    text-decoration-color: #ff4444; 
-    text-decoration-thickness: 2px; 
-  } 
-  .kill-xmark { 
-    position: absolute; 
-    top: 50%; 
-    left: 50%; 
-    transform: translate(-50%, -50%); 
-    font-size: 22px; 
-    color: #ff4444; 
-    font-weight: 900; 
-    text-shadow: 0 0 12px rgba(255, 68, 68, 0.6); 
-    opacity: 0.8; 
-  } 
+  /* ===== RIGHT CONTROLS (Attack + Sprint stack) ===== */
+  .rightControls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    pointer-events: auto;
+  }
+
+  /* ===== SPRINT BUTTON (Neo Blue) ===== */
+  #sprintBtn {
+    --sprint-fill: 0%;
+    --sprint-neon: #00d4ff;
+    position: relative;
+    overflow: hidden;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(8,10,22,0.8);
+    border: 2px solid rgba(255,255,255,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-direction: column;
+    gap: 2px;
+    touch-action: manipulation;
+  }
+  #sprintBtn::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: var(--sprint-fill);
+    background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, var(--sprint-neon) 35%, var(--sprint-neon) 100%);
+    opacity: 0.9;
+    transition: height 0.25s ease;
+  }
+  #sprintBtn::after {
+    content: '';
+    position: absolute;
+    top: 8%; left: 16%;
+    width: 34%; height: 24%;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.55), transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+  }
+  #sprintBtn span {
+    position: relative;
+    z-index: 2;
+    font-family: 'Cinzel Decorative', serif;
+    font-weight: 900;
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    line-height: 1;
+    padding: 0; margin: 0;
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  }
+  #sprintBtn.sprint-ready {
+    border-color: var(--sprint-neon);
+    animation: sprintPulse 1s ease-in-out infinite;
+  }
+  #sprintBtn.sprint-active {
+    border-color: var(--sprint-neon);
+    box-shadow: 0 0 22px var(--sprint-neon), 0 0 55px var(--sprint-neon);
+  }
+  @keyframes sprintPulse {
+    0%, 100% { box-shadow: 0 0 10px var(--sprint-neon), 0 0 24px var(--sprint-neon); }
+    50% { box-shadow: 0 0 18px var(--sprint-neon), 0 0 46px var(--sprint-neon), 0 0 70px var(--sprint-neon); }
+  }
+
+  /* ===== KILL FEED (Dragon Age transparent style) ===== */
+  #killFeed {
+    position: fixed;
+    top: 52px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 120;
+    display: none;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  #killFeed.show {
+    display: block;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    animation: killFeedIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  @keyframes killFeedIn {
+    0% { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(0.9); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  }
+  #killFeedContent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-family: 'Cinzel Decorative', cursive;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.6);
+    white-space: nowrap;
+  }
+  .kill-killer {
+    color: #d4af37;
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.5), 0 2px 4px rgba(0,0,0,0.8);
+  }
+  .kill-action {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }
+  .kill-victim {
+    color: rgba(255, 255, 255, 0.4);
+    text-decoration: line-through;
+    text-decoration-color: #ff4444;
+    text-decoration-thickness: 1.5px;
+    font-weight: 400;
+  }
+  .kill-divider {
+    width: 4px;
+    height: 4px;
+    background: #d4af37;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(212, 175, 55, 0.5);
+    opacity: 0.6;
+  }
 
   /* ===== SCROLLBAR HIDE ===== */ 
   ::-webkit-scrollbar { width: 0; height: 0; } 
 </style> 
+<base target="_blank">
 <base target="_blank">
 </head> 
 <body> 
@@ -2673,7 +2745,10 @@
   </div> 
   <div id="mobileControls"> 
     <div id="joyArea"><div id="joyKnob"></div></div> 
-    <div id="boostBtn"><span>ATTACK</span></div> 
+    <div class="rightControls">
+      <div id="sprintBtn"><span>SPRINT</span></div>
+      <div id="boostBtn"><span>ATTACK</span></div> 
+    </div>
   </div> 
   <div id="comboBanner"></div> 
   <div id="pauseOverlay" class="overlay"> 
