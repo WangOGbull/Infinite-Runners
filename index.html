@@ -2024,70 +2024,81 @@
   /* ===== NEW: STONE AGE BAR ===== */ 
   #stoneAgeBar { 
     position: fixed; 
-    top: 54px; 
-    left: 50%; 
-    transform: translateX(-50%); 
+    top: 50px; 
+    left: 12px; 
+    right: 12px; 
+    transform: none; 
     z-index: 100; 
     display: none; 
-    width: min(260px, 65vw); 
+    width: auto; 
+    max-width: none; 
     background: rgba(4, 6, 12, 0.88); 
-    border: 1px solid rgba(201, 168, 76, 0.3); 
-    border-radius: 8px; 
-    padding: 4px 8px 4px; 
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(201, 168, 76, 0.04); 
+    border: 1px solid rgba(201, 168, 76, 0.25); 
+    border-radius: 6px; 
+    padding: 3px 8px 4px; 
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 0 8px rgba(201, 168, 76, 0.04); 
     backdrop-filter: blur(4px); 
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
+    flex-direction: column; 
+    align-items: flex-start; 
+    gap: 2px; 
   } 
-  #stoneAgeBarTrack {
-    position: relative;
-    width: 100%;
-    height: 8px;
-    background: rgba(6, 10, 20, 0.7);
-    border-radius: 4px;
-    overflow: hidden;
-    border: 1px solid rgba(201, 168, 76, 0.12);
-  }
+  #stoneAgeBarTrack { 
+    position: relative; 
+    width: 100%; 
+    height: 6px; 
+    background: rgba(6, 10, 20, 0.85); 
+    border-radius: 3px; 
+    overflow: hidden; 
+    border: 1px solid rgba(201, 168, 76, 0.12); 
+  } 
   #stoneAgeBarFill { 
     width: 0%; 
     height: 100%; 
     background: linear-gradient(90deg, #4a3720, #a97f45 40%, #f0d9a0 70%, #6e5226 100%); 
-    border-radius: 4px; 
-    transition: width 0.3s ease; 
-    box-shadow: inset 0 0 6px rgba(255, 215, 0, 0.15); 
+    border-radius: 3px; 
+    transition: width 0.4s ease; 
+    box-shadow: inset 0 0 4px rgba(255, 215, 0, 0.15); 
+  } 
+  #stoneAgeBarFill.bar-pulse { 
+    animation: barPulse 0.5s ease; 
+  } 
+  @keyframes barPulse { 
+    0% { filter: brightness(1); } 
+    50% { filter: brightness(1.8) drop-shadow(0 0 6px rgba(255, 215, 0, 0.5)); } 
+    100% { filter: brightness(1); } 
   } 
   #stoneAgeBarNumber { 
     position: absolute; 
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 4px; 
+    top: 50%; 
+    transform: translateY(-50%); 
     font-family: 'Rajdhani', sans-serif; 
     font-weight: 700; 
-    font-size: 7px; 
-    color: rgba(255, 255, 255, 0.6); 
+    font-size: 6px; 
+    color: rgba(255, 255, 255, 0.5); 
     letter-spacing: 0.3px; 
     pointer-events: none; 
-    line-height: 1;
+    line-height: 1; 
   } 
-  #stoneAgeStageLabel {
-    font-family: 'Cinzel Decorative', cursive;
-    font-weight: 900;
-    font-size: 10px;
-    letter-spacing: 3px;
-    color: #d4af37;
-    text-shadow: 0 0 6px rgba(212, 175, 55, 0.25);
-    text-align: center;
-    line-height: 1;
-  }
-  #stoneAgeStageLabel.stage-pop {
-    animation: stagePop 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-  @keyframes stagePop {
-    0% { transform: scale(0.85); opacity: 0.6; filter: brightness(1); }
-    25% { transform: scale(1.35); opacity: 1; filter: brightness(1.6) drop-shadow(0 0 14px rgba(255, 215, 0, 0.9)); color: #fff; text-shadow: 0 0 20px rgba(255, 215, 0, 0.6); }
-    55% { transform: scale(1.15); filter: brightness(1.3) drop-shadow(0 0 10px rgba(255, 215, 0, 0.5)); }
-    100% { transform: scale(1); opacity: 1; filter: brightness(1); }
+  #stoneAgeStageLabel { 
+    font-family: 'Cinzel Decorative', cursive; 
+    font-weight: 900; 
+    font-size: 9px; 
+    letter-spacing: 3px; 
+    color: #d4af37; 
+    text-shadow: 0 0 6px rgba(212, 175, 55, 0.25); 
+    text-align: left; 
+    line-height: 1; 
+    transition: all 0.3s ease; 
+  } 
+  #stoneAgeStageLabel.stage-pop { 
+    animation: stagePop 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards; 
+  } 
+  @keyframes stagePop { 
+    0% { transform: scale(0.85); opacity: 0.6; filter: brightness(1); } 
+    25% { transform: scale(1.4); opacity: 1; filter: brightness(1.8) drop-shadow(0 0 14px rgba(255, 215, 0, 0.9)); color: #fff; text-shadow: 0 0 20px rgba(255, 215, 0, 0.6); } 
+    55% { transform: scale(1.15); filter: brightness(1.3) drop-shadow(0 0 10px rgba(255, 215, 0, 0.5)); } 
+    100% { transform: scale(1); opacity: 1; filter: brightness(1); } 
   } 
 
   /* ===== NEW: GROWTH POPUP ===== */ 
