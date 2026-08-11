@@ -3278,7 +3278,8 @@ class Game {
     if (this.uiManager.setLocalDragonRef) this.uiManager.setLocalDragonRef(this.localDragon);
 
     // ---- SHOW STONE AGE BAR ----
-    this.uiManager.showStoneAgeBar();
+    const sab = document.getElementById('stoneAgeBar');
+    if (sab) { sab.style.display = 'flex'; sab.dataset.stage = ''; }
 
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
@@ -3405,7 +3406,7 @@ class Game {
     // ---- STONE AGE BAR ----
     if (this.localDragon && this.localDragon.segments) {
       const segments = this.localDragon.segments.length;
-      this.uiManager.updateStoneAgeBar(segments, CONFIG.DRAGON_MAX_SEGMENTS || 50);
+      this._updateStoneAgeBar(segments, CONFIG.DRAGON_MAX_SEGMENTS || 50);
     }
 
     const minimap = document.getElementById('minimapCanvas');
@@ -3452,7 +3453,8 @@ class Game {
 
   endGame(hasWinner = false) {
     // ---- HIDE STONE AGE BAR ----
-    this.uiManager.hideStoneAgeBar();
+    const sab = document.getElementById('stoneAgeBar');
+    if (sab) sab.style.display = 'none';
 
     // Multiplayer stat tracking - roomRef only exists for actual multiplayer
     // matches (AI/wave mode never creates one), and only for logged-in
@@ -3562,6 +3564,34 @@ class Game {
         this.uiManager.showGrowthPopup(m.stage, m.text, color);
         break; // Only show one popup at a time
       }
+    }
+  }
+
+  _getStageName(segments) {
+    if (segments >= 50) return 'MAX';
+    if (segments >= 25) return 'ANCIENT';
+    if (segments >= 15) return 'WYRM';
+    if (segments >= 10) return 'DRAKE';
+    return 'HATCHLING';
+  }
+
+  _updateStoneAgeBar(segments, maxSegments) {
+    const bar = document.getElementById('stoneAgeBar');
+    const fill = document.getElementById('stoneAgeBarFill');
+    const number = document.getElementById('stoneAgeBarNumber');
+    const label = document.getElementById('stoneAgeStageLabel');
+    if (!bar || !fill || !label) return;
+    const pct = Math.min(100, (segments / Math.max(1, maxSegments)) * 100);
+    fill.style.width = pct + '%';
+    if (number) number.textContent = segments;
+    const stage = this._getStageName(segments);
+    const prevStage = bar.dataset.stage || '';
+    if (stage !== prevStage) {
+      bar.dataset.stage = stage;
+      label.textContent = stage;
+      label.classList.remove('stage-pop');
+      void label.offsetWidth;
+      label.classList.add('stage-pop');
     }
   }
 
