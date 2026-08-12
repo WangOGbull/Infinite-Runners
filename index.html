@@ -26,15 +26,17 @@
   #dragonSelectScreen .dsInner { height: 100dvh; position: relative; z-index: 2; } 
 
   #boostBtn {
-    position: relative;
+    position: fixed !important;
+    right: 15px !important;
+    bottom: 15px !important;
     overflow: hidden;
     background: transparent !important;
     border: none !important;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 52px !important;
-    height: 52px !important;
+    width: 80px !important;
+    height: 80px !important;
     border-radius: 50% !important;
     background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/attack-button.png') !important;
     background-size: contain !important;
@@ -43,6 +45,7 @@
     cursor: pointer;
     touch-action: manipulation;
     transition: transform 0.1s ease, filter 0.1s ease;
+    z-index: 1001 !important;
   } 
    
    
@@ -1475,17 +1478,21 @@
      big/small once tested on a real device. 
   =============================================================== */ 
   #joyArea { 
-      width: 140px !important; 
-      height: 140px !important; 
-      border-radius: 50% !important; 
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      position: relative !important;
+    width: 170px !important; 
+    height: 170px !important; 
+    border-radius: 50% !important; 
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    position: relative !important;
+    outline: none !important;
+  }
+  #joyArea::before, #joyArea::after { 
+    display: none !important; 
   } 
   #joyKnob { 
-      width: 120px !important; 
-      height: 120px !important; 
+      width: 170px !important; 
+      height: 170px !important; 
       border-radius: 50% !important; 
       background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png') !important;
       background-size: contain !important;
@@ -2189,10 +2196,12 @@
   #sprintBtn {
     --sprint-fill: 0%;
     --sprint-neon: #00d4ff;
-    position: relative;
+    position: fixed !important;
+    right: 23px !important;
+    bottom: 105px !important;
     overflow: hidden;
-    width: 52px;
-    height: 52px;
+    width: 64px !important;
+    height: 64px !important;
     border-radius: 50%;
     background: rgba(8,10,22,0.8);
     border: 2px solid rgba(255,255,255,0.18);
@@ -2203,6 +2212,7 @@
     flex-direction: column;
     gap: 2px;
     touch-action: manipulation;
+    z-index: 1001 !important;
   }
   #sprintBtn::before {
     content: '';
@@ -3043,116 +3053,5 @@
 })(); 
 </script> 
 
-
-<script>
-(function() {
-  function forceStyles() {
-    var boost = document.getElementById('boostBtn');
-    var sprint = document.getElementById('sprintBtn');
-    var joyArea = document.getElementById('joyArea');
-    var joyKnob = document.getElementById('joyKnob');
-
-    if (boost) {
-      boost.style.setProperty('position', 'fixed', 'important');
-      boost.style.setProperty('right', '12px', 'important');
-      boost.style.setProperty('bottom', '12px', 'important');
-      boost.style.setProperty('width', '80px', 'important');
-      boost.style.setProperty('height', '80px', 'important');
-      boost.style.setProperty('z-index', '1001', 'important');
-      boost.style.setProperty('background', 'transparent', 'important');
-      boost.style.setProperty('border', 'none', 'important');
-      boost.style.setProperty('border-radius', '50%', 'important');
-      boost.style.setProperty('background-image', "url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/attack-button.png')", 'important');
-      boost.style.setProperty('background-size', 'contain', 'important');
-      boost.style.setProperty('background-repeat', 'no-repeat', 'important');
-      boost.style.setProperty('background-position', 'center', 'important');
-      boost.style.setProperty('display', 'flex', 'important');
-      boost.style.setProperty('align-items', 'center', 'important');
-      boost.style.setProperty('justify-content', 'center', 'important');
-      boost.style.setProperty('cursor', 'pointer', 'important');
-      boost.style.setProperty('touch-action', 'manipulation', 'important');
-      var span = boost.querySelector('span');
-      if (span) span.style.setProperty('display', 'none', 'important');
-    }
-
-    if (sprint) {
-      sprint.style.setProperty('position', 'fixed', 'important');
-      sprint.style.setProperty('right', '20px', 'important');
-      sprint.style.setProperty('bottom', '100px', 'important');
-      sprint.style.setProperty('width', '64px', 'important');
-      sprint.style.setProperty('height', '64px', 'important');
-      sprint.style.setProperty('z-index', '1001', 'important');
-    }
-
-    if (joyKnob) {
-      joyKnob.style.setProperty('position', 'absolute', 'important');
-      joyKnob.style.setProperty('top', '50%', 'important');
-      joyKnob.style.setProperty('left', '50%', 'important');
-      joyKnob.style.setProperty('transform', 'translate(-50%, -50%)', 'important');
-      joyKnob.style.setProperty('width', '120px', 'important');
-      joyKnob.style.setProperty('height', '120px', 'important');
-      joyKnob.style.setProperty('border-radius', '50%', 'important');
-      joyKnob.style.setProperty('background-image', "url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png')", 'important');
-      joyKnob.style.setProperty('background-size', 'contain', 'important');
-      joyKnob.style.setProperty('background-repeat', 'no-repeat', 'important');
-      joyKnob.style.setProperty('background-position', 'center', 'important');
-      joyKnob.style.setProperty('background-color', 'transparent', 'important');
-      joyKnob.style.setProperty('pointer-events', 'none', 'important');
-      joyKnob.style.setProperty('filter', 'drop-shadow(0 6px 12px rgba(0,0,0,0.7))', 'important');
-      joyKnob.style.setProperty('display', 'block', 'important');
-    }
-
-    if (joyArea) {
-      joyArea.style.setProperty('width', '140px', 'important');
-      joyArea.style.setProperty('height', '140px', 'important');
-      joyArea.style.setProperty('border-radius', '50%', 'important');
-      joyArea.style.setProperty('background', 'transparent', 'important');
-      joyArea.style.setProperty('border', 'none', 'important');
-      joyArea.style.setProperty('box-shadow', 'none', 'important');
-      joyArea.style.setProperty('position', 'relative', 'important');
-    }
-  }
-
-  // Rotate joystick PNG to face drag direction while pinned in place
-  function rotateKnobToDirection(clientX, clientY) {
-    var joyArea = document.getElementById('joyArea');
-    var joyKnob = document.getElementById('joyKnob');
-    if (!joyArea || !joyKnob) return;
-    var rect = joyArea.getBoundingClientRect();
-    var cx = rect.left + rect.width / 2;
-    var cy = rect.top + rect.height / 2;
-    var dx = clientX - cx;
-    var dy = clientY - cy;
-    var angle = Math.atan2(dy, dx) * (180 / Math.PI);
-    joyKnob.style.setProperty('transform', 'translate(-50%, -50%) rotate(' + angle + 'deg)', 'important');
-  }
-
-  function resetKnobRotation() {
-    var joyKnob = document.getElementById('joyKnob');
-    if (joyKnob) joyKnob.style.setProperty('transform', 'translate(-50%, -50%) rotate(0deg)', 'important');
-  }
-
-  var joyArea = document.getElementById('joyArea');
-  if (joyArea) {
-    joyArea.addEventListener('touchstart', function(e) {
-      rotateKnobToDirection(e.touches[0].clientX, e.touches[0].clientY);
-    }, {passive: true});
-    joyArea.addEventListener('touchmove', function(e) {
-      rotateKnobToDirection(e.touches[0].clientX, e.touches[0].clientY);
-    }, {passive: true});
-    joyArea.addEventListener('touchend', resetKnobRotation);
-    joyArea.addEventListener('touchcancel', resetKnobRotation);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', forceStyles);
-  } else {
-    forceStyles();
-  }
-  // Re-apply after a short delay in case main.js rebuilds the DOM
-  setTimeout(forceStyles, 500);
-  setTimeout(forceStyles, 1500);
-})();
-</script>
 </body> 
 </html>
