@@ -170,7 +170,94 @@ class UIManager {
       const el = document.getElementById(id);
       if (el) this.screens[id] = el;
     });
+
+    // Initialize the custom dragon crest joystick as soon as screens are ready
+    this.initJoystick();
   }
+
+  // ============================================================
+  //  NEW CUSTOM JOYSTICK USING YOUR PNG AND GITHUB RAW CDN
+  // ============================================================
+  initJoystick() {
+    // 1. Remove any existing joystick so we don't create duplicates
+    const oldStick = document.getElementById('custom-joystick');
+    if (oldStick) oldStick.remove();
+
+    // 2. Create the joystick container
+    const container = document.createElement('div');
+    container.id = 'custom-joystick';
+    container.style.cssText = `
+      position: fixed;
+      bottom: 30px;
+      left: 30px;
+      width: 150px;
+      height: 150px;
+      touch-action: none;
+      cursor: grab;
+      z-index: 100;
+      pointer-events: auto;
+    `;
+
+    // 3. Create the image element pointing to your Raw GitHub CDN URL
+    const img = document.createElement('img');
+    // Using the raw.githubusercontent.com endpoint for fast CDN caching
+    img.src = 'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png';
+    img.alt = 'Dragon Joystick';
+    img.draggable = false;
+    img.style.cssText = `
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
+    `;
+
+    container.appendChild(img);
+    document.body.appendChild(container);
+
+    // 4. Add the joystick drag physics logic
+    this._setupJoystickLogic(container, 75); // 150px size / 2 = 75px radius
+  }
+
+  // Helper method to handle the drag physics
+  _setupJoystickLogic(stick, radius) {
+    let dragging = false;
+    let centerX, centerY;
+
+    const updateCenter = () => {
+      const rect = stick.getBoundingClientRect();
+      centerX = rect.left + rect.width / 2;
+      centerY = rect.top + rect.height / 2;
+    };
+
+    const moveStick = (clientX, clientY) => {
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      const dist = Math.min(Math.sqrt(dx * dx + dy * dy), radius);
+      const angle = Math.atan2(dy, dx);
+      stick.style.transform = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`;
+    };
+
+    const resetStick = () => {
+      stick.style.transform = 'translate(0px, 0px)';
+    };
+
+    stick.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      updateCenter();
+      stick.setPointerCapture(e.pointerId);
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (dragging) moveStick(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('pointerup', () => {
+      dragging = false;
+      resetStick();
+    });
+  }
+  // ============================================================
 
   createDynamicModals() {
     const diffModal = document.createElement('div');
