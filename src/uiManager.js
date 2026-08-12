@@ -23,7 +23,7 @@ class UIManager {
     this.dragonsData = [];
     this.dragonPowers = {};
     this.playerCoins = 1000000;
-    this.clearedTiers = {};
+    this.clearedTiers = {}; // { easy: true, medium: true, hard: true } - persisted, tracks which AI difficulty tiers have been fully cleared at least once
     this.selectedDragonName = null;
     this._modalDragon = null;
     this._connectedWalletType = null;
@@ -171,22 +171,21 @@ class UIManager {
       if (el) this.screens[id] = el;
     });
 
-    // Initialize the PNG joystick
+    // Initialize the custom dragon crest joystick as soon as screens are ready
     this.initJoystick();
   }
 
   // ============================================================
-  //  FIXED: PNG JOYSTICK NOW USES #joyArea AND #joyKnob IDs
-  //  So movementSystem.js listens to it correctly
+  //  NEW CUSTOM JOYSTICK USING YOUR PNG AND GITHUB RAW CDN
   // ============================================================
   initJoystick() {
     // 1. Remove any existing joystick so we don't create duplicates
-    const oldStick = document.getElementById('joyArea');
+    const oldStick = document.getElementById('custom-joystick');
     if (oldStick) oldStick.remove();
 
-    // 2. Create the joystick container with the CRITICAL ID #joyArea
+    // 2. Create the joystick container
     const container = document.createElement('div');
-    container.id = 'joyArea';
+    container.id = 'custom-joystick';
     container.style.cssText = `
       position: fixed;
       bottom: 30px;
@@ -197,26 +196,11 @@ class UIManager {
       cursor: grab;
       z-index: 100;
       pointer-events: auto;
-      border-radius: 50%;
     `;
 
-    // 3. Create the knob element with ID #joyKnob
-    const knob = document.createElement('div');
-    knob.id = 'joyKnob';
-    knob.style.cssText = `
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      transition: none;
-    `;
-
-    // 4. Create the PNG image inside the knob
+    // 3. Create the image element pointing to your Raw GitHub CDN URL
     const img = document.createElement('img');
+    // Using the raw.githubusercontent.com endpoint for fast CDN caching
     img.src = 'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png';
     img.alt = 'Dragon Joystick';
     img.draggable = false;
@@ -228,77 +212,50 @@ class UIManager {
       filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
     `;
 
-    knob.appendChild(img);
-    container.appendChild(knob);
+    container.appendChild(img);
     document.body.appendChild(container);
 
-    // 5. Re-bind the movement system's touch events to this new container
-    this._bindJoystickEvents(container, knob);
+    // 4. Add the joystick drag physics logic
+    this._setupJoystickLogic(container, 75); // 150px size / 2 = 75px radius
   }
 
-  _bindJoystickEvents(container, knob) {
-    let active = false;
+  // Helper method to handle the drag physics
+  _setupJoystickLogic(stick, radius) {
+    let dragging = false;
     let centerX, centerY;
-    let currentX, currentY;
 
     const updateCenter = () => {
-      const rect = container.getBoundingClientRect();
+      const rect = stick.getBoundingClientRect();
       centerX = rect.left + rect.width / 2;
       centerY = rect.top + rect.height / 2;
     };
 
-    const updateKnob = (clientX, clientY) => {
+    const moveStick = (clientX, clientY) => {
       const dx = clientX - centerX;
       const dy = clientY - centerY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const maxDist = 38;
-      const clampedDist = Math.min(dist, maxDist);
+      const dist = Math.min(Math.sqrt(dx * dx + dy * dy), radius);
       const angle = Math.atan2(dy, dx);
-      const kx = Math.cos(angle) * clampedDist;
-      const ky = Math.sin(angle) * clampedDist;
-      knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-      currentX = clientX;
-      currentY = clientY;
+      stick.style.transform = `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px)`;
     };
 
-    const resetKnob = () => {
-      knob.style.transform = 'translate(-50%, -50%)';
-      active = false;
-      currentX = centerX;
-      currentY = centerY;
+    const resetStick = () => {
+      stick.style.transform = 'translate(0px, 0px)';
     };
 
-    container.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      active = true;
+    stick.addEventListener('pointerdown', (e) => {
+      dragging = true;
       updateCenter();
-      const touch = e.touches[0];
-      updateKnob(touch.clientX, touch.clientY);
-      // Store state on the container so movementSystem can read it
-      container._joystickActive = true;
-      container._joystickCenter = { x: centerX, y: centerY };
-      container._joystickCurrent = { x: currentX, y: currentY };
-    }, { passive: false });
+      stick.setPointerCapture(e.pointerId);
+    });
 
-    container.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-      if (!active) return;
-      const touch = e.touches[0];
-      updateKnob(touch.clientX, touch.clientY);
-      container._joystickCurrent = { x: currentX, y: currentY };
-    }, { passive: false });
+    window.addEventListener('pointermove', (e) => {
+      if (dragging) moveStick(e.clientX, e.clientY);
+    });
 
-    container.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      resetKnob();
-      container._joystickActive = false;
-    }, { passive: false });
-
-    container.addEventListener('touchcancel', (e) => {
-      e.preventDefault();
-      resetKnob();
-      container._joystickActive = false;
-    }, { passive: false });
+    window.addEventListener('pointerup', () => {
+      dragging = false;
+      resetStick();
+    });
   }
   // ============================================================
 
@@ -307,6 +264,10 @@ class UIManager {
     diffModal.id = 'difficultyModal';
     diffModal.className = 'screen';
     
+    /* 
+      NOTICE: The text and inner HTML for the buttons below have been removed.
+      The JS logic still fires, but the CSS in index.html now overlays the PNG.
+    */
     diffModal.innerHTML = `
       <div class="difficultyBox">
         <div class="difficultyGrid">
@@ -394,6 +355,9 @@ class UIManager {
     el.addEventListener('touchend', eat, true);
   }
 
+  // Called from main.js whenever auth state changes (login success, guest
+  // entry, sign out) so this file can read/write real per-account progress
+  // instead of per-device localStorage.
   setAccount(uid, db) {
     this._uid = uid;
     this._db = db;
@@ -403,6 +367,7 @@ class UIManager {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
     if (this._uid && this._db) {
+      // Logged-in account - real, cross-device progress from Firebase.
       this._db.ref('users/' + this._uid).once('value').then((snap) => {
         const data = snap.val() || {};
         this.dragonPowers = data.dragonPowers || {};
@@ -416,6 +381,8 @@ class UIManager {
       });
       return;
     }
+    // Guest - no account to attach progress to, so nothing persists beyond
+    // this session (by design - see the guest-mode restrictions).
     this.dragonPowers = {};
     this.playerCoins = 1000000;
     this.clearedTiers = {};
@@ -561,6 +528,10 @@ class UIManager {
     return this.dragonPowers[dragonKey];
   }
 
+  // Special powers are earned by clearing AI difficulty tiers (Select
+  // Trial screen), not tied to any one dragon - the same three slots show
+  // for whichever dragon is selected, since the speed bonus applies
+  // account-wide via getTierSpeedMultiplier().
   renderSpecialPowers(dragon) {
     const powersContainer = document.getElementById('ddmPowers');
     if (!powersContainer) return;
@@ -640,8 +611,11 @@ class UIManager {
     if (el) el.textContent = this.playerCoins.toLocaleString();
   }
 
+  // Called once when a tier's final wave is cleared (see showTierComplete).
+  // Persists the unlock permanently and, if the dragon detail modal happens
+  // to be open, refreshes its special-powers list immediately.
   markTierCleared(tierId) {
-    if (!tierId || this.clearedTiers[tierId]) return;
+    if (!tierId || this.clearedTiers[tierId]) return; // already unlocked, nothing to do
     this.clearedTiers[tierId] = true;
     if (this._uid && this._db) {
       this._db.ref('users/' + this._uid + '/clearedTiers').update({ [tierId]: true }).catch(() => {});
@@ -649,6 +623,9 @@ class UIManager {
     if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
   }
 
+  // Total permanent speed bonus earned from cleared tiers, applied to the
+  // local player's dragon at match start. +5% per tier cleared - simple,
+  // stacks up to +15% once all three (Easy/Medium/Hard) are cleared.
   getTierSpeedMultiplier() {
     const cleared = Object.values(this.clearedTiers).filter(Boolean).length;
     return 1 + (cleared * 0.05);
@@ -972,6 +949,10 @@ class UIManager {
     this._ensureResumeBannerEl();
     const wOpt = document.getElementById('wOptPhantom');
     if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
+    // The second tile in this modal used to be Jupiter, which had NO click
+    // handler at all - it rendered but did nothing when tapped. It is now
+    // Solflare, wired to the same path as the walletSelectionModal's
+    // Solflare button so both entry points behave identically.
     const wOptSolflare = document.getElementById('wOptSolflare');
     if (wOptSolflare) {
       wOptSolflare.addEventListener('click', () => {
@@ -1303,7 +1284,9 @@ class UIManager {
     if (label) label.textContent = active ? 'ATTACK!' : 'ATTACK';
   }
 
+  // ===== UPDATED COMBO BANNER =====
   showComboBanner(killer, streak) {
+    // Only show if streak >= 3
     if (streak < 3) return;
     const banner = document.getElementById('comboBanner');
     if (!banner) return;
@@ -1319,6 +1302,7 @@ class UIManager {
     banner.classList.add('combo-show');
   }
 
+  // ==================== STONE AGE BAR ====================
   showStoneAgeBar() {
     const bar = document.getElementById('stoneAgeBar');
     if (bar) bar.style.display = 'block';
@@ -1338,6 +1322,7 @@ class UIManager {
     fill.style.width = pct + '%';
     number.textContent = segments;
 
+    // Update milestone highlights
     const milestones = document.querySelectorAll('#stoneAgeMilestones .milestone');
     milestones.forEach(el => {
       const seg = parseInt(el.dataset.seg);
@@ -1346,6 +1331,7 @@ class UIManager {
     });
   }
 
+  // ==================== GROWTH POPUP ====================
   showGrowthPopup(stage, text, color) {
     const popup = document.getElementById('growthPopup');
     const stageEl = document.getElementById('growthPopupStage');
@@ -1362,17 +1348,20 @@ class UIManager {
     void popup.offsetWidth;
     popup.classList.add('show');
 
+    // Auto-hide after 2 seconds
     clearTimeout(this._growthPopupTimer);
     this._growthPopupTimer = setTimeout(() => {
       popup.classList.remove('show');
     }, 2000);
   }
 
+  // ==================== KILL FEED ====================
   showKillFeed(killerName, victimName, killerColor) {
     const feed = document.getElementById('killFeed');
     const content = document.getElementById('killFeedContent');
     if (!feed || !content) return;
 
+    // Cancel victim name with X mark
     content.innerHTML = `
       <span class="kill-killer" style="color:${killerColor}">${killerName}</span>
       <span class="kill-icon">🐉</span>
@@ -1386,6 +1375,7 @@ class UIManager {
     void feed.offsetWidth;
     feed.classList.add('show');
 
+    // Auto-hide after 2.5 seconds
     clearTimeout(this._killFeedTimer);
     this._killFeedTimer = setTimeout(() => {
       feed.classList.remove('show');
@@ -1393,6 +1383,10 @@ class UIManager {
   }
 
   updateHUD(score, timeStr, localDragon, waveNum = null) {
+    // In AI wave mode, the score counter was always stuck at 0 and told
+    // the player nothing useful - repurposed to show the current wave
+    // number instead ("Wave 1", "Wave 2"...). Non-wave modes (waveNum
+    // null) keep showing the real score as before.
     const hudKey = waveNum !== null ? `wave:${waveNum}` : `score:${score}`;
     if (hudKey !== this._hudScore) {
       this._hudScore = hudKey;
@@ -1594,6 +1588,9 @@ class UIManager {
 
   hidePauseOverlay() { const el = document.getElementById('pauseOverlay'); if (el) el.classList.remove('active'); }
 
+  // Shown when the local player is eliminated but the match continues -
+  // lets them watch whoever killed them (or another survivor) instead of
+  // staring at a frozen screen, with a way to leave the match entirely.
   showSpectateOverlay(targetDragon, onLeave) {
     const overlay = this._spectateOverlay || document.getElementById('spectateOverlay');
     if (!overlay) return;
@@ -1604,6 +1601,8 @@ class UIManager {
     }
     const leaveBtn = document.getElementById('btnLeaveSpectate');
     if (leaveBtn) {
+      // Direct assignment (not addEventListener) so re-showing on a
+      // re-target never stacks duplicate handlers.
       leaveBtn.onclick = () => { if (typeof onLeave === 'function') onLeave(); };
     }
     overlay.classList.add('active');
@@ -1664,10 +1663,12 @@ class UIManager {
       return;
     }
     nameEl.textContent = username;
+    // Reset animation by removing and re-adding the element
     banner.style.display = 'block';
     banner.style.animation = 'none';
-    banner.offsetHeight;
+    banner.offsetHeight; // force reflow
     banner.style.animation = 'loginDropIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards, loginDropHold 2.4s 0.6s linear forwards, loginDropOut 0.4s 3s ease forwards';
+    // Auto-hide after animation completes (3.4s total)
     setTimeout(() => {
       if (banner) banner.style.display = 'none';
     }, 3400);
@@ -1766,6 +1767,11 @@ class UIManager {
     if (errEl && state !== 'disconnected') errEl.style.display = 'none';
   }
 
+  // Called when a wallet connects in an ISOLATED session (Solflare/Phantom's
+  // own in-app browser) and syncs back to this account via the link-code
+  // bridge (see main.js _watchWalletLinkSync). This tab's walletManager
+  // never actually connected anything itself - just reflect the now-synced
+  // address in the UI the same way a real connection would display.
   showWalletSynced(address) {
     this.setWalletModalState('connected');
     this.updateWalletDisplay(address, null, 'synced');
@@ -2067,6 +2073,19 @@ class UIManager {
     if (el) el.classList.remove('active');
   }
 
+  // ------------------------------------------------------------------
+  // ROOM RESUME BANNER
+  //
+  // Shown on the title screen when a player arrives back from a wallet's
+  // in-app browser and we're rejoining their lobby. Built in JS rather than
+  // index.html so it carries its own styles and can't be broken by an
+  // unrelated markup edit.
+  //
+  // The countdown is reassurance, NOT a gate: main.js jumps the moment the
+  // rejoin resolves, which is usually well under a second. Nothing here
+  // blocks the Play button - if the rejoin fails, the player is simply told
+  // and carries on normally.
+  // ------------------------------------------------------------------
   _ensureResumeBannerEl() {
     if (document.getElementById('resumeBanner')) return;
     const el = document.createElement('div');
@@ -2112,6 +2131,8 @@ class UIManager {
     if (sub) sub.textContent = `${Math.max(0, seconds)}s`;
   }
 
+  // Terminal state: swaps the spinner for a plain message and fades out on
+  // its own, so a failed rejoin never leaves a permanent object on screen.
   showResumeFailed(message) {
     this._ensureResumeBannerEl();
     const el = document.getElementById('resumeBanner');
