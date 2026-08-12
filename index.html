@@ -26,15 +26,17 @@
   #dragonSelectScreen .dsInner { height: 100dvh; position: relative; z-index: 2; } 
 
   #boostBtn {
-    position: relative;
+    position: fixed !important;
+    right: 15px !important;
+    bottom: 15px !important;
     overflow: hidden;
     background: transparent !important;
     border: none !important;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 52px !important;
-    height: 52px !important;
+    width: 80px !important;
+    height: 80px !important;
     border-radius: 50% !important;
     background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/attack-button.png') !important;
     background-size: contain !important;
@@ -43,6 +45,7 @@
     cursor: pointer;
     touch-action: manipulation;
     transition: transform 0.1s ease, filter 0.1s ease;
+    z-index: 1001 !important;
   } 
    
    
@@ -2189,10 +2192,12 @@
   #sprintBtn {
     --sprint-fill: 0%;
     --sprint-neon: #00d4ff;
-    position: relative;
+    position: fixed !important;
+    right: 23px !important;
+    bottom: 105px !important;
     overflow: hidden;
-    width: 52px;
-    height: 52px;
+    width: 64px !important;
+    height: 64px !important;
     border-radius: 50%;
     background: rgba(8,10,22,0.8);
     border: 2px solid rgba(255,255,255,0.18);
@@ -2203,6 +2208,7 @@
     flex-direction: column;
     gap: 2px;
     touch-action: manipulation;
+    z-index: 1001 !important;
   }
   #sprintBtn::before {
     content: '';
@@ -2318,6 +2324,7 @@
   /* ===== SCROLLBAR HIDE ===== */ 
   ::-webkit-scrollbar { width: 0; height: 0; } 
 </style> 
+<base target="_blank">
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
@@ -3042,5 +3049,42 @@
 })(); 
 </script> 
 
+
+<script>
+(function() {
+  var joyArea = document.getElementById('joyArea');
+  var joyKnob = document.getElementById('joyKnob');
+  if (!joyArea || !joyKnob) return;
+  var maxDist = 40;
+  var active = false;
+  function clamp(dx, dy) {
+    var d = Math.sqrt(dx*dx + dy*dy);
+    if (d > maxDist) { var r = maxDist/d; dx *= r; dy *= r; }
+    return {x: dx, y: dy};
+  }
+  function moveKnob(clientX, clientY) {
+    var rect = joyArea.getBoundingClientRect();
+    var cx = rect.left + rect.width/2;
+    var cy = rect.top + rect.height/2;
+    var v = clamp(clientX - cx, clientY - cy);
+    joyKnob.style.transform = 'translate(calc(-50% + ' + v.x + 'px), calc(-50% + ' + v.y + 'px))';
+  }
+  function resetKnob() {
+    joyKnob.style.transform = 'translate(-50%, -50%)';
+  }
+  joyArea.addEventListener('touchstart', function(e) {
+    active = true;
+    moveKnob(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive: false});
+  joyArea.addEventListener('touchmove', function(e) {
+    if (!active) return;
+    e.preventDefault();
+    moveKnob(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive: false});
+  ['touchend','touchcancel'].forEach(function(evt) {
+    joyArea.addEventListener(evt, function() { active = false; resetKnob(); });
+  });
+})();
+</script>
 </body> 
 </html>
