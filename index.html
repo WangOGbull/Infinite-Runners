@@ -2743,9 +2743,8 @@
     </div> 
     <canvas id="minimapCanvas"></canvas> 
   </div> 
-  <!-- ===== MOBILE CONTROLS (OLD JOYSTICK REMOVED) ===== -->
-  <!-- PNG joystick is now injected by UIManager with IDs #joyArea and #joyKnob -->
   <div id="mobileControls"> 
+    <div id="joyArea"><div id="joyKnob"></div></div> 
     <div class="rightControls">
       <div id="sprintBtn"><span>SPRINT</span></div>
       <div id="boostBtn"><span>ATTACK</span></div> 
@@ -2958,6 +2957,12 @@
     var boxRect = img.getBoundingClientRect(); 
     if (boxRect.width === 0 || boxRect.height === 0) return; 
 
+    // The <img> element's own CSS box can end up with a slightly different 
+    // aspect ratio than the source image (due to upstream sizing constraints), 
+    // in which case object-fit:contain letterboxes the real image INSIDE 
+    // that box. Compute the true visible content rect from first principles 
+    // (natural image size vs box size) so hitboxes always match what's 
+    // actually drawn on screen, regardless of any box-sizing quirks. 
     var natW = img.naturalWidth, natH = img.naturalHeight; 
     var scale = Math.min(boxRect.width / natW, boxRect.height / natH); 
     var contentW = natW * scale; 
@@ -2988,6 +2993,8 @@
     place(document.getElementById('btnDiffBack'), ZONES.back); 
   } 
 
+  // Reposition whenever the modal is shown, the image finishes loading, 
+  // or the viewport changes (rotation, resize, mobile URL bar collapse). 
   var observer = new MutationObserver(positionHitboxes); 
   function attachWhenReady() { 
     var modal = document.getElementById('difficultyModal'); 
@@ -3000,6 +3007,8 @@
   attachWhenReady(); 
   window.addEventListener('resize', positionHitboxes); 
   window.addEventListener('orientationchange', positionHitboxes); 
+  // Safety net: some mobile browsers resize the viewport slightly after 
+  // the resize event fires (URL bar collapsing), so re-check shortly after. 
   window.addEventListener('resize', function () { setTimeout(positionHitboxes, 300); }); 
 })(); 
 </script> 
