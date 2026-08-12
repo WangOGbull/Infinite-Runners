@@ -1187,17 +1187,11 @@ class UIManager {
     const active = !!(dragon && dragon.attackActive);
     const max = CONFIG.ATTACK_METER_MAX || 20;
     const full = charge >= max;
-    const neon = (dragon && CONFIG.DRAGON_NEON) ? (CONFIG.DRAGON_NEON[dragon.type] || '#ffd700') : '#ffd700';
-    const state = `${charge}|${active}|${neon}`;
+    const state = `${charge}|${active}`;
     if (state === this._meterState) return;
     this._meterState = state;
-    const pct = Math.round((charge / max) * 100);
-    btn.style.setProperty('--fill', pct + '%');
-    btn.style.setProperty('--neon', neon);
     btn.classList.toggle('attack-ready', full && !active);
     btn.classList.toggle('attack-active', active);
-    const label = btn.querySelector('span');
-    if (label) label.textContent = active ? 'ATTACK!' : 'ATTACK';
   }
 
   // ===== UPDATED COMBO BANNER =====
