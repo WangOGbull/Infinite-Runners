@@ -7,6 +7,7 @@ class FoodSystem {
     this.nextId = 1;
     this.arenaBounds = null;
     this.innerBounds = null;
+    this.maxFood = 600; // CAP: prevents unbounded growth on death drops
 
     this.colors = [
       '#00e5ff',
@@ -23,7 +24,7 @@ class FoodSystem {
     this.nextId = 1;
 
     const area = (this.innerBounds.maxX - this.innerBounds.minX) * (this.innerBounds.maxY - this.innerBounds.minY);
-    const foodCount = Math.floor(area * CONFIG.FOOD_DENSITY);
+    const foodCount = Math.min(Math.floor(area * CONFIG.FOOD_DENSITY), this.maxFood);
 
     for (let i = 0; i < foodCount; i++) {
       this.spawnFood();
@@ -32,6 +33,7 @@ class FoodSystem {
 
   spawnFood() {
     if (!this.innerBounds) return;
+    if (this.foods.size >= this.maxFood) return;
 
     const id = `food_${this.nextId++}`;
     const color = this.colors[Math.floor(Math.random() * this.colors.length)];
@@ -54,6 +56,12 @@ class FoodSystem {
 
   spawnFoodAt(x, y, bonus = false) {
     if (!this.innerBounds) return;
+
+    // CAP: at max food, delete the oldest entry before adding new
+    if (this.foods.size >= this.maxFood) {
+      const firstKey = this.foods.keys().next().value;
+      if (firstKey !== undefined) this.foods.delete(firstKey);
+    }
 
     const id = `food_${this.nextId++}`;
     const color = this.colors[Math.floor(Math.random() * this.colors.length)];
@@ -87,11 +95,13 @@ class FoodSystem {
 
   getFoodInRadius(x, y, radius) {
     const result = [];
+    const hitRSq = radius * radius;
     for (const food of this.foods.values()) {
       const dx = food.x - x;
       const dy = food.y - y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < radius + food.radius) {
+      const distSq = dx * dx + dy * dy;
+      const hitR = radius + food.radius;
+      if (distSq < hitR * hitR) {
         result.push(food);
       }
     }
