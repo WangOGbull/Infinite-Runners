@@ -655,7 +655,7 @@ class Game {
       return 'Password should be at least 6 characters.';
     }
     if (code === 'auth/invalid-email') {
-      return 'That email address doesn't look right.';
+      return 'That email address doesn\'t look right.';
     }
     return (e && e.message) || 'Something went wrong. Please try again.';
   }
