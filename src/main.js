@@ -3589,18 +3589,38 @@ class Game {
   }
 
   _setupSprintButton() {
-    const sprintBtn = document.getElementById('sprintBtn');
-    if (!sprintBtn) return;
-    const start = (e) => { e.preventDefault(); if (this.localDragon) this.localDragon.sprintHeld = true; };
-    const end = (e) => { e.preventDefault(); if (this.localDragon) this.localDragon.sprintHeld = false; };
-    sprintBtn.addEventListener('mousedown', start);
-    sprintBtn.addEventListener('mouseup', end);
-    sprintBtn.addEventListener('mouseleave', end);
-    sprintBtn.addEventListener('touchstart', start, { passive: false });
-    sprintBtn.addEventListener('touchend', end);
-    sprintBtn.addEventListener('touchcancel', end);
-  }
+  const sprintBtn = document.getElementById('sprintBtn');
+  if (!sprintBtn) return;
 
+  const start = (e) => {
+    e.preventDefault();
+
+    if (this.localDragon) {
+      this.localDragon.sprintHeld = true;
+    }
+  };
+
+  const end = (e) => {
+    e.preventDefault();
+
+    if (this.localDragon) {
+      this.localDragon.sprintHeld = false;
+    }
+  };
+
+  // Sprint uses only its own button.
+  sprintBtn.addEventListener('pointerdown', start, { passive: false });
+  sprintBtn.addEventListener('pointerup', end, { passive: false });
+  sprintBtn.addEventListener('pointercancel', end, { passive: false });
+  sprintBtn.addEventListener('lostpointercapture', end);
+
+  sprintBtn.addEventListener('pointerdown', (e) => {
+    try {
+      sprintBtn.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  }, { passive: false });
+}
+  
   _updateSprint(deltaTime) {
     const dragon = this.localDragon;
     if (!dragon || !dragon.alive) return;
