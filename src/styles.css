@@ -547,3 +547,149 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 #lobbyScreen .startGameBtn:hover{transform:scale(1.03);filter:brightness(1.15)}
 #lobbyScreen .startGameBtn img{width:100%;height:auto;max-height:55px;object-fit:contain;display:block}
 #lobbyScreen .lobbyActions{display:flex;flex-direction:column;gap:6px;width:100%;margin-top:4px;align-items:center;padding-bottom:40px}
+
+
+/* ============================================================
+   FINAL MOBILE HUD / PNG CONTROL OVERRIDES
+   Attack remains 96px. Sprint matches Attack.
+   Joystick artwork is visible without a base/ring.
+   ============================================================ */
+
+#joyArea {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    width: 132px !important;
+    height: 132px !important;
+    border-radius: 0 !important;
+    touch-action: none !important;
+}
+
+#joystick {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    width: 132px !important;
+    height: 132px !important;
+    border-radius: 0 !important;
+}
+
+#joystick::before,
+#joystick::after {
+    display: none !important;
+    content: none !important;
+}
+
+#boostBtn,
+#sprintBtn {
+    width: 96px !important;
+    height: 96px !important;
+    min-width: 96px !important;
+    min-height: 96px !important;
+    max-width: 96px !important;
+    max-height: 96px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+    touch-action: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+}
+
+/* Never draw a charge/fill layer over the Sprint PNG. */
+#sprintBtn::before,
+#sprintBtn::after {
+    display: none !important;
+    content: none !important;
+}
+
+/* Keep the controls visually separated. */
+#sprintBtn {
+    margin-bottom: 12px !important;
+}
+
+/* Attack must not inherit Sprint's visual states. */
+#boostBtn.sprint-active,
+#boostBtn.sprint-ready {
+    filter: none !important;
+}
+
+/* Compact, readable kill notification. */
+#kill-feed {
+    pointer-events: none !important;
+    width: auto !important;
+    max-width: min(72vw, 420px) !important;
+    left: 50% !important;
+    right: auto !important;
+    top: clamp(92px, 13vh, 150px) !important;
+    transform: translateX(-50%) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 6px !important;
+    z-index: 900 !important;
+}
+
+#kill-feed > * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Depth treatment for the main progression HUD without adding
+   any extra number/value inside it. */
+#progressBarContainer,
+#growthProgressContainer,
+#ancientProgressContainer {
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.18),
+        inset 0 -2px 0 rgba(0,0,0,.45),
+        0 3px 8px rgba(0,0,0,.45) !important;
+}
+
+/* Keep all touch controls above the arena but below modal screens. */
+#joyArea,
+#boostBtn,
+#sprintBtn {
+    z-index: 1002 !important;
+}
+
+/* Safe mobile spacing. */
+@media (max-width: 900px) {
+    #boostBtn {
+        right: calc(18px + env(safe-area-inset-right)) !important;
+        bottom: calc(18px + env(safe-area-inset-bottom)) !important;
+    }
+
+    #sprintBtn {
+        right: calc(18px + env(safe-area-inset-right)) !important;
+        bottom: calc(126px + env(safe-area-inset-bottom)) !important;
+        margin-bottom: 0 !important;
+    }
+
+    #joyArea {
+        left: calc(18px + env(safe-area-inset-left)) !important;
+        bottom: calc(18px + env(safe-area-inset-bottom)) !important;
+    }
+}
+
+@media (max-width: 480px) {
+    #boostBtn {
+        right: calc(14px + env(safe-area-inset-right)) !important;
+        bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+    }
+
+    #sprintBtn {
+        right: calc(14px + env(safe-area-inset-right)) !important;
+        bottom: calc(124px + env(safe-area-inset-bottom)) !important;
+    }
+
+    #joyArea {
+        left: calc(14px + env(safe-area-inset-left)) !important;
+        bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+    }
+}
