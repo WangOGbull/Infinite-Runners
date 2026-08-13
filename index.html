@@ -27,25 +27,25 @@
 
   #boostBtn {
     position: fixed !important;
-    right: 15px !important;
-    bottom: 15px !important;
-    overflow: hidden;
-    background: transparent !important;
-    border: none !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    right: 12px !important;
+    bottom: 12px !important;
     width: 80px !important;
     height: 80px !important;
+    z-index: 1001 !important;
+    background: transparent !important;
+    border: none !important;
     border-radius: 50% !important;
     background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/attack-button.png') !important;
     background-size: contain !important;
     background-repeat: no-repeat !important;
     background-position: center !important;
-    cursor: pointer;
-    touch-action: manipulation;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
     transition: transform 0.1s ease, filter 0.1s ease;
-    z-index: 1001 !important;
+    overflow: hidden;
   } 
    
    
@@ -1478,30 +1478,32 @@
      big/small once tested on a real device. 
   =============================================================== */ 
   #joyArea { 
-      width: 140px !important; 
-      height: 140px !important; 
-      border-radius: 50% !important; 
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      position: relative !important;
+    width: 170px !important; 
+    height: 170px !important; 
+    border-radius: 50% !important; 
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    position: relative !important;
+    outline: none !important;
   } 
   #joyKnob { 
-      width: 120px !important; 
-      height: 120px !important; 
-      border-radius: 50% !important; 
-      background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png') !important;
-      background-size: contain !important;
-      background-repeat: no-repeat !important;
-      background-position: center !important;
-      background-color: transparent !important;
-      position: absolute !important;
-      top: 50% !important;
-      left: 50% !important;
-      transform: translate(-50%, -50%) !important;
-      pointer-events: none !important;
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.7));
-      display: block !important;
+    width: 170px !important; 
+    height: 170px !important; 
+    border-radius: 50% !important; 
+    background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png') !important;
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-color: transparent !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    pointer-events: none !important;
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.7)) !important;
+    display: block !important;
+    will-change: transform;
   } 
    
    
@@ -2193,11 +2195,12 @@
     --sprint-fill: 0%;
     --sprint-neon: #00d4ff;
     position: fixed !important;
-    right: 23px !important;
-    bottom: 105px !important;
-    overflow: hidden;
+    right: 20px !important;
+    bottom: 100px !important;
     width: 64px !important;
     height: 64px !important;
+    z-index: 1001 !important;
+    overflow: hidden;
     border-radius: 50%;
     background: rgba(8,10,22,0.8);
     border: 2px solid rgba(255,255,255,0.18);
@@ -2208,7 +2211,6 @@
     flex-direction: column;
     gap: 2px;
     touch-action: manipulation;
-    z-index: 1001 !important;
   }
   #sprintBtn::before {
     content: '';
@@ -2780,10 +2782,10 @@
     <canvas id="minimapCanvas"></canvas> 
   </div> 
   <div id="mobileControls"> 
-    <div id="joyArea"><div id="joyKnob"></div></div> 
+    <div id="joyArea"><div id="joyKnob"></div></div></div> 
     <div class="rightControls">
-      <div id="sprintBtn"><span>SPRINT</span></div>
-      <div id="boostBtn"><span>ATTACK</span></div> 
+      <div id="sprintBtn"><span>SPRINT</span></div><span>SPRINT</span></div>
+      <div id="boostBtn"><span>ATTACK</span></div><span>ATTACK</span></div> 
     </div>
   </div> 
   <div id="comboBanner"></div> 
@@ -3054,36 +3056,84 @@
 (function() {
   var joyArea = document.getElementById('joyArea');
   var joyKnob = document.getElementById('joyKnob');
-  if (!joyArea || !joyKnob) return;
-  var maxDist = 40;
-  var active = false;
-  function clamp(dx, dy) {
-    var d = Math.sqrt(dx*dx + dy*dy);
-    if (d > maxDist) { var r = maxDist/d; dx *= r; dy *= r; }
-    return {x: dx, y: dy};
-  }
-  function moveKnob(clientX, clientY) {
+  var boostBtn = document.getElementById('boostBtn');
+  var sprintBtn = document.getElementById('sprintBtn');
+
+  // --- Joystick rotation: PNG stays pinned but rotates to face drag direction ---
+  function setKnobRotation(clientX, clientY) {
+    if (!joyArea || !joyKnob) return;
     var rect = joyArea.getBoundingClientRect();
-    var cx = rect.left + rect.width/2;
-    var cy = rect.top + rect.height/2;
-    var v = clamp(clientX - cx, clientY - cy);
-    joyKnob.style.transform = 'translate(calc(-50% + ' + v.x + 'px), calc(-50% + ' + v.y + 'px))';
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var dx = clientX - cx;
+    var dy = clientY - cy;
+    var angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    joyKnob.style.transform = 'translate(-50%, -50%) rotate(' + angle + 'deg)';
   }
   function resetKnob() {
-    joyKnob.style.transform = 'translate(-50%, -50%)';
+    if (joyKnob) joyKnob.style.transform = 'translate(-50%, -50%) rotate(0deg)';
   }
-  joyArea.addEventListener('touchstart', function(e) {
-    active = true;
-    moveKnob(e.touches[0].clientX, e.touches[0].clientY);
-  }, {passive: false});
-  joyArea.addEventListener('touchmove', function(e) {
-    if (!active) return;
-    e.preventDefault();
-    moveKnob(e.touches[0].clientX, e.touches[0].clientY);
-  }, {passive: false});
-  ['touchend','touchcancel'].forEach(function(evt) {
-    joyArea.addEventListener(evt, function() { active = false; resetKnob(); });
-  });
+
+  if (joyArea) {
+    joyArea.addEventListener('touchstart', function(e) {
+      setKnobRotation(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive: true});
+    joyArea.addEventListener('touchmove', function(e) {
+      setKnobRotation(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive: true});
+    joyArea.addEventListener('touchend', resetKnob);
+    joyArea.addEventListener('touchcancel', resetKnob);
+  }
+
+  // --- Style enforcer: runs every frame to guarantee attack button stays put ---
+  function enforce() {
+    if (boostBtn) {
+      boostBtn.style.setProperty('position', 'fixed', 'important');
+      boostBtn.style.setProperty('right', '12px', 'important');
+      boostBtn.style.setProperty('bottom', '12px', 'important');
+      boostBtn.style.setProperty('width', '80px', 'important');
+      boostBtn.style.setProperty('height', '80px', 'important');
+      boostBtn.style.setProperty('z-index', '1001', 'important');
+      boostBtn.style.setProperty('background-image', "url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/attack-button.png')", 'important');
+      boostBtn.style.setProperty('background-size', 'contain', 'important');
+      boostBtn.style.setProperty('background-repeat', 'no-repeat', 'important');
+      boostBtn.style.setProperty('background-position', 'center', 'important');
+      boostBtn.style.setProperty('background', 'transparent', 'important');
+      boostBtn.style.setProperty('border', 'none', 'important');
+      boostBtn.style.setProperty('border-radius', '50%', 'important');
+    }
+    if (sprintBtn) {
+      sprintBtn.style.setProperty('position', 'fixed', 'important');
+      sprintBtn.style.setProperty('right', '20px', 'important');
+      sprintBtn.style.setProperty('bottom', '100px', 'important');
+      sprintBtn.style.setProperty('width', '64px', 'important');
+      sprintBtn.style.setProperty('height', '64px', 'important');
+      sprintBtn.style.setProperty('z-index', '1001', 'important');
+    }
+    if (joyKnob) {
+      joyKnob.style.setProperty('width', '170px', 'important');
+      joyKnob.style.setProperty('height', '170px', 'important');
+      joyKnob.style.setProperty('background-image', "url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png')", 'important');
+      joyKnob.style.setProperty('background-size', 'contain', 'important');
+      joyKnob.style.setProperty('background-repeat', 'no-repeat', 'important');
+      joyKnob.style.setProperty('background-position', 'center', 'important');
+      joyKnob.style.setProperty('background-color', 'transparent', 'important');
+      joyKnob.style.setProperty('position', 'absolute', 'important');
+      joyKnob.style.setProperty('top', '50%', 'important');
+      joyKnob.style.setProperty('left', '50%', 'important');
+      joyKnob.style.setProperty('pointer-events', 'none', 'important');
+    }
+    if (joyArea) {
+      joyArea.style.setProperty('width', '170px', 'important');
+      joyArea.style.setProperty('height', '170px', 'important');
+      joyArea.style.setProperty('background', 'transparent', 'important');
+      joyArea.style.setProperty('border', 'none', 'important');
+      joyArea.style.setProperty('box-shadow', 'none', 'important');
+      joyArea.style.setProperty('outline', 'none', 'important');
+    }
+    requestAnimationFrame(enforce);
+  }
+  enforce();
 })();
 </script>
 </body> 
