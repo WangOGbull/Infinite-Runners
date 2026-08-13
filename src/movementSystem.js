@@ -4,6 +4,10 @@ class MovementSystem {
   constructor() {
     this.inputAngles = new Map();
     this.boosting = new Map();
+
+    // ATTACK ONLY:
+    // This state is controlled by the Attack button / Space.
+    // It must NEVER be used as Sprint/boost input.
     this.attackHeld = false;
 
     this.joystickActive = false;
@@ -48,6 +52,8 @@ class MovementSystem {
       this.hasMouseInput = true;
     });
 
+    // Desktop mouse attack.
+    // Never treat clicks on the mobile controls as attacks.
     window.addEventListener('mousedown', (e) => {
       if (
         e.button === 0 &&
@@ -67,7 +73,8 @@ class MovementSystem {
     // ================================================================
     // REAL ANALOG JOYSTICK
     // ================================================================
-
+    // Pointer Events keep the controlling finger separate from Attack
+    // and Sprint when multiple fingers are used.
     if (joyArea) {
       joyArea.style.touchAction = 'none';
 
@@ -149,17 +156,26 @@ class MovementSystem {
         { passive: false }
       );
 
-      joyArea.addEventListener('lostpointercapture', () => {
-        if (this.joystickActive) {
-          this.endJoystick();
+      joyArea.addEventListener(
+        'lostpointercapture',
+        () => {
+          if (this.joystickActive) {
+            this.endJoystick();
+          }
         }
-      });
+      );
     }
 
     // ================================================================
-    // ATTACK BUTTON
+    // ATTACK BUTTON — ATTACK ONLY
     // ================================================================
-
+    // IMPORTANT:
+    // Attack does NOT set sprintHeld.
+    // Attack does NOT call setBoost().
+    // Attack does NOT modify sprintActive.
+    // Attack does NOT modify sprintCharge.
+    //
+    // Sprint is owned exclusively by the Sprint button/main.js.
     if (boostBtn) {
       boostBtn.style.touchAction = 'none';
 
@@ -168,7 +184,9 @@ class MovementSystem {
 
         e.preventDefault();
 
+        // ONLY attack state changes here.
         this.attackHeld = true;
+
         boostBtn.classList.add('attack-active');
 
         try {
@@ -201,17 +219,23 @@ class MovementSystem {
         { passive: false }
       );
 
-      boostBtn.addEventListener('lostpointercapture', () => {
-        this.attackHeld = false;
-        boostBtn.classList.remove('attack-active');
-      });
+      boostBtn.addEventListener(
+        'lostpointercapture',
+        () => {
+          this.attackHeld = false;
+          boostBtn.classList.remove('attack-active');
+        }
+      );
     }
   }
 
   endJoystick() {
     this.joystickActive = false;
     this.joystickPointerId = null;
-    this.joystickCurrent = { ...this.joystickCenter };
+
+    this.joystickCurrent = {
+      ...this.joystickCenter
+    };
 
     this.updateJoystickVisual();
   }
@@ -223,10 +247,13 @@ class MovementSystem {
     if (!knob || !joyArea) return;
 
     if (!this.joystickActive) {
-      knob.style.transform = 'translate(-50%, -50%)';
+      knob.style.transform =
+        'translate(-50%, -50%)';
       return;
     }
 
+    // The PNG is the visible joystick artwork.
+    // The surrounding touch area remains invisible.
     const maxDist = 40;
 
     const dx =
@@ -237,14 +264,12 @@ class MovementSystem {
       this.joystickCurrent.y -
       this.joystickCenter.y;
 
-    const dist = Math.sqrt(
-      dx * dx + dy * dy
-    );
+    const dist =
+      Math.sqrt(dx * dx + dy * dy);
 
     if (dist <= 0.001) {
       knob.style.transform =
         'translate(-50%, -50%)';
-
       return;
     }
 
@@ -266,10 +291,13 @@ class MovementSystem {
       `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
   }
 
+  // Kept for compatibility with any existing remote/network code.
+  // This does NOT connect Attack to Sprint.
   setBoost(dragonId, active) {
     this.boosting.set(dragonId, active);
   }
 
+  // True only while the Attack input is held.
   isAttackHeld() {
     return this.attackHeld;
   }
@@ -299,6 +327,8 @@ class MovementSystem {
         return this.lastAngle;
       }
 
+      // Finger is down but too close to center:
+      // keep the current heading.
       return this.lastAngle;
     }
 
@@ -323,6 +353,8 @@ class MovementSystem {
       return this.lastAngle;
     }
 
+    // Touch device with no active joystick:
+    // keep moving straight rather than using stale 0,0 mouse input.
     return this.lastAngle;
   }
 
