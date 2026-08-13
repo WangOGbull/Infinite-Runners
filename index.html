@@ -2332,6 +2332,137 @@
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
+<style id="final-mobile-hud-overrides">
+
+  /* =========================================================
+     FINAL MOBILE HUD / PNG CONTROL OVERRIDES
+     Attack remains 96px. Sprint matches Attack.
+     Joystick shows PNG only; touch area remains invisible.
+     No Sprint charge/fill overlay.
+     ========================================================= */
+  #joyArea {
+    width: 150px !important;
+    height: 150px !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    touch-action: none !important;
+  }
+  #joyKnob {
+    width: 132px !important;
+    height: 132px !important;
+    background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png') !important;
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    pointer-events: none !important;
+  }
+  #joyKnob::before,
+  #joyKnob::after,
+  #joyArea::before,
+  #joyArea::after { display: none !important; content: none !important; }
+
+  .rightControls {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 14px !important;
+    width: 96px !important;
+    height: auto !important;
+    pointer-events: auto !important;
+  }
+  #sprintBtn,
+  #boostBtn {
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 96px !important;
+    width: 96px !important;
+    height: 96px !important;
+    min-width: 96px !important;
+    min-height: 96px !important;
+    max-width: 96px !important;
+    max-height: 96px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    outline: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    touch-action: none !important;
+  }
+  #sprintBtn {
+    background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/Sprint-button.png') !important;
+  }
+  #boostBtn {
+    background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/attack-button.png') !important;
+  }
+  #sprintBtn span,
+  #boostBtn span { display: none !important; }
+  #sprintBtn::before,
+  #sprintBtn::after,
+  #boostBtn::before,
+  #boostBtn::after { display: none !important; content: none !important; }
+  #sprintBtn.sprint-ready,
+  #sprintBtn.sprint-active,
+  #boostBtn.attack-ready { animation: none !important; border: 0 !important; box-shadow: none !important; }
+  #sprintBtn.sprint-active { filter: brightness(1.08) !important; }
+  #boostBtn.attack-active { transform: scale(0.94) !important; filter: brightness(1.12) !important; }
+
+  /* Compact, non-obstructive kill notification. */
+  #killFeed {
+    position: fixed !important;
+    top: calc(112px + env(safe-area-inset-top)) !important;
+    left: 50% !important;
+    right: auto !important;
+    width: max-content !important;
+    max-width: min(82vw, 360px) !important;
+    transform: translateX(-50%) !important;
+    z-index: 180 !important;
+    pointer-events: none !important;
+  }
+  #killFeedContent {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    min-height: 30px !important;
+    padding: 5px 11px !important;
+    border: 1px solid rgba(255,255,255,.14) !important;
+    border-radius: 8px !important;
+    background: rgba(5,7,12,.78) !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+    box-shadow: 0 5px 18px rgba(0,0,0,.35) !important;
+    font-family: 'Rajdhani', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: .8px !important;
+    white-space: nowrap !important;
+  }
+  .kill-killer { color: #f0c85a !important; text-shadow: none !important; }
+  .kill-action { color: rgba(255,255,255,.68) !important; text-shadow: none !important; }
+  .kill-victim { color: #fff !important; text-shadow: none !important; }
+
+  /* Remove the duplicate tiny number even if another script inserts it. */
+  #stoneAgeBarNumber { display: none !important; }
+
+</style>
 </head> 
 <body> 
 
@@ -2760,7 +2891,6 @@
     <div id="stoneAgeStageLabel">HATCHLING</div>
     <div id="stoneAgeBarTrack">
       <div id="stoneAgeBarFill"></div>
-      <span id="stoneAgeBarNumber">5</span>
     </div>
   </div> 
   <!-- ===== NEW KILL FEED ===== --> 
