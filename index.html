@@ -1478,21 +1478,17 @@
      big/small once tested on a real device. 
   =============================================================== */ 
   #joyArea { 
-    width: 170px !important; 
-    height: 170px !important; 
-    border-radius: 50% !important; 
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    position: relative !important;
-    outline: none !important;
-  }
-  #joyArea::before, #joyArea::after { 
-    display: none !important; 
+      width: 140px !important; 
+      height: 140px !important; 
+      border-radius: 50% !important; 
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      position: relative !important;
   } 
   #joyKnob { 
-      width: 170px !important; 
-      height: 170px !important; 
+      width: 120px !important; 
+      height: 120px !important; 
       border-radius: 50% !important; 
       background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/assets/dragon-joystick.png') !important;
       background-size: contain !important;
@@ -3053,5 +3049,42 @@
 })(); 
 </script> 
 
+
+<script>
+(function() {
+  var joyArea = document.getElementById('joyArea');
+  var joyKnob = document.getElementById('joyKnob');
+  if (!joyArea || !joyKnob) return;
+  var maxDist = 40;
+  var active = false;
+  function clamp(dx, dy) {
+    var d = Math.sqrt(dx*dx + dy*dy);
+    if (d > maxDist) { var r = maxDist/d; dx *= r; dy *= r; }
+    return {x: dx, y: dy};
+  }
+  function moveKnob(clientX, clientY) {
+    var rect = joyArea.getBoundingClientRect();
+    var cx = rect.left + rect.width/2;
+    var cy = rect.top + rect.height/2;
+    var v = clamp(clientX - cx, clientY - cy);
+    joyKnob.style.transform = 'translate(calc(-50% + ' + v.x + 'px), calc(-50% + ' + v.y + 'px))';
+  }
+  function resetKnob() {
+    joyKnob.style.transform = 'translate(-50%, -50%)';
+  }
+  joyArea.addEventListener('touchstart', function(e) {
+    active = true;
+    moveKnob(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive: false});
+  joyArea.addEventListener('touchmove', function(e) {
+    if (!active) return;
+    e.preventDefault();
+    moveKnob(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive: false});
+  ['touchend','touchcancel'].forEach(function(evt) {
+    joyArea.addEventListener(evt, function() { active = false; resetKnob(); });
+  });
+})();
+</script>
 </body> 
 </html>
