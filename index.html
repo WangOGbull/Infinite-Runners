@@ -1819,6 +1819,172 @@
   .profileIconTL { top: 16px; left: 16px; } 
   .profileIconTR { position: static; margin-left: auto; } 
 
+  /* ==============================================================
+     STAKING TERMS MODAL — one-time acceptance on first login
+  =============================================================== */
+  #stakingTermsOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+  }
+  #stakingTermsOverlay.active {
+      display: flex;
+  }
+  .termsCard {
+      position: relative;
+      width: min(440px, 92vw);
+      max-height: 88vh;
+      overflow-y: auto;
+      background: linear-gradient(180deg, #0d0a1a 0%, #120a08 100%);
+      border: 1px solid rgba(255, 180, 50, 0.25);
+      border-radius: 18px;
+      padding: 36px 28px 28px;
+      box-shadow: 0 0 60px rgba(255, 140, 0, 0.12), 0 20px 80px rgba(0,0,0,0.6);
+      animation: termsSlideIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  @keyframes termsSlideIn {
+      from { opacity: 0; transform: translateY(30px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .termsCard .termsBadge {
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #ff8c00, #ffb347);
+      color: #1a0f00;
+      font-weight: 800;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      padding: 6px 18px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      box-shadow: 0 4px 16px rgba(255, 140, 0, 0.4);
+  }
+  .termsCard h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      margin: 12px 0 6px;
+      text-align: center;
+  }
+  .termsCard .termsSub {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.45);
+      text-align: center;
+      margin-bottom: 20px;
+  }
+  .termsCard .termsBody {
+      font-size: 13px;
+      line-height: 1.65;
+      color: rgba(255, 255, 255, 0.7);
+      max-height: 320px;
+      overflow-y: auto;
+      padding-right: 6px;
+  }
+  .termsCard .termsBody p {
+      margin-bottom: 12px;
+  }
+  .termsCard .termsBody strong {
+      color: rgba(255, 180, 50, 0.95);
+      font-weight: 700;
+  }
+  .termsCard .termsBody .termsSection {
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .termsCard .termsBody .termsSection:last-child {
+      border-bottom: none;
+  }
+  .termsCard .termsBody .termsSection h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ff8c00;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+  }
+  .termsCard .termsContact {
+      text-align: center;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.4);
+  }
+  .termsCard .termsContact a {
+      color: #ff8c00;
+      text-decoration: none;
+      font-weight: 600;
+  }
+  .termsCard .termsCheckboxRow {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 18px 0 16px;
+      cursor: pointer;
+  }
+  .termsCard .termsCheckboxRow input[type="checkbox"] {
+      margin-top: 2px;
+      width: 18px;
+      height: 18px;
+      accent-color: #ff8c00;
+      flex-shrink: 0;
+  }
+  .termsCard .termsCheckboxRow label {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      line-height: 1.5;
+      cursor: pointer;
+  }
+  .termsCard .termsBtnRow {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+  }
+  .termsCard .termsAcceptBtn {
+      flex: 1;
+      background: linear-gradient(135deg, #ff8c00, #e67600);
+      color: #1a0f00;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+  }
+  .termsCard .termsAcceptBtn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+  }
+  .termsCard .termsAcceptBtn:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(255, 140, 0, 0.35);
+  }
+  .termsCard .termsDeclineBtn {
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+  }
+  .termsCard .termsDeclineBtn:hover {
+      background: rgba(255, 255, 255, 0.1);
+  }
+
   /* ============================================================== 
      AUTH SCREENS (login / username picker) 
   =============================================================== */ 
@@ -2137,51 +2303,112 @@
   } 
 
   /* ===== NEW: GROWTH POPUP ===== */ 
-  #growthPopup { 
-    position: fixed; 
-    top: 70px; 
-    left: 50%; 
-    transform: translateX(-50%); 
-    z-index: 150; 
-    display: none; 
-    text-align: center; 
-    pointer-events: none; 
-    opacity: 0; 
-    transition: opacity 0.4s ease, transform 0.4s ease; 
-  } 
-  #growthPopup.show { 
-    display: block; 
-    opacity: 1; 
-    transform: translateX(-50%) translateY(0); 
-    animation: growthPopIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; 
-  } 
-  @keyframes growthPopIn { 
-    0% { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(0.9); } 
-    100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } 
-  } 
-  #growthPopupContent { 
-    background: rgba(4, 6, 12, 0.92); 
-    border: 1px solid rgba(201, 168, 76, 0.3); 
-    border-radius: 12px; 
-    padding: 12px 28px; 
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.6); 
-    backdrop-filter: blur(4px); 
-  } 
-  #growthPopupStage { 
-    font-family: 'Cinzel Decorative', cursive; 
-    font-weight: 900; 
-    font-size: 28px; 
-    letter-spacing: 4px; 
-    line-height: 1.1; 
-  } 
-  #growthPopupText { 
-    font-family: 'Rajdhani', sans-serif; 
-    font-weight: 600; 
-    font-size: 13px; 
-    letter-spacing: 1.5px; 
-    color: rgba(255, 255, 255, 0.7); 
-    margin-top: 2px; 
-  } 
+  #growthPopup {
+    position: fixed;
+    bottom: 185px;
+    left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    z-index: 160;
+    display: flex;
+    align-items: stretch;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #growthPopup.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  #growthPopupSeal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, rgba(201, 168, 76, 0.18), rgba(140, 110, 50, 0.06));
+    border: 1px solid rgba(201, 168, 76, 0.35);
+    border-right: none;
+    border-radius: 14px 0 0 14px;
+    position: relative;
+  }
+  #growthPopupSeal::after {
+    content: '✦';
+    font-size: 22px;
+    color: rgba(201, 168, 76, 0.7);
+    text-shadow: 0 0 12px rgba(201, 168, 76, 0.4);
+    animation: growthSealPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes growthSealPulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+  #growthPopupContent {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 14px 26px 14px 20px;
+    background: linear-gradient(135deg, rgba(6, 10, 20, 0.95), rgba(10, 18, 34, 0.92));
+    border: 1px solid rgba(201, 168, 76, 0.28);
+    border-left: none;
+    border-radius: 0 14px 14px 0;
+    box-shadow:
+      0 0 40px rgba(0, 0, 0, 0.5),
+      0 0 60px rgba(0, 180, 216, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    overflow: hidden;
+    min-width: 200px;
+  }
+  #growthPopupContent::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(0, 180, 216, 0.5) 30%,
+      rgba(201, 168, 76, 0.8) 70%,
+      transparent 100%);
+    animation: growthGlowLine 2s ease-in-out infinite;
+  }
+  @keyframes growthGlowLine {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+  }
+  #growthPopupContent::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle at 20% 50%, rgba(201, 168, 76, 0.04) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  #growthPopupStage {
+    position: relative;
+    font-family: 'Cinzel Decorative', cursive;
+    font-weight: 900;
+    font-size: 24px;
+    letter-spacing: 6px;
+    line-height: 1.1;
+    text-transform: uppercase;
+  }
+  #growthPopupText {
+    position: relative;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 2px;
+    text-transform: uppercase;
+    max-width: 280px;
+    line-height: 1.3;
+  }
 
   /* ===== RIGHT CONTROLS (Attack + Sprint stack) ===== */
   .rightControls {
@@ -2898,11 +3125,13 @@
     <div id="killFeedContent"></div> 
   </div> 
   <!-- ===== NEW GROWTH POPUP ===== --> 
-  <div id="growthPopup"> 
-    <div id="growthPopupContent"> 
-      <div id="growthPopupStage"></div> 
-      <div id="growthPopupText"></div> 
-    </div> 
+  <div id="growthPopup">
+    <div id="growthPopupSeal"></div>
+    <div id="growthPopupContent">
+      <div id="growthPopupStage"></div>
+      <div id="growthPopupText"></div>
+    </div>
+  </div>
   </div> 
   <!-- ===== EXISTING HUD ===== --> 
   <div id="gameHud"> 
@@ -3181,7 +3410,61 @@
   // the resize event fires (URL bar collapsing), so re-check shortly after. 
   window.addEventListener('resize', function () { setTimeout(positionHitboxes, 300); }); 
 })(); 
-</script> 
+</script>
+
+<!-- ===========================================
+     STAKING TERMS MODAL — one-time acceptance
+     =========================================== -->
+<div id="stakingTermsOverlay">
+  <div class="termsCard">
+    <div class="termsBadge">Important Notice</div>
+    <h2>Terms & Risk of Staking</h2>
+    <p class="termsSub">Please read carefully before playing InfiniteRunners</p>
+
+    <div class="termsBody">
+      <div class="termsSection">
+        <h3>Real Money at Stake</h3>
+        <p>InfiniteRunners involves <strong>real monetary stakes</strong>. When you enter a match, the coins or tokens you bet are locked and at risk. If you lose the match, <strong>you forfeit your stake</strong>.</p>
+      </div>
+
+      <div class="termsSection">
+        <h3>Play Responsibly</h3>
+        <p>Only stake what you can <strong>afford to lose</strong>. This game is a form of entertainment, not a source of income. Never stake money needed for rent, food, bills, or other essentials.</p>
+      </div>
+
+      <div class="termsSection">
+        <h3>No Guarantees</h3>
+        <p>Outcomes are determined by gameplay skill and in-match performance. <strong>There is no guarantee of winning.</strong> Past results do not predict future outcomes. The game, its developers, and affiliated parties are <strong>not liable</strong> for any losses incurred while playing.</p>
+      </div>
+
+      <div class="termsSection">
+        <h3>Bear Your Own Losses</h3>
+        <p>By accepting these terms, you acknowledge that <strong>all losses are your sole responsibility</strong>. No refunds, chargebacks, or compensation will be issued for lost stakes. If you feel you may have a gambling problem, seek help immediately.</p>
+      </div>
+
+      <div class="termsSection">
+        <h3>Age Requirement</h3>
+        <p>You must be <strong>18 years or older</strong> to participate in staking matches. By accepting, you confirm you meet this requirement.</p>
+      </div>
+    </div>
+
+    <div class="termsCheckboxRow">
+      <input type="checkbox" id="termsCheckbox" />
+      <label for="termsCheckbox">I have read and understood the Terms & Risk of Staking. I accept that I may lose my stake and bear all losses myself. I am 18 or older.</label>
+    </div>
+
+    <div class="termsBtnRow">
+      <button class="termsDeclineBtn" id="termsDeclineBtn">Decline</button>
+      <button class="termsAcceptBtn" id="termsAcceptBtn" disabled>I Accept</button>
+    </div>
+
+    <div class="termsContact">
+      Questions? Contact us at <a href="mailto:Contact@InfiniteCoinHQ.com">Contact@InfiniteCoinHQ.com</a>
+    </div>
+  </div>
+</div>
+
+ 
 
 
 </body> 
