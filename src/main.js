@@ -889,57 +889,37 @@ class Game {
 
   async _grantSovereign() {
     if (!this.authUid) return;
-    // ── Server-side verification: do NOT write to Firebase directly from client.
-    // The Railway backend verifies the Hard Mode completion (auth token + match
-    // data) and only then writes sovereignRank to Firebase. This prevents
-    // browser-console tampering.
+    // ── Server-side verification via Firebase Cloud Function.
+    // The function verifies auth + tier before writing sovereignRank.
+    // This prevents browser-console tampering.
     try {
-      // Get Firebase ID token for server-side auth
-      let idToken = null;
-      if (this.auth && this.auth.currentUser) {
-        idToken = await this.auth.currentUser.getIdToken(true);
-      }
-      if (!idToken) {
-        console.warn('[Sovereign] No auth token — cannot verify server-side');
-        return;
-      }
-      const resp = await fetch(`${BACKEND_URL}/sovereign/grant`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          idToken: idToken,
+      if (this.firebaseApp && typeof firebase !== 'undefined' && firebase.functions) {
+        const grantSovereign = firebase.functions().httpsCallable('grantSovereign');
+        const result = await grantSovereign({
           tierId: 'hard',
           mode: this.selectedMode || 'wave1',
           multiplayer: !!this.isMultiplayer,
-        }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.granted) {
+        });
+        if (result.data && result.data.granted) {
           this.sovereignStatus = true;
           console.log('[Sovereign] Rank granted by server ✓');
         } else {
-          console.warn('[Sovereign] Server declined:', data.reason || 'unknown');
+          console.warn('[Sovereign] Server declined:', result.data);
         }
-      } else if (resp.status === 404) {
-        // ── FALLBACK: endpoint not deployed yet — use direct Firebase write
-        // for testing. Remove this fallback once /sovereign/grant is live.
-        console.warn('[Sovereign] Backend endpoint not found (404) — using test fallback');
+      } else {
+        // ── FALLBACK: Cloud Functions not available — direct Firebase write
+        // for testing. Remove once grantSovereign function is deployed.
+        console.warn('[Sovereign] Cloud Functions unavailable — using test fallback');
         if (this.db) {
           await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true);
           this.sovereignStatus = true;
-          console.log('[Sovereign] Rank granted via test fallback (UNVERIFIED)');
         }
-      } else {
-        console.warn('[Sovereign] Server error:', resp.status);
       }
     } catch (e) {
-      console.warn('[Sovereign] verification request failed', e);
-      // Network error fallback for testing
+      console.warn('[Sovereign] Cloud Function failed, falling back:', e.message);
       if (this.db && this.authUid) {
         await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true).catch(() => {});
         this.sovereignStatus = true;
-        console.warn('[Sovereign] Rank granted via network-error fallback (UNVERIFIED)');
       }
     }
   }
