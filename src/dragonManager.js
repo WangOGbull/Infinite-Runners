@@ -408,15 +408,15 @@ export class DragonManager {
       // Attack remains the gun-magazine model.
       //
       // IMPORTANT:
-      // The old boost multiplier is reduced so that only 20% of
-      // the ORIGINAL EXTRA BOOST remains.
+      // Attack speed is now exactly 20% of the current
+      // Attack-boosted speed.
       //
       // Example:
       //
-      // Old multiplier = 1.5x
-      // Extra boost    = 0.5x
-      // 20% of extra   = 0.1x
-      // New multiplier = 1.1x
+      // Previous effective multiplier = 1.1x
+      // New effective multiplier      = 0.22x
+      //
+      // This does NOT affect Sprint.
       //
       if (!dragon.isRemote) {
         const wantsAttack =
@@ -558,13 +558,23 @@ export class DragonManager {
         dragon.speed;
 
       if (dragon.boostActive) {
-        // Keep only 20% of the old EXTRA Attack boost.
+        // ==========================================================
+        // ATTACK SPEED REDUCTION
+        // ==========================================================
         //
-        // Example:
-        // CONFIG.DRAGON_BOOST_MULTIPLIER = 1.5
-        // Old extra boost = 0.5
-        // 20% of extra     = 0.1
-        // New multiplier   = 1.1
+        // The previous Attack speed was already reduced to 1.1x
+        // from the original 1.5x.
+        //
+        // User requested:
+        //
+        // "Reduce the speed to 20% of its current speed."
+        //
+        // Therefore:
+        //
+        // 1.1 x 0.20 = 0.22
+        //
+        // This applies ONLY while Attack is active.
+        // Sprint is completely unaffected.
         //
         const originalMultiplier =
           Number(
@@ -572,7 +582,9 @@ export class DragonManager {
           );
 
         const safeMultiplier =
-          Number.isFinite(originalMultiplier)
+          Number.isFinite(
+            originalMultiplier
+          )
             ? originalMultiplier
             : 1;
 
@@ -585,11 +597,14 @@ export class DragonManager {
         const reducedExtra =
           originalExtra * 0.20;
 
-        const reducedAttackMultiplier =
+        const currentAttackMultiplier =
           1 + reducedExtra;
 
+        const attackSpeedMultiplier =
+          currentAttackMultiplier * 0.20;
+
         moveSpeed *=
-          reducedAttackMultiplier;
+          attackSpeedMultiplier;
       }
 
       const vx =
