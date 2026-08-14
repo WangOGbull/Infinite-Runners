@@ -557,7 +557,11 @@ export class DragonManager {
       let moveSpeed =
         dragon.speed;
 
-      // Sprint handles all speed — attack has no speed effect
+      // Attack gives +30% speed boost
+      if (dragon.attackActive) {
+        moveSpeed *= 1.30;
+      }
+
 
       const vx =
         Math.cos(dragon.angle) *
