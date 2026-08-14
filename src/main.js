@@ -916,13 +916,31 @@ class Game {
       this.growthSystem.onCollisionTailCut(victim, 0.2);
     });
     this.eventBus.on('dragon:tailDamage', ({ victim, attacker }) => {
-      this.growthSystem.onCollisionTailCut(victim, CONFIG.ATTACK_TAIL_DAMAGE_PERCENT);
-      const neon = (attacker && CONFIG.DRAGON_NEON) ? (CONFIG.DRAGON_NEON[attacker.type] || '#ffffff') : '#ffffff';
-      this.effectsSystem.spawnImpactSparks(victim.head.x, victim.head.y, neon);
-      this.effectsSystem.addShake(victim === this.localDragon ? 14 : 6, 220);
-      this.effectsSystem.playTone(260, 'sawtooth', 0.22, 0.16);
-    });
-      this.eventBus.on('collision:recoil', ({
+  this.growthSystem.onCollisionTailCut(
+    victim,
+    CONFIG.ATTACK_TAIL_DAMAGE_PERCENT
+  );
+
+  const neon =
+    (attacker && CONFIG.DRAGON_NEON)
+      ? (CONFIG.DRAGON_NEON[attacker.type] || '#ffffff')
+      : '#ffffff';
+
+  this.effectsSystem.spawnImpactSparks(
+    victim.head.x,
+    victim.head.y,
+    neon
+  );
+
+  this.effectsSystem.addShake(
+    victim === this.localDragon ? 14 : 6,
+    220
+  );
+
+  this.effectsSystem.playHeadCollisionSound();
+}); 
+    
+  this.eventBus.on('collision:recoil', ({
   dragon,
   other,
   directionX,
