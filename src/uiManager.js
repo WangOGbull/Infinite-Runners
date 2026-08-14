@@ -1250,19 +1250,18 @@ class UIManager {
 
     stageEl.textContent = stage;
     stageEl.style.color = color;
-    stageEl.style.textShadow = `0 0 20px ${color}, 0 0 40px ${color}`;
+    stageEl.style.textShadow = `0 0 14px ${color}99, 0 0 28px ${color}44`;
     textEl.textContent = text;
-    textEl.style.color = color;
+    textEl.style.color = 'rgba(255, 255, 255, 0.55)';
 
     popup.classList.remove('show');
     void popup.offsetWidth;
     popup.classList.add('show');
 
-    // Auto-hide after 2 seconds
     clearTimeout(this._growthPopupTimer);
     this._growthPopupTimer = setTimeout(() => {
       popup.classList.remove('show');
-    }, 2000);
+    }, 2500);
   }
 
   // ==================== KILL FEED ====================
