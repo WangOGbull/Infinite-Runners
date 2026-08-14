@@ -977,6 +977,6 @@ class EffectsSystem {
     osc.start(now);
     osc.stop(now + Math.max(0.03, duration || 0.12) + 0.02);
   }
-
+}
 
 export default EffectsSystem;
