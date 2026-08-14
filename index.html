@@ -2380,38 +2380,39 @@
   /* ===== NEW: GROWTH POPUP ===== */ 
   #growthPopup {
     position: fixed;
-    bottom: 185px;
-    left: 50%;
-    transform: translateX(-50%) translateY(40px);
-    z-index: 160;
+    top: calc(150px + env(safe-area-inset-top));
+    right: 10px;
+    left: auto;
+    transform: translateX(24px);
+    z-index: 150;
     display: flex;
     align-items: stretch;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-                transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   }
   #growthPopup.show {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(0);
   }
   #growthPopupSeal {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 52px;
+    width: 30px;
     flex-shrink: 0;
     background: linear-gradient(135deg, rgba(201, 168, 76, 0.18), rgba(140, 110, 50, 0.06));
     border: 1px solid rgba(201, 168, 76, 0.35);
     border-right: none;
-    border-radius: 14px 0 0 14px;
+    border-radius: 10px 0 0 10px;
     position: relative;
   }
   #growthPopupSeal::after {
     content: '✦';
-    font-size: 22px;
+    font-size: 13px;
     color: rgba(201, 168, 76, 0.7);
-    text-shadow: 0 0 12px rgba(201, 168, 76, 0.4);
+    text-shadow: 0 0 8px rgba(201, 168, 76, 0.4);
     animation: growthSealPulse 1.6s ease-in-out infinite;
   }
   @keyframes growthSealPulse {
@@ -2423,20 +2424,21 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 3px;
-    padding: 14px 26px 14px 20px;
+    gap: 1px;
+    padding: 7px 13px 7px 10px;
     background: linear-gradient(135deg, rgba(6, 10, 20, 0.95), rgba(10, 18, 34, 0.92));
     border: 1px solid rgba(201, 168, 76, 0.28);
     border-left: none;
-    border-radius: 0 14px 14px 0;
+    border-radius: 0 10px 10px 0;
     box-shadow:
-      0 0 40px rgba(0, 0, 0, 0.5),
-      0 0 60px rgba(0, 180, 216, 0.06),
+      0 0 20px rgba(0, 0, 0, 0.45),
+      0 0 30px rgba(0, 180, 216, 0.05),
       inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     overflow: hidden;
-    min-width: 200px;
+    min-width: 0;
+    max-width: min(58vw, 190px);
   }
   #growthPopupContent::before {
     content: '';
@@ -2467,22 +2469,48 @@
     position: relative;
     font-family: 'Cinzel Decorative', cursive;
     font-weight: 900;
-    font-size: 24px;
-    letter-spacing: 6px;
+    font-size: 14px;
+    letter-spacing: 3px;
     line-height: 1.1;
     text-transform: uppercase;
+    white-space: nowrap;
   }
   #growthPopupText {
     position: relative;
     font-family: 'Rajdhani', sans-serif;
     font-weight: 500;
-    font-size: 11px;
-    letter-spacing: 2px;
+    font-size: 8px;
+    letter-spacing: 1px;
     color: rgba(255, 255, 255, 0.55);
-    margin-top: 2px;
+    margin-top: 1px;
     text-transform: uppercase;
-    max-width: 280px;
-    line-height: 1.3;
+    max-width: 170px;
+    line-height: 1.25;
+  }
+
+  /* ===== SOVEREIGN CROWN BADGE (reuses the same seal/crest language
+     as the tier-complete crown — small circular gold outline + FA crown
+     icon; used inline wherever a Sovereign player's name appears) ===== */
+  .sovereignBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 1.3px solid #f7e3b0;
+    background: radial-gradient(circle, rgba(247, 227, 176, 0.32) 0%, transparent 72%);
+    box-shadow: 0 0 7px rgba(247, 227, 176, 0.55);
+    font-size: 7px;
+    color: #f7e3b0;
+    margin-right: 4px;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+  .sovereignName {
+    color: #f7e3b0 !important;
+    text-shadow: 0 0 8px rgba(247, 227, 176, 0.45);
+    font-weight: 700;
   }
 
   /* ===== RIGHT CONTROLS (Attack + Sprint stack) ===== */
@@ -3318,6 +3346,17 @@
       </div>
     </div>
     <button class="gotItBtn" id="btnGotIt">GOT IT</button></div> 
+</div> 
+
+<!-- ===== LEADERBOARD ===== --> 
+<div id="leaderboardScreen" class="screen"> 
+  <button class="htpClose" id="btnLeaderboardClose"><i data-lucide="x"></i></button> 
+  <div class="lbInner"> 
+    <h2><i class="fa-solid fa-trophy"></i> LEADERBOARD</h2> 
+    <div id="lbList" class="lbList"> 
+      <div class="lbLoading">Loading rankings...</div> 
+    </div> 
+  </div> 
 </div> 
 
 <!-- ===== WALLET MODAL ===== --> 
