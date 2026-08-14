@@ -701,7 +701,7 @@ class Game {
     declineBtn.onclick = () => {
       overlay.classList.remove('active');
       try { if (this.auth) this.auth.signOut(); } catch (_) {}
-      this._showScreen('loginScreen');
+      this.uiManager.showScreen('loginScreen');
     };
 
     // Show the modal
