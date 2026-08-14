@@ -178,6 +178,7 @@ class Game {
     this._setupSprintButton();
     await this.setupFirebase();
     this.effectsSystem.init();
+    this.effectsSystem._preloadAudio();
     this.walletManager.processMobileRedirect();
     this._handoffResumeRoom = await this._redeemAuthHandoff();
     if (this.authUid && this.roomRef) {
@@ -624,17 +625,87 @@ class Game {
             .then((snap) => {
               if (snap.exists()) {
                 this.username = snap.val();
-                finish('titleScreen');
-              } else {
-                finish('usernameScreen');
               }
+              // Check staking terms before proceeding to game
+              this._checkStakingTerms(user, () => {
+                if (snap.exists()) {
+                  finish('titleScreen');
+                } else {
+                  finish('usernameScreen');
+                }
+              });
             })
-            .catch(() => finish('titleScreen'));
+            .catch(() => {
+              this._checkStakingTerms(user, () => finish('titleScreen'));
+            });
         } else {
           finish('loginScreen');
         }
       });
     });
+  }
+
+
+  // ================================================================
+  // STAKING TERMS — one-time acceptance on first login
+  // ================================================================
+  async _checkStakingTerms(user, onProceed) {
+    if (!user || !this.db) { onProceed(); return; }
+    try {
+      const snap = await this.db.ref('users/' + user.uid + '/termsAccepted').once('value');
+      if (snap.exists() && snap.val() === true) {
+        onProceed();
+      } else {
+        this._showStakingTermsModal(user, onProceed);
+      }
+    } catch (e) {
+      console.warn('Terms check failed, proceeding:', e);
+      onProceed();
+    }
+  }
+
+  _showStakingTermsModal(user, onProceed) {
+    const overlay = document.getElementById('stakingTermsOverlay');
+    if (!overlay) { onProceed(); return; }
+
+    const checkbox = document.getElementById('termsCheckbox');
+    const acceptBtn = document.getElementById('termsAcceptBtn');
+    const declineBtn = document.getElementById('termsDeclineBtn');
+
+    // Reset state
+    checkbox.checked = false;
+    acceptBtn.disabled = true;
+
+    // Checkbox enables accept button
+    checkbox.onchange = () => {
+      acceptBtn.disabled = !checkbox.checked;
+    };
+
+    // Accept handler — write to Firebase, hide modal, proceed
+    acceptBtn.onclick = async () => {
+      acceptBtn.disabled = true;
+      acceptBtn.textContent = 'Accepting...';
+      try {
+        await this.db.ref('users/' + user.uid).update({
+          termsAccepted: true,
+          termsAcceptedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+      } catch (e) {
+        console.warn('Failed to save terms acceptance:', e);
+      }
+      overlay.classList.remove('active');
+      onProceed();
+    };
+
+    // Decline handler — sign out and go back to login
+    declineBtn.onclick = () => {
+      overlay.classList.remove('active');
+      try { if (this.auth) this.auth.signOut(); } catch (_) {}
+      this._showScreen('loginScreen');
+    };
+
+    // Show the modal
+    overlay.classList.add('active');
   }
 
   _friendlyAuthError(e) {
