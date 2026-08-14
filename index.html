@@ -2377,70 +2377,41 @@
     100% { transform: scale(1); opacity: 1; filter: brightness(1); } 
   } 
 
-  /* ===== NEW: GROWTH POPUP ===== */ 
+  /* ===== NEW: GROWTH POPUP (wide banner, matches reference sample) ===== */ 
   #growthPopup {
     position: fixed;
-    top: calc(150px + env(safe-area-inset-top));
-    right: 10px;
-    left: auto;
-    transform: translateX(24px);
+    top: calc(58px + env(safe-area-inset-top));
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -6px);
+    width: min(90vw, 300px);
+    max-width: 300px;
     z-index: 150;
     display: flex;
-    align-items: stretch;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    background: linear-gradient(135deg, rgba(6, 10, 20, 0.95), rgba(10, 18, 34, 0.92));
+    border: 1px solid rgba(201, 168, 76, 0.32);
+    border-radius: 8px;
+    box-shadow:
+      0 4px 14px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(0, 180, 216, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-                transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    overflow: hidden;
+    transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   }
   #growthPopup.show {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate(-50%, 0);
   }
-  #growthPopupSeal {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    flex-shrink: 0;
-    background: linear-gradient(135deg, rgba(201, 168, 76, 0.18), rgba(140, 110, 50, 0.06));
-    border: 1px solid rgba(201, 168, 76, 0.35);
-    border-right: none;
-    border-radius: 10px 0 0 10px;
-    position: relative;
-  }
-  #growthPopupSeal::after {
-    content: '✦';
-    font-size: 13px;
-    color: rgba(201, 168, 76, 0.7);
-    text-shadow: 0 0 8px rgba(201, 168, 76, 0.4);
-    animation: growthSealPulse 1.6s ease-in-out infinite;
-  }
-  @keyframes growthSealPulse {
-    0%, 100% { transform: scale(1); opacity: 0.5; }
-    50% { transform: scale(1.15); opacity: 1; }
-  }
-  #growthPopupContent {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 1px;
-    padding: 7px 13px 7px 10px;
-    background: linear-gradient(135deg, rgba(6, 10, 20, 0.95), rgba(10, 18, 34, 0.92));
-    border: 1px solid rgba(201, 168, 76, 0.28);
-    border-left: none;
-    border-radius: 0 10px 10px 0;
-    box-shadow:
-      0 0 20px rgba(0, 0, 0, 0.45),
-      0 0 30px rgba(0, 180, 216, 0.05),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    overflow: hidden;
-    min-width: 0;
-    max-width: min(58vw, 190px);
-  }
-  #growthPopupContent::before {
+  #growthPopup::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2458,34 +2429,55 @@
     0%, 100% { opacity: 0.2; }
     50% { opacity: 1; }
   }
-  #growthPopupContent::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(circle at 20% 50%, rgba(201, 168, 76, 0.04) 0%, transparent 50%);
-    pointer-events: none;
+  #growthPopupSeal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(201, 168, 76, 0.28) 0%, transparent 72%);
+    border: 1px solid rgba(201, 168, 76, 0.55);
+    box-shadow: 0 0 8px rgba(201, 168, 76, 0.3);
+    position: relative;
+  }
+  #growthPopupSeal::after {
+    content: '\f6d5'; /* fa-solid fa-dragon */
+    font-family: 'Font Awesome 6 Free', 'FontAwesome';
+    font-weight: 900;
+    font-size: 9px;
+    color: rgba(201, 168, 76, 0.85);
+    text-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
+  }
+  #growthPopupContent {
+    position: relative;
+    display: block;
+    min-width: 0;
+    flex: 1;
+    line-height: 1.3;
   }
   #growthPopupStage {
-    position: relative;
+    display: inline;
     font-family: 'Cinzel Decorative', cursive;
     font-weight: 900;
-    font-size: 14px;
-    letter-spacing: 3px;
-    line-height: 1.1;
+    font-size: 10.5px;
+    letter-spacing: 1px;
     text-transform: uppercase;
     white-space: nowrap;
   }
+  #growthPopupStage::after {
+    content: ' \2014 ';
+    color: rgba(201, 168, 76, 0.5);
+    font-weight: 400;
+  }
   #growthPopupText {
-    position: relative;
+    display: inline;
     font-family: 'Rajdhani', sans-serif;
     font-weight: 500;
-    font-size: 8px;
-    letter-spacing: 1px;
-    color: rgba(255, 255, 255, 0.55);
-    margin-top: 1px;
-    text-transform: uppercase;
-    max-width: 170px;
-    line-height: 1.25;
+    font-size: 10px;
+    letter-spacing: 0.3px;
+    color: rgba(255, 255, 255, 0.6);
   }
 
   /* ===== SOVEREIGN CROWN BADGE (reuses the same seal/crest language
