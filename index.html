@@ -1819,6 +1819,81 @@
   .profileIconTL { top: 16px; left: 16px; } 
   .profileIconTR { position: static; margin-left: auto; } 
 
+
+  /* ==============================================================
+     TINY STAKING TERMS TEXT - profile + how-to-play
+  =============================================================== */
+  .stakingTermsFine {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 140, 0, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 140, 0, 0.03);
+  }
+  .stakingTermsFineTitle {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 140, 0, 0.6);
+    margin-bottom: 4px;
+  }
+  .stakingTermsFineBody {
+    font-size: 9.5px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.3);
+  }
+  .stakingTermsFineBody strong {
+    color: rgba(255, 180, 50, 0.5);
+    font-weight: 600;
+  }
+  .stakingTermsFineContact {
+    margin-top: 5px;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.25);
+  }
+  .stakingTermsFineContact a {
+    color: rgba(255, 140, 0, 0.5);
+    text-decoration: none;
+  }
+  .htpStakingTerms {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 140, 0, 0.15);
+    border-radius: 10px;
+    background: rgba(255, 140, 0, 0.04);
+  }
+  .htpStakingTerms h4 {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: rgba(255, 140, 0, 0.7);
+    margin-bottom: 6px;
+  }
+  .htpStakingTerms p {
+    font-size: 11px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 6px;
+  }
+  .htpStakingTerms p strong {
+    color: rgba(255, 180, 50, 0.6);
+    font-weight: 600;
+  }
+  .htpStakingTerms .htpContactLine {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.3);
+  }
+  .htpStakingTerms .htpContactLine a {
+    color: #ff8c00;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
   /* ==============================================================
      STAKING TERMS MODAL — one-time acceptance on first login
   =============================================================== */
@@ -2823,8 +2898,16 @@
         <div class="profileStatLabel">Matches Played</div> 
       </div> 
     </div> 
-    <button id="btnProfileSignOut" class="authGuestLink">Sign Out</button> 
-  </div> 
+    <div class="stakingTermsFine">
+      <div class="stakingTermsFineTitle">Terms &amp; Risk of Staking</div>
+      <div class="stakingTermsFineBody">
+        <strong>Real money at stake.</strong> Only stake what you can afford to lose. No guarantees — outcomes depend on gameplay. <strong>You bear all losses.</strong> No refunds or chargebacks for lost stakes. 18+ only.
+      </div>
+      <div class="stakingTermsFineContact">
+        Questions? <a href="mailto:Contact@InfiniteCoinHQ.com">Contact@InfiniteCoinHQ.com</a>
+      </div>
+    </div>
+    <button id="btnProfileSignOut" class="authGuestLink">Sign Out</button></div> 
 </div> 
 
 
@@ -3227,8 +3310,15 @@
       <div class="htpCard"><h4 style="color:#00b4d8">Infinite</h4><p>Longest body. Trap and block enemies.</p></div> 
       <div class="htpCard"><h4 style="color:#ff00aa">Magnetron</h4><p>Tanky. Hard to kill.</p></div> 
     </div> 
-    <button class="gotItBtn" id="btnGotIt">GOT IT</button> 
-  </div> 
+    <div class="htpStakingTerms">
+      <h4>Terms &amp; Risk of Staking</h4>
+      <p><strong>Real money at stake.</strong> When you enter a match, your stake is locked and at risk. Only stake what you can <strong>afford to lose</strong>. There is no guarantee of winning — outcomes depend on gameplay skill and performance.</p>
+      <p><strong>You bear all losses.</strong> No refunds, chargebacks, or compensation will be issued for lost stakes. The game and its developers are not liable for any losses incurred while playing. If you may have a gambling problem, seek help immediately. 18+ only.</p>
+      <div class="htpContactLine">
+        Questions? Contact us at <a href="mailto:Contact@InfiniteCoinHQ.com">Contact@InfiniteCoinHQ.com</a>
+      </div>
+    </div>
+    <button class="gotItBtn" id="btnGotIt">GOT IT</button></div> 
 </div> 
 
 <!-- ===== WALLET MODAL ===== --> 
