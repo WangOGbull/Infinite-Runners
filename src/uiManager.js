@@ -687,7 +687,7 @@ class UIManager {
     const btnStart = document.getElementById('btnStartGame');
     if (btnStart) btnStart.addEventListener('click', () => this.showScreen('dragonSelectScreen'));
     const btnLeader = document.getElementById('btnLeaderboard');
-    if (btnLeader) btnLeader.addEventListener('click', () => { this.showScreen('loadingScreen'); setTimeout(() => this.showScreen('titleScreen'), 1000); });
+    if (btnLeader) btnLeader.addEventListener('click', () => this.showScreen('leaderboardScreen'));
     const btnHow = document.getElementById('btnHowToPlay');
     if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
     const btnBack = document.getElementById('btnDsBack');
@@ -981,6 +981,8 @@ class UIManager {
     if (htpClose) htpClose.addEventListener('click', () => this.showScreen('titleScreen'));
     const gotIt = document.getElementById('btnGotIt');
     if (gotIt) gotIt.addEventListener('click', () => this.showScreen('titleScreen'));
+    const lbClose = document.getElementById('btnLeaderboardClose');
+    if (lbClose) lbClose.addEventListener('click', () => this.showScreen('titleScreen'));
     document.querySelectorAll('.htpTab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.htpTab').forEach(t => t.classList.remove('active'));
@@ -1041,7 +1043,7 @@ class UIManager {
           <div class="lobbyPlayerCard ${roleClass}">
             ${portrait(p)}
             <div class="lobbyPlayerBody">
-              <div class="lobbyPlayerName">${(p.name || (roleClass === 'role-host' ? 'HOST' : 'CHALLENGER')).toUpperCase()}${p.isLocal ? ' (YOU)' : ''}</div>
+              <div class="lobbyPlayerName">${p.sovereign ? '<span class="sovereignBadge"><i class="fa-solid fa-crown"></i></span>' : ''}${(p.name || (roleClass === 'role-host' ? 'HOST' : 'CHALLENGER')).toUpperCase()}${p.isLocal ? ' (YOU)' : ''}</div>
               <div class="lobbyPlayerDragon">${(p.dragon || '').toUpperCase()}</div>
               <div class="lobbyPlayerRole">${roleLabel(roleClass, roleIdx)}</div>
             </div>
@@ -1841,6 +1843,52 @@ class UIManager {
     hint.style.opacity = '1';
   }
 
+  async _loadLeaderboard() {
+    const list = document.getElementById('lbList');
+    if (!list) return;
+    list.innerHTML = '<div class="lbLoading">Loading rankings...</div>';
+    if (!this._db) {
+      list.innerHTML = '<div class="lbLoading">Sign in to view the leaderboard.</div>';
+      return;
+    }
+    try {
+      const snap = await this._db.ref('users').once('value');
+      const users = snap.val() || {};
+      const rows = Object.values(users)
+        .filter(u => u && u.username)
+        .map(u => ({
+          name: u.username,
+          kills: u.dragonKills || 0,
+          wins: u.multiplayerWins || 0,
+          matches: u.matchesPlayed || 0,
+          sovereign: !!u.sovereignRank,
+        }))
+        .sort((a, b) => (b.kills + b.wins * 5) - (a.kills + a.wins * 5))
+        .slice(0, 50);
+
+      if (rows.length === 0) {
+        list.innerHTML = '<div class="lbLoading">No players yet — be the first!</div>';
+        return;
+      }
+      list.innerHTML = rows.map((r, i) => {
+        const nameHtml = r.sovereign
+          ? '<span class="sovereignBadge"><i class="fa-solid fa-crown"></i></span><span class="sovereignName">' + r.name + '</span>'
+          : '<span>' + r.name + '</span>';
+        return '<div class="lbRow' + (r.sovereign ? ' isSovereign' : '') + '">'
+          + '<div class="lbRank">' + (i + 1) + '</div>'
+          + '<div class="lbName">' + nameHtml + '</div>'
+          + '<div class="lbStats">'
+          + '<span><i class="fa-solid fa-skull"></i>' + r.kills + '</span>'
+          + '<span><i class="fa-solid fa-trophy"></i>' + r.wins + '</span>'
+          + '<span><i class="fa-solid fa-gamepad"></i>' + r.matches + '</span>'
+          + '</div></div>';
+      }).join('');
+      if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+    } catch (e) {
+      list.innerHTML = '<div class="lbLoading">Could not load leaderboard.</div>';
+    }
+  }
+
   showScreen(screenId) {    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
@@ -1850,6 +1898,7 @@ class UIManager {
       setTimeout(() => { try { _shown.scrollTop = 0; } catch (_) {} this._updateScrollHint(_shown); }, 60);
     }
     this._lastScreenSwitch = Date.now();
+    if (screenId === 'leaderboardScreen') this._loadLeaderboard();
     if (!this._ghostTapGuardInstalled) {
       this._ghostTapGuardInstalled = true;
       const guard = (e) => {
