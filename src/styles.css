@@ -693,3 +693,27 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
         bottom: calc(14px + env(safe-area-inset-bottom)) !important;
     }
 }
+
+/* ==================== LEADERBOARD ==================== */
+#leaderboardScreen{align-items:center;justify-content:center;background:rgba(3,8,20,0.92);z-index:250;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.lbInner{width:94%;max-width:480px;max-height:82vh;overflow-y:auto;border-radius:14px;padding:18px 14px;background:linear-gradient(180deg,rgba(12,20,38,0.98),rgba(8,14,28,0.99));border:1px solid rgba(201,168,76,0.15);position:relative;margin:0 auto;box-shadow:0 8px 32px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.04)}
+.lbInner::-webkit-scrollbar{width:4px}
+.lbInner::-webkit-scrollbar-track{background:transparent}
+.lbInner::-webkit-scrollbar-thumb{background:rgba(201,168,76,0.2);border-radius:2px}
+.lbInner h2{font-family:'Cinzel Decorative',cursive;font-size:18px;letter-spacing:2px;color:#f7e3b0;text-align:center;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px;text-shadow:0 0 12px rgba(247,227,176,0.3)}
+.lbInner h2 i{font-size:14px;color:#f7e3b0}
+.lbList{display:flex;flex-direction:column;gap:5px}
+.lbLoading{text-align:center;color:rgba(255,255,255,0.35);font-size:12px;padding:24px 10px;font-family:'Rajdhani',sans-serif}
+.lbRow{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.03);transition:all .15s}
+.lbRow:hover{background:rgba(255,255,255,0.05)}
+.lbRow.isSovereign{border-color:rgba(247,227,176,0.35);background:linear-gradient(90deg,rgba(201,168,76,0.08),rgba(201,168,76,0.02));box-shadow:0 0 8px rgba(201,168,76,0.1)}
+.lbRank{flex:0 0 24px;text-align:center;font-family:'Cinzel Decorative',cursive;font-size:13px;color:rgba(255,255,255,0.3)}
+.lbRow.isSovereign .lbRank{color:#f7e3b0}
+.lbRow:nth-child(1) .lbRank{color:#ffd700;font-size:15px}
+.lbRow:nth-child(2) .lbRank{color:#c0c0c0;font-size:14px}
+.lbRow:nth-child(3) .lbRank{color:#cd7f32;font-size:14px}
+.lbName{flex:1;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:13px;color:rgba(255,255,255,0.9);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbName .sovereignBadge{width:14px;height:14px;font-size:7px;margin-right:3px}
+.lbStats{flex:0 0 auto;display:flex;gap:10px;font-size:11px;font-family:'Rajdhani',sans-serif;color:rgba(255,255,255,0.35)}
+.lbStats span{white-space:nowrap;display:inline-flex;align-items:center}
+.lbStats i{font-size:8px;margin-right:2px}
