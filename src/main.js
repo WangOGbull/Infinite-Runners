@@ -163,6 +163,8 @@ class Game {
     this.winner = null;
     this.currentWaveIndex = -1;
     this.currentTier = null;
+    this.sovereignStatus = false;
+    this._remoteSovereign = {};
     this._waveTransitionPending = false;
     this._pendingPurge = [];
     this._frameCount = 0;
@@ -606,6 +608,7 @@ class Game {
         if (user) {
           this.authUid = user.uid;
           this.isGuest = false;
+          this._checkSovereignStatus();
           if (this._pendingWalletLink) {
             const { address, linkCode } = this._pendingWalletLink;
             this._pendingWalletLink = null;
@@ -876,6 +879,40 @@ class Game {
     }
   }
 
+  async _checkSovereignStatus() {
+    if (!this.authUid || !this.db) { this.sovereignStatus = false; return; }
+    try {
+      const snap = await this.db.ref('users/' + this.authUid + '/sovereignRank').once('value');
+      this.sovereignStatus = !!snap.val();
+    } catch (_) { this.sovereignStatus = false; }
+  }
+
+  async _grantSovereign() {
+    if (!this.authUid || !this.db) return;
+    try {
+      await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true);
+      this.sovereignStatus = true;
+    } catch (e) { console.warn('[Sovereign] could not write to Firebase', e); }
+  }
+
+  _formatSovereignName(name, isSovereign) {
+    if (!name) return 'Unknown';
+    if (!isSovereign) return name;
+    return '<span class="sovereignBadge"><i class="fa-solid fa-crown"></i></span><span class="sovereignName">' + name + '</span>';
+  }
+
+  _isRemoteSovereign(playerId) {
+    if (!playerId) return false;
+    return !!(this._remoteSovereign && this._remoteSovereign[playerId]);
+  }
+
+  _isSovereignDragon(dragon) {
+    if (!dragon) return false;
+    if (dragon === this.localDragon) return this.sovereignStatus;
+    if (dragon.isRemote && dragon.playerId) return this._isRemoteSovereign(dragon.playerId);
+    return false;
+  }
+
   setupEventListeners() {
     this.eventBus.on('auth:googleSignIn', async () => {
       const result = await this.signInWithGoogle();
@@ -1092,7 +1129,9 @@ class Game {
           const killerName = this._getUsernameForDragon(killer) || killer.type || 'Unknown';
           const victimName = this._getUsernameForDragon(dragon) || dragon.type || 'Unknown';
           const killerColor = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[killer.type]) || '#ffd700';
-          this._showKillFeed(killerName, victimName, killerColor);
+          const killerSov = this._isSovereignDragon(killer);
+          const victimSov = this._isSovereignDragon(dragon);
+          this._showKillFeed(killerName, victimName, killerColor, killerSov, victimSov);
         }
         const killerIsLocal = killer === this.localDragon;
         if (killerIsLocal) {
@@ -1346,6 +1385,9 @@ class Game {
     const tierIdx = AI_DIFFICULTY_TIERS.findIndex(t => t.id === tier.id);
     const nextTier = AI_DIFFICULTY_TIERS[tierIdx + 1] || null;
     this.uiManager.showTierComplete(tier, nextTier);
+    if (tier.id === 'hard' && !this.isMultiplayer) {
+      this._grantSovereign();
+    }
   }
 
   startWaveRun(tier) {
@@ -1484,6 +1526,7 @@ class Game {
       dragon: this.selectedDragon || 'ignis',
       ready: true,
       authUid: this.authUid || null,
+      sovereign: this.sovereignStatus || false,
     };
     if (this.isHost) {
       const hostRef = this.roomRef.child('players/local');
@@ -1777,6 +1820,7 @@ class Game {
       this.localDragon.playerId = this.localPlayerId;
       this.localDragon.sprintCharge = 100;
       this.localDragon.baseSpeed = this.localDragon.speed;
+      this.localDragon.sovereign = this.sovereignStatus;
       this.initMatchStats(this.localDragon);
       for (let i = 0; i < this.playerIds.length; i++) {
         if (i === myIndex) continue;
@@ -1787,6 +1831,7 @@ class Game {
         const remoteDragon = this.dragonManager.createDragon(dragonName, spawn.x, spawn.y);
         remoteDragon.playerId = pid;
         remoteDragon.isRemote = true;
+        remoteDragon.sovereign = this._isRemoteSovereign(pid);
         this.initMatchStats(remoteDragon);
       }
     } else {
@@ -1798,6 +1843,7 @@ class Game {
       );
       this.localDragon.sprintCharge = 100;
       this.localDragon.baseSpeed = this.localDragon.speed;
+      this.localDragon.sovereign = this.sovereignStatus;
       this.initMatchStats(this.localDragon);
       if (this.uiManager && typeof this.uiManager.getTierSpeedMultiplier === 'function') {
         this.localDragon.speed *= this.uiManager.getTierSpeedMultiplier();
@@ -2004,6 +2050,10 @@ class Game {
       if (!data) return;
       this.roomPlayers = data.players || {};
       this.playerIds = Object.keys(this.roomPlayers);
+      this._remoteSovereign = {};
+      for (const [pid, p] of Object.entries(this.roomPlayers)) {
+        if (p && p.sovereign) this._remoteSovereign[pid] = true;
+      }
       this.lobbyTier = data.tier || null;
       this._customStakeAmount = data.customAmount || null;
       this.stakingState = {
@@ -2734,15 +2784,21 @@ class Game {
     }
   }
 
-  _showKillFeed(killerName, victimName, killerColor) {
+  _showKillFeed(killerName, victimName, killerColor, killerSov, victimSov) {
     const feed = this._domRefs.killFeed || document.getElementById('killFeed');
     const content = this._domRefs.killFeedContent || document.getElementById('killFeedContent');
     if (!feed || !content) return;
+    const killerDisplay = killerSov
+      ? '<span class="sovereignBadge"><i class="fa-solid fa-crown"></i></span><span class="sovereignName">' + (killerName || 'Unknown') + '</span>'
+      : '<span style="color:' + (killerColor || '#d4af37') + ';">' + (killerName || 'Unknown') + '</span>';
+    const victimDisplay = victimSov
+      ? '<span class="sovereignBadge"><i class="fa-solid fa-crown"></i></span><span class="sovereignName">' + (victimName || 'Unknown') + '</span>'
+      : '<span>' + (victimName || 'Unknown') + '</span>';
     content.innerHTML = `
-      <span class="kill-killer" style="color:${killerColor || '#d4af37'};">${killerName || 'Unknown'}</span>
+      <span class="kill-killer">${killerDisplay}</span>
       <span class="kill-action">Slayed</span>
       <span class="kill-divider"></span>
-      <span class="kill-victim">${victimName || 'Unknown'}</span>
+      <span class="kill-victim">${victimDisplay}</span>
     `;
     feed.classList.add('show');
     feed.style.display = 'block';
