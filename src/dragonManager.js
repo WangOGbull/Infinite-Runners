@@ -1127,80 +1127,107 @@ export class DragonManager {
     const hx = dragon.head.x;
     const hy = dragon.head.y;
     const baseScale = CONFIG.DRAGON_DISPLAY_SCALE;
-    const crownR = 14 * baseScale;   // crown radius
-    const offsetY = -(38 * baseScale); // lift above head
+    const crownR = 14 * baseScale;
+    const offsetY = -(38 * baseScale);
+
+    // ── Subtle pulse animation ──
+    const pulse = 1 + Math.sin(Date.now() / 600) * 0.08;
 
     ctx.save();
     ctx.translate(hx, hy + offsetY);
+    ctx.scale(pulse, pulse);
 
     // ── Outer glow halo ──
-    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, crownR * 2.2);
-    halo.addColorStop(0, 'rgba(247, 227, 176, 0.45)');
-    halo.addColorStop(0.5, 'rgba(247, 227, 176, 0.12)');
+    const haloR = crownR * 2.4;
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+    halo.addColorStop(0, 'rgba(247, 227, 176, 0.5)');
+    halo.addColorStop(0.4, 'rgba(247, 227, 176, 0.18)');
     halo.addColorStop(1, 'rgba(247, 227, 176, 0)');
     ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(0, 0, crownR * 2.2, 0, Math.PI * 2);
+    ctx.arc(0, 0, haloR, 0, Math.PI * 2);
     ctx.fill();
 
-    // ── Crown body (gradient gold, 5-point crown shape) ──
-    const grad = ctx.createLinearGradient(0, -crownR, 0, crownR);
+    // ── Gold gradient ──
+    const grad = ctx.createLinearGradient(0, -crownR * 1.2, 0, crownR * 0.7);
     grad.addColorStop(0, '#fff8dc');
-    grad.addColorStop(0.4, '#f7e3b0');
-    grad.addColorStop(0.7, '#d4af37');
+    grad.addColorStop(0.3, '#f7e3b0');
+    grad.addColorStop(0.6, '#e8c860');
+    grad.addColorStop(0.85, '#d4af37');
     grad.addColorStop(1, '#b8860b');
 
     ctx.fillStyle = grad;
-    ctx.strokeStyle = 'rgba(255, 250, 220, 0.8)';
-    ctx.lineWidth = 1.2;
-    ctx.shadowColor = 'rgba(247, 227, 176, 0.7)';
-    ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(255, 250, 220, 0.7)';
+    ctx.lineWidth = 0.8;
+    ctx.shadowColor = 'rgba(247, 227, 176, 0.8)';
+    ctx.shadowBlur = 12;
 
-    // Crown base band
-    const bandW = crownR * 1.4;
-    const bandH = crownR * 0.35;
-    ctx.beginPath();
-    ctx.roundRect(-bandW / 2, crownR * 0.35, bandW, bandH, 3);
-    ctx.fill();
-
-    // Crown points (5 triangular spikes)
+    // ── Crown path (classic 5-spike crown, proper geometry) ──
+    const bandW = crownR * 1.6;
+    const bandH = crownR * 0.32;
+    const bandY = crownR * 0.35;
     const spikes = 5;
-    const spikeW = (bandW * 1.1) / spikes;
+    const spikeW = bandW / spikes;
+    const midSpikeH = -crownR * 0.65;  // center spike is tallest
+    const sideSpikeH = -crownR * 0.45; // side spikes slightly shorter
+
     ctx.beginPath();
-    ctx.moveTo(-bandW * 0.55, crownR * 0.35);
+    // Start at bottom-left of band
+    ctx.moveTo(-bandW / 2, bandY + bandH);
+
+    // Left side up to band top
+    ctx.lineTo(-bandW / 2, bandY);
+
+    // Draw 5 crown spikes: up to peak, down to valley
     for (let i = 0; i < spikes; i++) {
-      const xL = -bandW * 0.55 + i * spikeW;
+      const xL = -bandW / 2 + i * spikeW;
       const xC = xL + spikeW / 2;
       const xR = xL + spikeW;
-      ctx.lineTo(xC, xL + spikeW > bandW * 0.55 ? crownR * 0.35 : -crownR * 0.7);
-      // alternate spike heights slightly
-      const peakY = -crownR * (i % 2 === 0 ? 0.75 : 0.55);
+      // Middle spike (index 2) is tallest, outer ones shorter
+      const peakY = (i === 2) ? midSpikeH : sideSpikeH;
+      // Valley between spikes sits at band top level
       ctx.lineTo(xC, peakY);
-      ctx.lineTo(xR, crownR * 0.35);
+      ctx.lineTo(xR, bandY);
     }
-    ctx.lineTo(bandW * 0.55, crownR * 0.35);
+
+    // Right side down
+    ctx.lineTo(bandW / 2, bandY + bandH);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // ── Gem dots on each spike tip ──
-    ctx.shadowBlur = 6;
-    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+    // ── Gem on center spike ──
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+    const gemY = midSpikeH + crownR * 0.08;
+    ctx.beginPath();
+    ctx.arc(0, gemY, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fffacd';
+    ctx.fill();
+
+    // ── Small gems on side spikes ──
+    ctx.shadowBlur = 4;
     for (let i = 0; i < spikes; i++) {
-      const xC = -bandW * 0.55 + i * spikeW + spikeW / 2;
-      const peakY = -crownR * (i % 2 === 0 ? 0.75 : 0.55);
+      if (i === 2) continue;
+      const xC = -bandW / 2 + i * spikeW + spikeW / 2;
+      const peakY = sideSpikeH;
       ctx.beginPath();
-      ctx.arc(xC, peakY, 2.2, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 === 0 ? '#fffacd' : '#ffe4b5';
+      ctx.arc(xC, peakY + crownR * 0.08, 1.6, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe4b5';
       ctx.fill();
     }
 
-    // ── Subtle pulse animation ──
-    const pulse = 1 + Math.sin(Date.now() / 600) * 0.06;
-    ctx.restore();
+    // ── Crown base band highlight ──
+    ctx.shadowBlur = 0;
+    const bandGrad = ctx.createLinearGradient(0, bandY, 0, bandY + bandH);
+    bandGrad.addColorStop(0, 'rgba(255, 248, 220, 0.4)');
+    bandGrad.addColorStop(1, 'rgba(184, 134, 11, 0.6)');
+    ctx.fillStyle = bandGrad;
+    ctx.beginPath();
+    ctx.roundRect(-bandW / 2, bandY, bandW, bandH, 2);
+    ctx.fill();
 
-    // Re-draw with pulse scale is too expensive every frame;
-    // the shadowBlur glow already gives it life.
+    ctx.restore();
   }
 }
 
