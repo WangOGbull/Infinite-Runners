@@ -922,34 +922,43 @@ class Game {
       this.effectsSystem.addShake(victim === this.localDragon ? 14 : 6, 220);
       this.effectsSystem.playTone(260, 'sawtooth', 0.22, 0.16);
     });
-    this.eventBus.on('collision:head-hit', ({ x, y }) => {
-      this.effectsSystem.spawnImpactSparks(x, y, '#ffffff');
-      this.effectsSystem.addShake(12, 250);
-      this.effectsSystem.playHeadCollisionSound();
-    });
-    this.eventBus.on('dragon:shrink', ({ dragon, reason, other }) => {
-      this.dragonManager.shrinkDragon(dragon);
-      this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#ffaa00', CONFIG.EFFECTS.SHRINK_PARTICLES || 15, CONFIG.EFFECTS.SHRINK_PARTICLE_SPEED || 4, CONFIG.EFFECTS.SHRINK_PARTICLE_LIFE || 500);
-      this.effectsSystem.addShake(dragon === this.localDragon ? 6 : 3, 160);
-      this.effectsSystem.playTone(200, 'sawtooth', 0.28, 0.13);
-      if ((reason === 'equal_head' || reason === 'equal_body') && other && other.head) {
-        const dxk = dragon.head.x - other.head.x;
-        const dyk = dragon.head.y - other.head.y;
-        const d = Math.hypot(dxk, dyk) || 1;
-        const KNOCK = 26;
-        const nx = (dxk / d) * KNOCK;
-        const ny = (dyk / d) * KNOCK;
-        dragon.head.x += nx;
-        dragon.head.y += ny;
-        if (dragon.segments) {
-          for (let s = 0; s < Math.min(3, dragon.segments.length); s++) {
-            dragon.segments[s].x += nx * (1 - s * 0.3);
-            dragon.segments[s].y += ny * (1 - s * 0.3);
-          }
-        }
-        this.effectsSystem.spawnImpactSparks(dragon.head.x, dragon.head.y, '#ffd24d');
-      }
-    });
+      this.eventBus.on('collision:recoil', ({
+  dragon,
+  other,
+  directionX,
+  directionY,
+  force
+}) => {
+  if (!dragon) return;
+
+  this.dragonManager.applyCollisionRecoil(
+    dragon,
+    directionX,
+    directionY,
+    force
+  );
+
+  const isLocal =
+    dragon === this.localDragon;
+
+  if (this.effectsSystem) {
+    this.effectsSystem.addShake(
+      isLocal ? 8 : 4,
+      180
+    );
+
+    if (
+      typeof this.effectsSystem.spawnImpactSparks ===
+      'function'
+    ) {
+      this.effectsSystem.spawnImpactSparks(
+        dragon.head.x,
+        dragon.head.y,
+        '#ffd24d'
+      );
+    }
+  }
+});
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
       dragon.deaths = (dragon.deaths || 0) + 1;
       dragon.lives = (dragon.lives || 0) - 1;
