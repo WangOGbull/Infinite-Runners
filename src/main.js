@@ -888,41 +888,52 @@ class Game {
   }
 
   async _grantSovereign() {
-    if (!this.authUid) return;
-    // ── Server-side verification via Firebase Cloud Function.
-    // The function verifies auth + tier before writing sovereignRank.
-    // This prevents browser-console tampering.
+    if (!this.authUid || !this.db) return;
     try {
-      if (this.firebaseApp && typeof firebase !== 'undefined' && firebase.functions) {
-        const grantSovereign = firebase.functions().httpsCallable('grantSovereign');
-        const result = await grantSovereign({
-          tierId: 'hard',
-          mode: this.selectedMode || 'wave1',
-          multiplayer: !!this.isMultiplayer,
-        });
-        if (result.data && result.data.granted) {
+      const user = firebase.auth().currentUser;
+      if (!user) {
+        console.warn('[Sovereign] No logged-in user — cannot claim');
+        return;
+      }
+      const idToken = await user.getIdToken();
+
+      // Write a request to sovereignRequests/{uid}. The Railway server's
+      // attachSovereignListener() picks this up, verifies the token,
+      // and writes sovereignRank: true via Admin SDK.
+      await this.db.ref('sovereignRequests/' + this.authUid).set({
+        idToken: idToken,
+        tierId: 'hard',
+        multiplayer: !!this.isMultiplayer,
+        requestedAt: firebase.database.ServerValue.TIMESTAMP,
+      });
+
+      // Listen for the server's response on users/{uid}/sovereignRank.
+      // Timeout after 15 seconds if the server doesn't respond.
+      const sovereignRef = this.db.ref('users/' + this.authUid + '/sovereignRank');
+      const timeoutMs = 15000;
+      let resolved = false;
+
+      const listener = sovereignRef.on('value', (snap) => {
+        if (snap.val() === true && !resolved) {
+          resolved = true;
           this.sovereignStatus = true;
+          sovereignRef.off('value', listener);
           console.log('[Sovereign] Rank granted by server ✓');
-        } else {
-          console.warn('[Sovereign] Server declined:', result.data);
         }
-      } else {
-        // ── FALLBACK: Cloud Functions not available — direct Firebase write
-        // for testing. Remove once grantSovereign function is deployed.
-        console.warn('[Sovereign] Cloud Functions unavailable — using test fallback');
-        if (this.db) {
-          await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true);
-          this.sovereignStatus = true;
+      });
+
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          sovereignRef.off('value', listener);
+          console.warn('[Sovereign] Server did not respond within 15s. The request is still queued — rank will be granted on next server poll.');
         }
-      }
+      }, timeoutMs);
     } catch (e) {
-      console.warn('[Sovereign] Cloud Function failed, falling back:', e.message);
-      if (this.db && this.authUid) {
-        await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true).catch(() => {});
-        this.sovereignStatus = true;
-      }
+      console.warn('[Sovereign] Claim failed:', e.message);
     }
   }
+
 
   _formatSovereignName(name, isSovereign) {
     if (!name) return 'Unknown';
