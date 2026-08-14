@@ -425,7 +425,7 @@ export class DragonManager {
 
         if (wantsAttack) {
           dragon.attackActive = true;
-          dragon.boostActive = true;
+
 
           const drain =
             (CONFIG.ATTACK_METER_MAX /
@@ -442,11 +442,11 @@ export class DragonManager {
             // Magazine dry.
             dragon.attackHeld = false;
             dragon.attackActive = false;
-            dragon.boostActive = false;
+
           }
         } else if (dragon.attackActive) {
           dragon.attackActive = false;
-          dragon.boostActive = false;
+
         }
       }
 
@@ -557,55 +557,7 @@ export class DragonManager {
       let moveSpeed =
         dragon.speed;
 
-      if (dragon.boostActive) {
-        // ==========================================================
-        // ATTACK SPEED REDUCTION
-        // ==========================================================
-        //
-        // The previous Attack speed was already reduced to 1.1x
-        // from the original 1.5x.
-        //
-        // User requested:
-        //
-        // "Reduce the speed to 20% of its current speed."
-        //
-        // Therefore:
-        //
-        // 1.1 x 0.20 = 0.22
-        //
-        // This applies ONLY while Attack is active.
-        // Sprint is completely unaffected.
-        //
-        const originalMultiplier =
-          Number(
-            CONFIG.DRAGON_BOOST_MULTIPLIER
-          );
-
-        const safeMultiplier =
-          Number.isFinite(
-            originalMultiplier
-          )
-            ? originalMultiplier
-            : 1;
-
-        const originalExtra =
-          Math.max(
-            0,
-            safeMultiplier - 1
-          );
-
-        const reducedExtra =
-          originalExtra * 0.20;
-
-        const currentAttackMultiplier =
-          1 + reducedExtra;
-
-        const attackSpeedMultiplier =
-          currentAttackMultiplier * 0.20;
-
-        moveSpeed *=
-          attackSpeedMultiplier;
-      }
+      // Sprint handles all speed — attack has no speed effect
 
       const vx =
         Math.cos(dragon.angle) *
