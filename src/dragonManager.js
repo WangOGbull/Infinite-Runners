@@ -1110,6 +1110,97 @@ export class DragonManager {
     );
 
     ctx.restore();
+
+    // ─── Sovereign Crown ──────────────────────────────────────
+    // Draw a glowing gold crown above the dragon's head if the
+    // player has earned the Infinite Sovereign rank.
+    if (dragon.sovereign) {
+      this._drawSovereignCrown(ctx, dragon);
+    }
+  }
+
+  /**
+   * Draws a radiant gold crown above the dragon's head.
+   * Uses canvas gradients + glow — not a flat 2D icon.
+   */
+  _drawSovereignCrown(ctx, dragon) {
+    const hx = dragon.head.x;
+    const hy = dragon.head.y;
+    const baseScale = CONFIG.DRAGON_DISPLAY_SCALE;
+    const crownR = 14 * baseScale;   // crown radius
+    const offsetY = -(38 * baseScale); // lift above head
+
+    ctx.save();
+    ctx.translate(hx, hy + offsetY);
+
+    // ── Outer glow halo ──
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, crownR * 2.2);
+    halo.addColorStop(0, 'rgba(247, 227, 176, 0.45)');
+    halo.addColorStop(0.5, 'rgba(247, 227, 176, 0.12)');
+    halo.addColorStop(1, 'rgba(247, 227, 176, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, crownR * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── Crown body (gradient gold, 5-point crown shape) ──
+    const grad = ctx.createLinearGradient(0, -crownR, 0, crownR);
+    grad.addColorStop(0, '#fff8dc');
+    grad.addColorStop(0.4, '#f7e3b0');
+    grad.addColorStop(0.7, '#d4af37');
+    grad.addColorStop(1, '#b8860b');
+
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = 'rgba(255, 250, 220, 0.8)';
+    ctx.lineWidth = 1.2;
+    ctx.shadowColor = 'rgba(247, 227, 176, 0.7)';
+    ctx.shadowBlur = 10;
+
+    // Crown base band
+    const bandW = crownR * 1.4;
+    const bandH = crownR * 0.35;
+    ctx.beginPath();
+    ctx.roundRect(-bandW / 2, crownR * 0.35, bandW, bandH, 3);
+    ctx.fill();
+
+    // Crown points (5 triangular spikes)
+    const spikes = 5;
+    const spikeW = (bandW * 1.1) / spikes;
+    ctx.beginPath();
+    ctx.moveTo(-bandW * 0.55, crownR * 0.35);
+    for (let i = 0; i < spikes; i++) {
+      const xL = -bandW * 0.55 + i * spikeW;
+      const xC = xL + spikeW / 2;
+      const xR = xL + spikeW;
+      ctx.lineTo(xC, xL + spikeW > bandW * 0.55 ? crownR * 0.35 : -crownR * 0.7);
+      // alternate spike heights slightly
+      const peakY = -crownR * (i % 2 === 0 ? 0.75 : 0.55);
+      ctx.lineTo(xC, peakY);
+      ctx.lineTo(xR, crownR * 0.35);
+    }
+    ctx.lineTo(bandW * 0.55, crownR * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // ── Gem dots on each spike tip ──
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+    for (let i = 0; i < spikes; i++) {
+      const xC = -bandW * 0.55 + i * spikeW + spikeW / 2;
+      const peakY = -crownR * (i % 2 === 0 ? 0.75 : 0.55);
+      ctx.beginPath();
+      ctx.arc(xC, peakY, 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 === 0 ? '#fffacd' : '#ffe4b5';
+      ctx.fill();
+    }
+
+    // ── Subtle pulse animation ──
+    const pulse = 1 + Math.sin(Date.now() / 600) * 0.06;
+    ctx.restore();
+
+    // Re-draw with pulse scale is too expensive every frame;
+    // the shadowBlur glow already gives it life.
   }
 }
 
