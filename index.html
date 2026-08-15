@@ -2297,16 +2297,16 @@
       margin-top: 2px; 
   } 
 
-  /* ===== NEW: STONE AGE BAR ===== */ 
+  /* ===== NEW: STONE AGE BAR (positioned right under pause/timer, top-12% band) ===== */ 
   #stoneAgeBar { 
     position: fixed; 
-    top: 78px; 
-    left: 10px; 
+    top: calc(env(safe-area-inset-top, 0px) + 46px); 
+    left: 12px; 
     transform: none; 
     z-index: 100; 
     display: none; 
-    width: 190px; 
-    max-width: 55vw; 
+    width: 150px; 
+    max-width: 42vw; 
     background: rgba(4, 6, 12, 0.88); 
     border: 1px solid rgba(201, 168, 76, 0.25); 
     border-radius: 6px; 
@@ -2657,6 +2657,121 @@
 <base target="_blank">
 <base target="_blank">
 <base target="_blank">
+<style id="reference-match-hud">
+  /* =========================================================
+     TOP HUD — matches reference: compact pause+timer top-left
+     with growth bar underneath, compact score pill + circular
+     minimap top-right. Everything locked inside top 12% band.
+     ========================================================= */
+  #gameHud {
+    position: fixed !important;
+    top: env(safe-area-inset-top, 0px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: auto !important;
+    max-height: 12vh !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    padding: 10px 12px !important;
+    margin: 0 !important;
+    z-index: 150 !important;
+    pointer-events: none !important;
+  }
+  .hudLeft {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+    pointer-events: auto !important;
+  }
+  .hudTopRow {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .hudRight {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    gap: 6px !important;
+    pointer-events: auto !important;
+  }
+  #pauseBtn {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    border-radius: 50% !important;
+    background: rgba(4,6,12,0.82) !important;
+    border: 1px solid rgba(201,168,76,0.35) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: #f0d9a0 !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.45) !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    padding: 0 !important;
+  }
+  #pauseBtn i, #pauseBtn svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+  #timerDisplay {
+    font-family: 'Rajdhani', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    color: #fff !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.85) !important;
+    background: rgba(4,6,12,0.62) !important;
+    padding: 5px 12px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(201,168,76,0.25) !important;
+    letter-spacing: 0.5px !important;
+    line-height: 1 !important;
+  }
+  #scoreDisplay {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: rgba(4,6,12,0.82) !important;
+    border: 1px solid rgba(201,168,76,0.35) !important;
+    border-radius: 14px !important;
+    padding: 5px 12px !important;
+    font-family: 'Rajdhani', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    color: #f0d9a0 !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.45) !important;
+  }
+  #scoreDisplay::before {
+    content: '' !important;
+    display: inline-block !important;
+    width: 13px !important;
+    height: 13px !important;
+    border-radius: 50% !important;
+    background: radial-gradient(circle, #ffe27a, #c9982f) !important;
+    box-shadow: 0 0 4px rgba(255,215,0,0.65) !important;
+    flex-shrink: 0 !important;
+  }
+  #minimapCanvas {
+    width: 64px !important;
+    height: 64px !important;
+    border-radius: 50% !important;
+    border: 2px solid rgba(201,168,76,0.45) !important;
+    background: rgba(4,6,12,0.75) !important;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.5) !important;
+    display: block !important;
+  }
+  @media (max-width: 380px) {
+    #gameHud { padding: 8px 10px !important; }
+    #minimapCanvas { width: 52px !important; height: 52px !important; }
+    #scoreDisplay { font-size: 12px !important; padding: 4px 10px !important; }
+    #timerDisplay { font-size: 13px !important; padding: 4px 10px !important; }
+  }
+</style>
 <style id="final-mobile-hud-overrides">
 
   /* =========================================================
@@ -2919,6 +3034,14 @@
       <div class="profileStat"> 
         <div class="profileStatValue" id="profileStatPlayed">0</div> 
         <div class="profileStatLabel">Matches Played</div> 
+      </div> 
+      <div class="profileStat"> 
+        <div class="profileStatValue" id="profileStatTimePlayed">0m</div> 
+        <div class="profileStatLabel">Time Played</div> 
+      </div> 
+      <div class="profileStat"> 
+        <div class="profileStatValue" id="profileStatBestTier">-</div> 
+        <div class="profileStatLabel">Best Tier Cleared</div> 
       </div> 
     </div> 
     <div class="stakingTermsFine">
@@ -3238,14 +3361,18 @@
       <div id="growthPopupText"></div>
     </div>
   </div>
-  <!-- ===== EXISTING HUD ===== --> 
+  <!-- ===== EXISTING HUD (restyled to match reference layout) ===== --> 
   <div id="gameHud"> 
     <div class="hudLeft"> 
-      <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button> 
-      <div id="timerDisplay">0:00</div> 
-      <div id="scoreDisplay"><span id="scoreVal">0</span></div> 
+      <div class="hudTopRow"> 
+        <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button> 
+        <div id="timerDisplay">0:00</div> 
+      </div> 
     </div> 
-    <canvas id="minimapCanvas"></canvas> 
+    <div class="hudRight"> 
+      <div id="scoreDisplay"><span id="scoreVal">0</span></div> 
+      <canvas id="minimapCanvas"></canvas> 
+    </div> 
   </div> 
   <div id="mobileControls"> 
     <div id="joyArea"><div id="joyKnob"></div></div> 
