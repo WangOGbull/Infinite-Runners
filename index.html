@@ -2279,22 +2279,53 @@
       color: #8f8060; 
       margin-bottom: 20px; 
   } 
-  .profileStatsGrid { 
-      display: grid; 
-      grid-template-columns: 1fr 1fr 1fr; 
-      gap: 8px; 
-      margin-bottom: 8px; 
-  } 
-  .profileStat { 
-      padding: 12px 6px; 
-      border-radius: 10px; 
-      background: rgba(255,255,255,0.03); 
-      border: 1px solid rgba(255,255,255,0.06); 
-  } 
+  .profileStatsGrid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 10px;
+  }
+  .profileSection {
+      text-align: left;
+  }
+  .profileSectionTitle {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: rgba(201,168,76,0.5);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      padding-left: 2px;
+  }
+  .profileRow {
+      display: flex;
+      gap: 8px;
+  }
+  .profileStat {
+      flex: 1;
+      padding: 10px 6px;
+      border-radius: 9px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      text-align: center;
+  }
+  .profileStatBig {
+      flex: 1;
+      padding: 14px 8px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(201,168,76,0.06), rgba(201,168,76,0.02));
+      border: 1px solid rgba(201,168,76,0.15);
+      text-align: center;
+  }
   .profileStatValue {
       font-family: 'Cinzel Decorative', serif;
-      font-size: 20px;
+      font-size: 18px;
       color: #c9a44e;
+      line-height: 1.1;
+  }
+  .profileStatBig .profileStatValue {
+      font-size: 22px;
   }
   .profileStatValue.sovereign-yes {
       color: #d4af37;
@@ -3159,45 +3190,69 @@
     <div class="profileModalName" id="profileModalUsername">Player</div> 
     <div class="profileModalRank" id="profileModalRank">Wingling</div> 
     <div class="profileStatsGrid">
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatKills">0</div>
-        <div class="profileStatLabel">Dragon Kills</div>
+      <!-- Overview: big highlight stats -->
+      <div class="profileSection">
+        <div class="profileSectionTitle">Overview</div>
+        <div class="profileRow">
+          <div class="profileStatBig">
+            <div class="profileStatValue" id="profileStatKills">0</div>
+            <div class="profileStatLabel">Dragon Kills</div>
+          </div>
+          <div class="profileStatBig">
+            <div class="profileStatValue" id="profileStatPlayed">0</div>
+            <div class="profileStatLabel">Total Matches</div>
+          </div>
+          <div class="profileStatBig">
+            <div class="profileStatValue" id="profileStatTimePlayed">0m</div>
+            <div class="profileStatLabel">Time Played</div>
+          </div>
+        </div>
       </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatAIMatches">0</div>
-        <div class="profileStatLabel">AI Matches</div>
+      <!-- AI Career -->
+      <div class="profileSection">
+        <div class="profileSectionTitle">AI Career</div>
+        <div class="profileRow">
+          <div class="profileStat">
+            <div class="profileStatValue" id="profileStatAIMatches">0</div>
+            <div class="profileStatLabel">AI Matches</div>
+          </div>
+          <div class="profileStat">
+            <div class="profileStatValue" id="profileStatAIKills">0</div>
+            <div class="profileStatLabel">AI Kills</div>
+          </div>
+          <div class="profileStat">
+            <div class="profileStatValue" id="profileStatBestTier">-</div>
+            <div class="profileStatLabel">Best Tier</div>
+          </div>
+        </div>
       </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatAIKills">0</div>
-        <div class="profileStatLabel">AI Kills</div>
+      <!-- Multiplayer Career -->
+      <div class="profileSection">
+        <div class="profileSectionTitle">Multiplayer</div>
+        <div class="profileRow">
+          <div class="profileStat">
+            <div class="profileStatValue" id="profileStatMPMatches">0</div>
+            <div class="profileStatLabel">MP Matches</div>
+          </div>
+          <div class="profileStat">
+            <div class="profileStatValue" id="profileStatMPWins">0</div>
+            <div class="profileStatLabel">MP Wins</div>
+          </div>
+        </div>
       </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatMPMatches">0</div>
-        <div class="profileStatLabel">MP Matches</div>
-      </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatMPWins">0</div>
-        <div class="profileStatLabel">MP Wins</div>
-      </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatPlayed">0</div>
-        <div class="profileStatLabel">Total Matches</div>
-      </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatTimePlayed">0m</div>
-        <div class="profileStatLabel">Time Played</div>
-      </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatBestTier">-</div>
-        <div class="profileStatLabel">Best Tier</div>
-      </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatRank">Wingling</div>
-        <div class="profileStatLabel">Rank</div>
-      </div>
-      <div class="profileStat">
-        <div class="profileStatValue" id="profileStatSovereign">No</div>
-        <div class="profileStatLabel">Sovereign</div>
+      <!-- Achievements -->
+      <div class="profileSection">
+        <div class="profileSectionTitle">Achievements</div>
+        <div class="profileRow">
+          <div class="profileStat">
+            <div class="profileStatValue" id="profileStatRank">Wingling</div>
+            <div class="profileStatLabel">Rank</div>
+          </div>
+          <div class="profileStat">
+            <div class="profileStatValue" id="profileStatSovereign">No</div>
+            <div class="profileStatLabel">Sovereign</div>
+          </div>
+        </div>
       </div>
     </div> 
     <div class="stakingTermsFine">
@@ -3544,7 +3599,7 @@
     </div>
   </div> 
   <div id="comboBanner"></div> 
-  <div id="pauseOverlay" class="overlay"> 
+  <div id="pauseOverlay" class="overlay" style="z-index:200 !important;"> 
     <h2>PAUSED</h2> 
     <button class="pBtn pBtnRes" id="btnResume"><i data-lucide="play"></i> RESUME</button> 
     <button class="pBtn pBtnOut" id="btnQuit"><i data-lucide="log-out"></i> QUIT TO MENU</button> 
