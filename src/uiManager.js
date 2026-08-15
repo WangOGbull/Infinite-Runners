@@ -534,7 +534,9 @@ class UIManager {
     if (!tierId || this.clearedTiers[tierId]) return; // already unlocked, nothing to do
     this.clearedTiers[tierId] = true;
     if (this._uid && this._db) {
-      this._db.ref('users/' + this._uid + '/clearedTiers').update({ [tierId]: true }).catch(() => {});
+      this._db.ref('users/' + this._uid + '/clearedTiers').update({ [tierId]: true }).catch(e => {
+        console.error('[Progress] Failed to persist clearedTiers:', e.message);
+      });
     }
     if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
   }
