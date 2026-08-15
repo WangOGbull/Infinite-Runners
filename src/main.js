@@ -1452,8 +1452,16 @@ class Game {
         updates.rank = tier.rank;
       }
       await userRef.update(updates);
+      // Visible confirmation so it's obvious in DevTools that the save
+      // actually landed in Firebase (was previously silent on success).
+      console.log(
+        '%c[Progress] ✅ SAVED — tier "' + tier.id + '" cleared, rank: ' + tier.rank +
+        ', clearedTiers.' + tier.id + ' = true, kills +' + localKills + ', time +' + Math.round(sessionMs / 1000) + 's',
+        'color:#4ade80;font-weight:bold;'
+      );
+      if (this.uiManager) this.uiManager.clearedTiers[tier.id] = true;
     } catch (e) {
-      console.error('[Progress] Failed to save tier progress:', e.message, e);
+      console.error('%c[Progress] ❌ FAILED to save tier progress: ' + e.message, 'color:#ff5c5c;font-weight:bold;', e);
     }
   }
 
@@ -1887,6 +1895,10 @@ class Game {
       this.localDragon.playerId = this.localPlayerId;
       this.localDragon.sprintCharge = 0;
       this.localDragon.baseSpeed = this.localDragon.speed;
+      if (this.uiManager && typeof this.uiManager.getTierSpeedMultiplier === 'function') {
+        this.localDragon.baseSpeed *= this.uiManager.getTierSpeedMultiplier();
+        this.localDragon.speed = this.localDragon.baseSpeed;
+      }
       this.localDragon.sovereign = this.sovereignStatus;
       this.initMatchStats(this.localDragon);
       for (let i = 0; i < this.playerIds.length; i++) {
@@ -1910,11 +1922,12 @@ class Game {
       );
       this.localDragon.sprintCharge = 0;
       this.localDragon.baseSpeed = this.localDragon.speed;
+      if (this.uiManager && typeof this.uiManager.getTierSpeedMultiplier === 'function') {
+        this.localDragon.baseSpeed *= this.uiManager.getTierSpeedMultiplier();
+        this.localDragon.speed = this.localDragon.baseSpeed;
+      }
       this.localDragon.sovereign = this.sovereignStatus;
       this.initMatchStats(this.localDragon);
-      if (this.uiManager && typeof this.uiManager.getTierSpeedMultiplier === 'function') {
-        this.localDragon.speed *= this.uiManager.getTierSpeedMultiplier();
-      }
       const aiNames = ['aegis', 'ignis', 'infinite', 'magnetron'];
       for (let i = 1; i < maxPlayers; i++) {
         const spawn = spawnPositions[i];
