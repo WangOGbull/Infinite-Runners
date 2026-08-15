@@ -1327,7 +1327,7 @@ class UIManager {
 
   renderMinimap(canvas, camera, arenaManager, dragons, foods) {
     if (!canvas || !arenaManager) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = this._minimapCtx || (this._minimapCtx = canvas.getContext('2d'));
     const w = canvas.clientWidth || 90;
     const h = canvas.clientHeight || 90;
     if (canvas.width !== w) canvas.width = w;
@@ -1345,15 +1345,24 @@ class UIManager {
     const cx = w / 2, cy = h / 2;
     const R = Math.min(w, h) / 2;
 
+    // ── Cache gradients per canvas-size to avoid recreating every frame ──
+    if (!this._minimapCache || this._minimapCache.w !== w || this._minimapCache.h !== h) {
+      const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+      bg.addColorStop(0, 'rgba(10,20,36,0.92)');
+      bg.addColorStop(1, 'rgba(4,9,18,0.96)');
+      const ring = ctx.createLinearGradient(0, 0, 0, h);
+      ring.addColorStop(0, '#f0d9a0');
+      ring.addColorStop(0.5, '#a97f45');
+      ring.addColorStop(1, '#6e5226');
+      this._minimapCache = { w, h, bg, ring };
+    }
+
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
     ctx.clip();
 
-    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-    bg.addColorStop(0, 'rgba(10,20,36,0.92)');
-    bg.addColorStop(1, 'rgba(4,9,18,0.96)');
-    ctx.fillStyle = bg;
+    ctx.fillStyle = this._minimapCache.bg;
     ctx.fillRect(0, 0, w, h);
 
     ctx.strokeStyle = 'rgba(72,224,255,0.10)';
@@ -1377,46 +1386,54 @@ class UIManager {
       ctx.strokeRect(topLeft.x, topLeft.y, viewW * scaleX, viewH * scaleY);
     }
 
+    // ── Batch food rendering: single fillStyle, no per-item state changes ──
     ctx.fillStyle = 'rgba(72,224,255,0.35)';
-    (foods || []).forEach(f => { const p = toMini(f.x, f.y); ctx.fillRect(p.x - 0.5, p.y - 0.5, 1.5, 1.5); });
+    for (let i = 0, len = (foods || []).length; i < len; i++) {
+      const p = toMini(foods[i].x, foods[i].y);
+      ctx.fillRect(p.x - 0.5, p.y - 0.5, 1.5, 1.5);
+    }
 
-    (dragons || []).forEach(d => {
-      if (!d.alive) return;
+    // ── Draw dragons WITHOUT shadowBlur (which is extremely expensive) ──
+    // Instead, use a brighter color + pre-drawn glow circle for local player.
+    for (let i = 0, len = (dragons || []).length; i < len; i++) {
+      const d = dragons[i];
+      if (!d.alive) continue;
       const p = toMini(d.head.x, d.head.y);
       const isLocal = d === this._localDragonRef || d.isLocalPlayer;
       if (isLocal || (!d.isRemote && !d.isAI)) {
-        ctx.save();
-        ctx.shadowColor = '#48e0ff';
-        ctx.shadowBlur = 6;
+        // Glow circle (cheap: single arc, no shadow)
+        ctx.fillStyle = 'rgba(126,240,255,0.22)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Arrow
         ctx.fillStyle = '#7ef0ff';
-        const a = d.angle || 0;
+        ctx.save();
         ctx.translate(p.x, p.y);
-        ctx.rotate(a);
+        ctx.rotate(d.angle || 0);
         ctx.beginPath();
         ctx.moveTo(4, 0); ctx.lineTo(-3, 2.6); ctx.lineTo(-3, -2.6);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
       } else {
-        ctx.save();
-        ctx.shadowColor = '#ff5a5a';
-        ctx.shadowBlur = 5;
+        // Glow circle for enemies
+        ctx.fillStyle = 'rgba(255,107,107,0.18)';
         ctx.beginPath();
+        ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath();
         ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
       }
-    });
+    }
 
     ctx.restore();
 
+    // ── Ring border (uses cached gradient) ──
     ctx.lineWidth = 2;
-    const ring = ctx.createLinearGradient(0, 0, 0, h);
-    ring.addColorStop(0, '#f0d9a0');
-    ring.addColorStop(0.5, '#a97f45');
-    ring.addColorStop(1, '#6e5226');
-    ctx.strokeStyle = ring;
+    ctx.strokeStyle = this._minimapCache.ring;
     ctx.beginPath();
     ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
     ctx.stroke();
@@ -1552,11 +1569,24 @@ class UIManager {
     const killsEl = document.getElementById('profileStatKills');
     const winsEl = document.getElementById('profileStatWins');
     const playedEl = document.getElementById('profileStatPlayed');
+    const timePlayedEl = document.getElementById('profileStatTimePlayed');
+    const bestTierEl = document.getElementById('profileStatBestTier');
     if (nameEl) nameEl.textContent = (stats && stats.username) || 'Player';
     if (rankEl) rankEl.textContent = (stats && stats.rank) || 'Wingling';
     if (killsEl) killsEl.textContent = (stats && stats.dragonKills) || 0;
     if (winsEl) winsEl.textContent = (stats && stats.multiplayerWins) || 0;
     if (playedEl) playedEl.textContent = (stats && stats.matchesPlayed) || 0;
+    if (timePlayedEl) {
+      const ms = (stats && stats.timePlayedMs) || 0;
+      const totalMinutes = Math.floor(ms / 60000);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      timePlayedEl.textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    }
+    if (bestTierEl) {
+      const tierLabels = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+      bestTierEl.textContent = (stats && tierLabels[stats.highestTierCleared]) || '-';
+    }
     modal.classList.add('active');
   }
 
