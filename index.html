@@ -136,7 +136,10 @@
   .dsNameWing.flip { transform: scaleX(-1); } 
   .dsDragonName { font-family: 'Cinzel Decorative', cursive; font-weight: 900; font-size: clamp(24px, 6vw, 38px); letter-spacing: 4px; color: var(--neon, #fff); text-shadow: 0 0 12px var(--neon, #fff), 0 0 45px var(--neon, transparent), 0 2px 4px #000; line-height: 1.1; } 
 
-  .dsDragonTier { margin-top: 6px; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 3px; color: #dfe9f5; padding: 6px 26px; background: linear-gradient(180deg, #101d33, #0a1424); border: 2px solid #a97f45; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%); } 
+    .dsSpeedBonus { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; padding: 2px 10px; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.5px; color: #4ade80; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.4); border-radius: 20px; text-shadow: 0 0 8px rgba(74,222,128,0.5); }
+  .dsSpeedBonus i { font-size: 9px; }
+
+.dsDragonTier { margin-top: 6px; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 3px; color: #dfe9f5; padding: 6px 26px; background: linear-gradient(180deg, #101d33, #0a1424); border: 2px solid #a97f45; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%); } 
   .dsDragonTier span { color: #48e0ff; text-shadow: 0 0 8px rgba(72,224,255,0.6); } 
   .dsDragonTier em { font-style: normal; color: rgba(255,255,255,0.35); margin: 0 8px; } 
 
@@ -244,6 +247,9 @@
   .ddmPowerSlot.unlocked { background: rgba(80,220,140,0.08); border-color: rgba(80,220,140,0.4); } 
   .ddmPowerSlot.unlocked .ddmPowerIcon { border-color: #50dc8c; color: #50dc8c; background: rgba(80,220,140,0.12); box-shadow: 0 0 12px rgba(80,220,140,0.35); } 
   .ddmPowerSlot.unlocked .ddmPowerName { color: #50dc8c; } 
+  .ddmPowerSlot.recommended { background: rgba(255,196,0,0.06); border-color: rgba(255,196,0,0.4); box-shadow: 0 0 14px rgba(255,196,0,0.12); }
+  .ddmPowerSlot.recommended .ddmPowerIcon { border-color: #ffc400; color: #ffc400; }
+  .ddmRecTag { display: inline-block; margin-left: 6px; padding: 1px 7px; font-size: 8px; font-weight: 800; letter-spacing: 0.5px; color: #1a1608; background: #ffc400; border-radius: 10px; vertical-align: middle; }
   .ddmPowerName { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 14px; color: #fff; } 
   .ddmPowerDesc { font-family: 'Rajdhani', sans-serif; font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 2px; } 
   .ddmActions { margin-top: 18px; display: flex; justify-content: center; } 
@@ -2532,66 +2538,82 @@
     #growthPopup { top: calc(env(safe-area-inset-top, 0px) + 13vh); width: min(80vw, 230px); }
   }
 
-  /* ===== SPRINT HUD BAR — sits below the growth popup,
-     blue bar that glows when full, drains when sprint is used. ===== */
+  /* ===== SPRINT HUD v2 — compact, half the width of the Growth
+     popup (130px vs 260px). Sits below the growth popup, centered.
+     Blue glass pill with a glowing fill that pulses when sprint is
+     fully charged and ready. ===== */
   #sprintHud {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 16vh);
+    top: calc(env(safe-area-inset-top, 0px) + 15.5vh);
     left: 50%;
     transform: translateX(-50%);
-    width: min(84vw, 260px);
-    height: 6px;
+    width: min(42vw, 130px);
+    height: 14px;
     z-index: 141;
     pointer-events: none;
-    background: rgba(4, 8, 16, 0.72);
-    border: 1px solid rgba(0, 160, 255, 0.2);
-    border-radius: 4px;
+    background: linear-gradient(180deg, rgba(2, 6, 14, 0.92), rgba(4, 10, 22, 0.88));
+    border: 1px solid rgba(0, 160, 255, 0.22);
+    border-radius: 8px;
     overflow: hidden;
     box-sizing: border-box;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    padding: 0 3px;
+  }
+  /* Inner track — darker recessed look */
+  #sprintHud::before {
+    content: '';
+    position: absolute;
+    top: 2px; left: 3px; right: 3px; bottom: 2px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    z-index: 0;
   }
   #sprintHudLabel {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 15.2vh);
+    top: calc(env(safe-area-inset-top, 0px) + 15vh);
     left: 50%;
     transform: translateX(-50%);
-    z-index: 141;
+    z-index: 142;
     font-family: 'Rajdhani', sans-serif;
     font-weight: 700;
-    font-size: 8px;
+    font-size: 7px;
     letter-spacing: 1px;
-    color: rgba(0, 180, 255, 0.6);
+    color: rgba(0, 180, 255, 0.55);
     text-transform: uppercase;
     pointer-events: none;
+    margin-bottom: 1px;
   }
   #sprintHudBar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
+    position: relative;
+    z-index: 1;
+    height: 8px;
     width: 0%;
-    background: linear-gradient(90deg, rgba(0, 100, 200, 0.7), rgba(0, 180, 255, 0.9));
-    border-radius: 3px;
-    transition: width 0.15s ease-out;
+    border-radius: 5px;
+    background: linear-gradient(90deg, rgba(0, 100, 200, 0.7), rgba(0, 180, 255, 0.85));
+    transition: width 0.12s ease-out, background 0.25s ease;
+    box-shadow: 0 0 4px rgba(0, 160, 255, 0.3);
   }
   /* Glow when full — tells the player sprint is ready */
   #sprintHudBar.sprint-full {
-    background: linear-gradient(90deg, rgba(0, 180, 255, 0.95), rgba(80, 220, 255, 1));
-    box-shadow: 0 0 10px rgba(0, 200, 255, 0.8), 0 0 20px rgba(0, 180, 255, 0.5);
+    background: linear-gradient(90deg, rgba(0, 200, 255, 0.95), rgba(120, 235, 255, 1));
+    box-shadow: 0 0 8px rgba(0, 220, 255, 0.7), 0 0 16px rgba(0, 180, 255, 0.4);
     animation: sprintHudPulse 1.2s ease-in-out infinite;
   }
   /* Draining state — bar dims slightly while sprint is active */
   #sprintHudBar.sprint-draining {
-    background: linear-gradient(90deg, rgba(0, 80, 160, 0.6), rgba(0, 140, 220, 0.8));
+    background: linear-gradient(90deg, rgba(0, 70, 140, 0.6), rgba(0, 120, 200, 0.75));
   }
   @keyframes sprintHudPulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(0, 200, 255, 0.6), 0 0 16px rgba(0, 180, 255, 0.3); }
-    50% { box-shadow: 0 0 14px rgba(0, 200, 255, 0.9), 0 0 28px rgba(0, 180, 255, 0.6), 0 0 40px rgba(0, 160, 255, 0.3); }
+    0%, 100% { box-shadow: 0 0 6px rgba(0, 220, 255, 0.5), 0 0 12px rgba(0, 180, 255, 0.25); }
+    50% { box-shadow: 0 0 10px rgba(0, 220, 255, 0.85), 0 0 22px rgba(0, 180, 255, 0.55), 0 0 32px rgba(0, 160, 255, 0.25); }
   }
   @media (max-width: 380px) {
-    #sprintHud { width: min(80vw, 230px); }
-    #sprintHudLabel { font-size: 7px; }
+    #sprintHud { width: min(40vw, 115px); height: 12px; }
+    #sprintHudLabel { font-size: 6px; }
   }
 
   /* ===== SOVEREIGN CROWN BADGE  /* ===== SOVEREIGN CROWN BADGE (reuses the same seal/crest language
@@ -3202,6 +3224,7 @@
       <div class="dsDragonInfo"> 
         <div class="dsNameRow"><span class="dsNameWing"></span><div class="dsDragonName" id="dsDragonName">AEGIS</div><span class="dsNameWing flip"></span></div> 
         <div class="dsDragonTier">TIER <span id="dsDragonTierNum">1</span><em>|</em>DRAGON LEVEL <span id="dsDragonLevel">1</span></div> 
+        <div class="dsSpeedBonus" id="dsSpeedBonus" style="display:none;"><i class="fa-solid fa-bolt"></i> <span id="dsSpeedBonusText">+0% Speed</span></div>
         <div class="dsXpBarWrap"> 
           <div class="dsHexBadge"><b id="dsXpLevelStart">1</b></div> 
           <div class="dsXpMid"><div class="dsXpText" id="dsXpText">0 / 5,200</div><div class="dsXpBar"><div class="dsXpBarFill" id="dsXpBarFill"></div></div></div> 
