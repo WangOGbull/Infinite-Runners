@@ -2424,7 +2424,7 @@
        right: ~10px top pad + ~26px wave pill + 6px gap + 64px minimap
        = ~106px). A few px of clearance keeps it fully clear of the
        top-12% HUD band on every element. */
-    top: calc(env(safe-area-inset-top, 0px) + 114px);
+    top: calc(env(safe-area-inset-top, 0px) + 13vh);
     left: 50%;
     right: auto;
     transform: translate(-50%, -6px);
@@ -2529,7 +2529,7 @@
     color: rgba(255, 255, 255, 0.6);
   }
   @media (max-width: 380px) {
-    #growthPopup { top: calc(env(safe-area-inset-top, 0px) + 108px); width: min(80vw, 230px); }
+    #growthPopup { top: calc(env(safe-area-inset-top, 0px) + 13vh); width: min(80vw, 230px); }
   }
 
   /* ===== SOVEREIGN CROWN BADGE (reuses the same seal/crest language
