@@ -308,6 +308,7 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 #boostBtn span{font-weight:700;font-size:8px;letter-spacing:1px;color:rgba(255,255,255,0.8)}
 
 .overlay{position:absolute;inset:0;background:rgba(10,10,15,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:100}
+#pauseOverlay{position:fixed;z-index:200 !important;}
 .overlay.active{display:flex}
 #pauseOverlay h2{font-family:'Cinzel Decorative',cursive;font-size:24px;letter-spacing:3px;color:#00b4d8;margin-bottom:8px}
 
