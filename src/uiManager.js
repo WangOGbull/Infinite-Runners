@@ -24,6 +24,7 @@ class UIManager {
     this.dragonPowers = {};
     this.playerCoins = 1000000;
     this.clearedTiers = {}; // { easy: true, medium: true, hard: true } - persisted, tracks which AI difficulty tiers have been fully cleared at least once
+    this._progressReady = null; // promise that resolves once clearedTiers has loaded from Firebase — see initDragonCarousel()
     this.selectedDragonName = null;
     this._modalDragon = null;
     this._connectedWalletType = null;
@@ -284,7 +285,12 @@ class UIManager {
     this.carouselIndex = 0;
     if (this._uid && this._db) {
       // Logged-in account - real, cross-device progress from Firebase.
-      this._db.ref('users/' + this._uid).once('value').then((snap) => {
+      // Track the in-flight load so anything that reads this.clearedTiers
+      // before it resolves (e.g. opening the Dragon modal right after a
+      // page refresh) can wait for it and re-render once it's ready -
+      // fixes powers showing "locked" right after refresh even though
+      // they were already earned.
+      this._progressReady = this._db.ref('users/' + this._uid).once('value').then((snap) => {
         const data = snap.val() || {};
         this.dragonPowers = data.dragonPowers || {};
         this.playerCoins = (typeof data.playerCoins === 'number') ? data.playerCoins : 1000000;
@@ -302,6 +308,7 @@ class UIManager {
     this.dragonPowers = {};
     this.playerCoins = 1000000;
     this.clearedTiers = {};
+    this._progressReady = Promise.resolve();
     this.renderCarousel();
     this.updateCoinDisplay();
   }
@@ -349,6 +356,17 @@ class UIManager {
     }
     if (xpStart) xpStart.textContent = avgLevel;
     if (xpEnd) xpEnd.textContent = avgLevel + 1;
+    const speedBonusEl = document.getElementById('dsSpeedBonus');
+    const speedBonusText = document.getElementById('dsSpeedBonusText');
+    if (speedBonusEl && speedBonusText) {
+      const cleared = Object.values(this.clearedTiers).filter(Boolean).length;
+      if (cleared > 0) {
+        speedBonusText.textContent = '+' + (cleared * 5) + '% Speed — ' + cleared + '/3 Powers Earned';
+        speedBonusEl.style.display = 'inline-flex';
+      } else {
+        speedBonusEl.style.display = 'none';
+      }
+    }
     this.renderPowersGrid(key, color);
     const badge = document.getElementById('dsSelectBadge');
     const isSelected = this.selectedDragonName === name;
@@ -428,6 +446,15 @@ class UIManager {
     this._modalDragon = dragon;
     modal.classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    // If Firebase's clearedTiers fetch hadn't finished yet when this modal
+    // opened (e.g. right after a page refresh), the powers above may have
+    // rendered with stale/empty data. Re-render once it's confirmed ready -
+    // a no-op if it was already loaded, a silent correction if not.
+    if (this._progressReady) {
+      this._progressReady.then(() => {
+        if (this._modalDragon === dragon) this.renderSpecialPowers(dragon);
+      });
+    }
   }
 
   hideDragonModal() {
@@ -451,13 +478,18 @@ class UIManager {
   renderSpecialPowers(dragon) {
     const powersContainer = document.getElementById('ddmPowers');
     if (!powersContainer) return;
+    // Simple "recommended next" hint — first still-locked tier in order,
+    // since powers unlock strictly Easy -> Medium -> Hard.
+    const firstLocked = AI_DIFFICULTY_TIERS.find(t => !this.clearedTiers[t.id]);
+    const firstLockedId = firstLocked ? firstLocked.id : null;
     powersContainer.innerHTML = AI_DIFFICULTY_TIERS.map(tier => {
       const unlocked = !!this.clearedTiers[tier.id];
+      const isRecommended = !unlocked && tier.id === firstLockedId;
       return `
-        <div class="ddmPowerSlot ${unlocked ? 'unlocked' : 'locked'}">
+        <div class="ddmPowerSlot ${unlocked ? 'unlocked' : 'locked'}${isRecommended ? ' recommended' : ''}">
           <div class="ddmPowerIcon"><i class="fa-solid ${unlocked ? 'fa-check' : 'fa-lock'}"></i></div>
           <div class="ddmPowerInfo">
-            <div class="ddmPowerName">${tier.rank}</div>
+            <div class="ddmPowerName">${tier.rank}${isRecommended ? ' <span class="ddmRecTag">RECOMMENDED NEXT</span>' : ''}</div>
             <div class="ddmPowerDesc">${unlocked ? '+5% speed — unlocked' : `Clear ${tier.label} to unlock +5% speed`}</div>
           </div>
         </div>`;
