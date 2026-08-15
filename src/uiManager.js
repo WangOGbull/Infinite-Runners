@@ -1567,14 +1567,23 @@ class UIManager {
     const nameEl = document.getElementById('profileModalUsername');
     const rankEl = document.getElementById('profileModalRank');
     const killsEl = document.getElementById('profileStatKills');
-    const winsEl = document.getElementById('profileStatWins');
+    const aiMatchesEl = document.getElementById('profileStatAIMatches');
+    const aiKillsEl = document.getElementById('profileStatAIKills');
+    const mpMatchesEl = document.getElementById('profileStatMPMatches');
+    const mpWinsEl = document.getElementById('profileStatMPWins');
     const playedEl = document.getElementById('profileStatPlayed');
     const timePlayedEl = document.getElementById('profileStatTimePlayed');
     const bestTierEl = document.getElementById('profileStatBestTier');
+    const statRankEl = document.getElementById('profileStatRank');
+    const sovereignEl = document.getElementById('profileStatSovereign');
+
     if (nameEl) nameEl.textContent = (stats && stats.username) || 'Player';
     if (rankEl) rankEl.textContent = (stats && stats.rank) || 'Wingling';
     if (killsEl) killsEl.textContent = (stats && stats.dragonKills) || 0;
-    if (winsEl) winsEl.textContent = (stats && stats.multiplayerWins) || 0;
+    if (aiMatchesEl) aiMatchesEl.textContent = (stats && stats.aiMatchesPlayed) || 0;
+    if (aiKillsEl) aiKillsEl.textContent = (stats && stats.aiKills) || 0;
+    if (mpMatchesEl) mpMatchesEl.textContent = (stats && stats.mpMatchesPlayed) || 0;
+    if (mpWinsEl) mpWinsEl.textContent = (stats && stats.multiplayerWins) || 0;
     if (playedEl) playedEl.textContent = (stats && stats.matchesPlayed) || 0;
     if (timePlayedEl) {
       const ms = (stats && stats.timePlayedMs) || 0;
@@ -1586,6 +1595,13 @@ class UIManager {
     if (bestTierEl) {
       const tierLabels = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
       bestTierEl.textContent = (stats && tierLabels[stats.highestTierCleared]) || '-';
+    }
+    if (statRankEl) statRankEl.textContent = (stats && stats.rank) || 'Wingling';
+    if (sovereignEl) {
+      const isSovereign = !!(stats && stats.sovereignRank);
+      sovereignEl.textContent = isSovereign ? 'YES' : 'No';
+      if (isSovereign) sovereignEl.classList.add('sovereign-yes');
+      else sovereignEl.classList.remove('sovereign-yes');
     }
     modal.classList.add('active');
   }
