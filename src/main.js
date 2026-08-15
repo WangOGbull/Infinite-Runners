@@ -1973,7 +1973,7 @@ class Game {
       staking: { hostDeposited: false, opponentDeposited: false },
       players: {
         local: {
-          name: 'Player 1',
+          name: this.username || 'Player 1',
           dragon: this.selectedDragon || 'ignis',
           ready: true,
           joinedAt: firebase.database.ServerValue.TIMESTAMP,
@@ -1981,10 +1981,10 @@ class Game {
         }
       }
     });
-    this.roomPlayers = { local: { name: 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
+    this.roomPlayers = { local: { name: this.username || 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
     if (matched) {
       this.uiManager.updateLobby(
-        [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, isHost: true, deposited: false }],
+        [{ name: this.username || 'Player 1', dragon: this.selectedDragon, isLocal: true, isHost: true, deposited: false }],
         maxPlayers, this.roomCode, true, '1v1'
       );
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex || 0, true);
@@ -1999,7 +1999,7 @@ class Game {
       return;
     }
     this.uiManager.updateLobby(
-      [{ name: 'Player 1', dragon: this.selectedDragon, isLocal: true, isHost: true, deposited: false }],
+      [{ name: this.username || 'Player 1', dragon: this.selectedDragon, isLocal: true, isHost: true, deposited: false }],
       maxPlayers,
       this.roomCode,
       true,
@@ -2073,7 +2073,7 @@ class Game {
         return;
       }
       const newPlayerRef = this.roomRef.child('players').push({
-        name: 'Player ' + (playerCount + 1),
+        name: this.username || ('Player ' + (playerCount + 1)),
         dragon: this.selectedDragon || 'ignis',
         ready: true,
         joinedAt: firebase.database.ServerValue.TIMESTAMP,
@@ -2177,6 +2177,15 @@ class Game {
         setTimeout(() => this.leaveRoom(), 400);
       }
       this._lastPlayerCount = players.length;
+      // Show "USERNAME joined" toast when a new player appears
+      if (players.length > prevCount && prevCount > 0) {
+        const newPlayers = players.slice(prevCount);
+        for (const np of newPlayers) {
+          if (np && np.name && !np.isLocal) {
+            this.uiManager.showJoinToast(np.name);
+          }
+        }
+      }
       if (data.status === 'playing'
           && this.state !== 'PLAYING'
           && this.state !== 'GAME_OVER'
