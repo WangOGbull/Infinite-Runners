@@ -110,6 +110,8 @@ const CONFIG = {
 
   // ==================== ATTACK SYSTEM ====================
   ATTACK_METER_MAX: 20,        // infinite food eaten to fully charge ATTACK
+  SPRINT_METER_MAX: 20,         // infinite food eaten to fully charge SPRINT
+  SPRINT_DURATION_MS: 5000,    // sprint duration once fully drained (5s)
   ATTACK_DURATION_MS: 5000,    // attack mode duration once triggered
   KILL_SEGMENTS_GAIN: 2,       // body segments the killer gains per kill
   // Segments a SMALLER dragon strips off a BIGGER one by landing a tail
