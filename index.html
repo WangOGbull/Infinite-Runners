@@ -2532,7 +2532,69 @@
     #growthPopup { top: calc(env(safe-area-inset-top, 0px) + 13vh); width: min(80vw, 230px); }
   }
 
-  /* ===== SOVEREIGN CROWN BADGE (reuses the same seal/crest language
+  /* ===== SPRINT HUD BAR — sits below the growth popup,
+     blue bar that glows when full, drains when sprint is used. ===== */
+  #sprintHud {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16vh);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(84vw, 260px);
+    height: 6px;
+    z-index: 141;
+    pointer-events: none;
+    background: rgba(4, 8, 16, 0.72);
+    border: 1px solid rgba(0, 160, 255, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+    box-sizing: border-box;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  #sprintHudLabel {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 15.2vh);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 141;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: rgba(0, 180, 255, 0.6);
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  #sprintHudBar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, rgba(0, 100, 200, 0.7), rgba(0, 180, 255, 0.9));
+    border-radius: 3px;
+    transition: width 0.15s ease-out;
+  }
+  /* Glow when full — tells the player sprint is ready */
+  #sprintHudBar.sprint-full {
+    background: linear-gradient(90deg, rgba(0, 180, 255, 0.95), rgba(80, 220, 255, 1));
+    box-shadow: 0 0 10px rgba(0, 200, 255, 0.8), 0 0 20px rgba(0, 180, 255, 0.5);
+    animation: sprintHudPulse 1.2s ease-in-out infinite;
+  }
+  /* Draining state — bar dims slightly while sprint is active */
+  #sprintHudBar.sprint-draining {
+    background: linear-gradient(90deg, rgba(0, 80, 160, 0.6), rgba(0, 140, 220, 0.8));
+  }
+  @keyframes sprintHudPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(0, 200, 255, 0.6), 0 0 16px rgba(0, 180, 255, 0.3); }
+    50% { box-shadow: 0 0 14px rgba(0, 200, 255, 0.9), 0 0 28px rgba(0, 180, 255, 0.6), 0 0 40px rgba(0, 160, 255, 0.3); }
+  }
+  @media (max-width: 380px) {
+    #sprintHud { width: min(80vw, 230px); }
+    #sprintHudLabel { font-size: 7px; }
+  }
+
+  /* ===== SOVEREIGN CROWN BADGE  /* ===== SOVEREIGN CROWN BADGE (reuses the same seal/crest language
      as the tier-complete crown — small circular gold outline + FA crown
      icon; used inline wherever a Sovereign player's name appears) ===== */
   .sovereignBadge {
@@ -3432,6 +3494,11 @@
       <div id="growthPopupStage"></div>
       <div id="growthPopupText"></div>
     </div>
+  </div>
+  <!-- ===== SPRINT HUD BAR (below growth popup) ===== -->
+  <div id="sprintHudLabel">SPRINT</div>
+  <div id="sprintHud">
+    <div id="sprintHudBar"></div>
   </div>
   <!-- ===== EXISTING HUD (restyled to match reference layout) ===== --> 
   <div id="gameHud"> 
