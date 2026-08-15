@@ -2285,10 +2285,14 @@
       background: rgba(255,255,255,0.03); 
       border: 1px solid rgba(255,255,255,0.06); 
   } 
-  .profileStatValue { 
-      font-family: 'Cinzel Decorative', serif; 
-      font-size: 20px; 
-      color: #c9a44e; 
+  .profileStatValue {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 20px;
+      color: #c9a44e;
+  }
+  .profileStatValue.sovereign-yes {
+      color: #d4af37;
+      text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
   } 
   .profileStatLabel { 
       font-family: 'EB Garamond', serif; 
@@ -3037,27 +3041,47 @@
     <div class="profileModalCrest"><i class="fa-solid fa-dragon"></i></div> 
     <div class="profileModalName" id="profileModalUsername">Player</div> 
     <div class="profileModalRank" id="profileModalRank">Wingling</div> 
-    <div class="profileStatsGrid"> 
-      <div class="profileStat"> 
-        <div class="profileStatValue" id="profileStatKills">0</div> 
-        <div class="profileStatLabel">Dragon Kills</div> 
-      </div> 
-      <div class="profileStat"> 
-        <div class="profileStatValue" id="profileStatWins">0</div> 
-        <div class="profileStatLabel">Matches Won</div> 
-      </div> 
-      <div class="profileStat"> 
-        <div class="profileStatValue" id="profileStatPlayed">0</div> 
-        <div class="profileStatLabel">Matches Played</div> 
-      </div> 
-      <div class="profileStat"> 
-        <div class="profileStatValue" id="profileStatTimePlayed">0m</div> 
-        <div class="profileStatLabel">Time Played</div> 
-      </div> 
-      <div class="profileStat"> 
-        <div class="profileStatValue" id="profileStatBestTier">-</div> 
-        <div class="profileStatLabel">Best Tier Cleared</div> 
-      </div> 
+    <div class="profileStatsGrid">
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatKills">0</div>
+        <div class="profileStatLabel">Dragon Kills</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatAIMatches">0</div>
+        <div class="profileStatLabel">AI Matches</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatAIKills">0</div>
+        <div class="profileStatLabel">AI Kills</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatMPMatches">0</div>
+        <div class="profileStatLabel">MP Matches</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatMPWins">0</div>
+        <div class="profileStatLabel">MP Wins</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatPlayed">0</div>
+        <div class="profileStatLabel">Total Matches</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatTimePlayed">0m</div>
+        <div class="profileStatLabel">Time Played</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatBestTier">-</div>
+        <div class="profileStatLabel">Best Tier</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatRank">Wingling</div>
+        <div class="profileStatLabel">Rank</div>
+      </div>
+      <div class="profileStat">
+        <div class="profileStatValue" id="profileStatSovereign">No</div>
+        <div class="profileStatLabel">Sovereign</div>
+      </div>
     </div> 
     <div class="stakingTermsFine">
       <div class="stakingTermsFineTitle">Terms &amp; Risk of Staking</div>
