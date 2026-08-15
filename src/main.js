@@ -2721,11 +2721,23 @@ class Game {
   pauseGame() {
     this.isPaused = true;
     this.uiManager.showPauseOverlay(true, this.isMultiplayer);
+    // Hide HUD elements so they don't poke through the pause overlay
+    ['gameHud', 'sprintHud', 'sprintHudLabel', 'growthPopup'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
   }
 
   resumeGame() {
     this.isPaused = false;
     this.uiManager.showPauseOverlay(false);
+    // Restore HUD elements
+    document.getElementById('gameHud') && (document.getElementById('gameHud').style.display = '');
+    document.getElementById('sprintHud') && (document.getElementById('sprintHud').style.display = '');
+    document.getElementById('sprintHudLabel') && (document.getElementById('sprintHudLabel').style.display = '');
+    // growthPopup uses opacity/display toggle for its show animation, restore to hidden
+    const gp = document.getElementById('growthPopup');
+    if (gp && !gp.classList.contains('show')) gp.style.display = '';
     this.lastTime = performance.now();
   }
 
