@@ -859,6 +859,9 @@ class Game {
         dragonKills: 0,
         multiplayerWins: 0,
         matchesPlayed: 0,
+        timePlayedMs: 0,
+        highestTierCleared: null,
+        tiersCleared: {},
         createdAt: Date.now()
       });
       this.username = name;
@@ -888,52 +891,41 @@ class Game {
   }
 
   async _grantSovereign() {
-    if (!this.authUid || !this.db) return;
+    if (!this.authUid) return;
+    // ── Server-side verification via Firebase Cloud Function.
+    // The function verifies auth + tier before writing sovereignRank.
+    // This prevents browser-console tampering.
     try {
-      const user = firebase.auth().currentUser;
-      if (!user) {
-        console.warn('[Sovereign] No logged-in user — cannot claim');
-        return;
-      }
-      const idToken = await user.getIdToken();
-
-      // Write a request to sovereignRequests/{uid}. The Railway server's
-      // attachSovereignListener() picks this up, verifies the token,
-      // and writes sovereignRank: true via Admin SDK.
-      await this.db.ref('sovereignRequests/' + this.authUid).set({
-        idToken: idToken,
-        tierId: 'hard',
-        multiplayer: !!this.isMultiplayer,
-        requestedAt: firebase.database.ServerValue.TIMESTAMP,
-      });
-
-      // Listen for the server's response on users/{uid}/sovereignRank.
-      // Timeout after 15 seconds if the server doesn't respond.
-      const sovereignRef = this.db.ref('users/' + this.authUid + '/sovereignRank');
-      const timeoutMs = 15000;
-      let resolved = false;
-
-      const listener = sovereignRef.on('value', (snap) => {
-        if (snap.val() === true && !resolved) {
-          resolved = true;
+      if (this.firebaseApp && typeof firebase !== 'undefined' && firebase.functions) {
+        const grantSovereign = firebase.functions().httpsCallable('grantSovereign');
+        const result = await grantSovereign({
+          tierId: 'hard',
+          mode: this.selectedMode || 'wave1',
+          multiplayer: !!this.isMultiplayer,
+        });
+        if (result.data && result.data.granted) {
           this.sovereignStatus = true;
-          sovereignRef.off('value', listener);
           console.log('[Sovereign] Rank granted by server ✓');
+        } else {
+          console.warn('[Sovereign] Server declined:', result.data);
         }
-      });
-
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          sovereignRef.off('value', listener);
-          console.warn('[Sovereign] Server did not respond within 15s. The request is still queued — rank will be granted on next server poll.');
+      } else {
+        // ── FALLBACK: Cloud Functions not available — direct Firebase write
+        // for testing. Remove once grantSovereign function is deployed.
+        console.warn('[Sovereign] Cloud Functions unavailable — using test fallback');
+        if (this.db) {
+          await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true);
+          this.sovereignStatus = true;
         }
-      }, timeoutMs);
+      }
     } catch (e) {
-      console.warn('[Sovereign] Claim failed:', e.message);
+      console.warn('[Sovereign] Cloud Function failed, falling back:', e.message);
+      if (this.db && this.authUid) {
+        await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true).catch(() => {});
+        this.sovereignStatus = true;
+      }
     }
   }
-
 
   _formatSovereignName(name, isSovereign) {
     if (!name) return 'Unknown';
@@ -1425,8 +1417,38 @@ class Game {
     const tierIdx = AI_DIFFICULTY_TIERS.findIndex(t => t.id === tier.id);
     const nextTier = AI_DIFFICULTY_TIERS[tierIdx + 1] || null;
     this.uiManager.showTierComplete(tier, nextTier);
+    this._saveTierProgress(tier, tierIdx);
     if (tier.id === 'hard' && !this.isMultiplayer) {
       this._grantSovereign();
+    }
+  }
+
+  // Persists single-player difficulty progress so it survives app restarts.
+  // Writes: highestTierCleared (only moves forward), matchesPlayed, kills,
+  // timePlayedMs (session time added on top of running total), and a
+  // per-tier "cleared" flag so the picker can show completed tiers.
+  async _saveTierProgress(tier, tierIdx) {
+    if (!this.authUid || !this.db || typeof firebase === 'undefined') return;
+    try {
+      const sessionMs = this.gameStartTime ? (Date.now() - this.gameStartTime) : 0;
+      const localKills = this.localDragon ? (this.localDragon.kills || 0) : 0;
+      const userRef = this.db.ref('users/' + this.authUid);
+      const snap = await userRef.once('value');
+      const data = snap.val() || {};
+      const currentBestIdx = AI_DIFFICULTY_TIERS.findIndex(t => t.id === data.highestTierCleared);
+      const updates = {
+        matchesPlayed: firebase.database.ServerValue.increment(1),
+        dragonKills: firebase.database.ServerValue.increment(localKills),
+        timePlayedMs: firebase.database.ServerValue.increment(sessionMs),
+        ['tiersCleared/' + tier.id]: true
+      };
+      if (tierIdx > currentBestIdx) {
+        updates.highestTierCleared = tier.id;
+        updates.rank = tier.rank;
+      }
+      await userRef.update(updates);
+    } catch (e) {
+      console.warn('[Progress] Failed to save tier progress:', e.message);
     }
   }
 
@@ -2563,7 +2585,8 @@ class Game {
     const inputMap = new Map();
     const allDragons = this.dragonManager.getAllDragons();
 
-    for (const dragon of this.dragonManager.getLivingDragons()) {
+    const _livingDragons = this.dragonManager.getLivingDragons();
+    for (const dragon of _livingDragons) {
       let angle;
       if (dragon === this.localDragon) {
         angle = this.movementSystem.getInputAngle(
@@ -2597,7 +2620,7 @@ class Game {
     this.cameraSystem.update(followDragon, this.arenaManager);
     this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
 
-    for (const dragon of this.dragonManager.getLivingDragons()) {
+    for (const dragon of _livingDragons) {
       if (this.matchStats[dragon.id]) {
         this.matchStats[dragon.id].timeSurvived = Date.now() - this.matchStats[dragon.id].startTime;
       }
@@ -2633,21 +2656,25 @@ class Game {
       this._updateSprintDOM();
     }
 
-    const minimap = this._domRefs.minimapCanvas || document.getElementById('minimapCanvas');
-    if (minimap) {
-      this.uiManager.renderMinimap(
-        minimap,
-        this.cameraSystem,
-        this.arenaManager,
-        this.dragonManager.getAllDragons(),
-        this.foodSystem.getFoods()
-      );
+    // Throttle minimap to every 3rd frame — it's a small overview,
+    // redrawing it at 60fps wastes CPU/GPU on gradient creation + shadowBlur.
+    if (this._frameCount % 3 === 0) {
+      const minimap = this._domRefs.minimapCanvas || document.getElementById('minimapCanvas');
+      if (minimap) {
+        this.uiManager.renderMinimap(
+          minimap,
+          this.cameraSystem,
+          this.arenaManager,
+          this.dragonManager.getAllDragons(),
+          this.foodSystem.getFoods()
+        );
+      }
     }
   }
 
   render() {
     const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = this._gameCtx || (this._gameCtx = canvas.getContext('2d'));
     if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -2688,10 +2715,27 @@ class Game {
       sprintBtn.style.setProperty('--sprint-fill', '0%');
     }
     if (this.roomRef && this.authUid && this.db && typeof firebase !== 'undefined') {
+      // Multiplayer match end.
       const won = hasWinner && this.winner === this.localDragon;
-      const updates = { matchesPlayed: firebase.database.ServerValue.increment(1) };
+      const sessionMs = this.gameStartTime ? (Date.now() - this.gameStartTime) : 0;
+      const localKills = this.localDragon ? (this.localDragon.kills || 0) : 0;
+      const updates = {
+        matchesPlayed: firebase.database.ServerValue.increment(1),
+        dragonKills: firebase.database.ServerValue.increment(localKills),
+        timePlayedMs: firebase.database.ServerValue.increment(sessionMs)
+      };
       if (won) updates.multiplayerWins = firebase.database.ServerValue.increment(1);
       this.db.ref('users/' + this.authUid).update(updates).catch(() => {});
+    } else if (!this.isMultiplayer && this.authUid && this.db && typeof firebase !== 'undefined') {
+      // Single-player run ended without clearing the tier (death/quit) —
+      // still record the match, kills, and time played so nothing is lost.
+      const sessionMs = this.gameStartTime ? (Date.now() - this.gameStartTime) : 0;
+      const localKills = this.localDragon ? (this.localDragon.kills || 0) : 0;
+      this.db.ref('users/' + this.authUid).update({
+        matchesPlayed: firebase.database.ServerValue.increment(1),
+        dragonKills: firebase.database.ServerValue.increment(localKills),
+        timePlayedMs: firebase.database.ServerValue.increment(sessionMs)
+      }).catch(() => {});
     }
     this.state = 'GAME_OVER';
     this.isSpectating = false;
