@@ -32,6 +32,22 @@ export class DragonManager {
     );
   }
 
+  // Sprint meter (same food-charged model as attack):
+  // eating loads the meter. Returns true when it JUST became full.
+  addSprintCharge(dragon, amount = 1) {
+    if (!dragon || !dragon.alive) return false;
+    const wasFull =
+      (dragon.sprintCharge || 0) >= CONFIG.SPRINT_METER_MAX;
+    dragon.sprintCharge = Math.min(
+      CONFIG.SPRINT_METER_MAX,
+      (dragon.sprintCharge || 0) + amount
+    );
+    return (
+      !wasFull &&
+      dragon.sprintCharge >= CONFIG.SPRINT_METER_MAX
+    );
+  }
+
   createDragon(type, x, y, teamId = null) {
     const dragon = {
       id: 'dragon_' + (this.nextId++),
@@ -214,6 +230,9 @@ export class DragonManager {
     dragon.attackActive = false;
     dragon.attackHeld = false;
     dragon.attackCharge = 0;
+    dragon.sprintActive = false;
+    dragon.sprintHeld = false;
+    dragon.sprintCharge = 0;
     dragon.boostActive = false;
 
     dragon.immunityTimer =
