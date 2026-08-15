@@ -861,7 +861,7 @@ class Game {
         matchesPlayed: 0,
         timePlayedMs: 0,
         highestTierCleared: null,
-        tiersCleared: {},
+        clearedTiers: {},
         createdAt: Date.now()
       });
       this.username = name;
@@ -1444,7 +1444,7 @@ class Game {
         aiKills: firebase.database.ServerValue.increment(localKills),
         aiTimePlayedMs: firebase.database.ServerValue.increment(sessionMs),
         lastPlayed: firebase.database.ServerValue.TIMESTAMP,
-        ['tiersCleared/' + tier.id]: true
+        ['clearedTiers/' + tier.id]: true
       };
       if (tierIdx > currentBestIdx) {
         updates.highestTierCleared = tier.id;
@@ -1452,7 +1452,7 @@ class Game {
       }
       await userRef.update(updates);
     } catch (e) {
-      console.warn('[Progress] Failed to save tier progress:', e.message);
+      console.error('[Progress] Failed to save tier progress:', e.message, e);
     }
   }
 
