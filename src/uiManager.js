@@ -165,7 +165,8 @@ class UIManager {
       'bettingArenaScreen','lobbyScreen','loadingScreen','gameScreen',
       'gameOverScreen','howToPlayScreen','walletModal','walletSelectionModal',
       'mpGameOver','loadingOverlay','dragonDetailModal','tierCompleteScreen',
-      'loginScreen','usernameScreen','walletSyncedScreen'
+      'loginScreen','usernameScreen','walletSyncedScreen',
+      'leaderboardScreen','profileModal'
     ];
     ids.forEach(id => {
       const el = document.getElementById(id);
@@ -1995,6 +1996,15 @@ class UIManager {
     }
     this._lastScreenSwitch = Date.now();
     if (screenId === 'leaderboardScreen') this._loadLeaderboard();
+    if (screenId === 'dragonSelectScreen') {
+      // Re-render carousel so newly-cleared tiers show as unlocked
+      // immediately without needing a page refresh.
+      if (this._progressReady) {
+        this._progressReady.then(() => this.renderCarousel()).catch(() => this.renderCarousel());
+      } else {
+        this.renderCarousel();
+      }
+    }
     if (!this._ghostTapGuardInstalled) {
       this._ghostTapGuardInstalled = true;
       const guard = (e) => {
