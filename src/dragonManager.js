@@ -1133,34 +1133,39 @@ export class DragonManager {
     // ── Subtle pulse animation ──
     const pulse = 1 + Math.sin(Date.now() / 600) * 0.08;
 
+    // ── Cache gradients (only re-create when scale changes) ──
+    if (!this._crownCache || this._crownCache.r !== crownR) {
+      const haloR = crownR * 2.4;
+      const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+      halo.addColorStop(0, 'rgba(247, 227, 176, 0.5)');
+      halo.addColorStop(0.4, 'rgba(247, 227, 176, 0.18)');
+      halo.addColorStop(1, 'rgba(247, 227, 176, 0)');
+      const grad = ctx.createLinearGradient(0, -crownR * 1.2, 0, crownR * 0.7);
+      grad.addColorStop(0, '#fff8dc');
+      grad.addColorStop(0.3, '#f7e3b0');
+      grad.addColorStop(0.6, '#e8c860');
+      grad.addColorStop(0.85, '#d4af37');
+      grad.addColorStop(1, '#b8860b');
+      this._crownCache = { r: crownR, halo, grad };
+    }
+
     ctx.save();
     ctx.translate(hx, hy + offsetY);
     ctx.scale(pulse, pulse);
 
     // ── Outer glow halo ──
     const haloR = crownR * 2.4;
-    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
-    halo.addColorStop(0, 'rgba(247, 227, 176, 0.5)');
-    halo.addColorStop(0.4, 'rgba(247, 227, 176, 0.18)');
-    halo.addColorStop(1, 'rgba(247, 227, 176, 0)');
-    ctx.fillStyle = halo;
+    ctx.fillStyle = this._crownCache.halo;
     ctx.beginPath();
     ctx.arc(0, 0, haloR, 0, Math.PI * 2);
     ctx.fill();
 
-    // ── Gold gradient ──
-    const grad = ctx.createLinearGradient(0, -crownR * 1.2, 0, crownR * 0.7);
-    grad.addColorStop(0, '#fff8dc');
-    grad.addColorStop(0.3, '#f7e3b0');
-    grad.addColorStop(0.6, '#e8c860');
-    grad.addColorStop(0.85, '#d4af37');
-    grad.addColorStop(1, '#b8860b');
-
-    ctx.fillStyle = grad;
+    ctx.fillStyle = this._crownCache.grad;
     ctx.strokeStyle = 'rgba(255, 250, 220, 0.7)';
     ctx.lineWidth = 0.8;
+    // ── Single shadowBlur for entire crown (was 3 separate calls) ──
     ctx.shadowColor = 'rgba(247, 227, 176, 0.8)';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 10;
 
     // ── Crown path (classic 5-spike crown, proper geometry) ──
     const bandW = crownR * 1.6;
@@ -1197,7 +1202,7 @@ export class DragonManager {
     ctx.stroke();
 
     // ── Gem on center spike ──
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 6;
     ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
     const gemY = midSpikeH + crownR * 0.08;
     ctx.beginPath();
@@ -1205,8 +1210,8 @@ export class DragonManager {
     ctx.fillStyle = '#fffacd';
     ctx.fill();
 
-    // ── Small gems on side spikes ──
-    ctx.shadowBlur = 4;
+    // ── Small gems on side spikes (no extra shadowBlur) ──
+    ctx.shadowBlur = 0;
     for (let i = 0; i < spikes; i++) {
       if (i === 2) continue;
       const xC = -bandW / 2 + i * spikeW + spikeW / 2;
@@ -1219,10 +1224,10 @@ export class DragonManager {
 
     // ── Crown base band highlight ──
     ctx.shadowBlur = 0;
-    const bandGrad = ctx.createLinearGradient(0, bandY, 0, bandY + bandH);
+    // Reuse the main gold gradient for the band (avoids another gradient creation)
+    ctx.fillStyle = this._crownCache.grad;
     bandGrad.addColorStop(0, 'rgba(255, 248, 220, 0.4)');
     bandGrad.addColorStop(1, 'rgba(184, 134, 11, 0.6)');
-    ctx.fillStyle = bandGrad;
     ctx.beginPath();
     ctx.roundRect(-bandW / 2, bandY, bandW, bandH, 2);
     ctx.fill();
