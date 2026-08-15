@@ -1440,6 +1440,10 @@ class Game {
         matchesPlayed: firebase.database.ServerValue.increment(1),
         dragonKills: firebase.database.ServerValue.increment(localKills),
         timePlayedMs: firebase.database.ServerValue.increment(sessionMs),
+        aiMatchesPlayed: firebase.database.ServerValue.increment(1),
+        aiKills: firebase.database.ServerValue.increment(localKills),
+        aiTimePlayedMs: firebase.database.ServerValue.increment(sessionMs),
+        lastPlayed: firebase.database.ServerValue.TIMESTAMP,
         ['tiersCleared/' + tier.id]: true
       };
       if (tierIdx > currentBestIdx) {
@@ -2722,7 +2726,11 @@ class Game {
       const updates = {
         matchesPlayed: firebase.database.ServerValue.increment(1),
         dragonKills: firebase.database.ServerValue.increment(localKills),
-        timePlayedMs: firebase.database.ServerValue.increment(sessionMs)
+        timePlayedMs: firebase.database.ServerValue.increment(sessionMs),
+        mpMatchesPlayed: firebase.database.ServerValue.increment(1),
+        mpKills: firebase.database.ServerValue.increment(localKills),
+        mpTimePlayedMs: firebase.database.ServerValue.increment(sessionMs),
+        lastPlayed: firebase.database.ServerValue.TIMESTAMP
       };
       if (won) updates.multiplayerWins = firebase.database.ServerValue.increment(1);
       this.db.ref('users/' + this.authUid).update(updates).catch(() => {});
@@ -2734,7 +2742,11 @@ class Game {
       this.db.ref('users/' + this.authUid).update({
         matchesPlayed: firebase.database.ServerValue.increment(1),
         dragonKills: firebase.database.ServerValue.increment(localKills),
-        timePlayedMs: firebase.database.ServerValue.increment(sessionMs)
+        timePlayedMs: firebase.database.ServerValue.increment(sessionMs),
+        aiMatchesPlayed: firebase.database.ServerValue.increment(1),
+        aiKills: firebase.database.ServerValue.increment(localKills),
+        aiTimePlayedMs: firebase.database.ServerValue.increment(sessionMs),
+        lastPlayed: firebase.database.ServerValue.TIMESTAMP
       }).catch(() => {});
     }
     this.state = 'GAME_OVER';
