@@ -1611,6 +1611,22 @@ class UIManager {
     if (modal) modal.classList.remove('active');
   }
 
+  showJoinToast(username) {
+    let toast = document.getElementById('joinToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'joinToast';
+      toast.className = 'joinToast';
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<i class="fa-solid fa-dragon"></i> <span>${username}</span> Joined`;
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    clearTimeout(this._joinToastTimer);
+    this._joinToastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
   showLoginDrop(username, isGuest) {
     const banner = document.getElementById('loginDropBanner');
     const nameEl = document.getElementById('loginDropName');
