@@ -1043,6 +1043,7 @@ class Game {
     this.eventBus.on('collision:eat', ({ dragon, food }) => {
       this.growthSystem.onEat(dragon, food);
       this.dragonManager.addAttackCharge(dragon, food.value || 1);
+      this.dragonManager.addSprintCharge(dragon, food.value || 1);
       this.effectsSystem.spawnEatParticles(food.x, food.y, food.color);
       this.effectsSystem.playEatSound();
       const segments = dragon.segments ? dragon.segments.length : 0;
@@ -1884,7 +1885,7 @@ class Game {
         localSpawn.y
       );
       this.localDragon.playerId = this.localPlayerId;
-      this.localDragon.sprintCharge = 100;
+      this.localDragon.sprintCharge = 0;
       this.localDragon.baseSpeed = this.localDragon.speed;
       this.localDragon.sovereign = this.sovereignStatus;
       this.initMatchStats(this.localDragon);
@@ -1907,7 +1908,7 @@ class Game {
         localSpawn.x,
         localSpawn.y
       );
-      this.localDragon.sprintCharge = 100;
+      this.localDragon.sprintCharge = 0;
       this.localDragon.baseSpeed = this.localDragon.speed;
       this.localDragon.sovereign = this.sovereignStatus;
       this.initMatchStats(this.localDragon);
@@ -2859,17 +2860,18 @@ class Game {
     const dragon = this.localDragon;
     if (!dragon || !dragon.alive) return;
     if (dragon.baseSpeed === undefined) dragon.baseSpeed = dragon.speed;
-    if (dragon.sprintCharge === undefined) dragon.sprintCharge = 100;
-    dragon.sprintCharge = Math.min(100, dragon.sprintCharge + deltaTime * 0.025);
+    if (dragon.sprintCharge === undefined) dragon.sprintCharge = 0;
+    // No auto-regeneration — sprint is food-based only (20 food = full).
     if (dragon.sprintHeld && dragon.sprintCharge > 0) {
       dragon.sprintActive = true;
-      dragon.sprintCharge -= deltaTime * 0.035;
+      // Drain at the same rate as attack: full meter lasts ~5 seconds.
+      const drain = (CONFIG.SPRINT_METER_MAX / CONFIG.SPRINT_DURATION_MS) * deltaTime;
+      dragon.sprintCharge = Math.max(0, dragon.sprintCharge - drain);
       dragon.speed = dragon.baseSpeed * 1.5;
     } else {
       dragon.sprintActive = false;
       dragon.speed = dragon.baseSpeed;
     }
-    if (dragon.sprintCharge < 0) dragon.sprintCharge = 0;
   }
 
   _updateSprintDOM() {
@@ -2877,15 +2879,31 @@ class Game {
     if (!dragon) return;
     const btn = this._domRefs.sprintBtn || document.getElementById('sprintBtn');
     if (!btn) return;
-    btn.style.setProperty('--sprint-fill', dragon.sprintCharge + '%');
+    const pct = Math.min(100, (dragon.sprintCharge / CONFIG.SPRINT_METER_MAX) * 100);
+    btn.style.setProperty('--sprint-fill', pct + '%');
     if (dragon.sprintActive) {
       btn.classList.add('sprint-active');
       btn.classList.remove('sprint-ready');
-    } else if (dragon.sprintCharge >= 100) {
+    } else if (dragon.sprintCharge >= CONFIG.SPRINT_METER_MAX) {
       btn.classList.add('sprint-ready');
       btn.classList.remove('sprint-active');
     } else {
       btn.classList.remove('sprint-ready', 'sprint-active');
+    }
+    // Update the new sprint HUD bar
+    const bar = document.getElementById('sprintHudBar');
+    if (bar) {
+      bar.style.width = pct + '%';
+      if (dragon.sprintCharge >= CONFIG.SPRINT_METER_MAX) {
+        bar.classList.add('sprint-full');
+      } else {
+        bar.classList.remove('sprint-full');
+      }
+      if (dragon.sprintActive) {
+        bar.classList.add('sprint-draining');
+      } else {
+        bar.classList.remove('sprint-draining');
+      }
     }
   }
 
