@@ -279,37 +279,49 @@ class UIManager {
   setAccount(uid, db) {
     this._uid = uid;
     this._db = db;
+    if (uid && db) {
+      // Single source of truth for persisted account progress. This is
+      // called every time the auth state resolves (login restore, guest
+      // entry, sign out, room rejoin). initDragonCarousel() runs earlier,
+      // during loadGameAssets() BEFORE auth is restored, so at that point
+      // uid is still unknown and clearedTiers is {} - this fetch (fired
+      // once the real uid arrives) is what actually loads the saved
+      // clearedTiers/dragonPowers/playerCoins. Without it, powers appear
+      // locked after a page refresh even though they were already earned.
+      this._progressReady = db.ref('users/' + uid).once('value').then((snap) => {
+        const data = snap.val() || {};
+        this.dragonPowers = data.dragonPowers || {};
+        if (typeof data.playerCoins === 'number') this.playerCoins = data.playerCoins;
+        this.clearedTiers = data.clearedTiers || {};
+        this.renderCarousel();
+        if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
+        this.updateCoinDisplay();
+      }).catch(() => {
+        this.renderCarousel();
+        if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
+        this.updateCoinDisplay();
+      });
+    } else {
+      // Guest / signed out - no persisted progress.
+      this.dragonPowers = {};
+      this.clearedTiers = {};
+      this._progressReady = Promise.resolve();
+      this.renderCarousel();
+      if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
+      this.updateCoinDisplay();
+    }
   }
 
   initDragonCarousel(dragons) {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
-    if (this._uid && this._db) {
-      // Logged-in account - real, cross-device progress from Firebase.
-      // Track the in-flight load so anything that reads this.clearedTiers
-      // before it resolves (e.g. opening the Dragon modal right after a
-      // page refresh) can wait for it and re-render once it's ready -
-      // fixes powers showing "locked" right after refresh even though
-      // they were already earned.
-      this._progressReady = this._db.ref('users/' + this._uid).once('value').then((snap) => {
-        const data = snap.val() || {};
-        this.dragonPowers = data.dragonPowers || {};
-        this.playerCoins = (typeof data.playerCoins === 'number') ? data.playerCoins : 1000000;
-        this.clearedTiers = data.clearedTiers || {};
-        this.renderCarousel();
-        this.updateCoinDisplay();
-      }).catch(() => {
-        this.renderCarousel();
-        this.updateCoinDisplay();
-      });
-      return;
-    }
-    // Guest - no account to attach progress to, so nothing persists beyond
-    // this session (by design - see the guest-mode restrictions).
-    this.dragonPowers = {};
-    this.playerCoins = 1000000;
-    this.clearedTiers = {};
-    this._progressReady = Promise.resolve();
+    // Progress fetch is owned by setAccount() (see comments there). At this
+    // point auth usually hasn't restored yet, so uid is unknown and
+    // _progressReady is either null or an already-resolved placeholder -
+    // never the real Firebase load. setAccount() will fire the real load
+    // and re-render once the uid arrives, and the _progressReady.then()
+    // guards in showDragonModal/showScreen will pick up that promise.
+    if (!this._progressReady) this._progressReady = Promise.resolve();
     this.renderCarousel();
     this.updateCoinDisplay();
   }
@@ -1951,14 +1963,20 @@ class UIManager {
     try {
       const snap = await this._db.ref('users').once('value');
       const users = snap.val() || {};
-      const rows = Object.values(users)
-        .filter(u => u && u.username)
-        .map(u => ({
+      // Use entries (not values) so we keep each record's UID — that's how
+      // we reliably know which row is the signed-in player, instead of
+      // guessing off the username string (which can collide/confuse if two
+      // accounts have similar names).
+      const rows = Object.entries(users)
+        .filter(([uid, u]) => u && u.username)
+        .map(([uid, u]) => ({
+          uid,
           name: u.username,
           kills: u.dragonKills || 0,
           wins: u.multiplayerWins || 0,
           matches: u.matchesPlayed || 0,
           sovereign: !!u.sovereignRank,
+          isYou: !!this._uid && uid === this._uid,
         }))
         .sort((a, b) => (b.kills + b.wins * 5) - (a.kills + a.wins * 5))
         .slice(0, 50);
@@ -1971,9 +1989,11 @@ class UIManager {
         const nameHtml = r.sovereign
           ? '<span class="sovereignBadge"><i class="fa-solid fa-crown"></i></span><span class="sovereignName">' + r.name + '</span>'
           : '<span>' + r.name + '</span>';
-        return '<div class="lbRow' + (r.sovereign ? ' isSovereign' : '') + '">'
+        const youTag = r.isYou ? '<span class="lbYouTag">YOU</span>' : '';
+        const rowClass = 'lbRow' + (r.sovereign ? ' isSovereign' : '') + (r.isYou ? ' isYou' : '');
+        return '<div class="' + rowClass + '">'
           + '<div class="lbRank">' + (i + 1) + '</div>'
-          + '<div class="lbName">' + nameHtml + '</div>'
+          + '<div class="lbName">' + nameHtml + youTag + '</div>'
           + '<div class="lbStats">'
           + '<span><i class="fa-solid fa-skull"></i>' + r.kills + '</span>'
           + '<span><i class="fa-solid fa-trophy"></i>' + r.wins + '</span>'
