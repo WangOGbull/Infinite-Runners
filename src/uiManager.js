@@ -353,16 +353,24 @@ class UIManager {
     const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
     const tierEl = document.getElementById('dsDragonTierNum');
     const levelEl = document.getElementById('dsDragonLevel');
-    if (tierEl) tierEl.textContent = avgLevel;
-    if (levelEl) levelEl.textContent = avgLevel;
-    const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
+    const clearedCount = Object.values(this.clearedTiers).filter(Boolean).length;
+    if (tierEl) tierEl.textContent = clearedCount;
+    if (levelEl) levelEl.textContent = clearedCount;
+    // XP bar reflects account-level progression, not per-dragon stats.
+    // Start = 22, Easy cleared = 89, Medium = 155, Hard = 222 (full).
+    // The number is the same for every dragon and persists via clearedTiers.
+    const cleared = Object.values(this.clearedTiers).filter(Boolean).length;
+    const xpCurrent = 22 + Math.round(cleared * (222 - 22) / 3);
+    const xpMax = 222;
     const xpText = document.getElementById('dsXpText');
     const xpFill = document.getElementById('dsXpBarFill');
     const xpStart = document.getElementById('dsXpLevelStart');
     const xpEnd = document.getElementById('dsXpLevelEnd');
-    if (xpText) xpText.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
+    // Tier label: 0=Wingling, 1=Emberborn, 2=Stormcrest, 3=Infinite Sovereign
+    const tierLabels = ['Wingling', 'Emberborn', 'Stormcrest', 'Infinite Sovereign'];
+    if (xpText) xpText.textContent = `${xpCurrent} / ${xpMax}`;
     if (xpFill) {
-      const pct = Math.min(100, (xpCurrent / 5200) * 100);
+      const pct = Math.min(100, (xpCurrent / xpMax) * 100);
       xpFill.style.transition = 'none';
       xpFill.style.width = '0%';
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -370,8 +378,8 @@ class UIManager {
         xpFill.style.width = pct + '%';
       }));
     }
-    if (xpStart) xpStart.textContent = avgLevel;
-    if (xpEnd) xpEnd.textContent = avgLevel + 1;
+    if (xpStart) xpStart.textContent = tierLabels[Math.min(cleared, 3)];
+    if (xpEnd) xpEnd.textContent = cleared >= 3 ? 'MAX' : tierLabels[Math.min(cleared + 1, 3)];
     const speedBonusEl = document.getElementById('dsSpeedBonus');
     const speedBonusText = document.getElementById('dsSpeedBonusText');
     if (speedBonusEl && speedBonusText) {
@@ -418,20 +426,24 @@ class UIManager {
     if (nameEl) nameEl.textContent = name.toUpperCase();
     const tierEl = document.getElementById('ddmTierNum');
     const levelEl = document.getElementById('ddmDragonLevel');
-    if (tierEl) tierEl.textContent = avgLevel;
-    if (levelEl) levelEl.textContent = avgLevel;
+    const clearedCount = Object.values(this.clearedTiers).filter(Boolean).length;
+    if (tierEl) tierEl.textContent = clearedCount;
+    if (levelEl) levelEl.textContent = clearedCount;
     const box = document.getElementById('ddmBox');
     if (box) box.style.setProperty('--neon', color);
-    const xpCurrent = (avgLevel - 1) * 5200 + Math.floor(Math.random() * 2000);
+    const cleared = Object.values(this.clearedTiers).filter(Boolean).length;
+    const xpCurrent = 22 + Math.round(cleared * (222 - 22) / 3);
+    const xpMax = 222;
+    const tierLabels = ['Wingling', 'Emberborn', 'Stormcrest', 'Infinite Sovereign'];
     const xpS = document.getElementById('ddmXpStart');
     const xpE = document.getElementById('ddmXpEnd');
     const xpT = document.getElementById('ddmXpText');
     const xpF = document.getElementById('ddmXpFill');
-    if (xpS) xpS.textContent = avgLevel;
-    if (xpE) xpE.textContent = avgLevel + 1;
-    if (xpT) xpT.textContent = `${xpCurrent.toLocaleString()} / 5,200`;
+    if (xpS) xpS.textContent = tierLabels[Math.min(cleared, 3)];
+    if (xpE) xpE.textContent = cleared >= 3 ? 'MAX' : tierLabels[Math.min(cleared + 1, 3)];
+    if (xpT) xpT.textContent = `${xpCurrent} / ${xpMax}`;
     if (xpF) {
-      const pct = Math.min(100, (xpCurrent / 5200) * 100);
+      const pct = Math.min(100, (xpCurrent / xpMax) * 100);
       xpF.style.transition = 'none';
       xpF.style.width = '0%';
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -2078,7 +2090,13 @@ class UIManager {
   }
 
 
-  showScreen(screenId) {    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
+  showScreen(screenId) {
+    // Close any open modal overlays when switching screens
+    const lbProfile = document.getElementById('lbProfileModal');
+    if (lbProfile) lbProfile.style.display = 'none';
+    const profile = document.getElementById('profileModal');
+    if (profile) profile.classList.remove('active');
+    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
     const _shown = this.screens[screenId];
