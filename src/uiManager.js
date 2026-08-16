@@ -19,6 +19,9 @@ class UIManager {
     this.selectedArena = 0;
     this.selectedTier = null;
     this.tierAmounts = null;
+    this._minimapDims = null;
+    this._minimapDirty = true;
+    window.addEventListener("resize", () => { this._minimapDirty = true; });
     this.carouselIndex = 0;
     this.dragonsData = [];
     this.dragonPowers = {};
@@ -1368,10 +1371,10 @@ class UIManager {
       const livesHud = document.getElementById('livesHud');
       if (livesHud && localDragon) {
         livesHud.style.display = 'flex';
+        const flameSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="#ff6b35" style="display:inline-block;vertical-align:middle;"><path d="M12 2C9 6 6 8 6 13a6 6 0 0 0 12 0c0-2-1-4-2-5 0 1-1 2-2 2 1-3-1-6-2-8z"/></svg>';
         livesHud.innerHTML = lives > 0
-          ? Array.from({ length: lives }).map(() => '<i data-lucide="flame" style="color:#ff6b35;width:16px;height:16px;"></i>').join('')
+          ? Array.from({ length: lives }).map(() => flameSvg).join('')
           : '<span style="color:#ff6b6b;font-size:11px;">No lives</span>';
-        if (typeof lucide !== 'undefined') lucide.createIcons();
       }
     }
   }
@@ -1379,8 +1382,21 @@ class UIManager {
   renderMinimap(canvas, camera, arenaManager, dragons, foods) {
     if (!canvas || !arenaManager) return;
     const ctx = this._minimapCtx || (this._minimapCtx = canvas.getContext('2d'));
-    const w = canvas.clientWidth || 90;
-    const h = canvas.clientHeight || 90;
+    // Cache dimensions — reading clientWidth/Height forces reflow every frame.
+    // Only re-read when the window resizes (flagged by _minimapDirty).
+    if (this._minimapDirty || !this._minimapDims) {
+      const w = canvas.clientWidth || 90;
+      const h = canvas.clientHeight || 90;
+      const parent = canvas.parentElement;
+      this._minimapDims = {
+        w, h,
+        parentW: parent ? parent.clientWidth : w * (camera ? camera.zoom : 1),
+        parentH: parent ? parent.clientHeight : h * (camera ? camera.zoom : 1)
+      };
+      this._minimapDirty = false;
+    }
+    const w = this._minimapDims.w;
+    const h = this._minimapDims.h;
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
     ctx.clearRect(0, 0, w, h);
@@ -1429,8 +1445,8 @@ class UIManager {
     ctx.stroke();
 
     if (camera) {
-      const viewW = (canvas.parentElement ? canvas.parentElement.clientWidth : w * camera.zoom) / camera.zoom;
-      const viewH = (canvas.parentElement ? canvas.parentElement.clientHeight : h * camera.zoom) / camera.zoom;
+      const viewW = this._minimapDims.parentW / camera.zoom;
+      const viewH = this._minimapDims.parentH / camera.zoom;
       const topLeft = toMini(camera.x - viewW / 2, camera.y - viewH / 2);
       ctx.strokeStyle = 'rgba(255,255,255,0.28)';
       ctx.lineWidth = 1;
