@@ -1133,6 +1133,8 @@ class Game {
       this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
       this.effectsSystem.addShake(isLocal ? 20 : 8, isLocal ? 500 : 300);
       this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
+      // Dragon death sound at the moment of death (distinct from game-over screen screech)
+      if (isLocal) this.effectsSystem.playDragonDeathSound();
       dragon.killStreak = 0;
       if (killer && killer !== dragon) {
         killer.kills = (killer.kills || 0) + 1;
