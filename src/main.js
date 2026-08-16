@@ -1074,7 +1074,7 @@ class Game {
   );
 
   this.effectsSystem.addShake(
-    victim === this.localDragon ? 14 : 6,
+    victim === this.localDragon ? 7 : 3,
     220
   );
 
@@ -1102,7 +1102,7 @@ class Game {
 
   if (this.effectsSystem) {
     this.effectsSystem.addShake(
-      isLocal ? 8 : 4,
+      isLocal ? 4 : 2,
       180
     );
 
@@ -1131,17 +1131,21 @@ class Game {
         : null;
       const deathColor = neon || (isLocal ? '#ff2222' : '#ff6600');
       this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
-      this.effectsSystem.addShake(isLocal ? 20 : 8, isLocal ? 500 : 300);
+      this.effectsSystem.addShake(isLocal ? 10 : 4, isLocal ? 500 : 300);
       this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
       // Dragon death sound at the moment of death (distinct from game-over screen screech)
       if (isLocal) this.effectsSystem.playDragonDeathSound();
       dragon.killStreak = 0;
       if (killer && killer !== dragon) {
         killer.kills = (killer.kills || 0) + 1;
-        // Kill sound plays on every kill the local player lands — not
-        // gated behind the 3x-combo streak below (that was the bug:
-        // it used to only play starting on the 3rd kill in 4 seconds).
-        if (killer === this.localDragon) this.effectsSystem.playKillSound();
+        // Kill sound plays on EVERY kill — local player at full volume,
+        // AI-vs-AI kills at reduced volume so you hear ambient combat
+        // without it overpowering your own kills.
+        if (killer === this.localDragon) {
+          this.effectsSystem.playKillSound();
+        } else {
+          this.effectsSystem.playKillSound(0.25);
+        }
         const victimSegments = dragon.segments ? dragon.segments.length : 0;
         let rewardSegments = 1;
         if (victimSegments >= 15) rewardSegments = 2;
