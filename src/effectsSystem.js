@@ -269,7 +269,7 @@ class EffectsSystem {
   ) {
     const count =
       CONFIG.EFFECTS.DEATH_PARTICLES ||
-      30;
+      12;
 
     const speed =
       CONFIG.EFFECTS.DEATH_PARTICLE_SPEED ||
@@ -311,7 +311,7 @@ class EffectsSystem {
 
     const life =
       CONFIG.EFFECTS.IMPACT_SPARK_LIFE ||
-      300;
+      120;
 
     for (
       let i = 0;
@@ -393,7 +393,7 @@ class EffectsSystem {
       Math.min(
         this.shake.intensity +
           amount,
-        30
+        12
       );
 
     this.shake.decay =
@@ -963,20 +963,21 @@ class EffectsSystem {
     osc.stop(now + 0.38);
   }
 
-  playKillSound() {
-    if (this._playBuffer('kill', 0.6, 1, 70)) return;
+  playKillSound(vol = 0.6) {
+    if (this._playBuffer('kill', vol, 1, 70)) return;
 
     // Fallback: ascending arpeggio
     const ctx = this._getAudioContext();
     if (!ctx) return;
     const now = ctx.currentTime;
     const notes = [523, 659, 784];
+    const baseGain = vol * 0.2; // scale fallback volume by param
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, now + i * 0.04);
-      gain.gain.setValueAtTime(0.12, now + i * 0.04);
+      gain.gain.setValueAtTime(baseGain, now + i * 0.04);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.2);
       osc.connect(gain);
       gain.connect(ctx.destination);
