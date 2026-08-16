@@ -28,12 +28,13 @@ class EffectsSystem {
 
     // Real audio file URLs (Mixkit free SFX, no attribution required)
     this._audioFiles = {
-      eat: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/023529bed_eat-food.mp3',
+      eat: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/1486df0f3_food-collect-new.mp3',
       kill: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/2705fe0df_dragon-kill.mp3',
       hit: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/586846b71_hit-damage.mp3',
       death: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/53bdc70cd_game-over.mp3',
       respawn: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/dc5b302a3_dragon-respawn.mp3',
       victory: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/cd9d3ec3d_victory-roar.mp3'
+      dragonDeath: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/d3a265df1_dragon-death.mp3'
     };
 
     // Premium audio chain nodes (created lazily)
@@ -937,6 +938,31 @@ class EffectsSystem {
    * Kill confirm — Satisfying bonus/score sound.
    * Uses real audio file.
    */
+  /**
+   * Dragon death — wet splat impact at the exact moment YOUR dragon dies.
+   * Distinct from playDeathSound (game-over screech) which plays later
+   * when the Game Over screen appears.
+   */
+  playDragonDeathSound() {
+    if (this._playBuffer('dragonDeath', 0.65, 1, 60)) return;
+
+    // Fallback: heavy thud
+    const ctx = this._getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.38);
+  }
+
   playKillSound() {
     if (this._playBuffer('kill', 0.6, 1, 70)) return;
 
