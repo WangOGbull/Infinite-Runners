@@ -33,7 +33,7 @@ class EffectsSystem {
       hit: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/586846b71_hit-damage.mp3',
       death: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/53bdc70cd_game-over.mp3',
       respawn: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/dc5b302a3_dragon-respawn.mp3',
-      victory: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/cd9d3ec3d_victory-roar.mp3'
+      victory: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/cd9d3ec3d_victory-roar.mp3',
       dragonDeath: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/d3a265df1_dragon-death.mp3'
     };
 
