@@ -708,6 +708,13 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .lbRow{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.03);transition:all .15s}
 .lbRow:hover{background:rgba(255,255,255,0.05)}
 .lbRow.isSovereign{border-color:rgba(247,227,176,0.35);background:linear-gradient(90deg,rgba(201,168,76,0.08),rgba(201,168,76,0.02));box-shadow:0 0 8px rgba(201,168,76,0.1)}
+/* "YOU" — marks the signed-in player's own row, matched by UID (not
+   username string) so it can never point at the wrong account. Uses a
+   blue accent so it's visually distinct from the gold Sovereign-rank
+   styling above (those are two unrelated things). */
+.lbRow.isYou{border-color:rgba(90,170,255,0.45);box-shadow:0 0 8px rgba(90,170,255,0.15)}
+.lbRow.isYou:not(.isSovereign){background:linear-gradient(90deg,rgba(90,170,255,0.08),rgba(90,170,255,0.02))}
+.lbYouTag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;background:rgba(90,170,255,0.18);border:1px solid rgba(90,170,255,0.4);color:#8fc4ff;font-size:9px;font-weight:700;letter-spacing:0.5px;vertical-align:middle}
 .lbRank{flex:0 0 24px;text-align:center;font-family:'Cinzel Decorative',cursive;font-size:13px;color:rgba(255,255,255,0.3)}
 .lbRow.isSovereign .lbRank{color:#f7e3b0}
 .lbRow:nth-child(1) .lbRank{color:#ffd700;font-size:15px}
