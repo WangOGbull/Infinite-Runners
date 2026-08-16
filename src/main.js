@@ -1129,7 +1129,6 @@ class Game {
       this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
       this.effectsSystem.addShake(isLocal ? 20 : 8, isLocal ? 500 : 300);
       this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
-      this.effectsSystem.playDeathSound(isLocal);
       dragon.killStreak = 0;
       if (killer && killer !== dragon) {
         killer.kills = (killer.kills || 0) + 1;
@@ -1185,6 +1184,7 @@ class Game {
           if (this.state === 'PLAYING') {
             this.dragonManager.respawnDragon(dragon, this.arenaManager);
             this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
+            this.effectsSystem.playRespawnSound();
           }
         }, CONFIG.RESPAWN_DELAY_MS);
       } else {
@@ -1395,6 +1395,7 @@ class Game {
       const spawn = spawnPositions[i + 1] || spawnPositions[i % spawnPositions.length];
       const aiName = aiNames[i % aiNames.length];
       const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y);
+      this.effectsSystem.playRespawnSound();
       if (this.aiController) aiDragon.speed *= this.aiController.getSpeedMult();
       this.initMatchStats(aiDragon);
     }
@@ -1419,6 +1420,7 @@ class Game {
     const nextTier = AI_DIFFICULTY_TIERS[tierIdx + 1] || null;
     this.uiManager.showTierComplete(tier, nextTier);
     this._saveTierProgress(tier, tierIdx);
+    if (tier.id === 'hard') this.effectsSystem.playVictorySound();
     if (tier.id === 'hard' && !this.isMultiplayer) {
       this._grantSovereign();
     }
@@ -2473,6 +2475,7 @@ class Game {
       }
       if (s.forfeit && iWon) {
         this.uiManager.showForfeitVictory();
+      this.effectsSystem.playVictorySound();
       }
       this._showStakeBreakdown(iWon, s);
     });
@@ -2767,7 +2770,10 @@ class Game {
         mpTimePlayedMs: firebase.database.ServerValue.increment(sessionMs),
         lastPlayed: firebase.database.ServerValue.TIMESTAMP
       };
-      if (won) updates.multiplayerWins = firebase.database.ServerValue.increment(1);
+      if (won) {
+        updates.multiplayerWins = firebase.database.ServerValue.increment(1);
+        this.effectsSystem.playVictorySound();
+      }
       this.db.ref('users/' + this.authUid).update(updates).catch(() => {});
     } else if (!this.isMultiplayer && this.authUid && this.db && typeof firebase !== 'undefined') {
       // Single-player run ended without clearing the tier (death/quit) —
@@ -2824,6 +2830,8 @@ class Game {
     this.uiManager.updateGameOver(localStats);
     this.uiManager.showMatchStats(stats, this.winner);
     this.uiManager.showScreen('gameOverScreen');
+    // Play the game-over screech when the death screen appears
+    this.effectsSystem.playDeathSound(true);
     this._lastStats = stats;
     if (this.isMultiplayer) {
       try { localStorage.removeItem(LOBBY_CONTEXT_KEY); } catch (_) {}
