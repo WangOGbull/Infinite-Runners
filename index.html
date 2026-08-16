@@ -2230,7 +2230,18 @@
       justify-content: center; 
       background: rgba(0,0,0,0.65); 
   } 
-  #profileModal.active { display: flex; } 
+  #profileModal.active { display: flex; }
+  #lbProfileModal {
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+  } 
   .profileModalBox { 
       position: relative; 
       width: min(320px, 88vw); 
