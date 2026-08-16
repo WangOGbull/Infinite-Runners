@@ -723,6 +723,10 @@ class UIManager {
     if (profileIconDragonSelect) profileIconDragonSelect.addEventListener('click', () => this.eventBus.emit('profile:open'));
     const btnProfileClose = document.getElementById('btnProfileClose');
     if (btnProfileClose) btnProfileClose.addEventListener('click', () => this.hideProfileModal());
+    const btnLbProfileClose = document.getElementById("btnLbProfileClose");
+    const lbProfileModal = document.getElementById("lbProfileModal");
+    if (lbProfileModal) lbProfileModal.addEventListener("click", (e) => { if (e.target === lbProfileModal) this._closeLbProfile(); });
+    if (btnLbProfileClose) btnLbProfileClose.addEventListener("click", () => this._closeLbProfile());
     const btnProfileSignOut = document.getElementById('btnProfileSignOut');
     if (btnProfileSignOut) btnProfileSignOut.addEventListener('click', () => {
       this.hideProfileModal();
@@ -1991,7 +1995,7 @@ class UIManager {
           : '<span>' + r.name + '</span>';
         const youTag = r.isYou ? '<span class="lbYouTag">YOU</span>' : '';
         const rowClass = 'lbRow' + (r.sovereign ? ' isSovereign' : '') + (r.isYou ? ' isYou' : '');
-        return '<div class="' + rowClass + '">'
+        return '<div class="' + rowClass + '" data-uid="' + r.uid + '">'
           + '<div class="lbRank">' + (i + 1) + '</div>'
           + '<div class="lbName">' + nameHtml + youTag + '</div>'
           + '<div class="lbStats">'
@@ -2001,10 +2005,62 @@ class UIManager {
           + '</div></div>';
       }).join('');
       if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+      // Attach click handlers to leaderboard rows for MP profile modal
+      list.querySelectorAll(".lbRow[data-uid]").forEach(row => {
+        row.style.cursor = "pointer";
+        row.addEventListener("click", () => this._showLbProfile(row.dataset.uid));
+      });
     } catch (e) {
       list.innerHTML = '<div class="lbLoading">Could not load leaderboard.</div>';
     }
   }
+
+  async _showLbProfile(uid) {
+    if (!this._db || !uid) return;
+    const modal = document.getElementById('lbProfileModal');
+    if (!modal) return;
+    // Show modal with loading state
+    modal.style.display = 'flex';
+    document.getElementById('lbProfileName').textContent = 'Loading...';
+    document.getElementById('lbProfileRank').textContent = '';
+    document.getElementById('lbProfilePlayed').textContent = '-';
+    document.getElementById('lbProfileWon').textContent = '-';
+    document.getElementById('lbProfileLost').textContent = '-';
+    try {
+      const snap = await this._db.ref('users/' + uid).once('value');
+      const u = snap.val() || {};
+      const name = u.username || 'Unknown Player';
+      const played = u.mpMatchesPlayed || 0;
+      const won = u.multiplayerWins || 0;
+      const lost = Math.max(0, played - won);
+      const isSovereign = !!u.sovereignRank;
+      // Determine rank name
+      let rankName = 'Wingling';
+      if (isSovereign) rankName = 'Infinite Sovereign';
+      else if (u.highestTierCleared) {
+        const tierNames = ['Wingling','Emberborn','Stormcrest','Frostfang','Voidwalker','Infinite Sovereign'];
+        const idx = Math.min(u.highestTierCleared, tierNames.length - 1);
+        rankName = tierNames[idx] || 'Wingling';
+      }
+      // Name with crown if sovereign
+      const nameEl = document.getElementById('lbProfileName');
+      nameEl.innerHTML = isSovereign
+        ? '<span style="color:#ffd700;">👑 ' + name + '</span>'
+        : name;
+      document.getElementById('lbProfileRank').textContent = rankName;
+      document.getElementById('lbProfilePlayed').textContent = played;
+      document.getElementById('lbProfileWon').textContent = won;
+      document.getElementById('lbProfileLost').textContent = lost;
+    } catch (e) {
+      document.getElementById('lbProfileName').textContent = 'Failed to load';
+    }
+  }
+
+  _closeLbProfile() {
+    const modal = document.getElementById('lbProfileModal');
+    if (modal) modal.style.display = 'none';
+  }
+
 
   showScreen(screenId) {    Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
