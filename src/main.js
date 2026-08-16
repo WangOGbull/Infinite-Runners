@@ -1116,6 +1116,10 @@ class Game {
         '#ffd24d'
       );
     }
+
+    // Hit/damage sound — plays when the LOCAL player takes an actual
+    // in-game hit (this event fires on every real dragon-vs-dragon bump).
+    if (isLocal) this.effectsSystem.playHeadCollisionSound();
   }
 });
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
@@ -1132,6 +1136,10 @@ class Game {
       dragon.killStreak = 0;
       if (killer && killer !== dragon) {
         killer.kills = (killer.kills || 0) + 1;
+        // Kill sound plays on every kill the local player lands — not
+        // gated behind the 3x-combo streak below (that was the bug:
+        // it used to only play starting on the 3rd kill in 4 seconds).
+        if (killer === this.localDragon) this.effectsSystem.playKillSound();
         const victimSegments = dragon.segments ? dragon.segments.length : 0;
         let rewardSegments = 1;
         if (victimSegments >= 15) rewardSegments = 2;
@@ -1154,6 +1162,8 @@ class Game {
             this.uiManager.showComboBanner(killer, killer._comboCount);
             this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, neon || '#ffd700');
             this.effectsSystem.flashVignette(neon || '#ffd700', 0.35, 300);
+            // Extra kill sound on top of the per-kill one — the double
+            // hit emphasizes the combo streak.
             this.effectsSystem.playKillSound();
           }
         }
@@ -2745,6 +2755,9 @@ class Game {
   }
 
   endGame(hasWinner = false) {
+    // Computed once so both the DB-write branch below and the
+    // game-over-sound gate at screen-show time agree on the outcome.
+    const _localWon = hasWinner && this.winner === this.localDragon;
     const sab = document.getElementById('stoneAgeBar');
     if (sab) sab.style.display = 'none';
     if (this.localDragon) {
@@ -2758,7 +2771,7 @@ class Game {
     }
     if (this.roomRef && this.authUid && this.db && typeof firebase !== 'undefined') {
       // Multiplayer match end.
-      const won = hasWinner && this.winner === this.localDragon;
+      const won = _localWon;
       const sessionMs = this.gameStartTime ? (Date.now() - this.gameStartTime) : 0;
       const localKills = this.localDragon ? (this.localDragon.kills || 0) : 0;
       const updates = {
@@ -2830,8 +2843,10 @@ class Game {
     this.uiManager.updateGameOver(localStats);
     this.uiManager.showMatchStats(stats, this.winner);
     this.uiManager.showScreen('gameOverScreen');
-    // Play the game-over screech when the death screen appears
-    this.effectsSystem.playDeathSound(true);
+    // Play the game-over screech when the death screen appears —
+    // only on a loss. On a win, the victory roar already played above
+    // and the screech shouldn't step on it.
+    if (!_localWon) this.effectsSystem.playDeathSound(true);
     this._lastStats = stats;
     if (this.isMultiplayer) {
       try { localStorage.removeItem(LOBBY_CONTEXT_KEY); } catch (_) {}
