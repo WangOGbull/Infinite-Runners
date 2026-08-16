@@ -3268,6 +3268,33 @@
 </div> 
 
 
+<!-- ===== LEADERBOARD PLAYER PROFILE MODAL ===== -->
+<div id="lbProfileModal" class="profileModalOverlay" style="display:none;">
+  <div class="profileModalBox" style="width: min(300px, 88vw); padding: 28px 20px 20px;">
+    <button id="btnLbProfileClose" class="profileModalClose"><i class="fa-solid fa-xmark"></i></button>
+    <div class="profileModalCrest" id="lbProfileCrest"><i class="fa-solid fa-dragon"></i></div>
+    <div class="profileModalName" id="lbProfileName" style="font-size:17px;">Player</div>
+    <div class="profileModalRank" id="lbProfileRank" style="margin-bottom:16px;">Rank</div>
+    <div class="profileSection" style="text-align:center;">
+      <div class="profileSectionTitle" style="text-align:center; margin-bottom:10px;">Multiplayer Career</div>
+      <div style="display:flex; justify-content:space-around; align-items:center; gap:8px;">
+        <div style="text-align:center;">
+          <div style="font-size:24px; color:#e8d5a0; font-weight:700;" id="lbProfilePlayed">0</div>
+          <div style="font-size:9px; letter-spacing:1px; color:rgba(201,168,76,0.6); text-transform:uppercase; margin-top:2px;">⚔️ Played</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:24px; color:#4ec9b0; font-weight:700;" id="lbProfileWon">0</div>
+          <div style="font-size:9px; letter-spacing:1px; color:rgba(78,201,176,0.6); text-transform:uppercase; margin-top:2px;">🐉♾️ Won</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:24px; color:#e25555; font-weight:700;" id="lbProfileLost">0</div>
+          <div style="font-size:9px; letter-spacing:1px; color:rgba(226,85,85,0.6); text-transform:uppercase; margin-top:2px;">❌ Lost</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== DRAGON SELECT ===== --> 
 <div id="dragonSelectScreen" class="screen"> 
   <div class="dsInner" style="width:100%;height:100%;display:flex;flex-direction:column;"> 
