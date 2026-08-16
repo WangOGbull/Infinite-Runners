@@ -853,7 +853,7 @@ class EffectsSystem {
   playEatSound() {
     // Try real audio file first
     const rate = 0.9 + Math.random() * 0.3; // 0.9x to 1.2x playback speed
-    if (this._playBuffer('eat', 0.55, rate, 80)) return;
+    if (this._playBuffer('eat', 0.3, rate, 80)) return;
 
     // Fallback: quick bright blip
     const ctx = this._getAudioContext();
