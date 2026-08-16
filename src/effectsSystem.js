@@ -28,11 +28,12 @@ class EffectsSystem {
 
     // Real audio file URLs (Mixkit free SFX, no attribution required)
     this._audioFiles = {
-      eat: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/011b6b6c8_wav_eat_coin.wav',
-      hit: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/428f38838_hit_block.wav',
-      hitHeavy: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/f0c6803bf_hit_explosion.wav',
-      death: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/4e51d4f2a_death_game_over.wav',
-      kill: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/0f0f92d4b_kill_bonus.wav'
+      eat: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/023529bed_eat-food.mp3',
+      kill: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/2705fe0df_dragon-kill.mp3',
+      hit: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/586846b71_hit-damage.mp3',
+      death: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/53bdc70cd_game-over.mp3',
+      respawn: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/dc5b302a3_dragon-respawn.mp3',
+      victory: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/cd9d3ec3d_victory-roar.mp3'
     };
 
     // Premium audio chain nodes (created lazily)
@@ -955,6 +956,54 @@ class EffectsSystem {
       gain.connect(ctx.destination);
       osc.start(now + i * 0.04);
       osc.stop(now + i * 0.04 + 0.22);
+    });
+  }
+
+  /**
+   * Respawn — Monster roar when dragons spawn/respawn into the arena.
+   */
+  playRespawnSound() {
+    if (this._playBuffer('respawn', 0.5, 1, 50)) return;
+
+    // Fallback: low growl
+    const ctx = this._getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.4);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.5);
+  }
+
+  /**
+   * Victory — Dragon roar when player beats Hard mode or wins MP.
+   */
+  playVictorySound() {
+    if (this._playBuffer('victory', 0.7, 1, 40)) return;
+
+    // Fallback: triumphant fanfare
+    const ctx = this._getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + i * 0.1);
+      gain.gain.setValueAtTime(0.15, now + i * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.1);
+      osc.stop(now + i * 0.1 + 0.45);
     });
   }
 
