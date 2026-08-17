@@ -1478,16 +1478,13 @@ class UIManager {
       if (!d.alive) continue;
       const p = toMini(d.head.x, d.head.y);
       const isLocal = d === this._localDragonRef || d.isLocalPlayer;
-      if (isLocal || (!d.isRemote && !d.isAI)) {
-        // Arrow color matches the player's chosen dragon (e.g. blue for
-        // Infinite, purple for Aegis) instead of a fixed cyan for everyone.
+      if (isLocal) {
+        // ── Local player: dragon-colored arrow ──
         const navColor = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[d.type]) || '#7ef0ff';
-        // Glow circle (cheap: single arc, no shadow)
-        ctx.fillStyle = navColor + '38'; // ~22% alpha appended as hex
+        ctx.fillStyle = navColor + '38';
         ctx.beginPath();
         ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
         ctx.fill();
-        // Arrow
         ctx.fillStyle = navColor;
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -1497,13 +1494,24 @@ class UIManager {
         ctx.closePath();
         ctx.fill();
         ctx.restore();
-      } else {
-        // Glow circle for enemies
+      } else if (d.isRemote) {
+        // ── MP remote players: red dots (keep as-is) ──
         ctx.fillStyle = 'rgba(255,107,107,0.18)';
         ctx.beginPath();
         ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // ── AI enemies: cyan dots (original color, so players can
+        // distinguish themselves from AI on the minimap) ──
+        ctx.fillStyle = 'rgba(72,224,255,0.18)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#48e0ff';
         ctx.beginPath();
         ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2);
         ctx.fill();
