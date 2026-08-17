@@ -1319,21 +1319,76 @@ class Game {
       const m = this._pendingMatch;
       if (!m) { this.uiManager.showScreen('mpMenuScreen'); return; }
       if (m.isInitiator) {
+        // Initiator already created the room in _prepareMatchedRoomAsOwner
         this.uiManager.setMatchedLobbyMode(true, m.tier);
         this.uiManager.showScreen('lobbyScreen');
         this._refreshStakingUI();
       } else {
+        // Non-initiator: the initiator creates the room AFTER the matched
+        // event fires, so m.roomCode is usually null at this point.
+        // We need to wait for the roomCode to appear.
         if (m.roomCode) {
+          // RoomCode was included in the matched event — join immediately
           this.joinRoom(m.roomCode);
         } else {
-          this.uiManager.returnToMenuWithProcessing('lobbyScreen', 'Joining the arena…');
+          // RoomCode not yet available — show loading and poll for it.
+          // Use a loading screen with a message instead of the broken
+          // returnToMenuWithProcessing which has a hardcoded 5s timeout
+          // that dumps the player on an empty lobby.
+          this.uiManager.showScreen('loadingScreen');
+          const msgEl = document.getElementById('loadingMessage') || document.getElementById('loadingText');
+          if (msgEl) msgEl.textContent = 'Waiting for host to create the arena…';
+
+          // Try the matchmaking module's roomWatchRef first
           const q = this.matchmaking && this.matchmaking._roomWatchRef;
+          let joined = false;
+          let pollAttempts = 0;
+          const maxPollAttempts = 20; // 20 × 500ms = 10s max wait
+
+          const tryJoin = (roomCode) => {
+            if (joined) return;
+            joined = true;
+            if (q) { try { q.off('value'); } catch (_) {} }
+            this.joinRoom(roomCode);
+          };
+
           if (q) {
             q.on('value', (snap) => {
               const t = snap.val();
-              if (t && t.roomCode) { q.off('value'); this.joinRoom(t.roomCode); }
+              if (t && t.roomCode) {
+                tryJoin(t.roomCode);
+              }
             });
           }
+
+          // Fallback: also poll the matchmaking node directly every 500ms
+          // in case _roomWatchRef isn't set up or points to the wrong path
+          const pollInterval = setInterval(() => {
+            pollAttempts++;
+            if (joined) {
+              clearInterval(pollInterval);
+              return;
+            }
+            if (pollAttempts >= maxPollAttempts) {
+              clearInterval(pollInterval);
+              if (q) { try { q.off('value'); } catch (_) {} }
+              console.error('[matchmaking:proceed] timed out waiting for roomCode');
+              this.uiManager.showScreen('mpMenuScreen');
+              const err = document.getElementById('mpJoinError');
+              if (err) err.textContent = 'Could not join the arena. Please try again.';
+              return;
+            }
+            // Check if the matchmaking module has a roomCode we can read
+            if (this.matchmaking && this.matchmaking._roomWatchRef) {
+              this.matchmaking._roomWatchRef.once('value').then(snap => {
+                const t = snap.val();
+                if (t && t.roomCode) {
+                  clearInterval(pollInterval);
+                  tryJoin(t.roomCode);
+                }
+              }).catch(() => {});
+            }
+          }, 500);
         }
       }
     });
@@ -2102,80 +2157,90 @@ class Game {
     this.roomCode = code;
     this.isHost = false;
     this.roomRef = this.db.ref('rooms/' + code);
-    this.roomRef.once('value').then(snapshot => {
-      const data = snapshot.val();
-      if (!data) {
-        const err = document.getElementById('mpJoinError');
-        if (err) err.textContent = 'Room not found';
-        this.roomRef = null;
-        return;
-      }
-      const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
-      const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
-      const existingPlayers = data.players || {};
-      if (this.authUid) {
-        const preExisting = Object.entries(existingPlayers)
-          .find(([, p]) => p && p.authUid && p.authUid === this.authUid);
-        if (preExisting) {
-          const [existingKey] = preExisting;
-          console.log(`[joinRoom] found existing record ${existingKey} for my authUid — reusing`);
-          this.localPlayerId = existingKey;
-          this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
-          this.selectedMpMode = data.mode || this.selectedMpMode;
-          this.lobbyTier = data.tier || null;
-          this._matchedMode = !!data.matched;
-          if (data.matched) {
-            this.uiManager.setMatchedLobbyMode(true, this.lobbyTier);
-          } else {
-            this.uiManager.setMatchedLobbyMode(false);
+
+    // Retry up to 4 times with 700ms delay. The host's roomRef.set() is
+    // async — if the opponent tries to join immediately after receiving
+    // the code, Firebase may not have completed the write yet, causing
+    // a false "Room not found". Each retry gives the write more time to
+    // propagate.
+    const _tryRead = (attempt) => {
+      this.roomRef.once('value').then(snapshot => {
+        const data = snapshot.val();
+        if (!data) {
+          if (attempt < 4) {
+            console.log('[joinRoom] room not found, retry ' + (attempt + 1) + '/4 in 700ms');
+            setTimeout(() => _tryRead(attempt + 1), 700);
+            return;
           }
-          this.uiManager.showScreen('lobbyScreen');
-          this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
-          this._attachRoomListener();
-          this._ensurePresence();
-          this._persistLastRoom();
+          const err = document.getElementById('mpJoinError');
+          if (err) err.textContent = 'Room not found. Double-check the code and try again.';
+          this.roomRef = null;
           return;
         }
-      }
-      const playerCount = Object.keys(existingPlayers).length;
-      if (playerCount >= roomMax) {
-        const err = document.getElementById('mpJoinError');
-        if (err) err.textContent = 'Room is full';
-        this.roomRef = null;
-        return;
-      }
-      const newPlayerRef = this.roomRef.child('players').push({
-        name: this.username || ('Player ' + (playerCount + 1)),
-        dragon: this.selectedDragon || 'ignis',
-        ready: true,
-        joinedAt: firebase.database.ServerValue.TIMESTAMP,
-        authUid: this.authUid || null,
-      });
-      this.localPlayerId = newPlayerRef.key;
-      this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
-      this.selectedMpMode = data.mode || this.selectedMpMode;
-      this.lobbyTier = data.tier || null;
-      this._matchedMode = !!data.matched;
-      if (data.matched) {
-        this.uiManager.setMatchedLobbyMode(true, this.lobbyTier);
+
+        // ── Room exists — join it ──
+        const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
+        const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
+        const existingPlayers = data.players || {};
+
+        // If we already have a player record (e.g. rejoining), reuse it
+        if (this.authUid) {
+          const preExisting = Object.entries(existingPlayers)
+            .find(([, p]) => p && p.authUid && p.authUid === this.authUid);
+          if (preExisting) {
+            const [existingKey] = preExisting;
+            console.log('[joinRoom] found existing record ' + existingKey + ' for my authUid — reusing');
+            this.localPlayerId = existingKey;
+            this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
+            this.selectedMpMode = data.mode || this.selectedMpMode;
+            this.lobbyTier = data.tier || null;
+            this._matchedMode = !!data.matched;
+            this.uiManager.setMatchedLobbyMode(!!data.matched, this.lobbyTier);
+            this.uiManager.showScreen('lobbyScreen');
+            this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
+            this._attachRoomListener();
+            this._ensurePresence();
+            this._persistLastRoom();
+            return;
+          }
+        }
+
+        const playerCount = Object.keys(existingPlayers).length;
+        if (playerCount >= roomMax) {
+          const err = document.getElementById('mpJoinError');
+          if (err) err.textContent = 'Room is full';
+          this.roomRef = null;
+          return;
+        }
+
+        const newPlayerRef = this.roomRef.child('players').push({
+          name: this.username || ('Player ' + (playerCount + 1)),
+          dragon: this.selectedDragon || 'ignis',
+          ready: true,
+          joinedAt: firebase.database.ServerValue.TIMESTAMP,
+          authUid: this.authUid || null,
+        });
+        this.localPlayerId = newPlayerRef.key;
+        this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
+        this.selectedMpMode = data.mode || this.selectedMpMode;
+        this.lobbyTier = data.tier || null;
+        this._matchedMode = !!data.matched;
+        this.uiManager.setMatchedLobbyMode(!!data.matched, this.lobbyTier);
         this.uiManager.showScreen('lobbyScreen');
         this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
         this._attachRoomListener();
         this._ensurePresence();
         this._persistLastRoom();
-        return;
-      }
-      this.uiManager.setMatchedLobbyMode(false);
-      this.uiManager.showScreen('lobbyScreen');
-      this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
-      this._attachRoomListener();
-      this._ensurePresence();
-      this._persistLastRoom();
-    }).catch(err => {
-      console.error('[joinRoom] error:', err);
-    }).finally(() => {
-      this._joinInProgress = false;
-    });
+      }).catch(err => {
+        console.error('[joinRoom] error:', err);
+        const errEl = document.getElementById('mpJoinError');
+        if (errEl) errEl.textContent = 'Connection error. Try again.';
+        this.roomRef = null;
+      }).finally(() => {
+        this._joinInProgress = false;
+      });
+    };
+    _tryRead(0);
   }
 
   _attachRoomListener() {
