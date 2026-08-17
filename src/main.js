@@ -2780,6 +2780,10 @@ class Game {
         }
         dragon.attackHeld = !!(dragon.aiHuntTarget && dragon.aiHuntTarget.alive &&
                                (dragon.attackCharge || 0) > 0);
+        // AI sprint decision — uses the mode stored by getInputAngle
+        if (dragon.sprintCharge === undefined) dragon.sprintCharge = 0;
+        if (dragon.baseSpeed === undefined) dragon.baseSpeed = dragon.speed;
+        dragon.sprintHeld = this.aiController.getSprintDecision(dragon, dragon._aiMode || 'food');
       } else {
         angle = dragon.angle || 0;
       }
@@ -3052,20 +3056,39 @@ class Game {
   }
 
   _updateSprintMath(deltaTime) {
+    // Process local dragon sprint
     const dragon = this.localDragon;
-    if (!dragon || !dragon.alive) return;
-    if (dragon.baseSpeed === undefined) dragon.baseSpeed = dragon.speed;
-    if (dragon.sprintCharge === undefined) dragon.sprintCharge = 0;
-    // No auto-regeneration — sprint is food-based only (20 food = full).
-    if (dragon.sprintHeld && dragon.sprintCharge > 0) {
-      dragon.sprintActive = true;
-      // Drain at the same rate as attack: full meter lasts ~5 seconds.
-      const drain = (CONFIG.SPRINT_METER_MAX / CONFIG.SPRINT_DURATION_MS) * deltaTime;
-      dragon.sprintCharge = Math.max(0, dragon.sprintCharge - drain);
-      dragon.speed = dragon.baseSpeed * 1.5;
-    } else {
-      dragon.sprintActive = false;
-      dragon.speed = dragon.baseSpeed;
+    if (dragon && dragon.alive) {
+      if (dragon.baseSpeed === undefined) dragon.baseSpeed = dragon.speed;
+      if (dragon.sprintCharge === undefined) dragon.sprintCharge = 0;
+      if (dragon.sprintHeld && dragon.sprintCharge > 0) {
+        dragon.sprintActive = true;
+        const drain = (CONFIG.SPRINT_METER_MAX / CONFIG.SPRINT_DURATION_MS) * deltaTime;
+        dragon.sprintCharge = Math.max(0, dragon.sprintCharge - drain);
+        dragon.speed = dragon.baseSpeed * 1.5;
+      } else {
+        dragon.sprintActive = false;
+        dragon.speed = dragon.baseSpeed;
+      }
+    }
+
+    // Process AI dragon sprint — same physics as the player
+    if (!this.isMultiplayer) {
+      const allDragons = this.dragonManager.getAllDragons();
+      for (const d of allDragons) {
+        if (d === this.localDragon || !d.alive || !d.isAI) continue;
+        if (d.baseSpeed === undefined) d.baseSpeed = d.speed;
+        if (d.sprintCharge === undefined) d.sprintCharge = 0;
+        if (d.sprintHeld && d.sprintCharge > 0) {
+          d.sprintActive = true;
+          const drain = (CONFIG.SPRINT_METER_MAX / CONFIG.SPRINT_DURATION_MS) * deltaTime;
+          d.sprintCharge = Math.max(0, d.sprintCharge - drain);
+          d.speed = d.baseSpeed * 1.5;
+        } else {
+          d.sprintActive = false;
+          d.speed = d.baseSpeed;
+        }
+      }
     }
   }
 
