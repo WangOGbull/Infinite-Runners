@@ -1446,6 +1446,7 @@ class Game {
       const spawn = spawnPositions[i + 1] || spawnPositions[i % spawnPositions.length];
       const aiName = aiNames[i % aiNames.length];
       const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y);
+      aiDragon.isAI = true;
       this.effectsSystem.playRespawnSound();
       if (this.aiController) aiDragon.speed *= this.aiController.getSpeedMult();
       this.initMatchStats(aiDragon);
@@ -1990,6 +1991,7 @@ class Game {
         const aiName = aiNames[i % aiNames.length];
         const teamId = this.gameModeManager.getTeamForPlayer(i);
         const aiDragon = this.dragonManager.createDragon(aiName, spawn.x, spawn.y, teamId);
+        aiDragon.isAI = true;
         aiDragon.speed *= this.aiController.getSpeedMult();
         this.initMatchStats(aiDragon);
       }
@@ -2682,7 +2684,15 @@ class Game {
       } else if (dragon.isRemote) {
         angle = dragon.angle;
       } else if (this.aiController) {
-        angle = this.aiController.getInputAngle(dragon, allDragons);
+        // Throttle AI pathfinding to every 2nd frame — 10 AI dragons at
+        // wave 3 calling getInputAngle every frame is the main CPU spike.
+        // 30fps AI is more than responsive enough for snake-style movement.
+        if (this._frameCount % 2 === 0) {
+          angle = this.aiController.getInputAngle(dragon, allDragons);
+          dragon._lastAIAngle = angle;
+        } else {
+          angle = dragon._lastAIAngle || dragon.angle || 0;
+        }
         dragon.attackHeld = !!(dragon.aiHuntTarget && dragon.aiHuntTarget.alive &&
                                (dragon.attackCharge || 0) > 0);
       } else {
@@ -2711,8 +2721,16 @@ class Game {
     }
 
     if (this.state === 'PLAYING') {
-      const livingWithLives = allDragons.filter(d => d.alive && d.lives > 0);
-      const totalWithLives = allDragons.filter(d => d.lives > 0);
+      // Reuse the already-iterated _livingDragons instead of re-filtering
+      // allDragons (avoids 2x Array allocation + 2x full scan per frame).
+      let livingWithLives = [];
+      let totalWithLives = [];
+      for (const d of allDragons) {
+        if (d.lives > 0) {
+          totalWithLives.push(d);
+          if (d.alive) livingWithLives.push(d);
+        }
+      }
       if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
         if (this.isWaveMode() && livingWithLives[0] === this.localDragon) {
           this.advanceToNextWave();
@@ -2742,7 +2760,7 @@ class Game {
 
     // Throttle minimap to every 3rd frame — it's a small overview,
     // redrawing it at 60fps wastes CPU/GPU on gradient creation + shadowBlur.
-    if (this._frameCount % 3 === 0) {
+    if (this._frameCount % 4 === 0) {
       const minimap = this._domRefs.minimapCanvas || document.getElementById('minimapCanvas');
       if (minimap) {
         this.uiManager.renderMinimap(
