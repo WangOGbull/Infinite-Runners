@@ -3082,6 +3082,22 @@
   /* Remove the duplicate tiny number even if another script inserts it. */
   #stoneAgeBarNumber { display: none !important; }
 
+
+  /* Sovereign crown icons — small, visible, glowing */
+  .profileCrown svg, .ddmCrown svg {
+    animation: crownGlow 2s ease-in-out infinite;
+  }
+  @keyframes crownGlow {
+    0%, 100% { filter: drop-shadow(0 0 3px rgba(255,215,0,0.6)); }
+    50% { filter: drop-shadow(0 0 7px rgba(255,215,0,0.9)); }
+  }
+  .profileModalCrest svg {
+    animation: crownPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes crownPulse {
+    0%, 100% { filter: drop-shadow(0 0 5px rgba(255,215,0,0.6)); }
+    50% { filter: drop-shadow(0 0 12px rgba(255,215,0,0.85)); }
+  }
 </style>
 </head> 
 <body> 
