@@ -7,7 +7,11 @@ class FoodSystem {
     this.nextId = 1;
     this.arenaBounds = null;
     this.innerBounds = null;
-    this.maxFood = 600; // CAP: prevents unbounded growth on death drops
+    this.maxFood = 600;
+
+    // Cached array — rebuilt only when food changes, not every frame
+    this._cachedFoods = null;
+    this._foodDirty = true;
 
     this.colors = [
       '#00e5ff',
@@ -22,6 +26,7 @@ class FoodSystem {
     this.innerBounds = innerBounds || arenaBounds;
     this.foods.clear();
     this.nextId = 1;
+    this._foodDirty = true;
 
     const area = (this.innerBounds.maxX - this.innerBounds.minX) * (this.innerBounds.maxY - this.innerBounds.minY);
     const foodCount = Math.min(Math.floor(area * CONFIG.FOOD_DENSITY), this.maxFood);
@@ -51,13 +56,13 @@ class FoodSystem {
     };
 
     this.foods.set(id, food);
+    this._foodDirty = true;
     return food;
   }
 
   spawnFoodAt(x, y, bonus = false) {
     if (!this.innerBounds) return;
 
-    // CAP: at max food, delete the oldest entry before adding new
     if (this.foods.size >= this.maxFood) {
       const firstKey = this.foods.keys().next().value;
       if (firstKey !== undefined) this.foods.delete(firstKey);
@@ -78,12 +83,14 @@ class FoodSystem {
     };
 
     this.foods.set(id, food);
+    this._foodDirty = true;
     return food;
   }
 
   removeFood(id) {
     if (!this.foods.has(id)) return;
     this.foods.delete(id);
+    this._foodDirty = true;
     this.spawnFood();
   }
 
@@ -109,35 +116,51 @@ class FoodSystem {
   }
 
   render(ctx, camera) {
+    // BATCH RENDER: one save/restore for all food, no per-item shadowBlur.
+    // shadowBlur=30 per item x 600 items was the #1 GPU killer on mobile.
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
     for (const food of this.foods.values()) {
       if (!camera.isInView(food.x, food.y, 60)) continue;
 
       const size = food.radius * (1 + Math.sin(food.pulse) * 0.15);
       const drawSize = size * 8;
 
-      ctx.save();
-
-      // Dark background circle for contrast
+      // Dark background circle (no shadow)
       ctx.beginPath();
       ctx.arc(food.x, food.y, drawSize * 0.7, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.fill();
 
-      // Glow
-      ctx.shadowColor = food.color;
-      ctx.shadowBlur = 30;
+      // Food symbol with glow — use radial gradient as cheap glow replacement
+      const grad = ctx.createRadialGradient(food.x, food.y, 0, food.x, food.y, drawSize);
+      grad.addColorStop(0, food.color);
+      grad.addColorStop(0.5, food.color);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(food.x, food.y, drawSize * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Infinity symbol on top
       ctx.fillStyle = food.color;
       ctx.font = `bold ${drawSize}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('∞', food.x, food.y);
-
-      ctx.restore();
+      ctx.fillText('\u221E', food.x, food.y);
     }
+
+    ctx.restore();
   }
 
   getFoods() {
-    return Array.from(this.foods.values());
+    // Return cached array — only rebuild when food set changes
+    if (this._foodDirty || !this._cachedFoods) {
+      this._cachedFoods = Array.from(this.foods.values());
+      this._foodDirty = false;
+    }
+    return this._cachedFoods;
   }
 }
 
