@@ -922,6 +922,7 @@ class Game {
     try {
       const snap = await this.db.ref('users/' + this.authUid + '/sovereignRank').once('value');
       this.sovereignStatus = !!snap.val();
+      if (this.uiManager) this.uiManager.userSovereign = this.sovereignStatus;
     } catch (_) { this.sovereignStatus = false; }
   }
 
@@ -940,6 +941,7 @@ class Game {
         });
         if (result.data && result.data.granted) {
           this.sovereignStatus = true;
+          if (this.uiManager) this.uiManager.userSovereign = true;
           console.log('[Sovereign] Rank granted by server ✓');
         } else {
           console.warn('[Sovereign] Server declined:', result.data);
@@ -951,6 +953,7 @@ class Game {
         if (this.db) {
           await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true);
           this.sovereignStatus = true;
+          if (this.uiManager) this.uiManager.userSovereign = true;
         }
       }
     } catch (e) {
@@ -958,6 +961,7 @@ class Game {
       if (this.db && this.authUid) {
         await this.db.ref('users/' + this.authUid + '/sovereignRank').set(true).catch(() => {});
         this.sovereignStatus = true;
+        if (this.uiManager) this.uiManager.userSovereign = true;
       }
     }
   }
