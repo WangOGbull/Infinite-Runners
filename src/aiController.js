@@ -1,39 +1,53 @@
 import CONFIG from './config.js';
+
 class AIController {
   constructor(arenaManager, foodSystem, difficulty = 'advanced') {
     this.arena = arenaManager;
     this.food = foodSystem;
     this.difficulty = difficulty;
     this.difficultySettings = {
-      // turnResponsiveness: how sharply the dragon turns toward its target
-      // angle each frame (higher = snappier). Was previously hardcoded to
-      // 0.3 for every difficulty - now it actually scales, so legendary
-      // visibly tracks/turns toward you much more tightly than beginner,
-      // not just with less random jitter on top of identical turning.
-      //
-      // huntCommitMs: once a hunt target is acquired, how long (ms) to keep
-      // chasing it before the aggression roll happens again. Without this,
-      // the hunt/don't-hunt decision was re-rolled from scratch every
-      // single frame (~60x/sec) with zero memory - so even legendary's 95%
-      // aggression flickered in and out of actually chasing you many times
-      // per second, which reads as indecisive regardless of how high the
-      // aggression number is. This is the main reason difficulty didn't
-      // feel like it mattered.
-      beginner: { randomness: 1.0, targetFood: 0.9, wallMargin: 400, speedMult: 0.6, aggression: 0.0, huntRange: 300, fleeRange: 200, turnResponsiveness: 0.15, huntCommitMs: 0 },
-      easy: { randomness: 0.6, targetFood: 0.8, wallMargin: 300, speedMult: 0.8, aggression: 0.15, huntRange: 400, fleeRange: 250, turnResponsiveness: 0.22, huntCommitMs: 800 },
-      advanced: { randomness: 0.3, targetFood: 0.6, wallMargin: 220, speedMult: 1.0, aggression: 0.4, huntRange: 500, fleeRange: 300, turnResponsiveness: 0.3, huntCommitMs: 1200 },
-      master: { randomness: 0.12, targetFood: 0.4, wallMargin: 170, speedMult: 1.2, aggression: 0.7, huntRange: 600, fleeRange: 350, turnResponsiveness: 0.4, huntCommitMs: 1800 },
-      legendary: { randomness: 0.03, targetFood: 0.2, wallMargin: 120, speedMult: 1.4, aggression: 0.95, huntRange: 800, fleeRange: 400, turnResponsiveness: 0.55, huntCommitMs: 2500 }
+      beginner: { randomness: 1.0, targetFood: 0.9, wallMargin: 400, speedMult: 0.6, aggression: 0.0, huntRange: 300, fleeRange: 200, turnResponsiveness: 0.15, huntCommitMs: 0, sprintHuntChance: 0.0, sprintFleeChance: 0.0, sprintFoodChance: 0.0 },
+      easy: { randomness: 0.6, targetFood: 0.8, wallMargin: 300, speedMult: 0.8, aggression: 0.15, huntRange: 400, fleeRange: 250, turnResponsiveness: 0.22, huntCommitMs: 800, sprintHuntChance: 0.15, sprintFleeChance: 0.20, sprintFoodChance: 0.05 },
+      advanced: { randomness: 0.3, targetFood: 0.6, wallMargin: 220, speedMult: 1.0, aggression: 0.4, huntRange: 500, fleeRange: 300, turnResponsiveness: 0.3, huntCommitMs: 1200, sprintHuntChance: 0.35, sprintFleeChance: 0.50, sprintFoodChance: 0.10 },
+      master: { randomness: 0.12, targetFood: 0.4, wallMargin: 170, speedMult: 1.2, aggression: 0.7, huntRange: 600, fleeRange: 350, turnResponsiveness: 0.4, huntCommitMs: 1800, sprintHuntChance: 0.55, sprintFleeChance: 0.70, sprintFoodChance: 0.15 },
+      legendary: { randomness: 0.03, targetFood: 0.2, wallMargin: 120, speedMult: 1.4, aggression: 0.95, huntRange: 800, fleeRange: 400, turnResponsiveness: 0.55, huntCommitMs: 2500, sprintHuntChance: 0.75, sprintFleeChance: 0.85, sprintFoodChance: 0.20 }
     };
   }
+
   getSpeedMult() {
     return this.difficultySettings[this.difficulty]?.speedMult || 1.0;
   }
+
+  // Called once per AI dragon per frame to set sprintHeld.
+  // Returns true if sprint should be active this frame.
+  getSprintDecision(dragon, mode) {
+    const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
+
+    if (dragon.sprintCharge === undefined) dragon.sprintCharge = 0;
+    if (dragon.sprintActive === undefined) dragon.sprintActive = false;
+
+    // Can't sprint with no charge
+    if (dragon.sprintCharge < CONFIG.SPRINT_METER_MAX * 0.15) return false;
+
+    // Don't waste sprint if already sprinting
+    if (dragon.sprintActive) return true;
+
+    if (mode === 'flee') {
+      return Math.random() < settings.sprintFleeChance;
+    } else if (mode === 'hunt') {
+      return Math.random() < settings.sprintHuntChance;
+    } else if (mode === 'food') {
+      return Math.random() < settings.sprintFoodChance;
+    }
+    return false;
+  }
+
   getInputAngle(dragon, allDragons) {
     const head = dragon.head;
     const settings = this.difficultySettings[this.difficulty] || this.difficultySettings.advanced;
     let targetAngle = dragon.angle;
     let bestTarget = null;
+    let currentMode = 'food';
 
     // ===== 1. AGGRESSION: Hunt smaller dragons (now "sticky") =====
     const now = Date.now();
@@ -42,10 +56,8 @@ class AIController {
       dragon.aiHuntTarget.segments.length < dragon.segments.length;
 
     if (stillCommitted) {
-      // Keep chasing the same target instead of re-rolling the decision -
-      // this is what makes higher difficulties feel like a persistent
-      // threat instead of flickering in and out of pursuit every frame.
       bestTarget = dragon.aiHuntTarget;
+      currentMode = 'hunt';
     } else if (Math.random() < settings.aggression && allDragons) {
       let bestScore = -Infinity;
       for (const other of allDragons) {
@@ -54,9 +66,8 @@ class AIController {
         const dy = other.head.y - head.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > settings.huntRange) continue;
-        // Prefer smaller/weaker targets
         const sizeDiff = other.segments.length - dragon.segments.length;
-        if (sizeDiff >= 0) continue; // Only hunt smaller dragons
+        if (sizeDiff >= 0) continue;
         const angleToTarget = Math.atan2(dy, dx);
         let angleDiff = angleToTarget - dragon.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
@@ -70,11 +81,11 @@ class AIController {
       if (bestTarget) {
         dragon.aiHuntTarget = bestTarget;
         dragon.aiHuntUntil = now + (settings.huntCommitMs || 0);
+        currentMode = 'hunt';
       }
     }
 
     if (bestTarget) {
-      // Aim for their tail to cut it
       const tailIdx = Math.max(0, bestTarget.segments.length - 3);
       const tail = bestTarget.segments[tailIdx];
       targetAngle = Math.atan2(tail.y - head.y, tail.x - head.x);
@@ -92,8 +103,8 @@ class AIController {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > settings.fleeRange) continue;
         if (other.segments.length > dragon.segments.length * 1.2) {
-          // Bigger dragon nearby - flee!
           targetAngle = Math.atan2(-dy, -dx);
+          currentMode = 'flee';
           break;
         }
       }
@@ -101,14 +112,15 @@ class AIController {
 
     // ===== 3. FOOD: Seek food if not hunting/fleeing =====
     if (!bestTarget && targetAngle === dragon.angle) {
-      const foods = this.food.getFoods();
       let bestFood = null;
       let bestScore = -Infinity;
+      const foods = this.food.getFoods();
       for (const food of foods) {
         const dx = food.x - head.x;
         const dy = food.y - head.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 15) continue;
+        if (dist > 600) continue; // Spatial culling — don't scan entire map
         const foodAngle = Math.atan2(dy, dx);
         let angleDiff = foodAngle - dragon.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
@@ -122,6 +134,7 @@ class AIController {
       }
       if (bestFood && Math.random() < settings.targetFood) {
         targetAngle = Math.atan2(bestFood.y - head.y, bestFood.x - head.x);
+        currentMode = 'food';
       }
     }
 
@@ -139,8 +152,6 @@ class AIController {
     }
 
     // ===== 5. SMOOTH TURNING + RANDOMNESS =====
-    // turnResponsiveness now comes from difficulty settings instead of a
-    // single hardcoded 0.3 for every tier.
     const turnResponsiveness = settings.turnResponsiveness ?? 0.3;
     if (dragon.aiTargetAngle !== null && dragon.aiTargetAngle !== undefined) {
       let diff = targetAngle - dragon.aiTargetAngle;
@@ -150,7 +161,11 @@ class AIController {
     }
     dragon.aiTargetAngle = targetAngle;
     targetAngle += (Math.random() - 0.5) * settings.randomness;
+
+    // Store current mode for sprint decision
+    dragon._aiMode = currentMode;
     return targetAngle;
   }
 }
+
 export default AIController;
