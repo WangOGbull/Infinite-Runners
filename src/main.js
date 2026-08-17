@@ -1715,6 +1715,17 @@ class Game {
       authUid: this.authUid || null,
       sovereign: this.sovereignStatus || false,
     };
+    // Set up onDisconnect presence so the server-side handleDisconnect
+    // Cloud Function can detect drops and process forfeit after grace period.
+    // This is critical for iOS where WebSocket drops on background/screen-lock.
+    if (this.authUid) {
+      const presenceRef = this.roomRef.child('presence/' + this.authUid);
+      presenceRef.onDisconnect().set({
+        disconnectedAt: firebase.database.ServerValue.TIMESTAMP,
+      }).catch(() => {});
+      // Clear disconnect flag on connect/reconnect
+      presenceRef.update({ disconnectedAt: null }).catch(() => {});
+    }
     if (this.isHost) {
       const hostRef = this.roomRef.child('players/local');
       hostRef.once('value').then(snap => {
@@ -2087,11 +2098,14 @@ class Game {
       ? 2
       : (MP_MAX[this.selectedMpMode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[this.selectedMpMode]) || 4);
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
+    // Automatch is always 1v1 — force it regardless of previously selected mode
+    const roomMode = matched ? '1v1' : (mpMode || 'FFA');
+    this.selectedMpMode = roomMode;
     this.roomRef.set({
       host: 'local',
       hostId: 'local',
       hostAuthUid: this.authUid || null,
-      mode: this.selectedMpMode,
+      mode: roomMode,
       maxPlayers: maxPlayers,
       arenaIndex: 0,
       status: 'waiting',
@@ -2510,11 +2524,15 @@ class Game {
       this._connListener = this._connRef.on('value', (snap) => {
         if (snap.val() === false && this.state === 'PLAYING') {
           clearTimeout(this._connDropTimer);
+          // iOS Safari drops WebSocket on background/screen-lock. Give 15s
+          // for reconnect before declaring forfeit (was 6s — too aggressive).
           this._connDropTimer = setTimeout(() => {
             if (this.state === 'PLAYING') this.uiManager.showForfeitDefeat();
-          }, 6000);
+          }, 15000);
         } else if (snap.val() === true) {
           clearTimeout(this._connDropTimer);
+          // Reconnected — re-establish presence so server knows we're back
+          if (this.roomRef) this._ensurePresence();
         }
       });
     } catch (_) {}
