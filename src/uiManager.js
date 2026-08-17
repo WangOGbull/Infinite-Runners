@@ -366,8 +366,6 @@ class UIManager {
     const xpFill = document.getElementById('dsXpBarFill');
     const xpStart = document.getElementById('dsXpLevelStart');
     const xpEnd = document.getElementById('dsXpLevelEnd');
-    // Tier label: 0=Wingling, 1=Emberborn, 2=Stormcrest, 3=Infinite Sovereign
-    const tierLabels = ['Wingling', 'Emberborn', 'Stormcrest', 'Infinite Sovereign'];
     if (xpText) xpText.textContent = `${xpCurrent} / ${xpMax}`;
     if (xpFill) {
       const pct = Math.min(100, (xpCurrent / xpMax) * 100);
@@ -378,8 +376,9 @@ class UIManager {
         xpFill.style.width = pct + '%';
       }));
     }
-    if (xpStart) xpStart.textContent = tierLabels[Math.min(cleared, 3)];
-    if (xpEnd) xpEnd.textContent = cleared >= 3 ? 'MAX' : tierLabels[Math.min(cleared + 1, 3)];
+    // Hex badges are tiny — only short numbers fit, not tier names.
+    if (xpStart) xpStart.textContent = cleared;
+    if (xpEnd) xpEnd.textContent = cleared >= 3 ? cleared : cleared + 1;
     const speedBonusEl = document.getElementById('dsSpeedBonus');
     const speedBonusText = document.getElementById('dsSpeedBonusText');
     if (speedBonusEl && speedBonusText) {
@@ -434,13 +433,13 @@ class UIManager {
     const cleared = Object.values(this.clearedTiers).filter(Boolean).length;
     const xpCurrent = 22 + Math.round(cleared * (222 - 22) / 3);
     const xpMax = 222;
-    const tierLabels = ['Wingling', 'Emberborn', 'Stormcrest', 'Infinite Sovereign'];
     const xpS = document.getElementById('ddmXpStart');
     const xpE = document.getElementById('ddmXpEnd');
     const xpT = document.getElementById('ddmXpText');
     const xpF = document.getElementById('ddmXpFill');
-    if (xpS) xpS.textContent = tierLabels[Math.min(cleared, 3)];
-    if (xpE) xpE.textContent = cleared >= 3 ? 'MAX' : tierLabels[Math.min(cleared + 1, 3)];
+    // Hex badges are tiny — only short numbers fit, not tier names.
+    if (xpS) xpS.textContent = cleared;
+    if (xpE) xpE.textContent = cleared >= 3 ? cleared : cleared + 1;
     if (xpT) xpT.textContent = `${xpCurrent} / ${xpMax}`;
     if (xpF) {
       const pct = Math.min(100, (xpCurrent / xpMax) * 100);
@@ -1480,13 +1479,16 @@ class UIManager {
       const p = toMini(d.head.x, d.head.y);
       const isLocal = d === this._localDragonRef || d.isLocalPlayer;
       if (isLocal || (!d.isRemote && !d.isAI)) {
+        // Arrow color matches the player's chosen dragon (e.g. blue for
+        // Infinite, purple for Aegis) instead of a fixed cyan for everyone.
+        const navColor = (CONFIG.DRAGON_NEON && CONFIG.DRAGON_NEON[d.type]) || '#7ef0ff';
         // Glow circle (cheap: single arc, no shadow)
-        ctx.fillStyle = 'rgba(126,240,255,0.22)';
+        ctx.fillStyle = navColor + '38'; // ~22% alpha appended as hex
         ctx.beginPath();
         ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
         ctx.fill();
         // Arrow
-        ctx.fillStyle = '#7ef0ff';
+        ctx.fillStyle = navColor;
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(d.angle || 0);
