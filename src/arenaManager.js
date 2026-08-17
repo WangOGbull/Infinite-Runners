@@ -1,10 +1,10 @@
 import CONFIG from './config.js';
 
 const ARENA_URLS = [
-  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_stone.png',
-  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_grass.png',
-  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_purple.png',
-  'https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/arenas/arena_fire.png'
+  '/arenas/arena_stone.png',
+  '/arenas/arena_grass.png',
+  '/arenas/arena_purple.png',
+  '/arenas/arena_fire.png'
 ];
 
 export const ARENA_NAMES = ['Stone Castle', 'Grass Field', 'Purple Magic', 'Fire Arena'];
@@ -23,12 +23,10 @@ class ArenaManager {
 
   preloadAll() {
     if (this.preloadPromise) return this.preloadPromise;
-
     this.preloadPromise = Promise.all(
       ARENA_URLS.map((url, index) => {
         return new Promise((resolve, reject) => {
           const img = new Image();
-          img.crossOrigin = 'anonymous';
           img.onload = () => {
             this.loadedImages[index] = img;
             resolve(img);
@@ -41,7 +39,6 @@ class ArenaManager {
       this.allLoaded = true;
       return this.loadedImages;
     });
-
     return this.preloadPromise;
   }
 
@@ -122,25 +119,20 @@ class ArenaManager {
 
   render(ctx, camera) {
     const bounds = this.getBounds();
-
     if (this.selectedImage && this.selectedImage.complete && this.selectedImage.naturalWidth > 0) {
       ctx.drawImage(this.selectedImage, bounds.minX, bounds.minY, this.width, this.height);
     }
 
     // Grid overlay — only compute lines inside the camera's visible
     // viewport (with a small margin), not the entire 4200x4200 arena.
-    // Previously this looped across the whole arena every frame
-    // regardless of zoom/position - real wasted CPU/GPU work that scales
-    // with arena size, not with what's actually on screen.
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 2;
     const grid = CONFIG.ARENA_GRID_SIZE;
-
     let gridMinX = bounds.minX, gridMaxX = bounds.maxX;
     let gridMinY = bounds.minY, gridMaxY = bounds.maxY;
     if (camera && camera.canvas && camera.zoom) {
-      const margin = grid; // one extra cell of margin so lines don't pop in at the edge
+      const margin = grid;
       const viewW = camera.canvas.width / camera.zoom;
       const viewH = camera.canvas.height / camera.zoom;
       gridMinX = Math.max(bounds.minX, camera.x - viewW / 2 - margin);
@@ -148,7 +140,6 @@ class ArenaManager {
       gridMinY = Math.max(bounds.minY, camera.y - viewH / 2 - margin);
       gridMaxY = Math.min(bounds.maxY, camera.y + viewH / 2 + margin);
     }
-    // Align the start to the grid so lines don't shift as the camera pans.
     const startX = bounds.minX + Math.floor((gridMinX - bounds.minX) / grid) * grid;
     const startY = bounds.minY + Math.floor((gridMinY - bounds.minY) / grid) * grid;
     for (let x = startX; x <= gridMaxX; x += grid) {
@@ -160,9 +151,6 @@ class ArenaManager {
       ctx.lineTo(gridMaxX, y);
     }
     ctx.stroke();
-
-    // NO visible boundary line — fence itself is the wall
-    // Inner bounds are invisible, dragons bounce off them naturally
 
     // Center safe zone
     ctx.beginPath();
