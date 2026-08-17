@@ -1068,7 +1068,7 @@ class UIManager {
       const inferredMode = (maxPlayers <= 2) ? '1v1' : 'FFA';
       const roomMode = mode || inferredMode;
       const isFFA = roomMode !== '1v1';
-      const cap = isFFA ? Math.max(maxPlayers, 4) : 2;
+      const cap = isFFA ? maxPlayers : 2;
 
       const slotsEl = document.getElementById('lobbySlots');
       if (slotsEl && Array.isArray(players)) {
@@ -1099,9 +1099,9 @@ class UIManager {
         };
 
         const roleLabel = (roleClass, i) => {
-          if (roleClass === 'role-host') return '<span class="roleCrown">👑</span> ROOM LEADER';
-          if (roleClass === 'role-opponent') return '<span class="roleShield">🛡</span> CONTENDER';
-          return `<span class="roleShield">🛡</span> CHALLENGER ${i}`;
+          if (roleClass === 'role-host') return '<i data-lucide="crown" class="roleIcon roleCrown"></i> ROOM LEADER';
+          if (roleClass === 'role-opponent') return '<i data-lucide="shield" class="roleIcon roleShield"></i> CONTENDER';
+          return `<i data-lucide="shield" class="roleIcon roleShield"></i> CHALLENGER ${i}`;
         };
 
         const filledRow = (p, roleClass, roleIdx) => `
@@ -1800,7 +1800,7 @@ class UIManager {
       return;
     }
 
-    title.textContent = won ? 'SPOILS OF VICTORY' : 'MATCH SETTLEMENT';
+    title.textContent = won ? 'ROARS OF VICTORY' : 'MATCH SETTLEMENT';
     const row = (label, val, cls = '') => val ? `<div class="goStakeRow ${cls}"><span>${label}</span><span class="val">${val}</span></div>` : '';
     rows.innerHTML =
       row('Your Stake', stakeText) +
@@ -2083,7 +2083,7 @@ class UIManager {
       // Name with crown if sovereign
       const nameEl = document.getElementById('lbProfileName');
       nameEl.innerHTML = isSovereign
-        ? '<span style="color:#ffd700;">👑 ' + name + '</span>'
+        ? '<span style="color:#ffd700;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:2px;"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/></svg>' + name + '</span>'
         : name;
       document.getElementById('lbProfileRank').textContent = rankName;
       document.getElementById('lbProfilePlayed').textContent = played;
