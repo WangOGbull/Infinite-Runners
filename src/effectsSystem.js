@@ -16,7 +16,7 @@ class EffectsSystem {
       decay: 0.92
     };
 
-    this.maxParticles = 500;
+    this.maxParticles = 250;
 
     // ================================================================
     // AUDIO
