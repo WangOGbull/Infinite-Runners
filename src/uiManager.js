@@ -348,7 +348,13 @@ class UIManager {
       imgWrap.onclick = (e) => { e.stopPropagation(); const currentD = this.dragonsData[this.carouselIndex]; if (currentD) this.showDragonModal(currentD); };
     }
     const nameEl = document.getElementById('dsDragonName');
-    if (nameEl) nameEl.textContent = name.toUpperCase();
+    if (nameEl) {
+      if (this.userSovereign) {
+        nameEl.innerHTML = '<span class="ddmCrown"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(255,215,0,0.8));display:inline-block;vertical-align:-2px;margin-right:4px;"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/></svg></span>' + name.toUpperCase();
+      } else {
+        nameEl.textContent = name.toUpperCase();
+      }
+    }
     const powers = this.getDragonPowers(key);
     const avgLevel = Math.round((powers.defense + powers.speed + powers.rush + powers.attack) / 4);
     const tierEl = document.getElementById('dsDragonTierNum');
@@ -1666,7 +1672,14 @@ class UIManager {
     const statRankEl = document.getElementById('profileStatRank');
     const sovereignEl = document.getElementById('profileStatSovereign');
 
-    if (nameEl) nameEl.textContent = (stats && stats.username) || 'Player';
+    if (nameEl) {
+      const isSov = !!(stats && stats.sovereignRank);
+      if (isSov) {
+        nameEl.innerHTML = '<span class="profileCrown"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(255,215,0,0.8));display:inline-block;vertical-align:-3px;margin-right:4px;"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/></svg></span>' + ((stats && stats.username) || 'Player');
+      } else {
+        nameEl.textContent = (stats && stats.username) || 'Player';
+      }
+    }
     if (rankEl) rankEl.textContent = (stats && stats.rank) || 'Wingling';
     if (killsEl) killsEl.textContent = (stats && stats.dragonKills) || 0;
     if (aiMatchesEl) aiMatchesEl.textContent = (stats && stats.aiMatchesPlayed) || 0;
@@ -1691,6 +1704,22 @@ class UIManager {
       sovereignEl.textContent = isSovereign ? 'YES' : 'No';
       if (isSovereign) sovereignEl.classList.add('sovereign-yes');
       else sovereignEl.classList.remove('sovereign-yes');
+    }
+    // Swap crest icon to glowing crown when sovereign
+    const crestEl = document.getElementById('profileModalCrest');
+    if (crestEl) {
+      const isSov = !!(stats && stats.sovereignRank);
+      if (isSov) {
+        crestEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 6px rgba(255,215,0,0.7));"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/></svg>';
+        crestEl.style.borderColor = '#ffd700';
+        crestEl.style.color = '#ffd700';
+        crestEl.style.boxShadow = '0 0 25px rgba(255, 215, 0, 0.5)';
+      } else {
+        crestEl.innerHTML = '<i class="fa-solid fa-dragon"></i>';
+        crestEl.style.borderColor = '';
+        crestEl.style.color = '';
+        crestEl.style.boxShadow = '';
+      }
     }
     modal.classList.add('active');
   }
