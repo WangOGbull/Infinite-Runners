@@ -2245,6 +2245,8 @@
   .profileModalBox { 
       position: relative; 
       width: min(320px, 88vw); 
+      max-height: 85vh; 
+      overflow-y: auto; 
       padding: 32px 24px 24px; 
       border-radius: 16px; 
       background: #14100a; 
@@ -2253,9 +2255,10 @@
       text-align: center; 
   } 
   .profileModalClose { 
-      position: absolute; 
-      top: 12px; 
-      right: 12px; 
+      position: sticky; 
+      top: 0; 
+      float: right; 
+      margin: -8px -8px 0 0; 
       width: 28px; 
       height: 28px; 
       border-radius: 50%; 
@@ -2263,6 +2266,8 @@
       border: none; 
       color: #8f8060; 
       cursor: pointer; 
+      z-index: 10; 
+      flex-shrink: 0; 
   } 
   .profileModalCrest { 
       width: 64px; 
@@ -3237,9 +3242,9 @@
           </div>
         </div>
       </div>
-      <!-- AI Career -->
+      <!-- Career: AI + MP combined compact -->
       <div class="profileSection">
-        <div class="profileSectionTitle">AI Career</div>
+        <div class="profileSectionTitle">Career</div>
         <div class="profileRow">
           <div class="profileStat">
             <div class="profileStatValue" id="profileStatAIMatches">0</div>
@@ -3254,10 +3259,6 @@
             <div class="profileStatLabel">Best Tier</div>
           </div>
         </div>
-      </div>
-      <!-- Multiplayer Career -->
-      <div class="profileSection">
-        <div class="profileSectionTitle">Multiplayer</div>
         <div class="profileRow">
           <div class="profileStat">
             <div class="profileStatValue" id="profileStatMPMatches">0</div>
@@ -3267,32 +3268,13 @@
             <div class="profileStatValue" id="profileStatMPWins">0</div>
             <div class="profileStatLabel">MP Wins</div>
           </div>
-        </div>
-      </div>
-      <!-- Achievements -->
-      <div class="profileSection">
-        <div class="profileSectionTitle">Achievements</div>
-        <div class="profileRow">
           <div class="profileStat">
             <div class="profileStatValue" id="profileStatRank">Wingling</div>
             <div class="profileStatLabel">Rank</div>
           </div>
-          <div class="profileStat">
-            <div class="profileStatValue" id="profileStatSovereign">No</div>
-            <div class="profileStatLabel">Sovereign</div>
-          </div>
         </div>
       </div>
     </div> 
-    <div class="stakingTermsFine">
-      <div class="stakingTermsFineTitle">Terms &amp; Risk of Staking</div>
-      <div class="stakingTermsFineBody">
-        <strong>Real money at stake.</strong> Only stake what you can afford to lose. No guarantees — outcomes depend on gameplay. <strong>You bear all losses.</strong> No refunds or chargebacks for lost stakes. 18+ only.
-      </div>
-      <div class="stakingTermsFineContact">
-        Questions? <a href="mailto:Contact@InfiniteCoinHQ.com">Contact@InfiniteCoinHQ.com</a>
-      </div>
-    </div>
     <button id="btnProfileSignOut" class="authGuestLink">Sign Out</button></div> 
 </div> 
 
@@ -3713,18 +3695,21 @@
       <button class="htpTab" data-tab="mechanics">MECHANICS</button> 
       <button class="htpTab" data-tab="tips">TIPS</button> 
     </div> 
-    <div id="htpControls" class="htpPanel active"> 
-      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div> 
-      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Boost</h4><p>Tap and hold the BOOST button for speed burst.</p></div> 
-      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move=Mouse, Boost=Click/Space, Pause=ESC</p></div> 
+    <div id="htpControls" class="htpPanel active">
+      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div>
+      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Sprint</h4><p>Tap the SPRINT button for a 5-second speed burst. Requires 20 &infin; food to charge.</p></div>
+      <div class="htpCard"><h4><i data-lucide="crosshair"></i> Mobile: Attack</h4><p>Tap the ATTACK button when charged to enable kill collisions. Requires 20 &infin; food to charge.</p></div>
+      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move = Mouse, Sprint = Space, Pause = ESC</p></div>
     </div> 
-    <div id="htpMechanics" class="htpPanel"> 
-      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Longer dragon wins. Shorter dies. Equal size = both shrink.</p></div> 
-      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>Instant kill of the dragon whose tail was hit.</p></div> 
-      <div class="htpCard"><h4><i data-lucide="zap"></i> Head vs Body</h4><p>Smaller dragon dies. Larger unaffected. Equal = both shrink.</p></div> 
-      <div class="htpCard"><h4><i data-lucide="shield"></i> Tail vs Tail</h4><p>Nothing happens.</p></div> 
-      <div class="htpCard"><h4><i data-lucide="infinity"></i> Collect &infin;</h4><p>Eat infinity symbols to grow. Start small, grow to max size.</p></div> 
-      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated.</p></div> 
+    <div id="htpMechanics" class="htpPanel">
+      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Bigger dragon bounces the smaller one away. To actually KILL on head-on-head, your ATTACK meter must be charged. No attack = no kill, just a bump.</p></div>
+      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>Hit a bigger dragon's tail = you lose segments (tail cut). Hit a smaller dragon's tail with ATTACK active = massive damage. Equal size = bounce.</p></div>
+      <div class="htpCard"><h4><i data-lucide="shield"></i> Head vs Body</h4><p>Hitting a dragon's mid-body does nothing — you pass through. Only head and tail contacts matter.</p></div>
+      <div class="htpCard"><h4><i data-lucide="zap"></i> Sprint</h4><p>Eat 20 &infin; food to fully charge. Tap SPRINT for a 5-second speed burst. No auto-regen — you earn every charge by eating.</p></div>
+      <div class="htpCard"><h4><i data-lucide="crosshair"></i> Attack</h4><p>Eat 20 &infin; food to charge ATTACK. When active, head-on-head kills smaller dragons and tail hits deal 30% segment damage. Without it, collisions just bounce.</p></div>
+      <div class="htpCard"><h4><i data-lucide="trending-up"></i> Growth Stages</h4><p>Hatchling (5 segments) &rarr; Drake (10) &rarr; Wyrm (15) &rarr; Ancient (25) &rarr; Max (50). Eat &infin; food to grow bigger and stronger.</p></div>
+      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated from the round.</p></div>
+      <div class="htpCard"><h4><i data-lucide="infinity"></i> Small Dragon Protection</h4><p>Dragons under 8 segments (Hatchling) are fragile — bigger dragons can kill them even without ATTACK charged. Grow fast to survive.</p></div>
     </div> 
     <div id="htpTips" class="htpPanel"> 
       <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div> 
