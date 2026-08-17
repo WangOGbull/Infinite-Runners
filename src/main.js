@@ -179,6 +179,33 @@ class Game {
     this.setupEventListeners();
     this._setupSprintButton();
     await this.setupFirebase();
+    // ── Late-arrival auth recovery ──
+    // If determineStartScreen() or _tryRestoreFirebaseAuth() already timed
+    // out and dropped the player into guest mode, this persistent listener
+    // catches the real Firebase account when it finally restores (which can
+    // happen 5-15s after page load on slow mobile / tracking-prevented
+    // browsers). It silently upgrades the session from guest → real account
+    // so stat saves resume and the leaderboard "YOU" tag works again.
+    if (this.auth) {
+      this.auth.onAuthStateChanged((user) => {
+        if (user && (!this.authUid || this.isGuest)) {
+          console.log('[Auth] Late recovery: real account arrived after guest fallback. uid:', user.uid);
+          this.authUid = user.uid;
+          this.isGuest = false;
+          this.db.ref('users/' + user.uid + '/username').once('value')
+            .then((snap) => {
+              if (snap.exists()) this.username = snap.val();
+              this.uiManager.setAccount(this.authUid, this.db);
+              this.uiManager.showLoginDrop(this.username, false);
+              this._checkSovereignStatus();
+            })
+            .catch(() => {
+              this.uiManager.setAccount(this.authUid, this.db);
+              this.uiManager.showLoginDrop(this.username, false);
+            });
+        }
+      });
+    }
     this.effectsSystem.init();
     this.effectsSystem._preloadAudio();
     this.walletManager.processMobileRedirect();
@@ -379,9 +406,12 @@ class Game {
     }
     return new Promise((resolve) => {
       let resolved = false;
+      // Was 2s — too aggressive. Firebase indexedDB restore can take longer
+      // on mobile, and bailing early leaves the player in guest mode with
+      // all stat saves silently skipped for the entire session.
       const timeout = setTimeout(() => {
         if (!resolved) { resolved = true; if (unsubscribe) unsubscribe(); resolve(); }
-      }, 2000);
+      }, 8000);
       let unsubscribe;
       try {
         unsubscribe = this.auth.onAuthStateChanged((user) => {
@@ -590,7 +620,11 @@ class Game {
 
   async determineStartScreen() {
     if (this.authUid) return 'titleScreen';
-    const AUTH_TIMEOUT_MS = 4000;
+    // Was 4s — too short for slow mobile networks / browser tracking-prevention
+    // throttling. Firebase indexedDB persistence can take 6-10s to restore on
+    // first load after a browser restart. Giving up early silently drops the
+    // player into guest mode, which skips ALL stat saves for that session.
+    const AUTH_TIMEOUT_MS = 12000;
     if (!this.auth) {
       this.isGuest = true;
       return 'titleScreen';
@@ -599,7 +633,8 @@ class Game {
       let settled = false;
       const finish = (screen) => { if (!settled) { settled = true; resolve(screen); } };
       const timeoutId = setTimeout(() => {
-        console.warn('[Auth] Timed out waiting for auth state - falling back to guest mode (this session only)');
+        console.warn('[Auth] Timed out after', AUTH_TIMEOUT_MS, 'ms — falling back to guest mode (this session only). ' +
+          'If your browser has tracking prevention enabled, try allowing third-party cookies for this site.');
         this.isGuest = true;
         finish('titleScreen');
       }, AUTH_TIMEOUT_MS);
@@ -1508,6 +1543,9 @@ class Game {
     dragon.segments = newSegments;
     if (dragon.growthProgress !== undefined) dragon.growthProgress = 0;
     if (dragon.attackCharge > 0) dragon.attackCharge = Math.min(dragon.attackCharge, 5);
+    // Reset growth-milestone popup flags so "Growth Advance" fires again
+    // each new wave, instead of only once for the whole mode run.
+    dragon._shownPopups = {};
   }
 
   _persistLobbyContext() {
