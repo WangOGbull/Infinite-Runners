@@ -1245,8 +1245,6 @@ export class DragonManager {
     ctx.shadowBlur = 0;
     // Reuse the main gold gradient for the band (avoids another gradient creation)
     ctx.fillStyle = this._crownCache.grad;
-    bandGrad.addColorStop(0, 'rgba(255, 248, 220, 0.4)');
-    bandGrad.addColorStop(1, 'rgba(184, 134, 11, 0.6)');
     ctx.beginPath();
     ctx.roundRect(-bandW / 2, bandY, bandW, bandH, 2);
     ctx.fill();
