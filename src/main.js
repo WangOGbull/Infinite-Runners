@@ -2524,11 +2524,9 @@ class Game {
       this._connListener = this._connRef.on('value', (snap) => {
         if (snap.val() === false && this.state === 'PLAYING') {
           clearTimeout(this._connDropTimer);
-          // iOS Safari drops WebSocket on background/screen-lock. Give 15s
-          // for reconnect before declaring forfeit (was 6s — too aggressive).
           this._connDropTimer = setTimeout(() => {
             if (this.state === 'PLAYING') this.uiManager.showForfeitDefeat();
-          }, 15000);
+          }, 6000);
         } else if (snap.val() === true) {
           clearTimeout(this._connDropTimer);
           // Reconnected — re-establish presence so server knows we're back
