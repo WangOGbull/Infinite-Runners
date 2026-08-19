@@ -50,16 +50,14 @@ class CollisionSystem {
     this.recoilPairs = new Map();
     this.recoilCooldown = 180;
 
-    // Cache food hash — rebuild only when food changes
     this._foodHashDirty = true;
     this._lastFoodCount = -1;
   }
 
   checkAll(dragonManager, foodSystem, arenaManager) {
     const dragons = dragonManager.getLivingDragons();
-    const foods = foodSystem.getFoods(); // Now returns cached array
+    const foods = foodSystem.getFoods();
 
-    // Clean old recoil-pair entries
     const now = performance.now();
     for (const [key, time] of this.recoilPairs) {
       if (now - time > this.recoilCooldown) {
@@ -67,8 +65,6 @@ class CollisionSystem {
       }
     }
 
-    // Rebuild food spatial hash ONLY when food count changes
-    // (food positions don't move, only spawn/remove changes the set)
     if (this._foodHashDirty || this._lastFoodCount !== foods.length) {
       this.foodHash.clear();
       const headRadius = CONFIG.DRAGON_HEAD_HITBOX_RADIUS;
@@ -82,14 +78,12 @@ class CollisionSystem {
       this._lastFoodCount = foods.length;
       this._foodHashDirty = false;
     } else {
-      // Reuse existing hash — just read the threshold values
       var headRadius = CONFIG.DRAGON_HEAD_HITBOX_RADIUS;
       var foodRadius = CONFIG.FOOD_RADIUS;
       var foodThreshold = headRadius + foodRadius;
       var foodThresholdSq = foodThreshold * foodThreshold;
     }
 
-    // Check food collisions
     const eatenThisFrame = new Set();
     for (const dragon of dragons) {
       if (!dragon.alive) continue;
@@ -103,13 +97,12 @@ class CollisionSystem {
         if (dx * dx + dy * dy < foodThresholdSq) {
           eatenThisFrame.add(food.id);
           foodSystem.removeFood(food.id);
-          this._foodHashDirty = true; // Food changed, mark dirty
+          this._foodHashDirty = true;
           this.eventBus.emit('collision:eat', { dragon, food });
         }
       }
     }
 
-    // Build body segment spatial hash (must rebuild every frame — dragons move)
     this.bodyHash.clear();
     for (const dragon of dragons) {
       if (!dragon.alive) continue;
@@ -119,7 +112,6 @@ class CollisionSystem {
       }
     }
 
-    // Check dragon-to-dragon collisions
     for (let i = 0; i < dragons.length; i++) {
       if (!dragons[i].alive) continue;
       for (let j = i + 1; j < dragons.length; j++) {
@@ -165,6 +157,21 @@ class CollisionSystem {
     this.eventBus.emit('collision:recoil', { dragon: d2, other: d1, x: d2.head.x, y: d2.head.y, directionX: -nx, directionY: -ny, force });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // MP COLLISION FIX
+  // ─────────────────────────────────────────────────────────────
+  // Previously, ALL death/damage events were guarded by `!d.isRemote`,
+  // which meant remote dragons in multiplayer NEVER triggered death
+  // events locally. The local player would collide with a remote
+  // opponent and nothing happened — no kill, no animation, no sound.
+  //
+  // FIX: Emit death/damage events for ALL dragons (local + remote).
+  // The `dragon:death` handler in main.js now checks `isRemote` to
+  // decide whether to AUTHORITATIVELY decrement lives/respawn (local
+  // only) or just play visual/audio effects (remote — the remote
+  // client owns the authoritative death).
+  // ─────────────────────────────────────────────────────────────
+
   checkDragonCollisions(d1, d2) {
     if (d1.immunityTimer > 0 || d2.immunityTimer > 0) return;
 
@@ -184,17 +191,17 @@ class CollisionSystem {
 
       if (len1 < len2) {
         if (d2.attackActive) {
-          if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+          this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else if (len1 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
-          if (!d1.isRemote) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+          this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else {
           this._emitRecoil(d1, d2, 1.0);
         }
       } else if (len2 < len1) {
         if (d1.attackActive) {
-          if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+          this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
         } else if (len2 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
-          if (!d2.isRemote) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+          this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
         } else {
           this._emitRecoil(d1, d2, 1.0);
         }
@@ -235,15 +242,15 @@ class CollisionSystem {
         const bodyLen = bodyDragon.segments.length;
 
         if (headLen > bodyLen) {
-          if (!bodyDragon.isRemote) this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+          this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
         } else if (headLen < bodyLen) {
           const isDrake = headLen >= 10 && headLen <= 14;
           if (isDrake && headDragon.attackActive) {
-            if (!bodyDragon.isRemote) this.eventBus.emit('dragon:tailDamage', { victim: bodyDragon, attacker: headDragon });
+            this.eventBus.emit('dragon:tailDamage', { victim: bodyDragon, attacker: headDragon });
           } else if (!isDrake && headDragon.attackActive) {
-            if (!bodyDragon.isRemote) this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
+            this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
           } else {
-            if (!bodyDragon.isRemote) this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
+            this.eventBus.emit('collision:tail-cut', { victim: bodyDragon });
           }
           this._emitRecoil(headDragon, bodyDragon, 0.75);
         } else {
