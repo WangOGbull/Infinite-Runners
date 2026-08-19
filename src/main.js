@@ -1162,9 +1162,10 @@ class Game {
   }
 });
     this.eventBus.on('dragon:death', ({ dragon, killer }) => {
-      dragon.deaths = (dragon.deaths || 0) + 1;
-      dragon.lives = (dragon.lives || 0) - 1;
+      const isRemote = !!dragon.isRemote;
       const isLocal = dragon === this.localDragon;
+
+      // ── Visual effects for ALL dragons (local + remote) ──
       const neon = (killer && killer !== dragon && CONFIG.DRAGON_NEON)
         ? (CONFIG.DRAGON_NEON[killer.type] || null)
         : null;
@@ -1172,46 +1173,50 @@ class Game {
       this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
       this.effectsSystem.addShake(isLocal ? 10 : 4, isLocal ? 500 : 300);
       this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
-      // Dragon death sound at the moment of death (distinct from game-over screen screech)
       if (isLocal) this.effectsSystem.playDragonDeathSound();
       dragon.killStreak = 0;
+
+      // ── Kill credit + sound + growth ──
       if (killer && killer !== dragon) {
-        killer.kills = (killer.kills || 0) + 1;
-        // Kill sound plays on EVERY kill — local player at full volume,
-        // AI-vs-AI kills at reduced volume so you hear ambient combat
-        // without it overpowering your own kills.
         if (killer === this.localDragon) {
+          killer.kills = (killer.kills || 0) + 1;
           this.effectsSystem.playKillSound();
-        } else {
+        } else if (!isRemote) {
           this.effectsSystem.playKillSound(0.25);
         }
-        const victimSegments = dragon.segments ? dragon.segments.length : 0;
-        let rewardSegments = 1;
-        if (victimSegments >= 15) rewardSegments = 2;
-        this.growthSystem.grow(killer, rewardSegments);
-        const killerSegments = killer.segments ? killer.segments.length : 0;
-        const isMature = killerSegments >= 15;
-        if (isMature && killer === this.localDragon) {
-          const now = Date.now();
-          if (!killer._comboTimer) {
-            killer._comboTimer = 0;
-            killer._comboCount = 0;
+
+        if (killer === this.localDragon) {
+          const victimSegments = dragon.segments ? dragon.segments.length : 0;
+          let rewardSegments = 1;
+          if (victimSegments >= 15) rewardSegments = 2;
+          this.growthSystem.grow(killer, rewardSegments);
+
+          const killerSegments = killer.segments ? killer.segments.length : 0;
+          if (killerSegments >= 15) {
+            const now = Date.now();
+            if (!killer._comboTimer) { killer._comboTimer = 0; killer._comboCount = 0; }
+            if (now - killer._comboTimer <= 4000) {
+              killer._comboCount = (killer._comboCount || 0) + 1;
+            } else {
+              killer._comboCount = 1;
+            }
+            killer._comboTimer = now;
+            if (killer._comboCount >= 3) {
+              this.uiManager.showComboBanner(killer, killer._comboCount);
+              this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, neon || '#ffd700');
+              this.effectsSystem.flashVignette(neon || '#ffd700', 0.35, 300);
+              this.effectsSystem.playKillSound();
+            }
           }
-          if (now - killer._comboTimer <= 4000) {
-            killer._comboCount = (killer._comboCount || 0) + 1;
-          } else {
-            killer._comboCount = 1;
-          }
-          killer._comboTimer = now;
-          if (killer._comboCount >= 3) {
-            this.uiManager.showComboBanner(killer, killer._comboCount);
-            this.effectsSystem.spawnKillSparkles(killer.head.x, killer.head.y, neon || '#ffd700');
-            this.effectsSystem.flashVignette(neon || '#ffd700', 0.35, 300);
-            // Extra kill sound on top of the per-kill one — the double
-            // hit emphasizes the combo streak.
-            this.effectsSystem.playKillSound();
+
+          if (this.authUid && this.db && typeof firebase !== 'undefined') {
+            this.db.ref('users/' + this.authUid + '/dragonKills')
+              .set(firebase.database.ServerValue.increment(1))
+              .catch(() => {});
           }
         }
+
+        // Kill feed — show when local player is involved
         if (killer === this.localDragon || dragon === this.localDragon) {
           const killerName = this._getUsernameForDragon(killer) || killer.type || 'Unknown';
           const victimName = this._getUsernameForDragon(dragon) || dragon.type || 'Unknown';
@@ -1220,42 +1225,52 @@ class Game {
           const victimSov = this._isSovereignDragon(dragon);
           this._showKillFeed(killerName, victimName, killerColor, killerSov, victimSov);
         }
-        const killerIsLocal = killer === this.localDragon;
-        if (killerIsLocal) {
-          if (this.authUid && this.db && typeof firebase !== 'undefined') {
-            this.db.ref('users/' + this.authUid + '/dragonKills')
-              .set(firebase.database.ServerValue.increment(1))
-              .catch(() => {});
-          }
-        }
       }
+
+      // ── Drop food from segments — for ALL dragons ──
       for (const seg of dragon.segments) {
         this.foodSystem.spawnFoodAt(seg.x, seg.y);
       }
       this.foodSystem.spawnFoodAt(dragon.head.x, dragon.head.y, true);
-      if (dragon.lives > 0) {
+
+      // ── Authority split: local/AI vs remote ──
+      if (isRemote) {
+        // REMOTE: visual death only. Remote client owns lives/respawn/purge.
+        // Lives are NOT decremented — applyRemotePositions will sync them
+        // when the remote client broadcasts its updated state.
         dragon.alive = false;
-        setTimeout(() => {
-          if (this.state === 'PLAYING') {
-            this.dragonManager.respawnDragon(dragon, this.arenaManager);
-            this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
-            this.effectsSystem.playRespawnSound();
-          }
-        }, CONFIG.RESPAWN_DELAY_MS);
-      } else {
-        dragon.alive = false;
-        this._pendingPurge.push({ dragon, time: Date.now() });
-        if (isLocal) {
-          this._lastKiller = (killer && killer !== dragon) ? killer : null;
-        }
-        if (this.isMultiplayer && dragon === this.localDragon && this.positionsRef) {
-          this.lastBroadcast = 0;
-          this.broadcastPosition();
+        if (killer === this.localDragon) {
+          this._lastKiller = null;
         }
         this.checkMatchEnd();
+      } else {
+        // LOCAL or AI: authoritative death
+        dragon.deaths = (dragon.deaths || 0) + 1;
+        dragon.lives = (dragon.lives || 0) - 1;
+
+        if (dragon.lives > 0) {
+          dragon.alive = false;
+          setTimeout(() => {
+            if (this.state === 'PLAYING') {
+              this.dragonManager.respawnDragon(dragon, this.arenaManager);
+              this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
+              this.effectsSystem.playRespawnSound();
+            }
+          }, CONFIG.RESPAWN_DELAY_MS);
+        } else {
+          dragon.alive = false;
+          this._pendingPurge.push({ dragon, time: Date.now() });
+          if (isLocal) {
+            this._lastKiller = (killer && killer !== dragon) ? killer : null;
+          }
+          if (this.isMultiplayer && dragon === this.localDragon && this.positionsRef) {
+            this.lastBroadcast = 0;
+            this.broadcastPosition();
+          }
+          this.checkMatchEnd();
+        }
       }
-    });
-    this.eventBus.on('wallet:connectRequest', async () => {
+    });this.eventBus.on('wallet:connectRequest', async () => {
       if (this.authUid && this.db && !this.isGuest) {
         const handoffCode = await this._createAuthHandoffCode();
         if (handoffCode) this.walletManager.pendingHandoffCode = handoffCode;
@@ -1435,6 +1450,23 @@ class Game {
 
   checkMatchEnd() {
     const allDragons = this.dragonManager.getAllDragons();
+
+    // In MP, the server (watchMatches.js) is the authority for match end.
+    // We only trigger endGame locally when the LOCAL player is dead.
+    if (this.isMultiplayer) {
+      if (this.localDragon && this.localDragon.lives <= 0 && !this.localDragon.alive) {
+        const living = this.dragonManager.getLivingDragons();
+        const othersAlive = living.filter(d => d !== this.localDragon);
+        if (othersAlive.length === 0) {
+          this.endGame(true);
+        } else if (!this.isSpectating || !this.spectateTarget || !this.spectateTarget.alive) {
+          this.enterSpectateMode(othersAlive);
+        }
+      }
+      return;
+    }
+
+    // Single-player / AI mode — original logic
     const withLives = allDragons.filter(d => d.lives > 0);
     if (withLives.length === 1 && allDragons.length > 1) {
       if (this.isWaveMode() && withLives[0] === this.localDragon) {
@@ -2635,7 +2667,9 @@ class Game {
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
     const now = Date.now();
-    if (this.lastBroadcast && now - this.lastBroadcast < 50) return;
+    // Throttle: 100ms = 10 writes/sec (was 50ms = 20 writes/sec)
+    // Matches the applyRemotePositions throttle — writing faster is wasted
+    if (this.lastBroadcast && now - this.lastBroadcast < 100) return;
     this.lastBroadcast = now;
     this.positionsRef.child(this.localPlayerId).set({
       x: this.localDragon.head.x,
@@ -2654,19 +2688,33 @@ class Game {
     if (!this.positionsRef) return;
     if (!this.positionsListenerSet) {
       this.positionsListenerSet = true;
+      this._remotePosCache = {};
+      this._lastRemoteApply = 0;
+      // Just cache the snapshot — don't process it here
       this.positionsRef.on('value', snap => {
-        this.remotePositions = snap.val() || {};
+        this._remotePosCache = snap.val() || {};
       });
     }
-    if (!this.remotePositions) return;
+
+    // Throttle: apply cached positions at most every 100ms (10fps update)
+    // Interpolation in movementSystem smooths the visual gap
+    const now = performance.now();
+    if (now - this._lastRemoteApply < 100) return;
+    this._lastRemoteApply = now;
+
+    const remoteData = this._remotePosCache;
+    if (!remoteData) return;
+
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.playerId) continue;
-      const pos = this.remotePositions[dragon.playerId];
+      const pos = remoteData[dragon.playerId];
       if (!pos) continue;
+
       dragon.remoteTarget = { x: pos.x, y: pos.y };
       dragon.angle = pos.angle;
       dragon.attackActive = !!pos.attackActive;
       dragon.boostActive = dragon.attackActive;
+
       if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
         this._resizeRemoteDragon(dragon, pos.segments);
       }
@@ -2674,7 +2722,12 @@ class Game {
         dragon.lives = pos.lives;
       }
       if (typeof pos.alive === 'boolean' && pos.alive !== dragon.alive) {
-        dragon.alive = pos.alive;
+        if (pos.alive) {
+          dragon.alive = true;
+          this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
+        } else {
+          dragon.alive = false;
+        }
       }
     }
   }
@@ -3209,23 +3262,41 @@ class Game {
     try {
       const tiers = await this.stakingManager.getDisplayTiers();
       const tierName = String(settlement?.tier || this.lobbyTier || '').toLowerCase();
-      const tierKey = Object.keys(tiers).find(k => k.toLowerCase() === tierName);
       const parseAmt = (v) => Number(String(v).replace(/[^0-9.]/g, '')) || 0;
-      const stake = tierKey ? parseAmt(tiers[tierKey]) : 0;
-      const feePct = Number(tiers.feePercent) || 2.5;
-      const pot = stake * 2;
-      const fee = pot * (feePct / 100);
+
+      // ── Resolve stake amount ──
+      let stake;
+      if (tierName === 'custom') {
+        stake = Number(this._customStakeAmount)
+             || parseAmt(settlement?.customAmount)
+             || 0;
+      } else {
+        const tierKey = Object.keys(tiers).find(k => k.toLowerCase() === tierName);
+        stake = tierKey ? parseAmt(tiers[tierKey]) : 0;
+      }
+
+      // ── Player count: 1v1 = 2, FFA = 4, 2v2 = 4 ──
+      const numPlayers = (this.playerIds && this.playerIds.length)
+                      || (this.roomPlayers && Object.keys(this.roomPlayers).length)
+                      || 2;
+
+      // ── Fee: 2.5% per player (matches hotWalletSettlement.js FEE_BPS_PER_PLAYER) ──
+      const feePerPlayerPct = 2.5;
+      const totalFeePct = feePerPlayerPct * numPlayers;
+      const pot = stake * numPlayers;
+      const fee = pot * (totalFeePct / 100);
       const payout = pot - fee;
       const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+
       this.uiManager.showStakeBreakdown({
         won: iWon,
         stakeText: stake ? `${fmt(stake)} INFINITE` : null,
         potText: stake ? `${fmt(pot)} INFINITE` : null,
         feeText: stake ? `-${fmt(fee)} INFINITE` : null,
         payoutText: stake ? `${fmt(payout)} INFINITE` : null,
-        feePct,
+        feePct: totalFeePct,
         signature: settlement?.signature || null,
-        cluster: settlement?.cluster || 'devnet',
+        cluster: settlement?.cluster || 'mainnet-beta',
       });
     } catch (err) {
       console.warn('[Staking] settlement breakdown display failed:', err?.message || err);
@@ -3262,7 +3333,45 @@ class Game {
     this.dragonManager.clear();
     this.isPaused = false;
     this.stopNetworkSync();
+
+    // ── Reset ALL multiplayer state ──
+    this.isMultiplayer = false;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this.localPlayerId = null;
+    this.isHost = false;
+    this.roomCode = '';
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this._matchedMode = false;
+    this.remotePositions = {};
+    this.winner = null;
     this._pendingPurge = [];
+    this._remoteSovereign = {};
+    this.positionsListenerSet = false;
+
+    // ── Clean up settlement listener + timeout ──
+    if (this._settlementRef && this._settlementListener) {
+      try { this._settlementRef.off('value', this._settlementListener); } catch (_) {}
+    }
+    this._settlementRef = null;
+    this._settlementListener = null;
+    this._settlementHandled = false;
+    if (this._settlementTimeoutId) {
+      clearTimeout(this._settlementTimeoutId);
+      this._settlementTimeoutId = null;
+    }
+
+    // ── Clean up room listener ──
+    if (this._roomListener && this.roomRef) {
+      try { this.roomRef.off('value', this._roomListener); } catch (_) {}
+      this._roomListener = null;
+    }
+    if (this.roomRef) {
+      try { this.roomRef.off(); } catch (_) {}
+      this.roomRef = null;
+    }
+    this.positionsRef = null;
+
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
       const ctx = canvas.getContext('2d');
