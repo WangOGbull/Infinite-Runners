@@ -158,6 +158,10 @@ class Game {
     this.positionsRef = null;
     this.lastBroadcast = 0;
     this.positionsListenerSet = false;
+    this.combatEventsRef = null;
+    this._combatEventListener = null;
+    this._processedCombatEvents = new Set();
+    this._combatListenStartedAt = 0;
     this.assetsLoaded = false;
     this.matchStats = {};
     this.winner = null;
@@ -1161,9 +1165,19 @@ class Game {
     if (isLocal) this.effectsSystem.playHeadCollisionSound();
   }
 });
-    this.eventBus.on('dragon:death', ({ dragon, killer }) => {
+    this.eventBus.on('dragon:death', ({ dragon, killer, networkEventId = null }) => {
       const isRemote = !!dragon.isRemote;
       const isLocal = dragon === this.localDragon;
+
+      // The host is the only multiplayer combat resolver. Publish its
+      // decision once so every client applies the identical death.
+      if (this.isMultiplayer && this.isHost && !networkEventId) {
+        const publishedId = this._publishCombatDeath(dragon, killer);
+        if (!publishedId) {
+          console.warn('[Combat] Death was not published; missing player identity or room reference.');
+          return;
+        }
+      }
 
       // ── Visual effects for ALL dragons (local + remote) ──
       const neon = (killer && killer !== dragon && CONFIG.DRAGON_NEON)
@@ -2537,11 +2551,89 @@ class Game {
     this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced', this.lobbyArenaIndex);
   }
 
+  _getDragonByPlayerId(playerId) {
+    if (!playerId) return null;
+    return this.dragonManager.getAllDragons().find(
+      dragon => dragon.playerId === playerId
+    ) || null;
+  }
+
+  _rememberCombatEvent(eventId) {
+    if (!eventId) return;
+    this._processedCombatEvents.add(eventId);
+    // Bound memory use during long matches.
+    if (this._processedCombatEvents.size > 256) {
+      const oldest = this._processedCombatEvents.values().next().value;
+      this._processedCombatEvents.delete(oldest);
+    }
+  }
+
+  _publishCombatDeath(victim, killer) {
+    if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef) return null;
+    const victimId = victim && victim.playerId;
+    const killerId = killer && killer.playerId;
+    if (!victimId) return null;
+
+    const eventRef = this.combatEventsRef.push();
+    const eventId = eventRef.key;
+    if (!eventId) return null;
+
+    // Mark before writing so the host does not process its own child_added
+    // notification after already applying the collision locally.
+    this._rememberCombatEvent(eventId);
+    eventRef.set({
+      type: 'death',
+      victimId,
+      killerId: killerId || null,
+      createdAt: Date.now()
+    }).catch(error => {
+      console.error('[Combat] Failed to publish authoritative death:', error);
+      this._processedCombatEvents.delete(eventId);
+    });
+    return eventId;
+  }
+
+  _startCombatEventSync() {
+    if (!this.roomRef || !this.localPlayerId) return;
+    this.combatEventsRef = this.roomRef.child('combatEvents');
+    this._processedCombatEvents.clear();
+    this._combatListenStartedAt = Date.now();
+
+    this._combatEventListener = snapshot => {
+      const eventId = snapshot.key;
+      const event = snapshot.val();
+      if (!eventId || !event || event.type !== 'death') return;
+      if (this._processedCombatEvents.has(eventId)) return;
+
+      // child_added also replays old children. Ignore events from an earlier
+      // run so reconnecting players cannot lose lives to stale collisions.
+      if (typeof event.createdAt === 'number' &&
+          event.createdAt < this._combatListenStartedAt - 5000) {
+        this._rememberCombatEvent(eventId);
+        return;
+      }
+
+      const victim = this._getDragonByPlayerId(event.victimId);
+      const killer = this._getDragonByPlayerId(event.killerId);
+      this._rememberCombatEvent(eventId);
+      if (!victim || !victim.alive) return;
+
+      this.eventBus.emit('dragon:death', {
+        dragon: victim,
+        killer,
+        networkEventId: eventId
+      });
+    };
+
+    this.combatEventsRef.on('child_added', this._combatEventListener);
+  }
+
   startNetworkSync() {
     if (!this.roomRef) return;
     this.positionsRef = this.roomRef.child('positions');
     this.positionsListenerSet = false;
     this.lastBroadcast = 0;
+    this._startCombatEventSync();
     this._watchSettlement();
     this._startConnectionWatchdog();
   }
@@ -2659,6 +2751,13 @@ class Game {
       this.positionsRef.off();
       this.positionsRef = null;
     }
+    if (this.combatEventsRef && this._combatEventListener) {
+      this.combatEventsRef.off('child_added', this._combatEventListener);
+    }
+    this.combatEventsRef = null;
+    this._combatEventListener = null;
+    this._processedCombatEvents.clear();
+    this._combatListenStartedAt = 0;
     this.positionsListenerSet = false;
     this.remotePositions = {};
     this._clearConnectionWatchdog();
@@ -2854,7 +2953,15 @@ class Game {
       ? this.spectateTarget
       : this.localDragon;
     this.cameraSystem.update(followDragon, this.arenaManager);
-    this.collisionSystem.checkAll(this.dragonManager, this.foodSystem, this.arenaManager);
+    // In multiplayer only the room host resolves dragon-vs-dragon combat.
+    // Every client still runs its own food collision checks.
+    const resolvesDragonCombat = !this.isMultiplayer || this.isHost;
+    this.collisionSystem.checkAll(
+      this.dragonManager,
+      this.foodSystem,
+      this.arenaManager,
+      resolvesDragonCombat
+    );
 
     for (const dragon of _livingDragons) {
       if (this.matchStats[dragon.id]) {
