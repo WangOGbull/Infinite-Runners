@@ -2953,14 +2953,14 @@ class Game {
       ? this.spectateTarget
       : this.localDragon;
     this.cameraSystem.update(followDragon, this.arenaManager);
-    // In multiplayer only the room host resolves dragon-vs-dragon combat.
-    // Every client still runs its own food collision checks.
-    const resolvesDragonCombat = !this.isMultiplayer || this.isHost;
+    // All clients keep responsive collision feedback, but only the room
+    // host is allowed to decide multiplayer deaths.
+    const resolvesDragonDeaths = !this.isMultiplayer || this.isHost;
     this.collisionSystem.checkAll(
       this.dragonManager,
       this.foodSystem,
       this.arenaManager,
-      resolvesDragonCombat
+      resolvesDragonDeaths
     );
 
     for (const dragon of _livingDragons) {
