@@ -54,7 +54,7 @@ class CollisionSystem {
     this._lastFoodCount = -1;
   }
 
-  checkAll(dragonManager, foodSystem, arenaManager) {
+  checkAll(dragonManager, foodSystem, arenaManager, resolveDragonCombat = true) {
     const dragons = dragonManager.getLivingDragons();
     const foods = foodSystem.getFoods();
 
@@ -112,11 +112,15 @@ class CollisionSystem {
       }
     }
 
-    for (let i = 0; i < dragons.length; i++) {
-      if (!dragons[i].alive) continue;
-      for (let j = i + 1; j < dragons.length; j++) {
-        if (!dragons[j].alive) continue;
-        this.checkDragonCollisions(dragons[i], dragons[j]);
+    // Food remains client-local, but multiplayer dragon combat must have
+    // exactly one resolver. main.js passes true only for the room host.
+    if (resolveDragonCombat) {
+      for (let i = 0; i < dragons.length; i++) {
+        if (!dragons[i].alive) continue;
+        for (let j = i + 1; j < dragons.length; j++) {
+          if (!dragons[j].alive) continue;
+          this.checkDragonCollisions(dragons[i], dragons[j]);
+        }
       }
     }
   }
