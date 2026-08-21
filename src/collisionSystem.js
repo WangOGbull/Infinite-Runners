@@ -54,7 +54,7 @@ class CollisionSystem {
     this._lastFoodCount = -1;
   }
 
-  checkAll(dragonManager, foodSystem, arenaManager) {
+  checkAll(dragonManager, foodSystem, arenaManager, resolveDragonCombat = true) {
     const dragons = dragonManager.getLivingDragons();
     const foods = foodSystem.getFoods();
 
@@ -112,11 +112,13 @@ class CollisionSystem {
       }
     }
 
+    // Every client keeps responsive recoil, sound and tail-hit feedback.
+    // Only death decisions are restricted to the multiplayer authority.
     for (let i = 0; i < dragons.length; i++) {
       if (!dragons[i].alive) continue;
       for (let j = i + 1; j < dragons.length; j++) {
         if (!dragons[j].alive) continue;
-        this.checkDragonCollisions(dragons[i], dragons[j]);
+        this.checkDragonCollisions(dragons[i], dragons[j], resolveDragonCombat);
       }
     }
   }
@@ -172,7 +174,7 @@ class CollisionSystem {
   // client owns the authoritative death).
   // ─────────────────────────────────────────────────────────────
 
-  checkDragonCollisions(d1, d2) {
+  checkDragonCollisions(d1, d2, resolveDeath = true) {
     if (d1.immunityTimer > 0 || d2.immunityTimer > 0) return;
 
     const dx = d1.head.x - d2.head.x;
@@ -191,17 +193,17 @@ class CollisionSystem {
 
       if (len1 < len2) {
         if (d2.attackActive) {
-          this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else if (len1 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
-          this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
         } else {
           this._emitRecoil(d1, d2, 1.0);
         }
       } else if (len2 < len1) {
         if (d1.attackActive) {
-          this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
         } else if (len2 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
-          this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
         } else {
           this._emitRecoil(d1, d2, 1.0);
         }
@@ -211,11 +213,11 @@ class CollisionSystem {
       return;
     }
 
-    this.checkHeadVsBody(d1, d2);
-    this.checkHeadVsBody(d2, d1);
+    this.checkHeadVsBody(d1, d2, resolveDeath);
+    this.checkHeadVsBody(d2, d1, resolveDeath);
   }
 
-  checkHeadVsBody(headDragon, bodyDragon) {
+  checkHeadVsBody(headDragon, bodyDragon, resolveDeath = true) {
     if (headDragon.immunityTimer > 0 || bodyDragon.immunityTimer > 0) return;
 
     const head = headDragon.head;
@@ -242,7 +244,9 @@ class CollisionSystem {
         const bodyLen = bodyDragon.segments.length;
 
         if (headLen > bodyLen) {
-          this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+          if (resolveDeath) {
+            this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
+          }
         } else if (headLen < bodyLen) {
           const isDrake = headLen >= 10 && headLen <= 14;
           if (isDrake && headDragon.attackActive) {
