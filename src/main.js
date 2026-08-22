@@ -3503,11 +3503,20 @@ class Game {
                       || 2;
 
       // Treasury receives one flat 5% of the combined pot in every mode.
-      // Player count changes the pot, never the percentage.
+      // Prefer canonical backend amounts once settlement exists; calculation
+      // is only the pre-result fallback, so the UI cannot disagree on payout.
       const feePct = 5;
-      const pot = stake * numPlayers;
-      const fee = pot * (feePct / 100);
-      const payout = pot - fee;
+      const calculatedPot = stake * numPlayers;
+      const canonicalPot = Number(settlement?.pot);
+      const canonicalFee = Number(settlement?.fee);
+      const canonicalPayout = Number(settlement?.payout);
+      const pot = Number.isFinite(canonicalPot) && canonicalPot > 0 ? canonicalPot : calculatedPot;
+      const fee = Number.isFinite(canonicalFee) && canonicalFee >= 0
+        ? canonicalFee
+        : pot * (feePct / 100);
+      const payout = Number.isFinite(canonicalPayout) && canonicalPayout >= 0
+        ? canonicalPayout
+        : pot - fee;
       const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 
       this.uiManager.showStakeBreakdown({
