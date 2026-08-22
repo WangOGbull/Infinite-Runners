@@ -1102,7 +1102,7 @@
       content: ''; 
       position: absolute; 
       inset: -20%; 
-      background-image: url('https://raw.githubusercontent.com/WangOGbull/Infinite-Runners/main/select_trial.png'); 
+      background-image: url('./assets/select-trial-celestial-v1.jpg');
       background-size: cover; 
       background-position: center; 
       filter: blur(90px) saturate(1.5) brightness(0.55); 
@@ -1119,16 +1119,16 @@
       border: none !important; 
       box-shadow: none !important; 
       padding: 0 !important; 
-      height: min(100vh, 100dvh); 
-      width: auto; 
-      aspect-ratio: 2 / 3; 
-      max-width: 103vw; 
+      height: auto;
+      width: min(calc(100vw - 12px), calc((100dvh - 16px) * 0.461588542), 560px);
+      aspect-ratio: 709 / 1536;
+      max-width: none;
       margin: 0 auto; 
       position: relative; 
   } 
   @media (min-width: 700px) { 
       #difficultyModal .difficultyBox { 
-          max-width: 680px; 
+          width: min(35vw, 560px, calc((100dvh - 32px) * 0.461588542));
       } 
   } 
   #difficultyModal .difficultyBox h2, 
@@ -1166,12 +1166,34 @@
       position: absolute; 
       width: 92%; 
       left: 4%; 
-      cursor: pointer; 
-      z-index: 5; 
-  } 
-  #difficultyModal .diffBtn[data-tier="easy"]   { top: 24.5%; height: 18.5%; } 
-  #difficultyModal .diffBtn[data-tier="medium"] { top: 46.5%; height: 18.2%; } 
-  #difficultyModal .diffBtn[data-tier="hard"]   { top: 68%;   height: 18.3%; } 
+      cursor: pointer;
+      z-index: 5;
+      border-radius: 0 !important;
+      outline: 0 !important;
+      filter: none !important;
+      transform: none !important;
+      -webkit-appearance: none;
+      appearance: none;
+      -webkit-tap-highlight-color: transparent;
+  }
+  #difficultyModal .diffBtn:hover,
+  #difficultyModal .diffBtn:focus,
+  #difficultyModal .diffBtn:focus-visible,
+  #difficultyModal .diffBtn:active {
+      background: transparent !important;
+      border: none !important;
+      outline: 0 !important;
+      box-shadow: none !important;
+      filter: none !important;
+      transform: none !important;
+  }
+  #difficultyModal .diffBtn::before,
+  #difficultyModal .diffBtn::after,
+  #btnDiffBack::before,
+  #btnDiffBack::after { content: none !important; display: none !important; }
+  #difficultyModal .diffBtn[data-tier="easy"]   { top: 27.4%; height: 18.5%; }
+  #difficultyModal .diffBtn[data-tier="medium"] { top: 47.8%; height: 18.5%; }
+  #difficultyModal .diffBtn[data-tier="hard"]   { top: 68.1%; height: 18.5%; }
 
   #btnDiffBack { 
       position: absolute; 
@@ -1179,13 +1201,32 @@
       border: none !important; 
       box-shadow: none !important; 
       color: transparent !important; 
-      width: 40%; 
-      top: 88%; 
-      height: 8%; 
-      left: 30%; 
-      z-index: 5; 
-      cursor: pointer; 
-  } 
+      width: 66%;
+      top: 89%;
+      height: 7.7%;
+      left: 17%;
+      z-index: 5;
+      cursor: pointer;
+      border-radius: 0 !important;
+      outline: 0 !important;
+      filter: none !important;
+      transform: none !important;
+      clip-path: none !important;
+      -webkit-appearance: none;
+      appearance: none;
+      -webkit-tap-highlight-color: transparent;
+  }
+  #btnDiffBack:hover,
+  #btnDiffBack:focus,
+  #btnDiffBack:focus-visible,
+  #btnDiffBack:active {
+      background: transparent !important;
+      border: none !important;
+      outline: 0 !important;
+      box-shadow: none !important;
+      filter: none !important;
+      transform: none !important;
+  }
   #btnDiffBack i { display: none !important; } 
   /* ============================================================== 
      SELECT ARENA SCREEN — Design A: Runestone Grid 
@@ -3783,7 +3824,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=52"></script>
+<script type="module" src="./src/main.js?v=53"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
@@ -3822,10 +3863,10 @@
   // Exact zone boundaries measured directly from the select_trial.png pixel data 
   // (fractions of the image's own height/width, not the viewport). 
   var ZONES = { 
-    easy:   { top: 0.242, bottom: 0.434, left: 0.04, right: 0.96 }, 
-    medium: { top: 0.462, bottom: 0.650, left: 0.04, right: 0.96 }, 
-    hard:   { top: 0.678, bottom: 0.868, left: 0.04, right: 0.96 }, 
-    back:   { top: 0.885, bottom: 0.960, left: 0.28, right: 0.72 } 
+    easy:   { top: 0.274, bottom: 0.459, left: 0.025, right: 0.975 },
+    medium: { top: 0.478, bottom: 0.663, left: 0.025, right: 0.975 },
+    hard:   { top: 0.681, bottom: 0.866, left: 0.025, right: 0.975 },
+    back:   { top: 0.890, bottom: 0.967, left: 0.17, right: 0.83 }
   }; 
 
   function positionHitboxes() { 

@@ -197,7 +197,7 @@ class UIManager {
     diffModal.innerHTML = `
       <div class="difficultyBox">
         <div class="difficultyGrid">
-          <img class="difficultyBgImg" src="https://raw.githack.com/WangOGbull/Infinite-Runners/main/select_trial.png" alt="Select Trial" draggable="false" onerror="this.style.display='none'">
+          <img class="difficultyBgImg" src="./assets/select-trial-celestial-v1.jpg" alt="Select Trial" draggable="false" onerror="this.style.display='none'">
           <button class="diffBtn" data-tier="easy"></button>
           <button class="diffBtn" data-tier="medium"></button>
           <button class="diffBtn" data-tier="hard"></button>
