@@ -485,7 +485,10 @@ export class DragonManager {
       // ============================================================
       if (dragon.isRemote) {
         if (dragon.remoteTarget) {
-          const lerp = 0.25;
+          // Time-based interpolation feels the same at 30, 60, or 120 FPS.
+          // It smooths Firebase's 20 Hz snapshots without adding network
+          // delay or changing the position used by canonical host combat.
+          const lerp = 1 - Math.exp(-deltaTime / 45);
 
           dragon.head.x +=
             (dragon.remoteTarget.x -
@@ -496,6 +499,13 @@ export class DragonManager {
             (dragon.remoteTarget.y -
               dragon.head.y) *
             lerp;
+
+          if (Number.isFinite(dragon.remoteTarget.angle)) {
+            let angleDiff = dragon.remoteTarget.angle - dragon.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            dragon.angle += angleDiff * lerp;
+          }
         }
 
         // Apply collision recoil to remote dragons too.

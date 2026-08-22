@@ -64,15 +64,15 @@ class AIController {
         if (other === dragon || !other.alive) continue;
         const dx = other.head.x - head.x;
         const dy = other.head.y - head.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > settings.huntRange) continue;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > settings.huntRange * settings.huntRange) continue;
         const sizeDiff = other.segments.length - dragon.segments.length;
         if (sizeDiff >= 0) continue;
         const angleToTarget = Math.atan2(dy, dx);
         let angleDiff = angleToTarget - dragon.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        const score = (1000 / (dist + 1)) - Math.abs(angleDiff) * 100 - sizeDiff * 50;
+        const score = (1000 / (Math.sqrt(distSq) + 1)) - Math.abs(angleDiff) * 100 - sizeDiff * 50;
         if (score > bestScore) {
           bestScore = score;
           bestTarget = other;
@@ -100,8 +100,8 @@ class AIController {
         if (other === dragon || !other.alive) continue;
         const dx = other.head.x - head.x;
         const dy = other.head.y - head.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > settings.fleeRange) continue;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > settings.fleeRange * settings.fleeRange) continue;
         if (other.segments.length > dragon.segments.length * 1.2) {
           targetAngle = Math.atan2(-dy, -dx);
           currentMode = 'flee';
@@ -115,18 +115,18 @@ class AIController {
       let bestFood = null;
       let bestScore = -Infinity;
       const foods = this.food.getFoods();
+      const foodRangeSq = 600 * 600;
       for (const food of foods) {
         const dx = food.x - head.x;
         const dy = food.y - head.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 15) continue;
-        if (dist > 600) continue; // Spatial culling — don't scan entire map
+        const distSq = dx * dx + dy * dy;
+        if (distSq < 15 * 15 || distSq > foodRangeSq) continue;
         const foodAngle = Math.atan2(dy, dx);
         let angleDiff = foodAngle - dragon.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         if (Math.abs(angleDiff) > Math.PI / 2) continue;
-        const score = 800 / (dist + 1) - Math.abs(angleDiff) * 30;
+        const score = 800 / (Math.sqrt(distSq) + 1) - Math.abs(angleDiff) * 30;
         if (score > bestScore) {
           bestScore = score;
           bestFood = food;
