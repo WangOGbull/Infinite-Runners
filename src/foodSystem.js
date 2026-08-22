@@ -192,7 +192,8 @@ class FoodSystem {
 
       // Pulse the scale slightly for a living feel
       const pulse = 1 + Math.sin(pulseTime + food.pulse) * 0.12;
-      const drawSize = food.radius * 8 * pulse;
+      // Visibility-only increase: collection radius/value remain unchanged.
+      const drawSize = food.radius * 8 * 1.35 * pulse;
 
       ctx.drawImage(
         sprite,

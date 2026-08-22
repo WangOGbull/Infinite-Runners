@@ -1290,6 +1290,38 @@ class UIManager {
     });
   }
 
+  resetLobbyState() {
+    this._stakingBothDeposited = false;
+    this.selectedTier = null;
+    this._applyTierGlow(null);
+    this.setMatchedLobbyMode(false, null);
+    const depositBtn = document.getElementById('lobbyDepositBtn');
+    const label = document.getElementById('depositBtnLabel');
+    const statusText = document.getElementById('depositStatusText');
+    const startBtn = document.getElementById('lobbyStartBtn');
+    const waitingText = document.getElementById('lobbyWaitingText');
+    if (depositBtn) {
+      depositBtn.disabled = false;
+      depositBtn.style.display = 'none';
+      depositBtn.style.pointerEvents = '';
+      depositBtn.removeAttribute('aria-disabled');
+    }
+    if (label) label.textContent = 'Place Bet';
+    if (statusText) {
+      statusText.textContent = '';
+      statusText.className = 'depositStatusText';
+    }
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.style.display = 'none';
+    }
+    if (waitingText) waitingText.style.display = 'none';
+    document.querySelectorAll('#tierBtns .tierBtn').forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove('active');
+    });
+  }
+
   updateAttackMeter(dragon) {
     const btn = document.getElementById('boostBtn');
     if (!btn) return;
