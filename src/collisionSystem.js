@@ -174,6 +174,13 @@ class CollisionSystem {
   // client owns the authoritative death).
   // ─────────────────────────────────────────────────────────────
 
+  _emitDeath(dragon, killer, resolveDeath) {
+    this.eventBus.emit(resolveDeath ? 'dragon:death' : 'collision:predicted-death', {
+      dragon,
+      killer
+    });
+  }
+
   checkDragonCollisions(d1, d2, resolveDeath = true) {
     if (d1.immunityTimer > 0 || d2.immunityTimer > 0) return;
 
@@ -193,17 +200,17 @@ class CollisionSystem {
 
       if (len1 < len2) {
         if (d2.attackActive) {
-          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+          this._emitDeath(d1, d2, resolveDeath)
         } else if (len1 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
-          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d1, killer: d2 });
+          this._emitDeath(d1, d2, resolveDeath)
         } else {
           this._emitRecoil(d1, d2, 1.0);
         }
       } else if (len2 < len1) {
         if (d1.attackActive) {
-          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+          this._emitDeath(d2, d1, resolveDeath)
         } else if (len2 < CONFIG.SMALL_DRAGON_DEATH_THRESHOLD) {
-          if (resolveDeath) this.eventBus.emit('dragon:death', { dragon: d2, killer: d1 });
+          this._emitDeath(d2, d1, resolveDeath)
         } else {
           this._emitRecoil(d1, d2, 1.0);
         }
@@ -227,12 +234,13 @@ class CollisionSystem {
     const hitDistSq = hitDist * hitDist;
     const lastIdx = bodyDragon.segments.length - 1;
 
-    const nearby = this.bodyHash
-      .query(head.x, head.y, hitDist)
-      .filter(item => item.dragon === bodyDragon)
-      .sort((a, b) => a.index - b.index);
+    // Avoid filter()+sort() allocations for every head/body pair every frame.
+    // Spatial-hash insertion order already follows segment order, so a direct
+    // scan produces the same collision priority with substantially less GC.
+    const nearby = this.bodyHash.query(head.x, head.y, hitDist);
 
     for (const item of nearby) {
+      if (item.dragon !== bodyDragon) continue;
       const seg = item.seg;
       const dx = head.x - seg.x;
       const dy = head.y - seg.y;
@@ -244,9 +252,7 @@ class CollisionSystem {
         const bodyLen = bodyDragon.segments.length;
 
         if (headLen > bodyLen) {
-          if (resolveDeath) {
-            this.eventBus.emit('dragon:death', { dragon: bodyDragon, killer: headDragon });
-          }
+          this._emitDeath(bodyDragon, headDragon, resolveDeath);
         } else if (headLen < bodyLen) {
           const isDrake = headLen >= 10 && headLen <= 14;
           if (isDrake && headDragon.attackActive) {

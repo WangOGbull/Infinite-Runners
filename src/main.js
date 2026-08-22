@@ -9,9 +9,9 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=49';
+import UIManager from './uiManager.js?v=50';
 import EffectsSystem from './effectsSystem.js';
-import WalletManager from './walletManager.js?v=49';
+import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -167,6 +167,9 @@ class Game {
     // This prevents stale position snapshots from resurrecting a remote dragon
     // and awarding the same kill repeatedly before its life update arrives.
     this._pendingCombatDeaths = new Map();
+    // Non-authority clients may show an immediate predicted death effect,
+    // but only the host event can change lives or award kills.
+    this._predictedCombatDeaths = new Map();
     this._combatListenStartedAt = 0;
     this.assetsLoaded = false;
     this.matchStats = {};
@@ -1171,9 +1174,34 @@ class Game {
     if (isLocal) this.effectsSystem.playHeadCollisionSound();
   }
 });
+    this.eventBus.on('collision:predicted-death', ({ dragon, killer }) => {
+      if (!this.isMultiplayer || this.isHost || !dragon || !dragon.playerId) return;
+      if (this._predictedCombatDeaths.has(dragon.playerId)) return;
+
+      const neon = (killer && CONFIG.DRAGON_NEON)
+        ? (CONFIG.DRAGON_NEON[killer.type] || '#ff6600')
+        : '#ff6600';
+      this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, neon);
+      this.effectsSystem.addShake(dragon === this.localDragon ? 10 : 4, 300);
+      this.effectsSystem.flashVignette(dragon === this.localDragon ? '#ff0000' : neon, 0.3, 300);
+      if (dragon === this.localDragon) this.effectsSystem.playDragonDeathSound();
+
+      const timer = setTimeout(() => {
+        this._predictedCombatDeaths.delete(dragon.playerId);
+      }, 1200);
+      this._predictedCombatDeaths.set(dragon.playerId, { timer });
+    });
+
     this.eventBus.on('dragon:death', ({ dragon, killer, networkEventId = null }) => {
       const isRemote = !!dragon.isRemote;
       const isLocal = dragon === this.localDragon;
+      const predicted = networkEventId && dragon.playerId
+        ? this._predictedCombatDeaths.get(dragon.playerId)
+        : null;
+      if (predicted) {
+        clearTimeout(predicted.timer);
+        this._predictedCombatDeaths.delete(dragon.playerId);
+      }
 
       // The host is the only multiplayer combat resolver. Publish its
       // decision once so every client applies the identical death.
@@ -1190,10 +1218,12 @@ class Game {
         ? (CONFIG.DRAGON_NEON[killer.type] || null)
         : null;
       const deathColor = neon || (isLocal ? '#ff2222' : '#ff6600');
-      this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
-      this.effectsSystem.addShake(isLocal ? 10 : 4, isLocal ? 500 : 300);
-      this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
-      if (isLocal) this.effectsSystem.playDragonDeathSound();
+      if (!predicted) {
+        this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, deathColor);
+        this.effectsSystem.addShake(isLocal ? 10 : 4, isLocal ? 500 : 300);
+        this.effectsSystem.flashVignette(isLocal ? '#ff0000' : (neon || '#ff4400'), isLocal ? 0.5 : 0.25, 400);
+        if (isLocal) this.effectsSystem.playDragonDeathSound();
+      }
       dragon.killStreak = 0;
 
       // ── Kill credit + sound + growth ──
@@ -2797,6 +2827,8 @@ class Game {
     this._combatEventListener = null;
     this._processedCombatEvents.clear();
     this._pendingCombatDeaths.clear();
+    for (const predicted of this._predictedCombatDeaths.values()) clearTimeout(predicted.timer);
+    this._predictedCombatDeaths.clear();
     this._combatListenStartedAt = 0;
     this.positionsListenerSet = false;
     this.remotePositions = {};
@@ -2806,9 +2838,17 @@ class Game {
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
     const now = Date.now();
-    // Throttle: 100ms = 10 writes/sec (was 50ms = 20 writes/sec)
-    // Matches the applyRemotePositions throttle — writing faster is wasted
-    if (this.lastBroadcast && now - this.lastBroadcast < 100) return;
+    // Use 20Hz near opponents for responsive combat and 10Hz elsewhere to
+    // avoid paying the higher Firebase/write cost for the whole match.
+    let syncInterval = 100;
+    const localHead = this.localDragon.head;
+    for (const dragon of this.dragonManager.getAllDragons()) {
+      if (!dragon.isRemote || !dragon.alive) continue;
+      const dx = localHead.x - dragon.head.x;
+      const dy = localHead.y - dragon.head.y;
+      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 50; break; }
+    }
+    if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
     this.positionsRef.child(this.localPlayerId).set({
       x: this.localDragon.head.x,
@@ -2835,10 +2875,10 @@ class Game {
       });
     }
 
-    // Throttle: apply cached positions at most every 100ms (10fps update)
-    // Interpolation in movementSystem smooths the visual gap
+    // Apply cached positions at 20Hz. This is local interpolation work and
+    // does not increase Firebase reads; it reduces close-combat visual delay.
     const now = performance.now();
-    if (now - this._lastRemoteApply < 100) return;
+    if (now - this._lastRemoteApply < 50) return;
     this._lastRemoteApply = now;
 
     const remoteData = this._remotePosCache;
@@ -3059,7 +3099,9 @@ class Game {
     this._updateSprintMath(deltaTime);
     if (doDOM) {
       const score = this.localDragon ? this.localDragon.score : 0;
-      const waveNum = this.isWaveMode() ? (this.currentWaveIndex + 1) : null;
+      const waveNum = !this.isMultiplayer && this.isWaveMode()
+        ? (this.currentWaveIndex + 1)
+        : null;
       this.uiManager.updateHUD(score, timeStr, this.localDragon, waveNum);
       this.uiManager.updateAttackMeter(this.localDragon);
       if (this.localDragon && this.localDragon.segments) {
@@ -3460,12 +3502,21 @@ class Game {
                       || (this.roomPlayers && Object.keys(this.roomPlayers).length)
                       || 2;
 
-      // Each player contributes 2.5% of their own stake. Since every stake
-      // is equal, that is exactly 2.5% of the combined pot for any mode.
-      const feePct = 2.5;
-      const pot = stake * numPlayers;
-      const fee = pot * (feePct / 100);
-      const payout = pot - fee;
+      // Treasury receives one flat 5% of the combined pot in every mode.
+      // Prefer canonical backend amounts once settlement exists; calculation
+      // is only the pre-result fallback, so the UI cannot disagree on payout.
+      const feePct = 5;
+      const calculatedPot = stake * numPlayers;
+      const canonicalPot = Number(settlement?.pot);
+      const canonicalFee = Number(settlement?.fee);
+      const canonicalPayout = Number(settlement?.payout);
+      const pot = Number.isFinite(canonicalPot) && canonicalPot > 0 ? canonicalPot : calculatedPot;
+      const fee = Number.isFinite(canonicalFee) && canonicalFee >= 0
+        ? canonicalFee
+        : pot * (feePct / 100);
+      const payout = Number.isFinite(canonicalPayout) && canonicalPayout >= 0
+        ? canonicalPayout
+        : pot - fee;
       const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 
       this.uiManager.showStakeBreakdown({
@@ -3528,6 +3579,8 @@ class Game {
     this.winner = null;
     this._pendingPurge = [];
     this._pendingCombatDeaths.clear();
+    for (const predicted of this._predictedCombatDeaths.values()) clearTimeout(predicted.timer);
+    this._predictedCombatDeaths.clear();
     this._remoteSovereign = {};
     this.positionsListenerSet = false;
 

@@ -1028,6 +1028,8 @@ class UIManager {
       if (statusText) { statusText.textContent = label || 'Processing your bet...'; statusText.className = 'depositStatusText pending'; }
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Placing bet...'; baStatus.style.color = '#eab308'; }
+      const depositBtn = document.getElementById('lobbyDepositBtn');
+      if (depositBtn) depositBtn.disabled = true;
     });
     this.eventBus.on('staking:confirmed', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
@@ -1036,10 +1038,40 @@ class UIManager {
       if (baStatus) { baStatus.textContent = 'Bet Placed'; baStatus.style.color = '#4ade80'; }
     });
     this.eventBus.on('staking:error', ({ message }) => {
+      const safeMessage = message || 'Stake failed. No deposit was confirmed. Please try again.';
       const statusText = document.getElementById('depositStatusText');
-      if (statusText) { statusText.textContent = message || 'Bet failed.'; statusText.className = 'depositStatusText error'; }
+      if (statusText) { statusText.textContent = safeMessage; statusText.className = 'depositStatusText error'; }
       const baStatus = document.getElementById('baYourStatus');
-      if (baStatus) { baStatus.textContent = 'Failed'; baStatus.style.color = '#ef4444'; }
+      if (baStatus) { baStatus.textContent = 'Failed — try again'; baStatus.style.color = '#ef4444'; }
+
+      // Always restore the retry control; a failed wallet/RPC attempt must not
+      // leave the lobby in a permanent loading state.
+      const depositBtn = document.getElementById('lobbyDepositBtn');
+      const depositLabel = document.getElementById('depositBtnLabel');
+      if (depositBtn) {
+        depositBtn.disabled = false;
+        depositBtn.style.display = 'flex';
+      }
+      if (depositLabel) depositLabel.textContent = 'TRY STAKE AGAIN';
+
+      let toast = document.getElementById('stakingErrorToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'stakingErrorToast';
+        Object.assign(toast.style, {
+          position: 'fixed', left: '50%', bottom: '24px', transform: 'translateX(-50%)',
+          zIndex: '10000', maxWidth: 'min(420px, calc(100vw - 32px))',
+          padding: '13px 18px', border: '1px solid #ef4444', borderRadius: '10px',
+          background: 'rgba(22, 7, 10, 0.96)', color: '#ffd5d5', textAlign: 'center',
+          fontFamily: 'Rajdhani, sans-serif', fontWeight: '700', letterSpacing: '.4px',
+          boxShadow: '0 8px 30px rgba(239,68,68,.28)'
+        });
+        document.body.appendChild(toast);
+      }
+      toast.textContent = safeMessage;
+      toast.style.display = 'block';
+      clearTimeout(this._stakingErrorToastTimer);
+      this._stakingErrorToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 6000);
     });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -1774,7 +1806,7 @@ class UIManager {
     pending = false, draw = false, won = false,
     delayed = false, error = false, errorStatus = null, errorMessage = null, roomCode = null,
     stakeText = null, potText = null, feeText = null, payoutText = null,
-    feePct = 2.5, signature = null, cluster = 'devnet'
+    feePct = 5, signature = null, cluster = 'devnet'
   } = {}) {
     const box = document.getElementById('goStakeBox');
     if (!box) return;
