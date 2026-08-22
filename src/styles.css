@@ -163,20 +163,64 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 /* ==================== MODE SELECT ==================== */
 /* ==================== MODE SELECT — DRAGON AGE ==================== */
-#modeSelectScreen{background:linear-gradient(180deg,rgba(4,8,18,0.72),rgba(4,8,18,0.45) 45%,rgba(4,8,18,0.85)),url('./scene_bg_night.png') center 60%/cover no-repeat;background-color:#05070f}
-#modeSelectScreen .modeBox{width:min(440px,calc(100vw - 24px));padding:26px 20px 22px;background:linear-gradient(180deg,rgba(15,24,44,0.95),rgba(8,13,26,0.97));border:2px solid transparent;border-image:linear-gradient(180deg,#f0d9a0 0%,#a97f45 50%,#6e5226 100%) 1;box-shadow:0 0 40px rgba(0,0,0,0.6),0 0 60px rgba(169,127,69,0.05) inset;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px);text-align:center}
-#modeSelectScreen h2{font-family:'Cinzel Decorative',cursive;font-weight:900;font-size:clamp(19px,5.4vw,26px);letter-spacing:3px;background:linear-gradient(180deg,#ffe9b8,#e8c887 45%,#a97f45);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.8)) drop-shadow(0 0 16px rgba(201,168,106,0.3));display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:6px}
+#modeSelectScreen{background:radial-gradient(circle at 50% 42%,rgba(13,26,52,.35),transparent 54%),#030812}
+#modeSelectScreen .modeBox{width:min(480px,calc(100vw - 24px));padding:21px 20px 22px;background:linear-gradient(180deg,rgba(13,24,45,.98),rgba(5,12,27,.99));border:1px solid #b9904f;box-shadow:0 18px 52px rgba(0,0,0,.68),0 0 55px rgba(40,82,145,.08) inset;clip-path:polygon(24px 0,calc(100% - 24px) 0,100% 24px,100% calc(100% - 24px),calc(100% - 24px) 100%,24px 100%,0 calc(100% - 24px),0 24px);text-align:center;position:relative;isolation:isolate}
+#modeSelectScreen .modeBox::before{content:'';position:absolute;inset:5px;z-index:-1;pointer-events:none;border:1px solid rgba(232,200,135,.18);clip-path:inherit}
+#modeSelectScreen .modeCrest{height:14px;display:flex;align-items:center;justify-content:center;margin-bottom:7px}
+#modeSelectScreen .modeCrest::before,#modeSelectScreen .modeCrest::after{content:'';width:78px;height:1px;background:linear-gradient(90deg,transparent,rgba(232,200,135,.85))}
+#modeSelectScreen .modeCrest::after{background:linear-gradient(90deg,rgba(232,200,135,.85),transparent)}
+#modeSelectScreen .modeCrest span{width:10px;height:10px;margin:0 9px;border:2px solid #d9b875;transform:rotate(45deg);box-shadow:0 0 10px rgba(232,200,135,.2)}
+#modeSelectScreen h2{font-family:'Cinzel Decorative',cursive;font-weight:900;font-size:clamp(21px,6vw,30px);line-height:1.18;letter-spacing:3px;background:linear-gradient(180deg,#fff0c7,#e2bc72 55%,#9d7135);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 5px rgba(0,0,0,.85)) drop-shadow(0 0 16px rgba(201,168,106,.25));display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;text-transform:uppercase}
 #modeSelectScreen h2::before,#modeSelectScreen h2::after{content:'';flex:0 0 26px;height:2px;background:linear-gradient(90deg,transparent,#c9a86a);-webkit-text-fill-color:initial}
 #modeSelectScreen h2::after{background:linear-gradient(270deg,transparent,#c9a86a)}
-#modeSelectScreen .sub{font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8fa3c4;margin-bottom:22px}
+#modeSelectScreen .sub{font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#91a3bf;margin-bottom:22px}
 .modeCards{display:flex;flex-direction:column;gap:14px;margin-bottom:20px}
-.modeCard{width:100%;padding:18px 16px;background:linear-gradient(180deg,rgba(16,26,48,0.9),rgba(9,15,30,0.95));border:1px solid rgba(169,127,69,0.45);color:#fff;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .12s;font-family:'Rajdhani',sans-serif;text-align:center;position:relative;overflow:hidden;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.modeCard{width:100%;padding:18px 16px;background:linear-gradient(145deg,rgba(14,27,52,.97),rgba(5,13,29,.98));border:1px solid rgba(169,127,69,.48);color:#fff;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .12s;font-family:'Rajdhani',sans-serif;text-align:center;position:relative;overflow:hidden;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
 .modeCard:hover{border-color:#e8c887;transform:translateY(-2px);box-shadow:0 6px 22px rgba(0,0,0,0.4),0 0 26px rgba(201,168,106,0.18),0 0 20px rgba(201,168,106,0.08) inset}
 .modeCard .mIcon{font-size:26px;line-height:1;margin-bottom:6px;color:#e8c887;filter:drop-shadow(0 0 8px rgba(232,200,135,0.5));display:flex;justify-content:center}
 .modeCard .mLabel{font-family:'Cinzel Decorative',cursive;font-size:15px;letter-spacing:2px;color:#ffe9b8}
 .modeCard .mDesc{font-size:11px;color:#7e8aa2;letter-spacing:.5px;margin-top:5px}
+#modeSelectScreen .modeCards{gap:16px;margin-bottom:20px}
+#modeSelectScreen .modeCard{min-height:156px;padding:20px 22px;display:grid;grid-template-columns:105px 1fr;align-items:center;text-align:left;overflow:visible}
+#modeSelectScreen .modeCard::before{content:'';position:absolute;inset:4px;border:1px solid rgba(232,200,135,.1);clip-path:inherit;pointer-events:none}
+#modeSelectScreen #btn1v1AI{border-color:#62b9ff;box-shadow:0 0 16px rgba(64,167,255,.34),0 0 2px #d9efff inset}
+#modeSelectScreen #btnMpMultiplayer{border-color:#a45cff;box-shadow:0 0 16px rgba(151,69,255,.34),0 0 2px #ead8ff inset}
+#modeSelectScreen #btn1v1AI:hover,#modeSelectScreen #btn1v1AI:focus-visible{border-color:#aaddff;box-shadow:0 7px 25px rgba(0,0,0,.45),0 0 24px rgba(64,167,255,.58)}
+#modeSelectScreen #btnMpMultiplayer:hover,#modeSelectScreen #btnMpMultiplayer:focus-visible{border-color:#cb9aff;box-shadow:0 7px 25px rgba(0,0,0,.45),0 0 24px rgba(151,69,255,.58)}
+#modeSelectScreen .mIcon{width:78px;height:78px;margin:0!important;border-radius:50%;display:grid!important;place-items:center;background:radial-gradient(circle,rgba(17,43,78,.8),rgba(7,15,31,.15) 68%);position:relative}
+#modeSelectScreen .mIcon::before{content:'';position:absolute;inset:5px;border:1px solid currentColor;border-radius:50%;opacity:.25}
+#modeSelectScreen .mIcon svg{width:42px;height:42px;stroke-width:1.6}
+#modeSelectScreen #btn1v1AI .mIcon{color:#e8c887;filter:drop-shadow(0 0 9px rgba(64,167,255,.65))}
+#modeSelectScreen #btnMpMultiplayer .mIcon{color:#e8c887;filter:drop-shadow(0 0 9px rgba(151,69,255,.65))}
+#modeSelectScreen .mContent{min-width:0;text-align:left}
+#modeSelectScreen .mLabel{font-size:clamp(17px,4.8vw,23px);line-height:1.15;letter-spacing:2.2px;text-transform:uppercase;white-space:nowrap}
+#modeSelectScreen .mDivider{display:flex;align-items:center;margin:9px 0 7px;width:100%;max-width:220px}
+#modeSelectScreen .mDivider::before,#modeSelectScreen .mDivider::after{content:'';height:1px;flex:1;background:linear-gradient(90deg,rgba(201,168,106,.15),rgba(201,168,106,.65))}
+#modeSelectScreen .mDivider::after{background:linear-gradient(90deg,rgba(201,168,106,.65),rgba(201,168,106,.15))}
+#modeSelectScreen .mDivider span{width:7px;height:7px;border:1px solid #d2ad67;transform:rotate(45deg);margin:0 5px}
+#modeSelectScreen .mDesc{font-size:12px;line-height:1.35;color:#95a4bc;letter-spacing:.25px;margin:0}
+#modeSelectScreen .mTags{display:flex;gap:9px;margin-top:10px}
+#modeSelectScreen .mTags span{min-width:68px;padding:4px 12px;border:1px solid currentColor;text-align:center;text-transform:uppercase;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:2px;color:#7cc8ff;background:rgba(17,64,104,.18);clip-path:polygon(7px 0,100% 0,calc(100% - 7px) 100%,0 100%)}
+#modeSelectScreen #btnMpMultiplayer .mTags span{color:#bd8cff;background:rgba(80,32,121,.18)}
 #modeSelectScreen #btnModeBack{margin:14px auto 0;border:none;background:linear-gradient(180deg,#f0d9a0 0%,#a97f45 50%,#6e5226 100%);padding:9px 22px;cursor:pointer;clip-path:polygon(16px 0,100% 0,calc(100% - 12px) 100%,0 100%,0 16px);font-family:'Cinzel Decorative',cursive;font-weight:700;font-size:12px;letter-spacing:2px;color:#241a0c;display:inline-flex;align-items:center;gap:8px;transition:filter .15s}
 #modeSelectScreen #btnModeBack:hover{filter:brightness(1.2)}
+@media(max-width:430px){
+  #modeSelectScreen .modeBox{width:calc(100vw - 22px);padding:18px 14px 19px}
+  #modeSelectScreen .modeCard{min-height:144px;grid-template-columns:86px 1fr;padding:16px 14px}
+  #modeSelectScreen .mIcon{width:68px;height:68px}
+  #modeSelectScreen .mIcon svg{width:36px;height:36px}
+  #modeSelectScreen .mLabel{font-size:16px;letter-spacing:1.6px}
+  #modeSelectScreen .mDesc{font-size:11px}
+  #modeSelectScreen .mTags span{min-width:60px;padding:4px 8px}
+}
+@media(max-height:700px){
+  #modeSelectScreen .modeBox{padding-top:14px;padding-bottom:15px}
+  #modeSelectScreen .modeCrest{margin-bottom:3px}
+  #modeSelectScreen .sub{margin-bottom:13px}
+  #modeSelectScreen .modeCards{gap:11px;margin-bottom:10px}
+  #modeSelectScreen .modeCard{min-height:126px;padding-top:12px;padding-bottom:12px}
+  #modeSelectScreen #btnModeBack{margin-top:5px}
+}
 
 /* ==================== DIFFICULTY MODAL ==================== */
 #difficultyModal{background:rgba(3,8,20,0.92)}
