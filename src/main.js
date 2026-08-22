@@ -143,6 +143,8 @@ class Game {
     this.firebaseApp = null;
     this.db = null;
     this.roomRef = null;
+    this.matchId = null;
+    this._endingGame = false;
     this.isMultiplayer = false;
     this.aiDifficulty = 'advanced';
     this.selectedMpMode = 'FFA';
@@ -1472,7 +1474,9 @@ class Game {
         const living = this.dragonManager.getLivingDragons();
         const othersAlive = living.filter(d => d !== this.localDragon);
         if (othersAlive.length === 0) {
-          this.endGame(true);
+          // Await the backend's canonical settlement instead of ending from
+          // a client-side snapshot that may still be catching up.
+          return;
         } else if (!this.isSpectating || !this.spectateTarget || !this.spectateTarget.alive) {
           this.enterSpectateMode(othersAlive);
         }
@@ -2056,6 +2060,7 @@ class Game {
     this.aiController = new AIController(this.arenaManager, this.foodSystem, difficulty);
     this.matchStats = {};
     this.winner = null;
+    this._endingGame = false;
     this._pendingPurge = [];
     if (this.isMultiplayer && this.playerIds && this.playerIds.length > 0) {
       const myIndex = this.playerIds.indexOf(this.localPlayerId);
@@ -2162,6 +2167,7 @@ class Game {
       tier: presetTier,
       matched: !!matched,
       staking: { hostDeposited: false, opponentDeposited: false },
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
       players: {
         local: {
           name: this.username || 'Player 1',
@@ -2323,6 +2329,7 @@ class Game {
       }
       this.lobbyTier = data.tier || null;
       this._customStakeAmount = data.customAmount || null;
+      this.matchId = data.matchId || null;
       this.stakingState = {
         hostDeposited: !!(data.staking && data.staking.hostDeposited),
         opponentDeposited: !!(data.staking && data.staking.opponentDeposited),
@@ -2502,6 +2509,7 @@ class Game {
     }
     this.isHost = false;
     this.roomCode = '';
+    this.matchId = null;
     this.localPlayerId = null;
     this.playerIds = [];
     this.roomPlayers = {};
@@ -2538,8 +2546,17 @@ class Game {
       return;
     }
     if (this.roomRef && this.isHost) {
+      // A room code can be reused; settlement must never be keyed by it alone.
+      // Generate an immutable identity for this exact match before play starts.
+      this.matchId = [
+        this.roomCode,
+        Date.now().toString(36),
+        Math.random().toString(36).slice(2, 10)
+      ].join('-');
       this.roomRef.update({
         status: 'playing',
+        matchId: this.matchId,
+        gameStartedAt: firebase.database.ServerValue.TIMESTAMP,
         gameConfig: {
           mode: this.selectedMpMode || 'FFA',
           arenaIndex: this.lobbyArenaIndex,
@@ -2583,6 +2600,7 @@ class Game {
     this._rememberCombatEvent(eventId);
     eventRef.set({
       type: 'death',
+      matchId: this.matchId,
       victimId,
       killerId: killerId || null,
       createdAt: Date.now()
@@ -2594,8 +2612,11 @@ class Game {
   }
 
   _startCombatEventSync() {
-    if (!this.roomRef || !this.localPlayerId) return;
-    this.combatEventsRef = this.roomRef.child('combatEvents');
+    if (!this.roomRef || !this.localPlayerId || !this.matchId) {
+      console.error('[Combat] Cannot start sync without room, player and match identity.');
+      return;
+    }
+    this.combatEventsRef = this.roomRef.child('combatEvents/' + this.matchId);
     this._processedCombatEvents.clear();
     this._combatListenStartedAt = Date.now();
 
@@ -2603,6 +2624,7 @@ class Game {
       const eventId = snapshot.key;
       const event = snapshot.val();
       if (!eventId || !event || event.type !== 'death') return;
+      if (event.matchId !== this.matchId) return;
       if (this._processedCombatEvents.has(eventId)) return;
 
       // child_added also replays old children. Ignore events from an earlier
@@ -2969,7 +2991,8 @@ class Game {
       }
     }
 
-    if (this.state === 'PLAYING') {
+    if (this.state === 'PLAYING' && !this.isMultiplayer) {
+      // Multiplayer waits for the backend's canonical settlement result.
       // Reuse the already-iterated _livingDragons instead of re-filtering
       // allDragons (avoids 2x Array allocation + 2x full scan per frame).
       let livingWithLives = [];
@@ -3066,6 +3089,11 @@ class Game {
   }
 
   endGame(hasWinner = false) {
+    // Multiple Firebase callbacks and render frames can observe the same
+    // terminal state. Only the first call may record stats or change screens.
+    if (this._endingGame || this.state === 'GAME_OVER') return;
+    this._endingGame = true;
+
     // Computed once so both the DB-write branch below and the
     // game-over-sound gate at screen-show time agree on the outcome.
     const _localWon = hasWinner && this.winner === this.localDragon;
@@ -3387,11 +3415,11 @@ class Game {
                       || (this.roomPlayers && Object.keys(this.roomPlayers).length)
                       || 2;
 
-      // ── Fee: 2.5% per player (matches hotWalletSettlement.js FEE_BPS_PER_PLAYER) ──
-      const feePerPlayerPct = 2.5;
-      const totalFeePct = feePerPlayerPct * numPlayers;
+      // Each player contributes 2.5% of their own stake. Since every stake
+      // is equal, that is exactly 2.5% of the combined pot for any mode.
+      const feePct = 2.5;
       const pot = stake * numPlayers;
-      const fee = pot * (totalFeePct / 100);
+      const fee = pot * (feePct / 100);
       const payout = pot - fee;
       const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 
@@ -3401,7 +3429,7 @@ class Game {
         potText: stake ? `${fmt(pot)} INFINITE` : null,
         feeText: stake ? `-${fmt(fee)} INFINITE` : null,
         payoutText: stake ? `${fmt(payout)} INFINITE` : null,
-        feePct: totalFeePct,
+        feePct,
         signature: settlement?.signature || null,
         cluster: settlement?.cluster || 'mainnet-beta',
       });
@@ -3448,6 +3476,7 @@ class Game {
     this.localPlayerId = null;
     this.isHost = false;
     this.roomCode = '';
+    this.matchId = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
     this._matchedMode = false;
     this.remotePositions = {};
