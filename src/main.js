@@ -1,19 +1,19 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js?v=51';
+import { DragonManager } from './dragonManager.js?v=52';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
 import ArenaManager from './arenaManager.js';
-import FoodSystem from './foodSystem.js?v=51';
+import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=51';
+import UIManager from './uiManager.js?v=52';
 import EffectsSystem from './effectsSystem.js';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
-import AIController from './aiController.js?v=51';
+import AIController from './aiController.js?v=52';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
 
 const BACKEND_URL = 'https://infiniterunners-firebase-backend-production.up.railway.app';
@@ -51,6 +51,15 @@ class BootLoader {
     this.retryBtn = document.getElementById('bootRetryBtn');
     this.lastTick = Date.now();
     this.done = false;
+    this.skipIntro = false;
+    try {
+      this.skipIntro = sessionStorage.getItem('infiniteRunnersBootComplete') === '1';
+    } catch (_) {}
+    if (this.skipIntro && this.el) {
+      // Assets still validate in the background; only the repeated full-screen
+      // summoning animation is skipped for this browser-tab session.
+      this.el.style.display = 'none';
+    }
     this.watchdog = setInterval(() => {
       if (this.done) return;
       if (Date.now() - this.lastTick > 10000) this.showNetWarning();
@@ -80,7 +89,12 @@ class BootLoader {
     if (this.pct) this.pct.textContent = '100%';
     if (this.status) this.status.textContent = 'The arena awaits.';
     this.hideNetWarning();
+    try { sessionStorage.setItem('infiniteRunnersBootComplete', '1'); } catch (_) {}
     if (this.el) {
+      if (this.skipIntro) {
+        if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
+        return;
+      }
       setTimeout(() => this.el.classList.add('boot-done'), 350);
       setTimeout(() => { if (this.el.parentNode) this.el.parentNode.removeChild(this.el); }, 1100);
     }
@@ -241,6 +255,7 @@ class Game {
         urlHasWalletReturn = !!(params.get('walletReturn') || this.walletManager._walletReturnType || this.walletManager._arrivedInWalletBrowser);
       } catch (_) {}
       if (this.walletManager._arrivedInWalletBrowser) {
+        this._setLoadingMessage('Returning to Arena…');
         this.uiManager.showScreen('loadingScreen');
         await this.loadGameAssets();
         if (this.authUid && this._handoffResumeRoom) {
@@ -255,7 +270,10 @@ class Game {
         }
       } else if (urlHasWalletReturn) {
         const alreadyRestored = !!this.roomRef;
-        if (!alreadyRestored) this.uiManager.showScreen('loadingScreen');
+        if (!alreadyRestored) {
+          this._setLoadingMessage('Returning to Arena…');
+          this.uiManager.showScreen('loadingScreen');
+        }
         setTimeout(() => {
           if (this._stakingResumeInFlight) return;
           if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
@@ -343,6 +361,11 @@ class Game {
       }
     }
     this.loadGameAssets();
+  }
+
+  _setLoadingMessage(message) {
+    const el = document.getElementById('loadingMessage');
+    if (el) el.textContent = message || 'Entering the Arena...';
   }
 
   async _createAuthHandoffCode(roomCode) {
@@ -2176,6 +2199,7 @@ class Game {
       this.uiManager.showScreen('modeSelectScreen');
       return;
     }
+    this._prepareForNewRoom();
     this.roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     this.isHost = true;
     this.selectedMpMode = mpMode || 'FFA';
@@ -2260,6 +2284,7 @@ class Game {
       console.warn('[joinRoom] already in a room — ignoring duplicate call');
       return;
     }
+    this._prepareForNewRoom();
     this._joinInProgress = true;
     this.roomCode = code;
     this.isHost = false;
@@ -2358,6 +2383,10 @@ class Game {
     this._roomListener = (snap) => {
       const data = snap.val();
       if (!data) return;
+      if (this.localPlayerId && data.kickedPlayers && data.kickedPlayers[this.localPlayerId]) {
+        this._handleKickedFromRoom();
+        return;
+      }
       this.roomPlayers = data.players || {};
       this.playerIds = Object.keys(this.roomPlayers);
       this._remoteSovereign = {};
@@ -2411,16 +2440,6 @@ class Game {
         this._stopFFACountdown();
       }
       const prevCount = this._lastPlayerCount || 0;
-      if (prevCount >= 2 && players.length === 1
-          && this.localPlayerId === players[0].id
-          && data.status !== 'playing'
-          && this.state !== 'PLAYING' && this.state !== 'GAME_OVER') {
-        console.log('[Room] Last player standing — auto-leaving to main menu');
-        this.eventBus.emit('staking:pending', {
-          label: 'Everyone else left this room — returning you to the menu.',
-        });
-        setTimeout(() => this.leaveRoom(), 400);
-      }
       this._lastPlayerCount = players.length;
       // Show "USERNAME joined" toast when a new player appears
       if (players.length > prevCount && prevCount > 0) {
@@ -2452,7 +2471,7 @@ class Game {
     if (this.roomCode && this.matchmaking) this.matchmaking.announceRoomReady(this.roomCode);
   }
 
-  kickPlayer(playerId) {
+  async kickPlayer(playerId) {
     if (!this.isHost || !this.roomRef || !playerId) return;
     if (playerId === 'local') return;
     const p = (this.roomPlayers && this.roomPlayers[playerId]) || null;
@@ -2462,8 +2481,52 @@ class Game {
       return;
     }
     try {
-      this.roomRef.child('players/' + playerId).remove();
+      // Publish the notice and remove the player atomically. The kicked
+      // client can leave locally without deleting the host's room.
+      const updates = {};
+      updates[`kickedPlayers/${playerId}`] = {
+        kickedAt: firebase.database.ServerValue.TIMESTAMP,
+        kickedBy: this.localPlayerId || 'local',
+      };
+      updates[`players/${playerId}`] = null;
+      await this.roomRef.update(updates);
     } catch (e) { console.warn('kickPlayer error:', e); }
+  }
+
+  _handleKickedFromRoom() {
+    const oldRoomRef = this.roomRef;
+    const oldPlayerId = this.localPlayerId;
+    this.stopNetworkSync();
+    this._stopFFACountdown();
+    if (oldRoomRef && this._roomListener) {
+      try { oldRoomRef.off('value', this._roomListener); } catch (_) {}
+    }
+    if (oldRoomRef) {
+      try { oldRoomRef.off(); } catch (_) {}
+      if (this.authUid) {
+        try { oldRoomRef.child('presence/' + this.authUid).remove(); } catch (_) {}
+      }
+      if (oldPlayerId) {
+        try { oldRoomRef.child('kickedPlayers/' + oldPlayerId).remove(); } catch (_) {}
+      }
+    }
+    this._roomListener = null;
+    this.roomRef = null;
+    this.roomCode = '';
+    this.localPlayerId = null;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this._lastPlayerCount = 0;
+    this.isHost = false;
+    this.isMultiplayer = false;
+    this._matchedMode = false;
+    this.lobbyTier = null;
+    this._customStakeAmount = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this._consumeLobbyContext();
+    this._clearLastRoom();
+    if (this.uiManager.resetLobbyState) this.uiManager.resetLobbyState();
+    this.uiManager.returnToMenuWithProcessing('mpMenuScreen', 'You were removed from the room.');
   }
 
   _shouldRunFFACountdown(roomData, players, roomMode) {
@@ -2556,13 +2619,32 @@ class Game {
     this.lobbyArenaIndex = 0;
     this.lobbyTier = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this._customStakeAmount = null;
+    this._stakingResumeInFlight = false;
     this._consumeLobbyContext();
     this._clearLastRoom();
+    if (this.uiManager.resetLobbyState) this.uiManager.resetLobbyState();
     if (iStaked && !matchStarted) {
       this.uiManager.returnToMenuWithProcessing('titleScreen', 'Processing your refund…');
     } else {
       this.uiManager.showScreen('titleScreen');
     }
+  }
+
+  _prepareForNewRoom() {
+    // Reset room and match UI only. Wallet/provider state is intentionally
+    // outside this method and remains connected.
+    this.state = 'MENU';
+    this._endingGame = false;
+    this.matchId = null;
+    this._lastPlayerCount = 0;
+    this._customStakeAmount = null;
+    this._stakingResumeInFlight = false;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this.roomPlayers = {};
+    this.playerIds = [];
+    this._stopFFACountdown();
+    if (this.uiManager.resetLobbyState) this.uiManager.resetLobbyState();
   }
 
   startMpGame() {
@@ -2902,14 +2984,27 @@ class Game {
         pendingDeath = null;
       }
 
-      // Position and heading are rendered continuously by DragonManager.
-      // Keeping both in one target prevents the visible 20 Hz angle snapping
-      // without changing the host's collision/death authority.
-      dragon.remoteTarget = { x: pos.x, y: pos.y, angle: pos.angle };
+      const isConfirmedRespawn = pos.alive === true && !dragon.alive && !pendingDeath;
+      if (isConfirmedRespawn) {
+        // Rebuild the complete body while it is still hidden. Interpolating
+        // from the death location exposed a travelling shadow and leaked the
+        // next spawn edge to opponents.
+        dragon.head.x = pos.x;
+        dragon.head.y = pos.y;
+        if (Number.isFinite(pos.angle)) dragon.angle = pos.angle;
+        dragon.remoteTarget = { x: pos.x, y: pos.y, angle: pos.angle };
+        dragon.collisionRecoilX = 0;
+        dragon.collisionRecoilY = 0;
+        this.dragonManager.initDragonSegments(dragon, pos.x, pos.y);
+        if (typeof pos.segments === 'number') this._resizeRemoteDragon(dragon, pos.segments);
+      } else {
+        // Normal live snapshots remain smoothly interpolated.
+        dragon.remoteTarget = { x: pos.x, y: pos.y, angle: pos.angle };
+      }
       dragon.attackActive = !!pos.attackActive;
       dragon.boostActive = dragon.attackActive;
 
-      if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
+      if (!isConfirmedRespawn && typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
         this._resizeRemoteDragon(dragon, pos.segments);
       }
       if (!pendingDeath && typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
@@ -2921,7 +3016,7 @@ class Game {
           dragon.alive = false;
         } else if (pos.alive) {
           dragon.alive = true;
-          this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
+          this.effectsSystem.spawnParticles(pos.x, pos.y, '#00ff88', 10, 3, 400);
         } else {
           dragon.alive = false;
         }
@@ -2972,10 +3067,17 @@ class Game {
     }
     this.uiManager.showScreen('gameScreen');
     const pauseBtn = document.getElementById('pauseBtn');
+    const scoreDisplay = document.getElementById('scoreDisplay');
     if (pauseBtn) {
-      pauseBtn.style.display = this.isMultiplayer ? 'none' : '';
+      if (this.isMultiplayer) pauseBtn.style.setProperty('display', 'none', 'important');
+      else pauseBtn.style.removeProperty('display');
       pauseBtn.setAttribute('aria-hidden', this.isMultiplayer ? 'true' : 'false');
       pauseBtn.disabled = this.isMultiplayer;
+    }
+    if (scoreDisplay) {
+      if (this.isMultiplayer) scoreDisplay.style.setProperty('display', 'none', 'important');
+      else scoreDisplay.style.removeProperty('display');
+      scoreDisplay.setAttribute('aria-hidden', this.isMultiplayer ? 'true' : 'false');
     }
     this.uiManager.showCountdown(3, () => {
       this.lastTime = performance.now();
@@ -3593,6 +3695,10 @@ class Game {
     this.roomCode = '';
     this.matchId = null;
     this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this.lobbyTier = null;
+    this._customStakeAmount = null;
+    this._lastPlayerCount = 0;
+    this._stakingResumeInFlight = false;
     this._matchedMode = false;
     this.remotePositions = {};
     this.winner = null;
@@ -3625,6 +3731,9 @@ class Game {
       this.roomRef = null;
     }
     this.positionsRef = null;
+    this._consumeLobbyContext();
+    this._clearLastRoom();
+    if (this.uiManager.resetLobbyState) this.uiManager.resetLobbyState();
 
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
