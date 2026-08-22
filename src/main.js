@@ -3502,8 +3502,8 @@ class Game {
                       || (this.roomPlayers && Object.keys(this.roomPlayers).length)
                       || 2;
 
-      // Each player contributes 2.5% of their own stake. Since every stake
-      // is equal, that is exactly 2.5% of the combined pot for any mode.
+      // Treasury receives one flat 5% of the combined pot in every mode.
+      // Player count changes the pot, never the percentage.
       const feePct = 5;
       const pot = stake * numPlayers;
       const fee = pot * (feePct / 100);
