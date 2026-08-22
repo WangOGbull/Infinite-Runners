@@ -9,9 +9,9 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=48';
+import UIManager from './uiManager.js?v=49';
 import EffectsSystem from './effectsSystem.js';
-import WalletManager from './walletManager.js?v=48';
+import WalletManager from './walletManager.js?v=49';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -163,6 +163,10 @@ class Game {
     this.combatEventsRef = null;
     this._combatEventListener = null;
     this._processedCombatEvents = new Set();
+    // Host-side acknowledgement lock: one unresolved death per victim/life.
+    // This prevents stale position snapshots from resurrecting a remote dragon
+    // and awarding the same kill repeatedly before its life update arrives.
+    this._pendingCombatDeaths = new Map();
     this._combatListenStartedAt = 0;
     this.assetsLoaded = false;
     this.matchStats = {};
@@ -2591,9 +2595,19 @@ class Game {
     const killerId = killer && killer.playerId;
     if (!victimId) return null;
 
+    const previousLives = Number.isFinite(victim.lives) ? victim.lives : null;
+    const pending = this._pendingCombatDeaths.get(victimId);
+    if (pending && (previousLives === null || pending.previousLives === previousLives)) {
+      return null;
+    }
+
     const eventRef = this.combatEventsRef.push();
     const eventId = eventRef.key;
     if (!eventId) return null;
+
+    // Lock this victim/life before writing. Position sync must acknowledge a
+    // lower life count before another death can be published for this player.
+    this._pendingCombatDeaths.set(victimId, { eventId, previousLives });
 
     // Mark before writing so the host does not process its own child_added
     // notification after already applying the collision locally.
@@ -2607,6 +2621,8 @@ class Game {
     }).catch(error => {
       console.error('[Combat] Failed to publish authoritative death:', error);
       this._processedCombatEvents.delete(eventId);
+      const current = this._pendingCombatDeaths.get(victimId);
+      if (current && current.eventId === eventId) this._pendingCombatDeaths.delete(victimId);
     });
     return eventId;
   }
@@ -2618,6 +2634,7 @@ class Game {
     }
     this.combatEventsRef = this.roomRef.child('combatEvents/' + this.matchId);
     this._processedCombatEvents.clear();
+    this._pendingCombatDeaths.clear();
     this._combatListenStartedAt = Date.now();
 
     this._combatEventListener = snapshot => {
@@ -2779,6 +2796,7 @@ class Game {
     this.combatEventsRef = null;
     this._combatEventListener = null;
     this._processedCombatEvents.clear();
+    this._pendingCombatDeaths.clear();
     this._combatListenStartedAt = 0;
     this.positionsListenerSet = false;
     this.remotePositions = {};
@@ -2831,6 +2849,16 @@ class Game {
       const pos = remoteData[dragon.playerId];
       if (!pos) continue;
 
+      // A host-published death remains locked until the victim broadcasts a
+      // lower life count. Older snapshots may move the corpse, but cannot set
+      // it alive again or make the same life eligible for another kill.
+      let pendingDeath = this._pendingCombatDeaths.get(dragon.playerId);
+      if (pendingDeath && typeof pos.lives === 'number' &&
+          (pendingDeath.previousLives === null || pos.lives < pendingDeath.previousLives)) {
+        this._pendingCombatDeaths.delete(dragon.playerId);
+        pendingDeath = null;
+      }
+
       dragon.remoteTarget = { x: pos.x, y: pos.y };
       dragon.angle = pos.angle;
       dragon.attackActive = !!pos.attackActive;
@@ -2839,11 +2867,14 @@ class Game {
       if (typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
         this._resizeRemoteDragon(dragon, pos.segments);
       }
-      if (typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
+      if (!pendingDeath && typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
         dragon.lives = pos.lives;
       }
       if (typeof pos.alive === 'boolean' && pos.alive !== dragon.alive) {
-        if (pos.alive) {
+        if (pos.alive && pendingDeath) {
+          // Ignore stale resurrection until the victim acknowledges life loss.
+          dragon.alive = false;
+        } else if (pos.alive) {
           dragon.alive = true;
           this.effectsSystem.spawnParticles(dragon.head.x, dragon.head.y, '#00ff88', 10, 3, 400);
         } else {
@@ -2879,6 +2910,7 @@ class Game {
     this.gameStartTime = Date.now();
     this._frameCount = 0;
     this._pendingPurge = [];
+    this._pendingCombatDeaths.clear();
     this._cacheGameDOM();
     if (this.uiManager.setLocalDragonRef) this.uiManager.setLocalDragonRef(this.localDragon);
     const sab = document.getElementById('stoneAgeBar');
@@ -2894,6 +2926,12 @@ class Game {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     this.uiManager.showScreen('gameScreen');
+    const pauseBtn = document.getElementById('pauseBtn');
+    if (pauseBtn) {
+      pauseBtn.style.display = this.isMultiplayer ? 'none' : '';
+      pauseBtn.setAttribute('aria-hidden', this.isMultiplayer ? 'true' : 'false');
+      pauseBtn.disabled = this.isMultiplayer;
+    }
     this.uiManager.showCountdown(3, () => {
       this.lastTime = performance.now();
       this.loop();
@@ -3066,6 +3104,13 @@ class Game {
   }
 
   pauseGame() {
+    // Competitive multiplayer cannot be paused by one client. The match,
+    // network sync and host collision authority must remain live for everyone.
+    if (this.isMultiplayer) {
+      this.isPaused = false;
+      this.uiManager.showPauseOverlay(false);
+      return;
+    }
     this.isPaused = true;
     this.uiManager.showPauseOverlay(true, this.isMultiplayer);
     // Hide HUD elements so they don't poke through the pause overlay
@@ -3482,6 +3527,7 @@ class Game {
     this.remotePositions = {};
     this.winner = null;
     this._pendingPurge = [];
+    this._pendingCombatDeaths.clear();
     this._remoteSovereign = {};
     this.positionsListenerSet = false;
 
