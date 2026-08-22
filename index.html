@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"> 
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> 
-<link rel="stylesheet" href="./src/styles.css?v=53">
+<link rel="stylesheet" href="./src/styles.css?v=54">
 
 <style> 
   html, body { overflow-x: hidden; max-width: 100vw; } 
@@ -3350,7 +3350,13 @@
     <p class="sub">Select how you want to play</p>
     <div class="modeCards">
       <div class="modeCard" id="btn1v1AI" data-mode="1v1AI">
-        <div class="mIcon"><i data-lucide="swords"></i></div>
+        <div class="mIcon" aria-hidden="true">
+          <svg class="battleModeIcon battleModeSwords" viewBox="0 0 96 96" role="img">
+            <path d="M21 13l27 27-8 8L13 21V13h8zM75 13L48 40l8 8 27-27v-8h-8z"/>
+            <path d="M43 45L20 68m33-23l23 23M14 66l16 16m52-16L66 82M12 75l9 9m63-9l-9 9"/>
+            <path d="M13 83l14-5-9-9-5 14zm70 0l-14-5 9-9 5 14z"/>
+          </svg>
+        </div>
         <div class="mContent">
           <div class="mLabel">1v1 vs AI</div>
           <div class="mDivider" aria-hidden="true"><span></span></div>
@@ -3359,7 +3365,12 @@
         </div>
       </div>
       <div class="modeCard" id="btnMpMultiplayer" data-mode="multiplayer">
-        <div class="mIcon"><i data-lucide="network"></i></div>
+        <div class="mIcon" aria-hidden="true">
+          <svg class="battleModeIcon battleModePlayers" viewBox="0 0 96 96" role="img">
+            <circle cx="48" cy="20" r="10"/><circle cx="22" cy="68" r="10"/><circle cx="74" cy="68" r="10"/>
+            <path d="M34 35h28v16H34zM8 81V67c0-7 6-13 14-13s14 6 14 13v14H8zm52 0V67c0-7 6-13 14-13s14 6 14 13v14H60zM48 31v20M30 59l18-15 18 15"/>
+          </svg>
+        </div>
         <div class="mContent">
           <div class="mLabel">Multiplayer</div>
           <div class="mDivider" aria-hidden="true"><span></span></div>
