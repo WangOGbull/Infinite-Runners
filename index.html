@@ -1091,25 +1091,17 @@
       width: 100vw !important; 
       height: 100vh !important; 
       overflow: hidden; 
-      background: #0a0500 !important; 
+      background: #000 !important;
   } 
   #difficultyModal.active { 
       display: flex !important; 
       align-items: center !important; 
       justify-content: center !important; 
   } 
-  #difficultyModal::before { 
-      content: ''; 
-      position: absolute; 
-      inset: -20%; 
-      background-image: url('./assets/select-trial-celestial-v1.jpg');
-      background-size: cover; 
-      background-position: center; 
-      filter: blur(90px) saturate(1.5) brightness(0.55); 
-      transform: scale(1.25); 
-      z-index: 0; 
-      pointer-events: none; 
-  } 
+  #difficultyModal::before {
+      content: none;
+      display: none;
+  }
   #difficultyModal > .difficultyBox { 
       position: relative; 
       z-index: 1; 
