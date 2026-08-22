@@ -81,22 +81,27 @@ class UIManager {
     const countEl = textEl.querySelector('.wave-countdown-number');
 
     let count = 3;
+    const restartCountAnimation = () => {
+      if (!countEl) return;
+      countEl.style.animation = 'none';
+      // Restart on the next paint instead of reading offsetHeight, which
+      // forced the browser to synchronously recalculate the entire HUD.
+      requestAnimationFrame(() => {
+        if (countEl.isConnected) countEl.style.animation = '';
+      });
+    };
     const tick = () => {
       count--;
       if (count > 0) {
         if (countEl) {
           countEl.textContent = count;
-          countEl.style.animation = 'none';
-          countEl.offsetHeight;
-          countEl.style.animation = '';
+          restartCountAnimation();
         }
         setTimeout(tick, 1000);
       } else if (count === 0) {
         if (countEl) {
           countEl.textContent = 'GO!';
-          countEl.style.animation = 'none';
-          countEl.offsetHeight;
-          countEl.style.animation = '';
+          restartCountAnimation();
         }
         setTimeout(tick, 800);
       } else {

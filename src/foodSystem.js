@@ -157,11 +157,10 @@ class FoodSystem {
     this.spawnFood();
   }
 
-  update(deltaTime) {
-    for (const food of this.foods.values()) {
-      food.pulse += 0.05;
-    }
-  }
+  // Pulse animation is derived from time in render(). Keeping this method as
+  // a no-op preserves the public interface while removing 250 mutations from
+  // every gameplay frame.
+  update(_deltaTime) {}
 
   getFoodInRadius(x, y, radius) {
     const result = [];
@@ -183,6 +182,7 @@ class FoodSystem {
     // shadowBlur + fillText per item. ~50x faster on mobile.
     // The neon glow is baked into the sprite at init time.
     const halfSprite = this._spriteSize / 2;
+    const pulseTime = performance.now() * 0.003;
 
     for (const food of this.foods.values()) {
       if (!camera.isInView(food.x, food.y, 60)) continue;
@@ -191,7 +191,7 @@ class FoodSystem {
       if (!sprite) continue;
 
       // Pulse the scale slightly for a living feel
-      const pulse = 1 + Math.sin(food.pulse) * 0.12;
+      const pulse = 1 + Math.sin(pulseTime + food.pulse) * 0.12;
       const drawSize = food.radius * 8 * pulse;
 
       ctx.drawImage(

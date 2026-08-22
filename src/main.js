@@ -1,19 +1,19 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js';
+import { DragonManager } from './dragonManager.js?v=51';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
 import ArenaManager from './arenaManager.js';
-import FoodSystem from './foodSystem.js';
+import FoodSystem from './foodSystem.js?v=51';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=50';
+import UIManager from './uiManager.js?v=51';
 import EffectsSystem from './effectsSystem.js';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
-import AIController from './aiController.js';
+import AIController from './aiController.js?v=51';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
 
 const BACKEND_URL = 'https://infiniterunners-firebase-backend-production.up.railway.app';
@@ -181,6 +181,9 @@ class Game {
     this._waveTransitionPending = false;
     this._pendingPurge = [];
     this._frameCount = 0;
+    // Reused every frame to avoid short-lived Map allocations and the
+    // garbage-collection pauses they cause on lower-powered mobile devices.
+    this._inputMap = new Map();
     this._domRefs = {};
     this._roomListener = null;
     this.init();
@@ -2899,8 +2902,10 @@ class Game {
         pendingDeath = null;
       }
 
-      dragon.remoteTarget = { x: pos.x, y: pos.y };
-      dragon.angle = pos.angle;
+      // Position and heading are rendered continuously by DragonManager.
+      // Keeping both in one target prevents the visible 20 Hz angle snapping
+      // without changing the host's collision/death authority.
+      dragon.remoteTarget = { x: pos.x, y: pos.y, angle: pos.angle };
       dragon.attackActive = !!pos.attackActive;
       dragon.boostActive = dragon.attackActive;
 
@@ -3005,10 +3010,12 @@ class Game {
     this.movementSystem.update(this.dragonManager, this.cameraSystem, deltaTime);
     this.effectsSystem.update(deltaTime);
 
-    const inputMap = new Map();
+    const inputMap = this._inputMap;
+    inputMap.clear();
     const allDragons = this.dragonManager.getAllDragons();
 
     const _livingDragons = this.dragonManager.getLivingDragons();
+    let aiIndex = 0;
     for (const dragon of _livingDragons) {
       let angle;
       if (dragon === this.localDragon) {
@@ -3021,21 +3028,29 @@ class Game {
       } else if (dragon.isRemote) {
         angle = dragon.angle;
       } else if (this.aiController) {
-        // Throttle AI pathfinding to every 2nd frame — 10 AI dragons at
-        // wave 3 calling getInputAngle every frame is the main CPU spike.
-        // 30fps AI is more than responsive enough for snake-style movement.
-        if (this._frameCount % 2 === 0) {
+        // Spread AI thinking across four frame buckets. Movement remains at
+        // full frame rate using the previous heading, but expensive target
+        // searches no longer all land in one frame and freeze every mode.
+        const thinkPhase = aiIndex++ & 3;
+        const shouldThink = (this._frameCount & 3) === thinkPhase;
+        if (shouldThink) {
           angle = this.aiController.getInputAngle(dragon, allDragons);
           dragon._lastAIAngle = angle;
+          dragon._lastAISprint = this.aiController.getSprintDecision(
+            dragon,
+            dragon._aiMode || 'food'
+          );
         } else {
-          angle = dragon._lastAIAngle || dragon.angle || 0;
+          // A newly spawned AI can safely hold its spawn heading for at most
+          // three frames until its assigned think slot arrives.
+          angle = dragon._lastAIAngle ?? dragon.angle ?? 0;
         }
         dragon.attackHeld = !!(dragon.aiHuntTarget && dragon.aiHuntTarget.alive &&
                                (dragon.attackCharge || 0) > 0);
         // AI sprint decision — uses the mode stored by getInputAngle
         if (dragon.sprintCharge === undefined) dragon.sprintCharge = 0;
         if (dragon.baseSpeed === undefined) dragon.baseSpeed = dragon.speed;
-        dragon.sprintHeld = this.aiController.getSprintDecision(dragon, dragon._aiMode || 'food');
+        dragon.sprintHeld = !!dragon._lastAISprint;
       } else {
         angle = dragon.angle || 0;
       }
@@ -3073,20 +3088,24 @@ class Game {
       // Multiplayer waits for the backend's canonical settlement result.
       // Reuse the already-iterated _livingDragons instead of re-filtering
       // allDragons (avoids 2x Array allocation + 2x full scan per frame).
-      let livingWithLives = [];
-      let totalWithLives = [];
+      let livingWithLivesCount = 0;
+      let totalWithLivesCount = 0;
+      let soleLivingDragon = null;
       for (const d of allDragons) {
         if (d.lives > 0) {
-          totalWithLives.push(d);
-          if (d.alive) livingWithLives.push(d);
+          totalWithLivesCount++;
+          if (d.alive) {
+            livingWithLivesCount++;
+            soleLivingDragon = d;
+          }
         }
       }
-      if (livingWithLives.length === 1 && totalWithLives.length === 1 && allDragons.length > 1) {
-        if (this.isWaveMode() && livingWithLives[0] === this.localDragon) {
+      if (livingWithLivesCount === 1 && totalWithLivesCount === 1 && allDragons.length > 1) {
+        if (this.isWaveMode() && soleLivingDragon === this.localDragon) {
           this.advanceToNextWave();
           return;
         }
-        this.winner = livingWithLives[0];
+        this.winner = soleLivingDragon;
         this.endGame(true);
         return;
       }
