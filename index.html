@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"> 
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> 
-<link rel="stylesheet" href="./src/styles.css?v=55">
+<link rel="stylesheet" href="./src/styles.css?v=56">
 
 <style> 
   html, body { overflow-x: hidden; max-width: 100vw; } 
@@ -3385,43 +3385,17 @@
 
 <!-- ===== MULTIPLAYER MENU ===== --> 
 <div id="mpMenuScreen" class="screen">
-  <div class="mpBox">
-    <div class="mpDragonCrest" aria-hidden="true">
-      <svg viewBox="0 0 96 96"><path d="M49 13c18 4 27 15 28 31-8-7-16-10-25-9 9 3 15 8 18 15-8-3-15-3-22 1 8 2 13 7 15 14-9-4-18-2-25 5-7-8-10-17-8-28 2-14 8-24 19-29z"/><path d="M42 28c6-5 13-6 20-3l-9 5 9 4-12 3-8-9zm-6 43c9 5 18 6 28 2-6 8-13 12-23 11l-5-13z"/></svg>
-    </div>
-    <h2>Multiplayer</h2>
-    <p class="sub">Choose how you enter the arena</p>
-    <div class="modeCards">
-      <div class="modeCard" id="btnMpCreate">
-        <div class="mpCardGem" aria-hidden="true"></div>
-        <div class="mIcon mpPortalIcon" aria-hidden="true"><span></span><b>+</b></div>
-        <div class="mLabel">Create Room</div>
-        <div class="mDesc">Invite friends with<br>a private code.</div>
-        <div class="mpCardTags"><span>Host</span></div>
-      </div>
-      <div class="modeCard" id="btnMpSearchBattle">
-        <div class="mpCardGem" aria-hidden="true"></div>
-        <div class="mIcon mpSearchIcon" aria-hidden="true">
-          <svg viewBox="0 0 96 96"><circle cx="48" cy="43" r="30"/><circle cx="48" cy="43" r="19"/><circle cx="48" cy="43" r="6"/><path d="M48 8v70M13 43h70M22 17l52 52M74 17L22 69"/><path class="claws" d="M18 71l28-22 7 8-28 23-7-9zm60 0L50 49l-7 8 28 23 7-9z"/></svg>
-        </div>
-        <div class="mLabel">Search Battle</div>
-        <div class="mDesc">Find an available<br>opponent.</div>
-        <div class="mpCardTags"><span>1v1</span><span>4P FFA</span></div>
-      </div>
-    </div>
-    <div class="mpJoinSection">
-      <div class="mpJoinGem" aria-hidden="true"></div>
-      <div class="joinTitle">Join With Code</div>
-      <p class="joinSub">Enter a 6-digit room code</p>
-      <div class="mpJoinRow">
-        <input type="text" id="mpRoomInput" class="mpRoomInput" placeholder="000000" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
-        <button class="mpJoinBtn" id="btnMpJoin"><span aria-hidden="true">‹‹</span> Join Room <span aria-hidden="true">››</span></button>
-      </div>
-      <p class="mpJoinError" id="mpJoinError"></p>
-    </div> 
-    <button class="menuBtn" id="btnMpBack"><i data-lucide="arrow-left"></i> Back to Mode</button> 
-  </div> 
-</div> 
+  <div class="mpBox mpImageBox">
+    <img class="mpMenuArtwork" src="./assets/mp-menu-tournament-v1.jpg" alt="Multiplayer — choose how you enter the arena">
+    <button class="mpArtworkHit mpCreateHit" id="btnMpCreate" aria-label="Create Room"></button>
+    <button class="mpArtworkHit mpSearchHit" id="btnMpSearchBattle" aria-label="Search Battle"></button>
+    <label class="srOnly" for="mpRoomInput">Enter a 6-digit room code</label>
+    <input type="text" id="mpRoomInput" class="mpRoomInput mpArtworkInput" placeholder="000000" maxlength="6" autocomplete="off" inputmode="numeric" pattern="[0-9]*">
+    <button class="mpArtworkHit mpJoinHit" id="btnMpJoin" aria-label="Join Room"></button>
+    <p class="mpJoinError mpArtworkError" id="mpJoinError" role="alert"></p>
+    <button class="mpArtworkHit mpBackHit" id="btnMpBack" aria-label="Back to Mode"></button>
+  </div>
+</div>
 
 <!-- ===== SEARCH BATTLE: Dragon Age stake selection ===== --> 
 <div id="matchmakingTierScreen" class="screen"> 
