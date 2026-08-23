@@ -649,6 +649,7 @@ class Game {
               ? this.walletManager.publicKey.toString()
               : 'anon_' + Math.random().toString(36).slice(2)),
             name: this.username || 'Player',
+            dragon: this.selectedDragon || null,
           }),
         });
       }
@@ -1398,17 +1399,23 @@ class Game {
       }
       try {
         if (!this.matchmaking) { this.eventBus.emit('matchmaking:error', { message: 'Matchmaking is not ready yet. Please try again in a moment.' }); return; }
-        this.matchmaking.startSearch(tier);
+        await this.matchmaking.startSearch(tier);
       } catch (err) {
         this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
       }
     });
-    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier }) => {
-      this._pendingMatch = { roomCode, isInitiator, tier };
+    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier, matchId, roomReady }) => {
+      this._pendingMatch = { roomCode, isInitiator, tier, matchId, roomReady: !!roomReady };
       if (isInitiator) {
-        this._prepareMatchedRoomAsOwner(tier);
+        this._prepareMatchedRoomAsOwner(tier, roomCode, matchId);
       }
       this.uiManager.showOpponentFound(tier);
+    });
+    this.eventBus.on('matchmaking:roomReady', ({ roomCode, matchId }) => {
+      if (this._pendingMatch && this._pendingMatch.matchId === matchId) {
+        this._pendingMatch.roomCode = roomCode;
+        this._pendingMatch.roomReady = true;
+      }
     });
     this.eventBus.on('matchmaking:proceed', () => {
       const m = this._pendingMatch;
@@ -1422,7 +1429,7 @@ class Game {
         // Non-initiator: the initiator creates the room AFTER the matched
         // event fires, so m.roomCode is usually null at this point.
         // We need to wait for the roomCode to appear.
-        if (m.roomCode) {
+        if (m.roomReady && m.roomCode) {
           // RoomCode was included in the matched event — join immediately
           this.joinRoom(m.roomCode);
         } else {
@@ -1434,30 +1441,15 @@ class Game {
           const msgEl = document.getElementById('loadingMessage') || document.getElementById('loadingText');
           if (msgEl) msgEl.textContent = 'Waiting for host to create the arena…';
 
-          // Try the matchmaking module's roomWatchRef first
-          const q = this.matchmaking && this.matchmaking._roomWatchRef;
           let joined = false;
           let pollAttempts = 0;
-          const maxPollAttempts = 20; // 20 × 500ms = 10s max wait
+          const maxPollAttempts = 40; // backend room handoff: 20s maximum
 
           const tryJoin = (roomCode) => {
             if (joined) return;
             joined = true;
-            if (q) { try { q.off('value'); } catch (_) {} }
             this.joinRoom(roomCode);
           };
-
-          if (q) {
-            q.on('value', (snap) => {
-              const t = snap.val();
-              if (t && t.roomCode) {
-                tryJoin(t.roomCode);
-              }
-            });
-          }
-
-          // Fallback: also poll the matchmaking node directly every 500ms
-          // in case _roomWatchRef isn't set up or points to the wrong path
           const pollInterval = setInterval(() => {
             pollAttempts++;
             if (joined) {
@@ -1466,22 +1458,17 @@ class Game {
             }
             if (pollAttempts >= maxPollAttempts) {
               clearInterval(pollInterval);
-              if (q) { try { q.off('value'); } catch (_) {} }
               console.error('[matchmaking:proceed] timed out waiting for roomCode');
+              if (this.matchmaking) this.matchmaking.cancelSearch();
               this.uiManager.showScreen('mpMenuScreen');
               const err = document.getElementById('mpJoinError');
               if (err) err.textContent = 'Could not join the arena. Please try again.';
               return;
             }
-            // Check if the matchmaking module has a roomCode we can read
-            if (this.matchmaking && this.matchmaking._roomWatchRef) {
-              this.matchmaking._roomWatchRef.once('value').then(snap => {
-                const t = snap.val();
-                if (t && t.roomCode) {
-                  clearInterval(pollInterval);
-                  tryJoin(t.roomCode);
-                }
-              }).catch(() => {});
+            const pending = this._pendingMatch;
+            if (pending && pending.roomReady && pending.roomCode) {
+              clearInterval(pollInterval);
+              tryJoin(pending.roomCode);
             }
           }, 500);
         }
@@ -1503,6 +1490,17 @@ class Game {
     });
     this.eventBus.on('matchmaking:cancelled', () => {
       this.uiManager.showScreen('mpMenuScreen');
+    });
+    this.eventBus.on('matchmaking:opponentLeft', () => {
+      this._pendingMatch = null;
+      if (this.roomRef && this._matchedMode && !this.stakingState?.hostDeposited && !this.stakingState?.opponentDeposited) {
+        try { this.roomRef.off(); } catch (_) {}
+        this.roomRef.remove().catch(() => {});
+        this.roomRef = null;
+      }
+      this.uiManager.showScreen('mpMenuScreen');
+      const err = document.getElementById('mpJoinError');
+      if (err) err.textContent = 'Your opponent left before staking. Search again.';
     });
     this.eventBus.on('matchmaking:error', ({ message }) => {
       if (this.matchmaking) this.matchmaking.cancelSearch();
@@ -2193,14 +2191,17 @@ class Game {
     };
   }
 
-  createRoom(mpMode, presetTier = null, matched = false) {
+  createRoom(mpMode, presetTier = null, matched = false, matchOptions = {}) {
     if (!this.db) {
       alert('Multiplayer not available. Running in local mode.');
       this.uiManager.showScreen('modeSelectScreen');
       return;
     }
     this._prepareForNewRoom();
-    this.roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+    this.roomCode = /^\d{6}$/.test(String(matchOptions.roomCode || ''))
+      ? String(matchOptions.roomCode)
+      : Math.floor(100000 + Math.random() * 900000).toString();
+    this.currentMatchId = matchOptions.matchId || null;
     this.isHost = true;
     this.selectedMpMode = mpMode || 'FFA';
     this.localPlayerId = 'local';
@@ -2227,6 +2228,7 @@ class Game {
       status: 'waiting',
       tier: presetTier,
       matched: !!matched,
+      matchId: this.currentMatchId,
       staking: { hostDeposited: false, opponentDeposited: false },
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       players: {
@@ -2238,6 +2240,13 @@ class Game {
           authUid: this.authUid || null,
         }
       }
+    }).then(() => {
+      if (matched && this.matchmaking) {
+        return this.matchmaking.announceRoomReady(this.roomCode);
+      }
+    }).catch((error) => {
+      console.error('[createRoom] failed to create matched room:', error);
+      if (matched) this.eventBus.emit('matchmaking:error', { message: 'Could not create the matched room. Please try again.' });
     });
     this.roomPlayers = { local: { name: this.username || 'Player 1', dragon: this.selectedDragon || 'ignis', ready: true } };
     if (matched) {
@@ -2464,11 +2473,10 @@ class Game {
     this.roomRef.on('value', this._roomListener);
   }
 
-  _prepareMatchedRoomAsOwner(tier) {
+  _prepareMatchedRoomAsOwner(tier, roomCode, matchId) {
     this._suppressMatchedNav = true;
-    this.createRoom(this.selectedMpMode || 'FFA', tier, true);
+    this.createRoom('1v1', tier, true, { roomCode, matchId });
     this._suppressMatchedNav = false;
-    if (this.roomCode && this.matchmaking) this.matchmaking.announceRoomReady(this.roomCode);
   }
 
   async kickPlayer(playerId) {
