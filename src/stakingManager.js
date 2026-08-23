@@ -17,9 +17,9 @@ const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6E
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 
 export const TIER_AMOUNTS = {
-  Small: 500000,
-  Medium: 2000000,
-  High: 5000000,
+  Small: 10000,
+  Medium: 100000,
+  High: 1000000,
 };
 export const TIER_NAMES = ['Small', 'Medium', 'High'];
 
