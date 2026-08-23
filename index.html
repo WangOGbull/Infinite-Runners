@@ -284,10 +284,112 @@
   .daTierBtn.low .daTierDot { background: #22c55e; border-color: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); } 
   .daTierBtn.medium .daTierDot { background: #eab308; border-color: #eab308; box-shadow: 0 0 8px rgba(234, 179, 8, 0.4); } 
   .daTierBtn.high .daTierDot { background: #ef4444; border-color: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); } 
-  .daStakeBack { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.03); color: rgba(255, 255, 255, 0.5); font-family: 'Rajdhani', sans-serif; font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; } 
-  .daStakeBack:hover { border-color: rgba(0, 180, 216, 0.4); color: #00b4d8; } 
+  .daStakeBack { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.03); color: rgba(255, 255, 255, 0.5); font-family: 'Rajdhani', sans-serif; font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .daStakeBack:hover { border-color: rgba(0, 180, 216, 0.4); color: #00b4d8; }
 
-  .daOpponentModal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 400px; background: linear-gradient(180deg, #0a1628 0%, #06122e 100%); border: 1px solid rgba(201, 168, 76, 0.4); border-radius: 16px; padding: 32px 24px; box-shadow: 0 0 60px rgba(201, 168, 76, 0.15), inset 0 0 40px rgba(201, 168, 76, 0.05); text-align: center; } 
+  /* Auto Match stake artwork: responsive image map, matching the other redesigned menus. */
+  #matchmakingTierScreen {
+    padding: max(8px, env(safe-area-inset-top)) 6px max(8px, env(safe-area-inset-bottom));
+    overflow: hidden;
+    box-sizing: border-box;
+    justify-content: center;
+    background: #000;
+  }
+  #matchmakingTierScreen .daStakeModal.daStakeImageBox {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: min(calc(100vw - 12px), calc((100dvh - 16px) * 0.472328767), 560px);
+    max-width: none;
+    aspect-ratio: 862 / 1825;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: hidden;
+    isolation: isolate;
+    flex: 0 0 auto;
+  }
+  #matchmakingTierScreen .daStakeModal.daStakeImageBox::before,
+  #matchmakingTierScreen .daStakeModal.daStakeImageBox::after {
+    content: none;
+    display: none;
+  }
+  .daStakeArtwork {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
+  }
+  #matchmakingTierScreen .daStakeHit {
+    position: absolute;
+    z-index: 2;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: transparent;
+    cursor: pointer;
+    overflow: visible;
+    transition: none;
+    touch-action: manipulation;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #matchmakingTierScreen .daStakeSmallHit { left: 3.6%; top: 19.2%; width: 92.8%; height: 21.3%; }
+  #matchmakingTierScreen .daStakeMediumHit { left: 3.6%; top: 43.0%; width: 92.8%; height: 21.3%; }
+  #matchmakingTierScreen .daStakeHighHit { left: 3.6%; top: 66.6%; width: 92.8%; height: 20.9%; }
+  #matchmakingTierScreen #btnMmTierBack.daStakeBackHit { left: 16.8%; top: 90.0%; width: 66.4%; height: 6.4%; }
+  #matchmakingTierScreen .daStakeHit:hover,
+  #matchmakingTierScreen .daStakeHit:focus,
+  #matchmakingTierScreen .daStakeHit:focus-visible,
+  #matchmakingTierScreen .daStakeHit:active {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0 !important;
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+    transform: none !important;
+    clip-path: none !important;
+    color: transparent !important;
+    text-shadow: none !important;
+    opacity: 1 !important;
+  }
+  #matchmakingTierScreen .daStakeHit::before,
+  #matchmakingTierScreen .daStakeHit::after {
+    content: none !important;
+    display: none !important;
+  }
+  @media (min-width: 900px) {
+    #matchmakingTierScreen .daStakeModal.daStakeImageBox {
+      width: min(35vw, 560px, calc((100dvh - 32px) * 0.472328767));
+    }
+  }
+  @media (max-height: 520px) and (orientation: landscape) {
+    #matchmakingTierScreen { overflow-y: auto; justify-content: flex-start; }
+    #matchmakingTierScreen .daStakeModal.daStakeImageBox { margin: auto; }
+  }
+
+  .daOpponentModal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 400px; background: linear-gradient(180deg, #0a1628 0%, #06122e 100%); border: 1px solid rgba(201, 168, 76, 0.4); border-radius: 16px; padding: 32px 24px; box-shadow: 0 0 60px rgba(201, 168, 76, 0.15), inset 0 0 40px rgba(201, 168, 76, 0.05); text-align: center; }
   .daOppHeader { margin-bottom: 20px; } 
   .daOppHeader h2 { font-family: 'Cinzel Decorative', serif; font-size: 28px; color: #ffd700; text-shadow: 0 0 30px rgba(255, 215, 0, 0.4); margin: 12px 0 6px; letter-spacing: 3px; } 
   .daOppHeader p { font-family: 'Rajdhani', sans-serif; font-size: 13px; color: rgba(255, 255, 255, 0.4); } 
@@ -3399,38 +3501,16 @@
   </div>
 </div>
 
-<!-- ===== SEARCH BATTLE: Dragon Age stake selection ===== --> 
-<div id="matchmakingTierScreen" class="screen"> 
-  <div class="daModalOverlay"></div> 
-  <div class="daStakeModal"> 
-    <div class="daStakeHeader"> 
-      <div class="daStakeIcon"><i data-lucide="swords"></i></div> 
-      <h2>Choose Your Stake</h2> 
-      <p>Select a tier to find a worthy opponent</p> 
-    </div> 
-    <div class="daStakeTiers"> 
-      <button class="daTierBtn low" id="btnMmTierSmall" data-tier="Small"> 
-        <div class="daTierGlow"></div> 
-        <div class="daTierLabel">Low</div> 
-        <div class="daTierAmount" id="tierAmtSmall">-- INFINITE</div> 
-        <div class="daTierDot"></div> 
-      </button> 
-      <button class="daTierBtn medium" id="btnMmTierMedium" data-tier="Medium"> 
-        <div class="daTierGlow"></div> 
-        <div class="daTierLabel">Medium</div> 
-        <div class="daTierAmount" id="tierAmtMedium">-- INFINITE</div> 
-        <div class="daTierDot"></div> 
-      </button> 
-      <button class="daTierBtn high" id="btnMmTierHigh" data-tier="High"> 
-        <div class="daTierGlow"></div> 
-        <div class="daTierLabel">High</div> 
-        <div class="daTierAmount" id="tierAmtHigh">-- INFINITE</div> 
-        <div class="daTierDot"></div> 
-      </button> 
-    </div> 
-    <button class="daStakeBack" id="btnMmTierBack"><i data-lucide="arrow-left"></i> Back to Menu</button> 
-  </div> 
-</div> 
+<!-- ===== SEARCH BATTLE: Dragon Age stake selection ===== -->
+<div id="matchmakingTierScreen" class="screen">
+  <div class="daStakeModal daStakeImageBox">
+    <img class="daStakeArtwork" src="./assets/automatch-stake-coins-v1.png" alt="Choose Your Stake — 1V1 Auto Match">
+    <button class="daTierBtn daStakeHit daStakeSmallHit" id="btnMmTierSmall" data-tier="Small" aria-label="Small stake — 10,000 INFINITE"></button>
+    <button class="daTierBtn daStakeHit daStakeMediumHit" id="btnMmTierMedium" data-tier="Medium" aria-label="Medium stake — 100,000 INFINITE"></button>
+    <button class="daTierBtn daStakeHit daStakeHighHit" id="btnMmTierHigh" data-tier="High" aria-label="High stake — 1,000,000 INFINITE"></button>
+    <button class="daStakeBack daStakeHit daStakeBackHit" id="btnMmTierBack" aria-label="Back to Multiplayer"></button>
+  </div>
+</div>
 
 <!-- ===== SEARCH BATTLE: searching ===== --> 
 <div id="matchmakingSearchScreen" class="screen"> 
@@ -3527,9 +3607,9 @@
     <div class="lobbySection lobbySectionTier">Stake Tier</div> 
     <div class="lobbyTierSelector" id="lobbyTierSelector"> 
       <div class="tierBtns" id="tierBtns"> 
-        <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierAmt" id="tierAmtSmall">500K</span></button> 
-        <button class="tierBtn" data-tier="Medium" id="tierMedium"><span class="tierAmt" id="tierAmtMedium">2M</span></button> 
-        <button class="tierBtn" data-tier="High" id="tierHigh"><span class="tierAmt" id="tierAmtHigh">5M</span></button> 
+        <button class="tierBtn" data-tier="Small" id="tierSmall"><span class="tierAmt" id="tierAmtSmall">10K</span></button>
+        <button class="tierBtn" data-tier="Medium" id="tierMedium"><span class="tierAmt" id="tierAmtMedium">100K</span></button>
+        <button class="tierBtn" data-tier="High" id="tierHigh"><span class="tierAmt" id="tierAmtHigh">1M</span></button>
         <button class="tierBtn" data-tier="Custom" id="tierCustom"><span class="tierAmt">1K–10M</span></button> 
       </div> 
       <p class="feeDisclosure" id="feeDisclosureText">5% Treasury fee applies to the total match pot.</p>
@@ -3816,7 +3896,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=53"></script>
+<script type="module" src="./src/main.js?v=54"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 

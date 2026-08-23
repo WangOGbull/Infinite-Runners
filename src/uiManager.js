@@ -819,7 +819,7 @@ class UIManager {
       });
     });
     const mpSearchBattle = document.getElementById('btnMpSearchBattle');
-    if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => { this.selectedMpMode = 'FFA'; this.showScreen('matchmakingTierScreen'); });
+    if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => { this.selectedMpMode = '1v1'; this.showScreen('matchmakingTierScreen'); });
 
     document.querySelectorAll('.daTierBtn').forEach(btn => {
       btn.addEventListener('click', () => { this.eventBus.emit('ui:searchBattleTierSelected', { tier: btn.dataset.tier }); });
