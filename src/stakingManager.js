@@ -231,28 +231,28 @@ class StakingManager {
     }
   }
 
-  // A slow wallet approval (50s+ is common when the user is reading the
-  // Phantom prompt, or on mobile after an app switch) can push the
-  // transaction past its blockhash validity window. When that happens and
-  // the tx provably never landed, rebuild it with a fresh blockhash and
-  // give the player one automatic second attempt instead of a dead end.
+  // Never launch a second wallet approval automatically. An automatic retry
+  // is easy to miss after the wallet closes and can consume another full
+  // blockhash window, which produced the confusing "expired twice" failure.
+  //
+  // _sendTxOnce has already checked the submitted signature before marking
+  // an expiry retryable. Return a clear recoverable error and let the player
+  // tap the existing Place Bet button again. That new user gesture rebuilds
+  // the transaction with a completely fresh blockhash while the Auto Match
+  // room and reservation remain untouched.
   async _sendTx(instructions, pendingAction) {
     try {
       return await this._sendTxOnce(instructions, pendingAction);
     } catch (err) {
       if (!err?._retryable) throw err;
-      console.log('[Staking] first attempt expired unused - retrying with a fresh blockhash');
-      this.eventBus.emit('staking:pending', {
-        label: 'That approval took a little too long and the transaction expired unused — no funds moved. Retrying: please approve again in your wallet.',
-      });
-      try {
-        return await this._sendTxOnce(instructions, pendingAction);
-      } catch (err2) {
-        if (err2?._retryable) {
-          throw new Error('The transaction expired before it could reach the network (twice). No funds were moved. Please approve the wallet prompt a bit more quickly, or check your connection and try again.');
-        }
-        throw err2;
-      }
+
+      const retryError = new Error(
+        'Your stake transaction expired before reaching Solana. No funds were moved. Tap Place Bet to try again with a fresh transaction.'
+      );
+      retryError.code = 'STAKE_EXPIRED_RETRY';
+      retryError.retryable = true;
+      retryError.expiredSignature = err._expiredSignature || null;
+      throw retryError;
     }
   }
 
