@@ -36,10 +36,6 @@ class FirebaseMatchmaking {
     this.resultRef = this.db.ref(`matchmakingResults/${identity.uid}`);
     this._listenForResult();
 
-    await this.requestRef.onDisconnect().update({
-      action: 'disconnect', sessionId: this.sessionId,
-      updatedAt: firebase.database.ServerValue.TIMESTAMP
-    });
     await this.requestRef.set({
       action: 'search', sessionId: this.sessionId, tier,
       name: String(identity.name || 'Player').slice(0, 40),
@@ -47,6 +43,17 @@ class FirebaseMatchmaking {
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       updatedAt: firebase.database.ServerValue.TIMESTAMP
     });
+    try {
+      await this.requestRef.onDisconnect().update({
+        action: 'disconnect', sessionId: this.sessionId,
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+      });
+    } catch (error) {
+      // The backend expires stale searches, so cleanup registration must not
+      // prevent an otherwise valid search from entering the queue.
+      console.warn('[Matchmaking] disconnect cleanup could not be registered:',
+        error?.message || error);
+    }
   }
 
   _listenForResult() {
