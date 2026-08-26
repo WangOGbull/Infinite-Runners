@@ -2235,12 +2235,35 @@ class UIManager {
     }
   }
 
-  showOpponentFound(tier) {
-    const tierName = (tier === 'Small' ? 'Low' : (tier || 'Unknown'));
+  showOpponentFound({ tier, yourName, yourDragon, opponentName, opponentDragon } = {}) {
+    const amounts = { Small: 10000, Medium: 100000, High: 1000000 };
     const disp = document.getElementById('oppFoundTierDisplay');
-    if (disp) disp.textContent = `${tierName} Stake`;
+    if (disp) disp.textContent = `${Number(amounts[tier] || 0).toLocaleString()} INFINITE EACH`;
+    const yourNameEl = document.getElementById('oppFoundYourName');
+    if (yourNameEl) yourNameEl.textContent = yourName || 'You';
+    this._setOpponentFoundPortrait('oppFoundYourDragon', yourDragon);
+    this.updateOpponentFoundRival({ name: opponentName, dragon: opponentDragon });
     this.showScreen('opponentFoundScreen');
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
+  }
+
+  updateOpponentFoundRival({ name, dragon } = {}) {
+    const nameEl = document.getElementById('oppFoundOpponentName');
+    if (nameEl) nameEl.textContent = name || 'Opponent';
+    this._setOpponentFoundPortrait('oppFoundOpponentDragon', dragon);
+  }
+
+  _setOpponentFoundPortrait(id, dragon) {
+    const img = document.getElementById(id);
+    if (!img) return;
+    const source = DRAGON_IMAGES[String(dragon || '').toLowerCase()];
+    if (source) {
+      img.src = source;
+      img.style.display = 'block';
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+    }
   }
 
   setMatchedLobbyMode(on, tier) {

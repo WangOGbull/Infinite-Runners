@@ -1087,6 +1087,13 @@ class Game {
     });
     this.eventBus.on('ui:dragonSelected', ({ name }) => {
       this.selectedDragon = name;
+      if (this.db && this.authUid) {
+        this.db.ref(`users/${this.authUid}/matchmakingProfile`).update({
+          name: this.username || 'Player',
+          dragon: name || 'ignis',
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }).catch(error => console.warn('[MatchmakingProfile] save failed:', error?.message || error));
+      }
     });
     this.eventBus.on('ui:arenaSelected', ({ mode, difficulty, tierId, arenaIndex }) => {
       this.pendingArenaIndex = arenaIndex;
@@ -1393,23 +1400,49 @@ class Game {
       this.uiManager.showScreen('matchmakingSearchScreen');
       const badge = document.getElementById('matchmakingTierBadge');
       if (badge) {
-        const label = tier === 'Small' ? 'Low' : tier;
-        badge.textContent = `${label} Stake`;
+        const amount = TIER_AMOUNTS[tier] || 0;
+        badge.textContent = `${Number(amount).toLocaleString()} INFINITE`;
         badge.style.display = 'inline-block';
       }
       try {
         if (!this.matchmaking) { this.eventBus.emit('matchmaking:error', { message: 'Matchmaking is not ready yet. Please try again in a moment.' }); return; }
+        if (this.db && this.authUid) {
+          this.db.ref(`users/${this.authUid}/matchmakingProfile`).update({
+            name: this.username || 'Player',
+            dragon: this.selectedDragon || 'ignis',
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+          }).catch(error => console.warn('[MatchmakingProfile] pre-search save failed:', error?.message || error));
+        }
         await this.matchmaking.startSearch(tier);
       } catch (err) {
         this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
       }
     });
-    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier, matchId, roomReady }) => {
-      this._pendingMatch = { roomCode, isInitiator, tier, matchId, roomReady: !!roomReady };
+    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier, matchId, roomReady, opponentUid }) => {
+      this._pendingMatch = { roomCode, isInitiator, tier, matchId, roomReady: !!roomReady, opponentUid };
       if (isInitiator) {
         this._prepareMatchedRoomAsOwner(tier, roomCode, matchId);
       }
-      this.uiManager.showOpponentFound(tier);
+      this.uiManager.showOpponentFound({
+        tier,
+        yourName: this.username || 'You',
+        yourDragon: this.selectedDragon || 'ignis',
+        opponentName: 'Opponent',
+        opponentDragon: null
+      });
+      if (this.db && opponentUid) {
+        Promise.all([
+          this.db.ref(`users/${opponentUid}/matchmakingProfile`).once('value'),
+          this.db.ref(`users/${opponentUid}/username`).once('value')
+        ]).then(([profileSnap, usernameSnap]) => {
+          if (!this._pendingMatch || this._pendingMatch.matchId !== matchId) return;
+          const profile = profileSnap.val() || {};
+          this.uiManager.updateOpponentFoundRival({
+            name: profile.name || usernameSnap.val() || 'Opponent',
+            dragon: profile.dragon || null
+          });
+        }).catch(error => console.warn('[OpponentFound] profile load failed:', error?.message || error));
+      }
     });
     this.eventBus.on('matchmaking:roomReady', ({ roomCode, matchId }) => {
       if (this._pendingMatch && this._pendingMatch.matchId === matchId) {

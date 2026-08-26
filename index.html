@@ -421,9 +421,292 @@
   .daSearchSub { font-family: 'Rajdhani', sans-serif; font-size: 13px; letter-spacing: 1px; color: rgba(200,220,240,0.55); margin: 0 0 18px; } 
   .daSearchTierBadge { display: inline-block; padding: 7px 20px; border-radius: 20px; background: rgba(0,0,0,0.4); border: 1px solid rgba(72,224,255,0.35); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #48e0ff; margin-bottom: 22px; } 
   .daSearchCancel { width: 100%; padding: 13px; border-radius: 10px; border: 1px solid rgba(255,68,68,0.3); background: rgba(255,68,68,0.08); color: #ff8080; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; } 
-  .daSearchCancel:hover { background: rgba(255,68,68,0.16); border-color: rgba(255,68,68,0.55); } 
+  .daSearchCancel:hover { background: rgba(255,68,68,0.16); border-color: rgba(255,68,68,0.55); }
 
-  #lobbyCountdown { width: 100%; margin-top: 12px; text-align: center; } 
+  /* Safe responsive Auto Match UI: code-rendered search + untouched opponent art. */
+  #matchmakingSearchScreen,
+  #opponentFoundScreen {
+    box-sizing: border-box;
+    padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+  }
+  #matchmakingSearchScreen .daModalOverlay {
+    background:
+      radial-gradient(circle at 50% 44%, rgba(0, 166, 255, .13), transparent 38%),
+      rgba(0, 0, 0, .92);
+    backdrop-filter: none;
+  }
+  .daSearchModal.daSearchNeoModal {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: min(calc(100vw - 24px), 440px);
+    max-width: none;
+    min-height: 540px;
+    max-height: calc(100dvh - 24px);
+    padding: clamp(28px, 5vh, 48px) clamp(20px, 5vw, 34px) clamp(24px, 4vh, 34px);
+    border: 1px solid rgba(80, 202, 255, .35);
+    border-radius: 22px;
+    background:
+      linear-gradient(145deg, rgba(8, 31, 58, .96), rgba(3, 12, 29, .98)),
+      #06142a;
+    box-shadow:
+      0 0 0 1px rgba(215, 174, 88, .15),
+      0 24px 80px rgba(0, 0, 0, .7),
+      0 0 55px rgba(0, 154, 255, .14),
+      inset 0 0 55px rgba(20, 123, 196, .08);
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .daSearchModal.daSearchNeoModal::before {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #53d8ff, #d5ad59, #53d8ff, transparent);
+    box-shadow: 0 0 14px rgba(83, 216, 255, .65);
+  }
+  .daSearchModal.daSearchNeoModal::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 1px solid rgba(255,255,255,.035);
+    border-radius: 16px;
+    pointer-events: none;
+  }
+  .daSearchNeoModal .daSearchRunes .daRune {
+    color: rgba(74, 207, 255, .36);
+    text-shadow: 0 0 12px rgba(45, 186, 255, .45);
+  }
+  .daNeoInfinity {
+    position: relative;
+    width: clamp(150px, 43vw, 190px);
+    aspect-ratio: 1;
+    margin: 0 auto 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 195, 255, .15), rgba(0, 75, 145, .05) 44%, transparent 68%);
+    filter: drop-shadow(0 0 22px rgba(0, 174, 255, .22));
+  }
+  .daNeoOrbit {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid rgba(64, 206, 255, .16);
+    border-top-color: #61e2ff;
+    border-right-color: #168cff;
+    box-shadow: 0 0 10px rgba(31, 185, 255, .38), inset 0 0 10px rgba(31, 185, 255, .12);
+    animation: daNeoOrbitSpin 2.2s linear infinite;
+  }
+  .daNeoOrbit.orbitOne { inset: 7%; }
+  .daNeoOrbit.orbitTwo {
+    inset: 17%;
+    border-color: rgba(47, 136, 255, .13);
+    border-bottom-color: #22b9ff;
+    border-left-color: #8ceaff;
+    animation-duration: 1.55s;
+    animation-direction: reverse;
+  }
+  @keyframes daNeoOrbitSpin { to { transform: rotate(360deg); } }
+  .daNeoInfinitySymbol {
+    position: relative;
+    z-index: 2;
+    color: #a9efff;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(74px, 22vw, 104px);
+    font-weight: 700;
+    line-height: 1;
+    transform: translateY(-4%);
+    text-shadow:
+      0 0 5px #fff,
+      0 0 12px #42d6ff,
+      0 0 28px #008cff,
+      0 0 52px rgba(0, 112, 255, .8);
+    animation: daNeoInfinityPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes daNeoInfinityPulse {
+    0%, 100% { opacity: .82; transform: translateY(-4%) scale(.96); }
+    50% { opacity: 1; transform: translateY(-4%) scale(1.04); }
+  }
+  .daSearchNeoModal .daSearchTitle {
+    margin: 0 0 10px;
+    color: #f2dfb4;
+    font-size: clamp(21px, 6vw, 28px);
+    line-height: 1.25;
+    text-shadow: 0 2px 4px #000, 0 0 18px rgba(62, 196, 255, .22);
+  }
+  .daSearchNeoModal .daSearchSub {
+    max-width: 340px;
+    margin: 0 auto 18px;
+    color: rgba(210, 226, 240, .62);
+    font-size: clamp(12px, 3.2vw, 14px);
+    line-height: 1.4;
+  }
+  .daSearchNeoModal .daSearchTierBadge {
+    margin: 0 auto 13px;
+    padding: 8px 22px;
+    border-color: rgba(66, 210, 255, .52);
+    background: rgba(0, 12, 27, .72);
+    color: #65e5ff;
+    font-size: clamp(11px, 3vw, 13px);
+    box-shadow: inset 0 0 15px rgba(0, 142, 255, .08), 0 0 16px rgba(0, 155, 255, .08);
+  }
+  .daNeoSearchDots {
+    height: 15px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+  }
+  .daNeoSearchDots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #8cecff;
+    box-shadow: 0 0 9px #16bfff, 0 0 17px rgba(0, 135, 255, .7);
+    animation: daNeoDot 1.15s ease-in-out infinite;
+  }
+  .daNeoSearchDots span:nth-child(2) { animation-delay: .17s; }
+  .daNeoSearchDots span:nth-child(3) { animation-delay: .34s; }
+  @keyframes daNeoDot { 0%, 100% { opacity: .25; transform: scale(.7); } 50% { opacity: 1; transform: scale(1.28); } }
+  .daSearchNeoModal .daSearchCancel {
+    min-height: 54px;
+    border-color: rgba(255, 92, 106, .42);
+    border-radius: 12px;
+    background: rgba(70, 17, 37, .24);
+    color: #ff929d;
+    font-size: clamp(12px, 3.2vw, 14px);
+  }
+
+  /* Original approved Opponent Found PNG, with only dynamic content layered over it. */
+  .daOpponentArtStage {
+    position: relative;
+    width: min(calc(100vw - 12px), calc((100dvh - 16px) * .5628), 590px);
+    aspect-ratio: 941 / 1672;
+    flex: 0 0 auto;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .daOpponentArtwork {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .daOppDragon {
+    position: absolute;
+    z-index: 3;
+    top: 35.5%;
+    width: 28.5%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+  }
+  .daOppDragonYou { left: 11.7%; }
+  .daOppDragonRival { right: 11.7%; }
+  .daOppDragon img {
+    width: 94%;
+    height: 94%;
+    object-fit: contain;
+    transform: scale(.95);
+  }
+  .daOppDragonYou img { filter: drop-shadow(0 0 12px rgba(32, 151, 255, .55)); }
+  .daOppDragonRival img { filter: drop-shadow(0 0 12px rgba(183, 66, 255, .55)); }
+  .daOppLiveName {
+    position: absolute;
+    z-index: 4;
+    top: 54.15%;
+    width: 30.2%;
+    height: 2.65%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3%;
+    box-sizing: border-box;
+    background: #070c12;
+    color: #f0e8dc;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(9px, 2.1vw, 17px);
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 2px 3px #000;
+  }
+  .daOppLiveNameYou { left: 11.3%; }
+  .daOppLiveNameRival { right: 11.3%; }
+  .daOppLiveStake {
+    position: absolute;
+    z-index: 4;
+    left: 30.4%;
+    top: 62.1%;
+    width: 50.2%;
+    height: 3.4%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #070b0f;
+    color: #dfbd79;
+    font-family: 'Cinzel Decorative', serif;
+    font-size: clamp(9px, 2.2vw, 18px);
+    line-height: 1;
+    letter-spacing: .015em;
+    white-space: nowrap;
+    text-shadow: 0 2px 4px #000;
+  }
+  .daOppArtHit {
+    position: absolute;
+    z-index: 5;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: transparent;
+    opacity: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .daOppEnterHit { left: 19.4%; top: 69.0%; width: 61.3%; height: 7.5%; }
+  .daOppCancelHit { left: 22.5%; top: 78.0%; width: 55%; height: 6.3%; }
+  .daOppArtHit:focus-visible { opacity: 1; outline: 2px solid #58dfff; outline-offset: -4px; }
+
+  @media (min-width: 900px) {
+    .daSearchModal.daSearchNeoModal { width: min(31vw, 440px, calc(100dvh - 80px)); }
+    .daOpponentArtStage { width: min(35vw, 590px, calc((100dvh - 24px) * .5628)); }
+  }
+  @media (max-height: 660px) {
+    .daSearchModal.daSearchNeoModal {
+      min-height: 0;
+      padding-top: 18px;
+      padding-bottom: 18px;
+    }
+    .daNeoInfinity { width: 132px; margin-bottom: 12px; }
+    .daSearchNeoModal .daSearchSub { margin-bottom: 10px; }
+    .daSearchNeoModal .daSearchTierBadge { margin-bottom: 8px; }
+    .daNeoSearchDots { margin-bottom: 8px; }
+  }
+  @media (max-height: 520px) and (orientation: landscape) {
+    #matchmakingSearchScreen, #opponentFoundScreen { overflow-y: auto; justify-content: flex-start; }
+    .daSearchModal.daSearchNeoModal, .daOpponentArtStage { margin: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .daNeoOrbit, .daNeoInfinitySymbol, .daNeoSearchDots span { animation-duration: 7s; }
+  }
+
+  #lobbyCountdown { width: 100%; margin-top: 12px; text-align: center; }
   .lobbyCountdownText { font-family: 'Rajdhani', sans-serif; font-size: 14px; color: #ffd700; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 215, 0, 0.3); margin-bottom: 8px; } 
   .lobbyCountdownBar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.06); border-radius: 2px; overflow: hidden; } 
   #lobbyCountdownFill { height: 100%; width: 100%; background: linear-gradient(90deg, #ffd700, #ff6b35); border-radius: 2px; transition: width 1s linear; } 
@@ -3513,40 +3796,39 @@
   </div>
 </div>
 
-<!-- ===== SEARCH BATTLE: searching ===== --> 
-<div id="matchmakingSearchScreen" class="screen"> 
-  <div class="daModalOverlay"></div> 
-  <div class="daSearchModal"> 
-    <div class="daSearchRunes"> 
-      <span class="daRune r1">✦</span><span class="daRune r2">✧</span><span class="daRune r3">✦</span> 
-    </div> 
-    <div class="daSearchOrb"> 
-      <div class="daSearchOrbRing"></div> 
-      <div class="daSearchOrbCore"><i data-lucide="swords"></i></div> 
-    </div> 
-    <h2 class="daSearchTitle">Searching the Realms</h2> 
-    <p class="daSearchSub" id="matchmakingStatusText">Seeking a worthy challenger at your chosen stake…</p> 
-    <div class="daSearchTierBadge" id="matchmakingTierBadge" style="display:none;"></div> 
-    <button class="daSearchCancel" id="btnCancelSearch"><i data-lucide="x"></i> Cancel Search</button> 
-  </div> 
-</div> 
+<!-- ===== SEARCH BATTLE: searching ===== -->
+<div id="matchmakingSearchScreen" class="screen">
+  <div class="daModalOverlay"></div>
+  <div class="daSearchModal daSearchNeoModal">
+    <div class="daSearchRunes">
+      <span class="daRune r1">✦</span><span class="daRune r2">✧</span><span class="daRune r3">✦</span>
+    </div>
+    <div class="daNeoInfinity" aria-hidden="true">
+      <span class="daNeoOrbit orbitOne"></span>
+      <span class="daNeoOrbit orbitTwo"></span>
+      <span class="daNeoInfinitySymbol">∞</span>
+    </div>
+    <h2 class="daSearchTitle">Searching the Realms</h2>
+    <p class="daSearchSub" id="matchmakingStatusText">Seeking a worthy challenger at your chosen stake…</p>
+    <div class="daSearchTierBadge" id="matchmakingTierBadge" style="display:none;"></div>
+    <div class="daNeoSearchDots" aria-hidden="true"><span></span><span></span><span></span></div>
+    <button class="daSearchCancel" id="btnCancelSearch"><i data-lucide="x"></i> Cancel Search</button>
+  </div>
+</div>
 
 <!-- ===== OPPONENT FOUND ===== --> 
-<div id="opponentFoundScreen" class="screen"> 
-  <div class="daModalOverlay"></div> 
-  <div class="daOpponentModal"> 
-    <div class="daOppHeader"> 
-      <div class="daOppIcon"><i data-lucide="flame"></i></div> 
-      <h2>Opponent Found!</h2> 
-      <p>A challenger awaits at your chosen stake</p> 
-    </div> 
-    <div class="daOppTierDisplay" id="oppFoundTierDisplay">Low Stake</div> 
-    <div class="daOppActions"> 
-      <button class="daOppProceed" id="btnProceedMatch"><i data-lucide="arrow-right"></i> Proceed</button> 
-      <button class="daOppCancel" id="btnCancelOppFound"><i data-lucide="x"></i> Cancel</button> 
-    </div> 
-  </div> 
-</div> 
+<div id="opponentFoundScreen" class="screen">
+  <div class="daOpponentArtStage">
+    <img class="daOpponentArtwork" src="./assets/automatch-opponent-found-original.png" alt="Opponent found">
+    <div class="daOppDragon daOppDragonYou"><img id="oppFoundYourDragon" alt="Your selected dragon"></div>
+    <div class="daOppDragon daOppDragonRival"><img id="oppFoundOpponentDragon" alt="Opponent selected dragon"></div>
+    <div class="daOppLiveName daOppLiveNameYou" id="oppFoundYourName">You</div>
+    <div class="daOppLiveName daOppLiveNameRival" id="oppFoundOpponentName">Opponent</div>
+    <div class="daOppLiveStake" id="oppFoundTierDisplay">10,000 INFINITE EACH</div>
+    <button class="daOppArtHit daOppEnterHit" id="btnProceedMatch" aria-label="Enter Arena"></button>
+    <button class="daOppArtHit daOppCancelHit" id="btnCancelOppFound" aria-label="Cancel"></button>
+  </div>
+</div>
 
 <!-- ===== BETTING ARENA ===== --> 
 <div id="bettingArenaScreen" class="screen"> 
