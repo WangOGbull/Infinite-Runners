@@ -15,6 +15,7 @@ import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
+import './autoMatchVisuals.js?v=1';
 
 const BACKEND_URL = 'https://infiniterunners-firebase-backend-production.up.railway.app';
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
@@ -1402,7 +1403,7 @@ class Game {
       if (badge) {
         const amount = TIER_AMOUNTS[tier] || 0;
         badge.textContent = `${Number(amount).toLocaleString()} INFINITE`;
-        badge.style.display = 'inline-block';
+        badge.style.display = 'flex';
       }
       try {
         if (!this.matchmaking) { this.eventBus.emit('matchmaking:error', { message: 'Matchmaking is not ready yet. Please try again in a moment.' }); return; }
