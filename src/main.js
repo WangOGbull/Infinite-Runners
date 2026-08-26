@@ -1393,8 +1393,9 @@ class Game {
       this.uiManager.showScreen('matchmakingSearchScreen');
       const badge = document.getElementById('matchmakingTierBadge');
       if (badge) {
-        const selectedAmount = TIER_AMOUNTS[tier];
-        badge.textContent = `${Number(selectedAmount || 0).toLocaleString()} INFINITE`;
+        const label = tier === 'Small' ? 'Low' : tier;
+        badge.textContent = `${label} Stake`;
+        badge.style.display = 'inline-block';
       }
       try {
         if (!this.matchmaking) { this.eventBus.emit('matchmaking:error', { message: 'Matchmaking is not ready yet. Please try again in a moment.' }); return; }
@@ -1403,18 +1404,12 @@ class Game {
         this.eventBus.emit('matchmaking:error', { message: err?.message || 'Could not start matchmaking.' });
       }
     });
-    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier, matchId, roomReady, opponentUid, opponentName, opponentDragon }) => {
-      this._pendingMatch = { roomCode, isInitiator, tier, matchId, roomReady: !!roomReady, opponentUid, opponentName, opponentDragon };
+    this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier, matchId, roomReady }) => {
+      this._pendingMatch = { roomCode, isInitiator, tier, matchId, roomReady: !!roomReady };
       if (isInitiator) {
         this._prepareMatchedRoomAsOwner(tier, roomCode, matchId);
       }
-      this.uiManager.showOpponentFound({
-        tier,
-        yourName: this.username || 'You',
-        yourDragon: this.selectedDragon || 'ignis',
-        opponentName,
-        opponentDragon
-      });
+      this.uiManager.showOpponentFound(tier);
     });
     this.eventBus.on('matchmaking:roomReady', ({ roomCode, matchId }) => {
       if (this._pendingMatch && this._pendingMatch.matchId === matchId) {
