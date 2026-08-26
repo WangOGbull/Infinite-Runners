@@ -421,9 +421,215 @@
   .daSearchSub { font-family: 'Rajdhani', sans-serif; font-size: 13px; letter-spacing: 1px; color: rgba(200,220,240,0.55); margin: 0 0 18px; } 
   .daSearchTierBadge { display: inline-block; padding: 7px 20px; border-radius: 20px; background: rgba(0,0,0,0.4); border: 1px solid rgba(72,224,255,0.35); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #48e0ff; margin-bottom: 22px; } 
   .daSearchCancel { width: 100%; padding: 13px; border-radius: 10px; border: 1px solid rgba(255,68,68,0.3); background: rgba(255,68,68,0.08); color: #ff8080; font-family: 'Rajdhani', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; } 
-  .daSearchCancel:hover { background: rgba(255,68,68,0.16); border-color: rgba(255,68,68,0.55); } 
+  .daSearchCancel:hover { background: rgba(255,68,68,0.16); border-color: rgba(255,68,68,0.55); }
 
-  #lobbyCountdown { width: 100%; margin-top: 12px; text-align: center; } 
+  /* Auto Match artwork screens: all player/stake text remains live HTML. */
+  #matchmakingSearchScreen,
+  #opponentFoundScreen {
+    padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+  }
+  .daArtworkStage {
+    position: relative;
+    width: min(calc(100vw - 12px), calc((100dvh - 12px) * .5628), 620px);
+    aspect-ratio: 940 / 1674;
+    flex: 0 0 auto;
+    overflow: hidden;
+    isolation: isolate;
+    font-family: 'Cinzel Decorative', serif;
+  }
+  .daScreenArtwork {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .daArtworkButton {
+    position: absolute;
+    z-index: 6;
+    margin: 0;
+    padding: 0 3%;
+    border: 0;
+    background: transparent;
+    color: #f2e4ca;
+    font-family: 'Cinzel Decorative', serif;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 4px #000, 0 0 12px rgba(190, 133, 255, .22);
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .daArtworkButton:focus-visible { outline: 2px solid #be85ff; outline-offset: -4px; }
+  .daArtworkButton:active { transform: scale(.985); filter: brightness(.82); }
+
+  /* Searching: animated arcs sit above the art and never block interaction. */
+  .daSearchArtworkStage { aspect-ratio: 941 / 1672; }
+  .daSearchMotion {
+    position: absolute;
+    z-index: 3;
+    left: 21.5%;
+    top: 30.15%;
+    width: 56.8%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: daSearchRotate 2.9s linear infinite;
+  }
+  .daSearchMotion::before,
+  .daSearchMotion::after,
+  .daSearchMotion span {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 5deg, transparent 0 10%, #df94ff 13%, #803dff 16%, transparent 20% 48%, #f2b7ff 51%, #8a46ff 55%, transparent 59% 100%);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+    filter: drop-shadow(0 0 5px #a849ff);
+  }
+  .daSearchMotion::after { inset: 6.4%; animation: daSearchCounterRotate 2.1s linear infinite; opacity: .9; }
+  .daSearchMotion span:nth-child(1) { inset: 12.5%; animation: daSearchCounterRotate 3.7s linear infinite; }
+  .daSearchMotion span:nth-child(2) { inset: 19%; animation: daSearchRotate 2.25s linear infinite; opacity: .55; }
+  .daSearchMotion span:nth-child(3) { display: none; }
+  @keyframes daSearchRotate { to { transform: rotate(360deg); } }
+  @keyframes daSearchCounterRotate { to { transform: rotate(-360deg); } }
+  .daSearchDots {
+    position: absolute;
+    z-index: 4;
+    left: 42%;
+    top: 63.25%;
+    width: 16%;
+    display: flex;
+    justify-content: center;
+    gap: 15%;
+    pointer-events: none;
+  }
+  .daSearchDots span {
+    width: clamp(4px, .85vw, 9px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #f0c0ff;
+    box-shadow: 0 0 8px #ad4dff, 0 0 16px #7c2aff;
+    animation: daDotPulse 1.15s ease-in-out infinite;
+  }
+  .daSearchDots span:nth-child(2) { animation-delay: .18s; }
+  .daSearchDots span:nth-child(3) { animation-delay: .36s; }
+  @keyframes daDotPulse { 0%, 100% { opacity: .3; transform: scale(.65); } 50% { opacity: 1; transform: scale(1.25); } }
+  #matchmakingSearchScreen .daSearchTierBadge {
+    position: absolute;
+    z-index: 5;
+    left: 25%;
+    top: 69.55%;
+    width: 60%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #d3af70;
+    font-size: clamp(11px, 2.4vw, 22px);
+    line-height: 1.1;
+    letter-spacing: .045em;
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .daSearchModeText {
+    position: absolute;
+    z-index: 5;
+    left: 25%;
+    top: 72.15%;
+    width: 60%;
+    color: #d78eff;
+    font-size: clamp(8px, 1.55vw, 14px);
+    letter-spacing: .13em;
+    text-align: center;
+  }
+  .daSearchCancelHit { left: 23.2%; top: 79.7%; width: 53.7%; height: 6.2%; font-size: clamp(10px, 2.1vw, 20px); }
+
+  /* Opponent Found: selected dragon art is clipped inside empty circles. */
+  .daDragonPortrait {
+    position: absolute;
+    z-index: 3;
+    top: 36.3%;
+    width: 28.4%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+  }
+  .daDragonPortraitYou { left: 11.8%; }
+  .daDragonPortraitOpponent { right: 11.7%; }
+  .daDragonPortrait img {
+    width: 95%;
+    height: 95%;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(255,255,255,.18));
+    transform: scale(.94);
+  }
+  .daDragonPortraitYou img { filter: drop-shadow(0 0 11px rgba(25,145,255,.5)); }
+  .daDragonPortraitOpponent img { filter: drop-shadow(0 0 11px rgba(178,70,255,.5)); }
+  .daOpponentName {
+    position: absolute;
+    z-index: 5;
+    top: 54.2%;
+    width: 31.5%;
+    color: #eee6d9;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(9px, 1.9vw, 18px);
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 0 2px 3px #000;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .daOpponentNameYou { left: 10.8%; }
+  .daOpponentNameRival { right: 10.8%; }
+  #opponentFoundScreen .daOppTierDisplay {
+    position: absolute;
+    z-index: 5;
+    left: 25.6%;
+    top: 62.55%;
+    width: 55.8%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #e0bd76;
+    font-size: clamp(10px, 2.1vw, 20px);
+    line-height: 1.1;
+    letter-spacing: .025em;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .daOppProceedHit { left: 19.5%; top: 69.15%; width: 61%; height: 7.4%; font-size: clamp(11px, 2.5vw, 24px); }
+  .daOppCancelHit { left: 22.3%; top: 78.15%; width: 55.4%; height: 6.25%; font-size: clamp(10px, 2.15vw, 21px); }
+
+  @media (min-width: 900px) {
+    .daArtworkStage { width: min(35vw, 620px, calc((100dvh - 24px) * .5628)); }
+  }
+  @media (max-height: 520px) and (orientation: landscape) {
+    #matchmakingSearchScreen, #opponentFoundScreen { overflow-y: auto; justify-content: flex-start; }
+    .daArtworkStage { margin: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .daSearchMotion, .daSearchMotion::after, .daSearchMotion span, .daSearchDots span { animation-duration: 8s; }
+  }
+
+  #lobbyCountdown { width: 100%; margin-top: 12px; text-align: center; }
   .lobbyCountdownText { font-family: 'Rajdhani', sans-serif; font-size: 14px; color: #ffd700; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 215, 0, 0.3); margin-bottom: 8px; } 
   .lobbyCountdownBar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.06); border-radius: 2px; overflow: hidden; } 
   #lobbyCountdownFill { height: 100%; width: 100%; background: linear-gradient(90deg, #ffd700, #ff6b35); border-radius: 2px; transition: width 1s linear; } 
@@ -3513,40 +3719,32 @@
   </div>
 </div>
 
-<!-- ===== SEARCH BATTLE: searching ===== --> 
-<div id="matchmakingSearchScreen" class="screen"> 
-  <div class="daModalOverlay"></div> 
-  <div class="daSearchModal"> 
-    <div class="daSearchRunes"> 
-      <span class="daRune r1">✦</span><span class="daRune r2">✧</span><span class="daRune r3">✦</span> 
-    </div> 
-    <div class="daSearchOrb"> 
-      <div class="daSearchOrbRing"></div> 
-      <div class="daSearchOrbCore"><i data-lucide="swords"></i></div> 
-    </div> 
-    <h2 class="daSearchTitle">Searching the Realms</h2> 
-    <p class="daSearchSub" id="matchmakingStatusText">Seeking a worthy challenger at your chosen stake…</p> 
-    <div class="daSearchTierBadge" id="matchmakingTierBadge" style="display:none;"></div> 
-    <button class="daSearchCancel" id="btnCancelSearch"><i data-lucide="x"></i> Cancel Search</button> 
-  </div> 
-</div> 
+<!-- ===== SEARCH BATTLE: searching ===== -->
+<div id="matchmakingSearchScreen" class="screen">
+  <div class="daArtworkStage daSearchArtworkStage">
+    <img class="daScreenArtwork" src="./assets/automatch-searching-plate-v1.png" alt="Searching for an equal challenger">
+    <div class="daSearchMotion" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="daSearchDots" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="daSearchTierBadge" id="matchmakingTierBadge" aria-live="polite"></div>
+    <div class="daSearchModeText">1V1 AUTO MATCH</div>
+    <button class="daArtworkButton daSearchCancelHit" id="btnCancelSearch">Cancel Search</button>
+    <p class="srOnly" id="matchmakingStatusText" aria-live="polite">Seeking a worthy challenger at your chosen stake…</p>
+  </div>
+</div>
 
 <!-- ===== OPPONENT FOUND ===== --> 
-<div id="opponentFoundScreen" class="screen"> 
-  <div class="daModalOverlay"></div> 
-  <div class="daOpponentModal"> 
-    <div class="daOppHeader"> 
-      <div class="daOppIcon"><i data-lucide="flame"></i></div> 
-      <h2>Opponent Found!</h2> 
-      <p>A challenger awaits at your chosen stake</p> 
-    </div> 
-    <div class="daOppTierDisplay" id="oppFoundTierDisplay">Low Stake</div> 
-    <div class="daOppActions"> 
-      <button class="daOppProceed" id="btnProceedMatch"><i data-lucide="arrow-right"></i> Proceed</button> 
-      <button class="daOppCancel" id="btnCancelOppFound"><i data-lucide="x"></i> Cancel</button> 
-    </div> 
-  </div> 
-</div> 
+<div id="opponentFoundScreen" class="screen">
+  <div class="daArtworkStage daOpponentArtworkStage">
+    <img class="daScreenArtwork" src="./assets/automatch-opponent-found-plate-v1.png" alt="Opponent found">
+    <div class="daDragonPortrait daDragonPortraitYou"><img id="oppFoundYourDragon" alt="Your selected dragon"></div>
+    <div class="daDragonPortrait daDragonPortraitOpponent"><img id="oppFoundOpponentDragon" alt="Opponent selected dragon"></div>
+    <div class="daOpponentName daOpponentNameYou" id="oppFoundYourName">You</div>
+    <div class="daOpponentName daOpponentNameRival" id="oppFoundOpponentName">Opponent</div>
+    <div class="daOppTierDisplay" id="oppFoundTierDisplay">10,000 INFINITE EACH</div>
+    <button class="daArtworkButton daOppProceedHit" id="btnProceedMatch">Enter Arena</button>
+    <button class="daArtworkButton daOppCancelHit" id="btnCancelOppFound">Cancel</button>
+  </div>
+</div>
 
 <!-- ===== BETTING ARENA ===== --> 
 <div id="bettingArenaScreen" class="screen"> 

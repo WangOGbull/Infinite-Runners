@@ -73,7 +73,10 @@ class FirebaseMatchmaking {
           this.eventBus.emit('matchmaking:matched', {
             roomCode: this.roomCode, isInitiator,
             tier: result.tier || this.tier, matchId: this.matchId,
-            roomReady: result.status === 'room_ready'
+            roomReady: result.status === 'room_ready',
+            opponentUid: result.opponentUid || null,
+            opponentName: result.opponentName || null,
+            opponentDragon: result.opponentDragon || null
           });
         }
         if (result.status === 'room_ready') {
