@@ -2235,29 +2235,10 @@ class UIManager {
     }
   }
 
-  showOpponentFound({ tier, yourName, yourDragon, opponentName, opponentDragon } = {}) {
-    const amounts = { Small: 10000, Medium: 100000, High: 1000000 };
+  showOpponentFound(tier) {
+    const tierName = (tier === 'Small' ? 'Low' : (tier || 'Unknown'));
     const disp = document.getElementById('oppFoundTierDisplay');
-    if (disp) disp.textContent = `${Number(amounts[tier] || 0).toLocaleString()} INFINITE EACH`;
-    const yourNameEl = document.getElementById('oppFoundYourName');
-    const opponentNameEl = document.getElementById('oppFoundOpponentName');
-    if (yourNameEl) yourNameEl.textContent = yourName || 'You';
-    if (opponentNameEl) opponentNameEl.textContent = opponentName || 'Opponent';
-    const setPortrait = (id, dragon) => {
-      const img = document.getElementById(id);
-      const key = String(dragon || '').toLowerCase();
-      const source = DRAGON_IMAGES[key];
-      if (!img) return;
-      if (source) {
-        img.src = source;
-        img.style.display = 'block';
-      } else {
-        img.removeAttribute('src');
-        img.style.display = 'none';
-      }
-    };
-    setPortrait('oppFoundYourDragon', yourDragon);
-    setPortrait('oppFoundOpponentDragon', opponentDragon);
+    if (disp) disp.textContent = `${tierName} Stake`;
     this.showScreen('opponentFoundScreen');
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
   }
