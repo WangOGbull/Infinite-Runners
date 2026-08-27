@@ -603,8 +603,8 @@
   .daOppDragon {
     position: absolute;
     z-index: 5;
-    top: 35.0%;
-    width: 31.5%;
+    top: 34.65%;
+    width: 30.2%;
     aspect-ratio: 1;
     border-radius: 50%;
     overflow: hidden;
@@ -612,22 +612,22 @@
     place-items: center;
     pointer-events: none;
   }
-  .daOppDragonYou { left: 9.1%; }
-  .daOppDragonRival { right: 9.1%; }
+  .daOppDragonYou { left: 9.9%; }
+  .daOppDragonRival { right: 9.9%; }
   .daOppDragon img {
-    width: 92%;
-    height: 92%;
+    width: 82%;
+    height: 82%;
     object-fit: contain;
-    transform: scale(.95);
+    transform: scale(.9);
   }
   .daOppDragonYou img { filter: drop-shadow(0 0 12px rgba(32, 151, 255, .55)); }
   .daOppDragonRival img { filter: drop-shadow(0 0 12px rgba(183, 66, 255, .55)); }
   .daOppLiveName {
     position: absolute;
     z-index: 4;
-    top: 59.5%;
-    width: 39.5%;
-    height: 5.0%;
+    top: 60.05%;
+    width: 35.5%;
+    height: 3.75%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -636,7 +636,7 @@
     background: transparent;
     color: #f0e8dc;
     font-family: 'Rajdhani', sans-serif;
-    font-size: clamp(9px, 3.25cqw, 16px);
+    font-size: clamp(8px, 2.75cqw, 14px);
     font-weight: 600;
     line-height: 1;
     text-align: center;
@@ -645,22 +645,22 @@
     text-overflow: ellipsis;
     text-shadow: 0 2px 3px #000;
   }
-  .daOppLiveNameYou { left: 6.5%; }
-  .daOppLiveNameRival { right: 6.5%; }
+  .daOppLiveNameYou { left: 8.6%; }
+  .daOppLiveNameRival { right: 8.6%; }
   .daOppLiveStake {
     position: absolute;
     z-index: 4;
-    left: 10.5%;
-    top: 68.0%;
-    width: 79%;
-    height: 9.0%;
+    left: 13.5%;
+    top: 68.45%;
+    width: 73%;
+    height: 6.6%;
     display: flex;
     align-items: center;
     justify-content: center;
     background: transparent;
     color: #dfbd79;
     font-family: 'Cinzel Decorative', serif;
-    font-size: clamp(9px, 3.15cqw, 17px);
+    font-size: clamp(8px, 2.75cqw, 15px);
     line-height: 1;
     letter-spacing: .015em;
     white-space: nowrap;
@@ -680,8 +680,8 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
-  .daOppEnterHit { left: 18.0%; top: 80.5%; width: 64%; height: 9.2%; }
-  .daOppCancelHit { left: 19.5%; top: 91.2%; width: 61%; height: 7.4%; }
+  .daOppEnterHit { left: 20.5%; top: 79.65%; width: 59%; height: 6.7%; }
+  .daOppCancelHit { left: 23%; top: 88.9%; width: 54%; height: 5.8%; }
   .daOppArtHit:focus-visible { opacity: 1; outline: 2px solid #58dfff; outline-offset: -4px; }
 
   @media (min-width: 900px) {
@@ -1532,7 +1532,19 @@
   #lobbyScreen.matchedLobby #lobbyTierSelector, 
   #lobbyScreen.matchedLobby .lobbySectionTier, 
   #lobbyScreen.matchedLobby .lobbySectionArena, 
-  #lobbyScreen.matchedLobby #lobbyArenaSelector { display: none !important; } 
+  #lobbyScreen.matchedLobby #lobbyArenaSelector { display: none !important; }
+  #lobbyScreen.matchedLobby #lobbyStartBtn { display: none !important; }
+  .autoMatchReadyHud {
+    width: min(100%, 340px); margin: 8px auto 4px; padding: 10px 14px;
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 3px 12px;
+    border: 1px solid rgba(181, 97, 255, .55); background: rgba(13, 6, 25, .88);
+    box-shadow: inset 0 0 18px rgba(143, 54, 255, .14), 0 0 16px rgba(99, 36, 180, .18);
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  }
+  .autoMatchReadyLabel { font: 700 11px/1 'Rajdhani', sans-serif; letter-spacing: 2px; color: #bda8d8; }
+  #autoMatchReadyCount { grid-row: span 2; font: 800 24px/1 'Cinzel Decorative', serif; color: #e8cf95; }
+  #autoMatchDeadlineText { font: 700 13px/1 'Rajdhani', sans-serif; letter-spacing: 1.5px; color: #d7b2ff; }
+  .autoMatchReadyHud.countdown #autoMatchReadyCount { color: #84ffbe; text-shadow: 0 0 12px rgba(69,255,155,.5); }
 
   .customStakeModal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; } 
   .customStakeModal.open { display: flex; } 
@@ -4075,7 +4087,12 @@
     <p id="depositStatusText" class="depositStatusText"></p> 
     <div class="lobbyActions"> 
       <button class="pBtn pBtnRes" id="lobbyStartBtn" style="display:none;" disabled><i data-lucide="play"></i> Start Game</button> 
-      <div id="lobbyWaitingText">Waiting for host...</div> 
+      <div id="lobbyWaitingText">Waiting for players...</div>
+      <div id="autoMatchReadyHud" class="autoMatchReadyHud" style="display:none;">
+        <span class="autoMatchReadyLabel">PLAYERS READY</span>
+        <strong id="autoMatchReadyCount">0/2</strong>
+        <span id="autoMatchDeadlineText">02:00</span>
+      </div>
       <button class="pBtn pBtnOut" id="btnLeaveRoom"><i data-lucide="log-out"></i> Leave Room</button> 
     </div> 
     <div id="lobbyCountdown" style="display:none;"> 

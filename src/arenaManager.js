@@ -31,12 +31,15 @@ class ArenaManager {
             this.loadedImages[index] = img;
             resolve(img);
           };
-          img.onerror = () => reject(new Error('Failed to load arena: ' + url));
+          img.onerror = () => {
+            console.warn('Failed to load arena:', url);
+            resolve(null);
+          };
           img.src = url;
         });
       })
     ).then(() => {
-      this.allLoaded = true;
+      this.allLoaded = this.loadedImages.some(Boolean);
       return this.loadedImages;
     });
     return this.preloadPromise;
@@ -45,12 +48,13 @@ class ArenaManager {
   selectArena(index) {
     if (this.loadedImages.length === 0) return;
     const idx = Math.max(0, Math.min(index, this.loadedImages.length - 1));
-    this.selectedImage = this.loadedImages[idx];
+    this.selectedImage = this.loadedImages[idx] || this.loadedImages.find(Boolean) || null;
   }
 
   pickRandomArena() {
-    if (this.loadedImages.length === 0) return;
-    this.selectedImage = this.loadedImages[Math.floor(Math.random() * this.loadedImages.length)];
+    const available = this.loadedImages.filter(Boolean);
+    if (available.length === 0) return;
+    this.selectedImage = available[Math.floor(Math.random() * available.length)];
   }
 
   setMode(mode, arenaIndex = null) {
