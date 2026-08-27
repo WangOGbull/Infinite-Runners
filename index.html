@@ -602,8 +602,8 @@
   .daOppDragon {
     position: absolute;
     z-index: 3;
-    top: 35.5%;
-    width: 28.5%;
+    top: 35.0%;
+    width: 31.5%;
     aspect-ratio: 1;
     border-radius: 50%;
     overflow: hidden;
@@ -611,11 +611,11 @@
     place-items: center;
     pointer-events: none;
   }
-  .daOppDragonYou { left: 11.7%; }
-  .daOppDragonRival { right: 11.7%; }
+  .daOppDragonYou { left: 9.1%; }
+  .daOppDragonRival { right: 9.1%; }
   .daOppDragon img {
-    width: 94%;
-    height: 94%;
+    width: 92%;
+    height: 92%;
     object-fit: contain;
     transform: scale(.95);
   }
@@ -624,15 +624,15 @@
   .daOppLiveName {
     position: absolute;
     z-index: 4;
-    top: 54.15%;
-    width: 30.2%;
-    height: 2.65%;
+    top: 58.25%;
+    width: 39.5%;
+    height: 5.0%;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 3%;
     box-sizing: border-box;
-    background: #070c12;
+    background: transparent;
     color: #f0e8dc;
     font-family: 'Rajdhani', sans-serif;
     font-size: clamp(9px, 2.1vw, 17px);
@@ -644,19 +644,19 @@
     text-overflow: ellipsis;
     text-shadow: 0 2px 3px #000;
   }
-  .daOppLiveNameYou { left: 11.3%; }
-  .daOppLiveNameRival { right: 11.3%; }
+  .daOppLiveNameYou { left: 6.5%; }
+  .daOppLiveNameRival { right: 6.5%; }
   .daOppLiveStake {
     position: absolute;
     z-index: 4;
-    left: 30.4%;
-    top: 62.1%;
-    width: 50.2%;
-    height: 3.4%;
+    left: 10.5%;
+    top: 66.65%;
+    width: 79%;
+    height: 9.0%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #070b0f;
+    background: transparent;
     color: #dfbd79;
     font-family: 'Cinzel Decorative', serif;
     font-size: clamp(9px, 2.2vw, 18px);
@@ -679,8 +679,8 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
-  .daOppEnterHit { left: 19.4%; top: 69.0%; width: 61.3%; height: 7.5%; }
-  .daOppCancelHit { left: 22.5%; top: 78.0%; width: 55%; height: 6.3%; }
+  .daOppEnterHit { left: 18.0%; top: 78.15%; width: 64%; height: 9.2%; }
+  .daOppCancelHit { left: 19.5%; top: 88.55%; width: 61%; height: 7.4%; }
   .daOppArtHit:focus-visible { opacity: 1; outline: 2px solid #58dfff; outline-offset: -4px; }
 
   @media (min-width: 900px) {
@@ -706,7 +706,7 @@
     .daNeoOrbit, .daNeoInfinitySymbol, .daNeoSearchDots span { animation-duration: 7s; }
   }
 
-  /* Approved Auto Match artwork layout: exact frame + live canvas/HTML layers. */
+  /* Approved Auto Match artwork layout: exact frame + masked energy video/live HTML layers. */
   .daSearchArtStage {
     position: relative;
     width: min(calc(100vw - 12px), calc((100dvh - 16px) * .5625), 590px);
@@ -726,16 +726,36 @@
     user-select: none;
     -webkit-user-drag: none;
   }
-  .daSearchCanvasWrap {
+  .daSearchEnergyPortal {
     position: absolute;
     z-index: 2;
-    left: 10.5%;
-    top: 22.8%;
-    width: 79%;
-    height: 39.5%;
+    left: 20%;
+    top: 29.25%;
+    width: 60%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #020008;
+    box-shadow: inset 0 0 34px rgba(0, 0, 0, .95), 0 0 18px rgba(150, 44, 255, .4);
     pointer-events: none;
   }
-  #autoMatchSearchCanvas { width: 100%; height: 100%; display: block; }
+  .daSearchEnergyPortal::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at 48% 50%, rgba(255, 209, 111, .2), transparent 12%, rgba(134, 30, 255, .12) 46%, rgba(0, 0, 0, .42) 100%);
+    mix-blend-mode: screen;
+  }
+  .daSearchEnergyVideo {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: center;
+    filter: hue-rotate(62deg) saturate(1.38) contrast(1.12) brightness(.92);
+    transform: scale(1.05);
+  }
   .daSearchLivePlate {
     position: absolute;
     z-index: 4;
@@ -808,7 +828,7 @@
     .daSearchArtStage { margin: auto; }
   }
   @media (prefers-reduced-motion: reduce) {
-    #autoMatchSearchCanvas { opacity: .92; }
+    .daSearchEnergyVideo { filter: hue-rotate(62deg) saturate(1.22) contrast(1.08) brightness(.86); }
   }
 
   #lobbyCountdown { width: 100%; margin-top: 12px; text-align: center; }
@@ -3905,7 +3925,11 @@
 <div id="matchmakingSearchScreen" class="screen">
   <div class="daSearchArtStage">
     <img class="daSearchArtwork" src="./assets/automatch-searching-original.jpg" alt="Searching — finding an equal challenger">
-    <div class="daSearchCanvasWrap" aria-hidden="true"><canvas id="autoMatchSearchCanvas"></canvas></div>
+    <div class="daSearchEnergyPortal" aria-hidden="true">
+      <video class="daSearchEnergyVideo" autoplay muted loop playsinline preload="auto">
+        <source src="./assets/automatch-infinity-energy-v1.mp4" type="video/mp4">
+      </video>
+    </div>
     <div class="daSearchLivePlate daSearchStakeLive" id="matchmakingTierBadge"></div>
     <div class="daSearchLivePlate daSearchModeLive" id="matchmakingStatusText">1V1 AUTO MATCH</div>
     <button class="daSearchCancelLive" id="btnCancelSearch" aria-label="Cancel Search">CANCEL</button>
