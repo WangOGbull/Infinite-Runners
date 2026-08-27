@@ -1025,6 +1025,10 @@ class Game {
   }
 
   setupEventListeners() {
+    this.eventBus.on('ui:screenChanged', ({ screenId }) => {
+      if (screenId === 'matchmakingSearchScreen') this.effectsSystem.startSearchSound();
+      else this.effectsSystem.stopSearchSound();
+    });
     this.eventBus.on('auth:googleSignIn', async () => {
       const result = await this.signInWithGoogle();
       if (result.error) this.uiManager.showAuthError(result.error);

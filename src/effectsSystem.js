@@ -184,6 +184,98 @@ class EffectsSystem {
     this._audioContext = null;
   }
 
+  startSearchSound() {
+    if (this._searchSound) return;
+    const ctx = this._getAudioContext();
+    const chain = this._buildMasterChain();
+    if (!ctx || !chain) return;
+
+    const now = ctx.currentTime;
+    const output = ctx.createGain();
+    output.gain.setValueAtTime(0.001, now);
+    output.gain.exponentialRampToValueAtTime(0.11, now + 0.45);
+    output.connect(chain.compressor);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 720;
+    filter.Q.value = 1.8;
+    filter.connect(output);
+
+    const hum = ctx.createOscillator();
+    hum.type = 'sine';
+    hum.frequency.value = 58;
+    const humGain = ctx.createGain();
+    humGain.gain.value = 0.56;
+    hum.connect(humGain);
+    humGain.connect(filter);
+
+    const energy = ctx.createOscillator();
+    energy.type = 'triangle';
+    energy.frequency.value = 116;
+    const energyGain = ctx.createGain();
+    energyGain.gain.value = 0.2;
+    energy.connect(energyGain);
+    energyGain.connect(filter);
+
+    const drift = ctx.createOscillator();
+    drift.type = 'sine';
+    drift.frequency.value = 0.18;
+    const driftDepth = ctx.createGain();
+    driftDepth.gain.value = 36;
+    drift.connect(driftDepth);
+    driftDepth.connect(energy.frequency);
+
+    hum.start(now);
+    energy.start(now);
+    drift.start(now);
+    this._searchSound = { output, hum, energy, drift, pulseTimer: 0 };
+    this._playSearchPulse();
+    this._searchSound.pulseTimer = window.setInterval(() => this._playSearchPulse(), 1250);
+  }
+
+  _playSearchPulse() {
+    if (!this._searchSound) return;
+    const ctx = this._getAudioContext();
+    const chain = this._buildMasterChain();
+    if (!ctx || !chain) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(260, now);
+    osc.frequency.exponentialRampToValueAtTime(620, now + 0.48);
+    filter.type = 'bandpass';
+    filter.frequency.value = 520;
+    filter.Q.value = 2.4;
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(0.055, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(chain.compressor);
+    osc.start(now);
+    osc.stop(now + 0.58);
+  }
+
+  stopSearchSound() {
+    const sound = this._searchSound;
+    if (!sound) return;
+    this._searchSound = null;
+    if (sound.pulseTimer) window.clearInterval(sound.pulseTimer);
+    const ctx = this._audioContext;
+    const now = ctx?.currentTime || 0;
+    try {
+      sound.output.gain.cancelScheduledValues(now);
+      sound.output.gain.setValueAtTime(Math.max(0.001, sound.output.gain.value), now);
+      sound.output.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      sound.hum.stop(now + 0.2);
+      sound.energy.stop(now + 0.2);
+      sound.drift.stop(now + 0.2);
+    } catch (_) {}
+  }
+
   _addParticle(
     x,
     y,

@@ -587,6 +587,7 @@
     flex: 0 0 auto;
     overflow: hidden;
     isolation: isolate;
+    container-type: inline-size;
   }
   .daOpponentArtwork {
     position: absolute;
@@ -624,7 +625,7 @@
   .daOppLiveName {
     position: absolute;
     z-index: 4;
-    top: 58.25%;
+    top: 59.5%;
     width: 39.5%;
     height: 5.0%;
     display: flex;
@@ -635,7 +636,7 @@
     background: transparent;
     color: #f0e8dc;
     font-family: 'Rajdhani', sans-serif;
-    font-size: clamp(9px, 2.1vw, 17px);
+    font-size: clamp(9px, 3.25cqw, 16px);
     font-weight: 600;
     line-height: 1;
     text-align: center;
@@ -650,7 +651,7 @@
     position: absolute;
     z-index: 4;
     left: 10.5%;
-    top: 66.65%;
+    top: 68.0%;
     width: 79%;
     height: 9.0%;
     display: flex;
@@ -659,7 +660,7 @@
     background: transparent;
     color: #dfbd79;
     font-family: 'Cinzel Decorative', serif;
-    font-size: clamp(9px, 2.2vw, 18px);
+    font-size: clamp(9px, 3.15cqw, 17px);
     line-height: 1;
     letter-spacing: .015em;
     white-space: nowrap;
@@ -679,8 +680,8 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
-  .daOppEnterHit { left: 18.0%; top: 78.15%; width: 64%; height: 9.2%; }
-  .daOppCancelHit { left: 19.5%; top: 88.55%; width: 61%; height: 7.4%; }
+  .daOppEnterHit { left: 18.0%; top: 80.5%; width: 64%; height: 9.2%; }
+  .daOppCancelHit { left: 19.5%; top: 91.2%; width: 61%; height: 7.4%; }
   .daOppArtHit:focus-visible { opacity: 1; outline: 2px solid #58dfff; outline-offset: -4px; }
 
   @media (min-width: 900px) {
@@ -706,7 +707,7 @@
     .daNeoOrbit, .daNeoInfinitySymbol, .daNeoSearchDots span { animation-duration: 7s; }
   }
 
-  /* Approved Auto Match artwork layout: exact frame + masked energy video/live HTML layers. */
+  /* Full-video Auto Match search screen with a responsive fantasy frame. */
   .daSearchArtStage {
     position: relative;
     width: min(calc(100vw - 12px), calc((100dvh - 16px) * .5625), 590px);
@@ -714,47 +715,80 @@
     flex: 0 0 auto;
     overflow: hidden;
     isolation: isolate;
+    container-type: inline-size;
+    background: #030107;
+    clip-path: polygon(7% 0, 93% 0, 100% 4%, 100% 96%, 93% 100%, 7% 100%, 0 96%, 0 4%);
   }
-  .daSearchArtwork {
+  .daSearchVideoShell {
     position: absolute;
-    inset: 0;
+    inset: 1.2%;
     z-index: 1;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    pointer-events: none;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
-  .daSearchEnergyPortal {
-    position: absolute;
-    z-index: 2;
-    left: 20%;
-    top: 29.25%;
-    width: 60%;
-    aspect-ratio: 1;
-    border-radius: 50%;
     overflow: hidden;
-    background: #020008;
-    box-shadow: inset 0 0 34px rgba(0, 0, 0, .95), 0 0 18px rgba(150, 44, 255, .4);
+    background: linear-gradient(145deg, #d5ae68 0%, #241b2c 18%, #8e48cf 45%, #17121c 70%, #d5ae68 100%);
+    clip-path: polygon(7% 0, 93% 0, 100% 4%, 100% 96%, 93% 100%, 7% 100%, 0 96%, 0 4%);
+    box-shadow: 0 0 26px rgba(139, 42, 255, .7);
     pointer-events: none;
   }
-  .daSearchEnergyPortal::after {
+  .daSearchVideoShell::before {
+    content: '';
+    position: absolute;
+    inset: 1.15%;
+    z-index: 2;
+    border: 1px solid rgba(238, 201, 128, .62);
+    clip-path: inherit;
+    box-shadow: inset 0 0 22px #000, inset 0 0 5px rgba(181, 75, 255, .9);
+  }
+  .daSearchVideoShell::after {
     content: '';
     position: absolute;
     inset: 0;
-    border-radius: inherit;
-    background: radial-gradient(circle at 48% 50%, rgba(255, 209, 111, .2), transparent 12%, rgba(134, 30, 255, .12) 46%, rgba(0, 0, 0, .42) 100%);
-    mix-blend-mode: screen;
+    z-index: 3;
+    background:
+      linear-gradient(180deg, rgba(2, 0, 7, .88) 0%, rgba(2, 0, 7, .25) 21%, transparent 35%, transparent 64%, rgba(2, 0, 7, .35) 72%, rgba(2, 0, 7, .92) 100%),
+      radial-gradient(circle at 50% 50%, transparent 30%, rgba(0, 0, 0, .52) 100%);
   }
-  .daSearchEnergyVideo {
-    width: 100%;
-    height: 100%;
+  .daSearchFullVideo {
+    position: absolute;
+    inset: 1.15%;
+    z-index: 1;
+    width: auto;
+    height: auto;
     display: block;
     object-fit: cover;
     object-position: center;
-    filter: hue-rotate(62deg) saturate(1.38) contrast(1.12) brightness(.92);
-    transform: scale(1.05);
+    filter: hue-rotate(62deg) saturate(1.42) contrast(1.15) brightness(.86);
+  }
+  .daSearchTitleLive,
+  .daSearchSubtitleLive {
+    position: absolute;
+    z-index: 5;
+    left: 10%;
+    width: 80%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    pointer-events: none;
+  }
+  .daSearchTitleLive {
+    top: 5.8%;
+    height: 7%;
+    color: #ead3a0;
+    font-family: 'Cinzel Decorative', serif;
+    font-size: clamp(18px, 7.2cqw, 39px);
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-shadow: 0 3px 5px #000, 0 0 18px rgba(181, 72, 255, .75);
+  }
+  .daSearchSubtitleLive {
+    top: 13.1%;
+    height: 4%;
+    color: #d9c7a8;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(10px, 3.3cqw, 18px);
+    font-weight: 600;
+    letter-spacing: .045em;
+    text-shadow: 0 2px 4px #000;
   }
   .daSearchLivePlate {
     position: absolute;
@@ -775,27 +809,36 @@
     pointer-events: none;
   }
   .daSearchStakeLive {
-    left: 21.6%; top: 65.1%; width: 56.8%; height: 5.2%;
-    font-size: clamp(9px, 2.25vw, 17px);
+    left: 15%; top: 71.8%; width: 70%; height: 7.5%;
+    border: 1px solid rgba(218, 177, 103, .72);
+    background: linear-gradient(180deg, rgba(12, 7, 18, .82), rgba(30, 12, 45, .8));
+    clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
+    box-shadow: inset 0 0 16px rgba(157, 52, 255, .35);
+    font-size: clamp(10px, 3.6cqw, 19px);
     letter-spacing: .025em;
   }
   .daSearchModeLive {
-    left: 31%; top: 75%; width: 38%; height: 3.9%;
+    left: 27%; top: 81.0%; width: 46%; height: 5.4%;
+    border: 1px solid rgba(180, 96, 231, .72);
+    background: rgba(28, 9, 43, .82);
+    clip-path: polygon(9% 0, 91% 0, 100% 50%, 91% 100%, 9% 100%, 0 50%);
     color: #d6a7ff;
     font-family: 'Rajdhani', sans-serif;
-    font-size: clamp(8px, 1.95vw, 14px);
+    font-size: clamp(9px, 2.8cqw, 15px);
     letter-spacing: .12em;
   }
   .daSearchCancelLive {
     position: absolute;
     z-index: 5;
-    left: 21.5%; top: 82.1%; width: 57%; height: 6.8%;
+    left: 17%; top: 88.1%; width: 66%; height: 7.8%;
     margin: 0; padding: 0 6%; border: 0; outline: 0;
     display: flex; align-items: center; justify-content: center;
-    background: transparent;
+    border: 1px solid rgba(215, 178, 113, .74);
+    background: linear-gradient(180deg, rgba(18, 13, 22, .9), rgba(9, 6, 13, .92));
+    clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
     color: #e9ddcb;
     font-family: 'Cinzel Decorative', serif;
-    font-size: clamp(9px, 2.2vw, 16px);
+    font-size: clamp(10px, 3.4cqw, 18px);
     font-weight: 700;
     letter-spacing: .08em;
     text-shadow: 0 2px 4px #000, 0 0 12px rgba(162, 61, 255, .45);
@@ -813,7 +856,7 @@
     color: #eee2cf;
     opacity: 1;
     font-family: 'Cinzel Decorative', serif;
-    font-size: clamp(9px, 2.15vw, 16px);
+    font-size: clamp(9px, 3.55cqw, 17px);
     font-weight: 700;
     line-height: 1;
     letter-spacing: .055em;
@@ -828,7 +871,7 @@
     .daSearchArtStage { margin: auto; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .daSearchEnergyVideo { filter: hue-rotate(62deg) saturate(1.22) contrast(1.08) brightness(.86); }
+    .daSearchFullVideo { filter: hue-rotate(62deg) saturate(1.25) contrast(1.1) brightness(.8); }
   }
 
   #lobbyCountdown { width: 100%; margin-top: 12px; text-align: center; }
@@ -3924,12 +3967,13 @@
 <!-- ===== SEARCH BATTLE: searching ===== -->
 <div id="matchmakingSearchScreen" class="screen">
   <div class="daSearchArtStage">
-    <img class="daSearchArtwork" src="./assets/automatch-searching-original.jpg" alt="Searching — finding an equal challenger">
-    <div class="daSearchEnergyPortal" aria-hidden="true">
-      <video class="daSearchEnergyVideo" autoplay muted loop playsinline preload="auto">
-        <source src="./assets/automatch-infinity-energy-v1.mp4" type="video/mp4">
+    <div class="daSearchVideoShell" aria-hidden="true">
+      <video class="daSearchFullVideo" autoplay muted loop playsinline preload="auto" disablepictureinpicture>
+        <source src="./assets/automatch-infinity-energy-v2.mp4" type="video/mp4">
       </video>
     </div>
+    <div class="daSearchTitleLive">SEARCHING</div>
+    <div class="daSearchSubtitleLive">Finding an equal challenger</div>
     <div class="daSearchLivePlate daSearchStakeLive" id="matchmakingTierBadge"></div>
     <div class="daSearchLivePlate daSearchModeLive" id="matchmakingStatusText">1V1 AUTO MATCH</div>
     <button class="daSearchCancelLive" id="btnCancelSearch" aria-label="Cancel Search">CANCEL</button>
