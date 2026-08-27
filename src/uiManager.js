@@ -2206,6 +2206,7 @@ class UIManager {
     if (profile) profile.classList.remove('active');
     Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
+    this.eventBus.emit('ui:screenChanged', { screenId });
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
     const _shown = this.screens[screenId];
     if (_shown) {
