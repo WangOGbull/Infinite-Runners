@@ -53,7 +53,7 @@ class BootLoader {
     this.done = false;
     this.skipIntro = false;
     try {
-      this.skipIntro = sessionStorage.getItem('infiniteRunnersBootComplete') === '1';
+      this.skipIntro = localStorage.getItem('infiniteRunnersBootComplete') === '1';
     } catch (_) {}
     if (this.skipIntro && this.el) {
       // Assets still validate in the background; only the repeated full-screen
@@ -89,7 +89,7 @@ class BootLoader {
     if (this.pct) this.pct.textContent = '100%';
     if (this.status) this.status.textContent = 'The arena awaits.';
     this.hideNetWarning();
-    try { sessionStorage.setItem('infiniteRunnersBootComplete', '1'); } catch (_) {}
+    try { localStorage.setItem('infiniteRunnersBootComplete', '1'); } catch (_) {}
     if (this.el) {
       if (this.skipIntro) {
         if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
@@ -255,8 +255,10 @@ class Game {
         urlHasWalletReturn = !!(params.get('walletReturn') || this.walletManager._walletReturnType || this.walletManager._arrivedInWalletBrowser);
       } catch (_) {}
       if (this.walletManager._arrivedInWalletBrowser) {
-        this._setLoadingMessage('Returning to Arena…');
-        this.uiManager.showScreen('loadingScreen');
+        // Wallet apps may reopen the game in a new browser tab. Keep the
+        // persistent boot flag and restore the lobby directly; never place a
+        // cinematic/loading screen in front of a live Auto Match countdown.
+        if (this._handoffResumeRoom) this.uiManager.showScreen('lobbyScreen');
         await this.loadGameAssets();
         if (this.authUid && this._handoffResumeRoom) {
           this.enterMainMenu();
@@ -271,8 +273,8 @@ class Game {
       } else if (urlHasWalletReturn) {
         const alreadyRestored = !!this.roomRef;
         if (!alreadyRestored) {
-          this._setLoadingMessage('Returning to Arena…');
-          this.uiManager.showScreen('loadingScreen');
+          const savedRoom = this._getLastRoom();
+          this.uiManager.showScreen(savedRoom ? 'lobbyScreen' : 'titleScreen');
         }
         setTimeout(() => {
           if (this._stakingResumeInFlight) return;
@@ -1424,9 +1426,6 @@ class Game {
     });
     this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier, matchId, roomReady, opponentUid }) => {
       this._pendingMatch = { roomCode, isInitiator, tier, matchId, roomReady: !!roomReady, opponentUid };
-      if (isInitiator) {
-        this._prepareMatchedRoomAsOwner(tier, roomCode, matchId);
-      }
       this.uiManager.showOpponentFound({
         tier,
         yourName: this.username || 'You',
@@ -1457,26 +1456,16 @@ class Game {
     this.eventBus.on('matchmaking:proceed', () => {
       const m = this._pendingMatch;
       if (!m) { this.uiManager.showScreen('mpMenuScreen'); return; }
-      if (m.isInitiator) {
-        // Initiator already created the room in _prepareMatchedRoomAsOwner
-        this.uiManager.setMatchedLobbyMode(true, m.tier);
-        this.uiManager.showScreen('lobbyScreen');
-        this._refreshStakingUI();
+      if (m.roomCode) {
+        this.joinRoom(m.roomCode);
       } else {
-        // Non-initiator: the initiator creates the room AFTER the matched
-        // event fires, so m.roomCode is usually null at this point.
-        // We need to wait for the roomCode to appear.
-        if (m.roomReady && m.roomCode) {
-          // RoomCode was included in the matched event — join immediately
-          this.joinRoom(m.roomCode);
-        } else {
           // RoomCode not yet available — show loading and poll for it.
           // Use a loading screen with a message instead of the broken
           // returnToMenuWithProcessing which has a hardcoded 5s timeout
           // that dumps the player on an empty lobby.
           this.uiManager.showScreen('loadingScreen');
           const msgEl = document.getElementById('loadingMessage') || document.getElementById('loadingText');
-          if (msgEl) msgEl.textContent = 'Waiting for host to create the arena…';
+          if (msgEl) msgEl.textContent = 'Preparing your Auto Match arena…';
 
           let joined = false;
           let pollAttempts = 0;
@@ -1508,17 +1497,11 @@ class Game {
               tryJoin(pending.roomCode);
             }
           }, 500);
-        }
       }
     });
     this.eventBus.on('matchmaking:cancelOpponentFound', () => {
       const m = this._pendingMatch;
       this._pendingMatch = null;
-      if (m && m.isInitiator && this.roomRef) {
-        try { this.roomRef.off(); } catch (_) {}
-        this.roomRef.remove().catch(() => {});
-        this.roomRef = null;
-      }
       if (this.matchmaking) this.matchmaking.cancelSearch();
       this.uiManager.showScreen('mpMenuScreen');
     });
@@ -1530,11 +1513,6 @@ class Game {
     });
     this.eventBus.on('matchmaking:opponentLeft', () => {
       this._pendingMatch = null;
-      if (this.roomRef && this._matchedMode && !this.stakingState?.hostDeposited && !this.stakingState?.opponentDeposited) {
-        try { this.roomRef.off(); } catch (_) {}
-        this.roomRef.remove().catch(() => {});
-        this.roomRef = null;
-      }
       this.uiManager.showScreen('mpMenuScreen');
       const err = document.getElementById('mpJoinError');
       if (err) err.textContent = 'Your opponent left before staking. Search again.';
@@ -1873,9 +1851,12 @@ class Game {
         disconnectedAt: firebase.database.ServerValue.TIMESTAMP,
       }).catch(() => {});
       // Clear disconnect flag on connect/reconnect
-      presenceRef.update({ disconnectedAt: null }).catch(() => {});
+      presenceRef.update({
+        connectedAt: firebase.database.ServerValue.TIMESTAMP,
+        disconnectedAt: null,
+      }).catch(() => {});
     }
-    if (this.isHost) {
+    if (this.isHost && !this._matchedMode) {
       const hostRef = this.roomRef.child('players/local');
       hostRef.once('value').then(snap => {
         if (!snap.exists()) {
@@ -2476,9 +2457,25 @@ class Game {
       const roomMode = data.mode || this.selectedMpMode || (roomMax <= 2 ? '1v1' : 'FFA');
       this.uiManager.updateLobby(players, roomMax, this.roomCode, this.isHost, roomMode);
       this._refreshStakingUI();
-      if (this._matchedMode && this.stakingState.hostDeposited && this.stakingState.opponentDeposited
-          && this.isHost && this.state !== 'PLAYING' && this.state !== 'GAME_OVER' && data.status !== 'playing') {
-        this.startMpGame();
+      if (this._matchedMode && data.status === 'expired') {
+        this.uiManager.updateAutoMatchHud({ enabled: false });
+        this._clearLastRoom();
+        this.uiManager.showScreen('mpMenuScreen');
+        const err = document.getElementById('mpJoinError');
+        if (err) err.textContent = 'Auto Match timed out. Confirmed stakes were returned automatically.';
+        return;
+      }
+      if (this._matchedMode) {
+        const readyCount = Object.values(this.roomPlayers).filter(p => p && p.deposited).length;
+        this.uiManager.updateAutoMatchHud({
+          enabled: true,
+          ready: data.autoMatchReadyCount !== undefined ? data.autoMatchReadyCount : readyCount,
+          total: 2,
+          deadlineAt: data.autoMatchDeadlineAt,
+          startAt: data.autoMatchStartAt,
+        });
+      } else {
+        this.uiManager.updateAutoMatchHud({ enabled: false });
       }
       if (this._shouldRunFFACountdown(data, players, roomMode)) {
         this._startFFACountdown();
@@ -2499,12 +2496,23 @@ class Game {
       if (data.status === 'playing'
           && this.state !== 'PLAYING'
           && this.state !== 'GAME_OVER'
-          && !this.isHost) {
+          && !this._serverStartInFlight) {
         const gameConfig = data.gameConfig || {};
         this.selectedMode = gameConfig.mode || data.mode || 'FFA';
         this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
         this.isMultiplayer = true;
-        this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
+        this._serverStartInFlight = true;
+        this.arenaManager.preloadAll()
+          .then(() => {
+            this.arenaManager.selectArena(this.lobbyArenaIndex);
+            if (!this.arenaManager.isReady()) throw new Error('No arena artwork is available.');
+            this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
+          })
+          .catch(error => {
+            console.error('[AutoMatch] arena start blocked:', error);
+            this.eventBus.emit('staking:error', { message: 'Arena artwork could not load. Please refresh and rejoin the match.' });
+          })
+          .finally(() => { this._serverStartInFlight = false; });
       }
     };
     this.roomRef.on('value', this._roomListener);
