@@ -1111,6 +1111,7 @@ class UIManager {
       const inferredMode = (maxPlayers <= 2) ? '1v1' : 'FFA';
       const roomMode = mode || inferredMode;
       const isFFA = roomMode !== '1v1';
+      const isAutoMatch = !!document.getElementById('lobbyScreen')?.classList.contains('matchedLobby');
       const cap = isFFA ? maxPlayers : 2;
 
       const slotsEl = document.getElementById('lobbySlots');
@@ -1127,6 +1128,7 @@ class UIManager {
         };
 
         const kickChip = (p) => {
+          if (isAutoMatch) return '';
           if (!isHost) return '';
           if (!p || p.isHost) return '';
           if (p.deposited) return '';
@@ -1142,6 +1144,7 @@ class UIManager {
         };
 
         const roleLabel = (roleClass, i) => {
+          if (isAutoMatch) return '<i data-lucide="shield" class="roleIcon roleShield"></i> AUTO MATCH PLAYER';
           if (roleClass === 'role-host') return '<i data-lucide="crown" class="roleIcon roleCrown"></i> ROOM LEADER';
           if (roleClass === 'role-opponent') return '<i data-lucide="shield" class="roleIcon roleShield"></i> CONTENDER';
           return `<i data-lucide="shield" class="roleIcon roleShield"></i> CHALLENGER ${i}`;
@@ -1213,8 +1216,8 @@ class UIManager {
 
       const startBtn = document.getElementById('lobbyStartBtn');
       const waitingText = document.getElementById('lobbyWaitingText');
-      if (startBtn) startBtn.style.display = (isHost && this._stakingBothDeposited) ? 'flex' : 'none';
-      if (waitingText) waitingText.style.display = isHost ? 'none' : 'block';
+      if (startBtn) startBtn.style.display = (!isAutoMatch && isHost && this._stakingBothDeposited) ? 'flex' : 'none';
+      if (waitingText) waitingText.style.display = isAutoMatch ? 'block' : (isHost ? 'none' : 'block');
       if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
     } catch (e) { console.warn('updateLobby error:', e); }
   }
@@ -1260,6 +1263,7 @@ class UIManager {
     const statusText = document.getElementById('depositStatusText');
     const startBtn = document.getElementById('lobbyStartBtn');
     const waitingText = document.getElementById('lobbyWaitingText');
+    const isAutoMatch = !!document.getElementById('lobbyScreen')?.classList.contains('matchedLobby');
     if (depositBtn) {
       depositBtn.style.display = (tier && !myDeposited) ? 'flex' : 'none';
       depositBtn.disabled = !!myDeposited;
@@ -1272,12 +1276,14 @@ class UIManager {
           : (isHost ? 'Place Bet & Open Room' : 'Place Bet to Join'));
     }
     if (startBtn) {
-      startBtn.style.display = (allPlayersDeposited && isHost) ? 'flex' : 'none';
+      startBtn.style.display = (!isAutoMatch && allPlayersDeposited && isHost) ? 'flex' : 'none';
       startBtn.disabled = !allPlayersDeposited;
     }
     if (waitingText) {
-      waitingText.style.display = (allPlayersDeposited && !isHost) ? 'block' : (isHost ? 'none' : waitingText.style.display);
-      if (allPlayersDeposited && !isHost) waitingText.textContent = 'All stakes locked — waiting for host to start...';
+      waitingText.style.display = isAutoMatch ? 'block' : ((allPlayersDeposited && !isHost) ? 'block' : (isHost ? 'none' : waitingText.style.display));
+      if (allPlayersDeposited) waitingText.textContent = isAutoMatch
+        ? 'Both stakes confirmed — automatic start pending…'
+        : (!isHost ? 'All stakes locked — waiting for host to start...' : waitingText.textContent);
     }
     if (statusText) {
       if (allPlayersDeposited) { statusText.textContent = 'All players staked - ready!'; statusText.className = 'depositStatusText confirmed'; }
@@ -2279,6 +2285,33 @@ class UIManager {
     setDisp('lobbyTierSelector', on);
     setDisp('lobbyArenaSelector', on);
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
+  }
+
+  updateAutoMatchHud({ enabled = false, ready = 0, total = 2, deadlineAt = 0, startAt = 0 } = {}) {
+    clearInterval(this._autoMatchHudTimer);
+    const hud = document.getElementById('autoMatchReadyHud');
+    const count = document.getElementById('autoMatchReadyCount');
+    const time = document.getElementById('autoMatchDeadlineText');
+    const waiting = document.getElementById('lobbyWaitingText');
+    if (!hud) return;
+    hud.style.display = enabled ? 'grid' : 'none';
+    if (!enabled) return;
+    this._autoMatchHudTimer = setInterval(() => {
+      this.updateAutoMatchHud({ enabled, ready, total, deadlineAt, startAt });
+    }, 1000);
+    const now = Date.now();
+    const inStartCountdown = Number(startAt) > now;
+    const remainingMs = inStartCountdown ? Number(startAt) - now : Math.max(0, Number(deadlineAt || 0) - now);
+    const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
+    if (count) count.textContent = `${ready}/${total}`;
+    if (time) time.textContent = inStartCountdown
+      ? `MATCH STARTS IN ${seconds}`
+      : `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    hud.classList.toggle('countdown', inStartCountdown);
+    if (waiting) {
+      waiting.style.display = 'block';
+      waiting.textContent = inStartCountdown ? 'Both stakes confirmed — preparing arena…' : 'Waiting for both players to stake…';
+    }
   }
 
   hideOpponentFoundModal() {
