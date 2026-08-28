@@ -49,6 +49,8 @@ class CollisionSystem {
     this.bodyHash = new SpatialHash(80);
     this.recoilPairs = new Map();
     this.recoilCooldown = 180;
+    this.maxClashPairs = new Map();
+    this.maxClashCooldown = 2500;
 
     this._foodHashDirty = true;
     this._lastFoodCount = -1;
@@ -63,6 +65,9 @@ class CollisionSystem {
       if (now - time > this.recoilCooldown) {
         this.recoilPairs.delete(key);
       }
+    }
+    for (const [key, time] of this.maxClashPairs) {
+      if (now - time > this.maxClashCooldown) this.maxClashPairs.delete(key);
     }
 
     if (this._foodHashDirty || this._lastFoodCount !== foods.length) {
@@ -197,6 +202,19 @@ class CollisionSystem {
 
       const len1 = d1.segments ? d1.segments.length : 0;
       const len2 = d2.segments ? d2.segments.length : 0;
+
+      const d1AtMax = len1 >= CONFIG.DRAGON_MAX_SEGMENTS || !!d1._networkAtMaxGrowth;
+      const d2AtMax = len2 >= CONFIG.DRAGON_MAX_SEGMENTS || !!d2._networkAtMaxGrowth;
+      if (d1AtMax && d2AtMax) {
+        const pairKey = this._getPairKey(d1, d2);
+        const previousTime = this.maxClashPairs.get(pairKey) || 0;
+        if (performance.now() - previousTime >= this.maxClashCooldown) {
+          this.maxClashPairs.set(pairKey, performance.now());
+          if (resolveDeath) this.eventBus.emit('collision:max-clash', { d1, d2 });
+        }
+        this._emitRecoil(d1, d2, 1.25);
+        return;
+      }
 
       if (len1 < len2) {
         if (d2.attackActive) {

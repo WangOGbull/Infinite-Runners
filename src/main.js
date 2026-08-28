@@ -1169,6 +1169,16 @@ class Game {
     this.eventBus.on('collision:tail-cut', ({ victim }) => {
       this.growthSystem.onCollisionTailCut(victim, 0.2);
     });
+    this.eventBus.on('collision:max-clash', ({ d1, d2 }) => {
+      const targetSegments = Math.max(
+        CONFIG.DRAGON_START_SEGMENTS,
+        Math.floor(CONFIG.DRAGON_MAX_SEGMENTS * 0.5)
+      );
+      this._applyMaxClash(d1, d2, targetSegments);
+      if (this.isMultiplayer && this.isHost) {
+        this._publishMaxClash(d1, d2, targetSegments);
+      }
+    });
     this.eventBus.on('dragon:tailDamage', ({ victim, attacker }) => {
   this.growthSystem.onCollisionTailCut(
     victim,
@@ -1424,14 +1434,15 @@ class Game {
     });
     this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
     this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
-      this.uiManager.showScreen('matchmakingSearchScreen');
-      const badge = document.getElementById('matchmakingTierBadge');
-      if (badge) {
-        const amount = TIER_AMOUNTS[tier] || 0;
-        badge.textContent = `${Number(amount).toLocaleString()} INFINITE`;
-        badge.style.display = 'flex';
-      }
       try {
+        await this._releaseStaleRoomForMatchmaking();
+        this.uiManager.showScreen('matchmakingSearchScreen');
+        const badge = document.getElementById('matchmakingTierBadge');
+        if (badge) {
+          const amount = TIER_AMOUNTS[tier] || 0;
+          badge.textContent = `${Number(amount).toLocaleString()} INFINITE`;
+          badge.style.display = 'flex';
+        }
         if (!this.matchmaking) { this.eventBus.emit('matchmaking:error', { message: 'Matchmaking is not ready yet. Please try again in a moment.' }); return; }
         if (this.db && this.authUid) {
           this.db.ref(`users/${this.authUid}/matchmakingProfile`).update({
@@ -1474,11 +1485,24 @@ class Game {
         this._pendingMatch.roomReady = true;
       }
     });
-    this.eventBus.on('matchmaking:proceed', () => {
+    this.eventBus.on('matchmaking:proceed', async () => {
       const m = this._pendingMatch;
       if (!m) { this.uiManager.showScreen('mpMenuScreen'); return; }
       if (m.roomCode) {
-        this.joinRoom(m.roomCode);
+        try {
+          const roomState = await this._releaseStaleRoomForMatchmaking(m.roomCode);
+          if (roomState === 'current') {
+            this.uiManager.setMatchedLobbyMode(true, m.tier);
+            this.uiManager.showScreen('lobbyScreen');
+            this._attachRoomListener();
+            this._refreshStakingUI();
+          } else {
+            this.joinRoom(m.roomCode);
+          }
+        } catch (error) {
+          console.error('[matchmaking:proceed] could not release previous room:', error);
+          this.eventBus.emit('matchmaking:error', { message: error?.message || 'Could not enter the matched room.' });
+        }
       } else {
           // RoomCode not yet available — show loading and poll for it.
           // Use a loading screen with a message instead of the broken
@@ -2708,6 +2732,59 @@ class Game {
     }
   }
 
+  async _releaseStaleRoomForMatchmaking(nextRoomCode = null) {
+    if (!this.roomRef) return 'clear';
+    if (nextRoomCode && String(this.roomCode) === String(nextRoomCode)) return 'current';
+    if (this.state === 'PLAYING' || this.state === 'GAME_OVER') {
+      throw new Error('Finish or leave the current match before searching again.');
+    }
+
+    let room = null;
+    try { room = (await this.roomRef.once('value')).val(); } catch (_) {}
+    const players = room?.players || {};
+    const myRecord = this.localPlayerId ? players[this.localPlayerId] : null;
+    const legacyDeposited = this.isHost
+      ? !!room?.staking?.hostDeposited
+      : !!room?.staking?.opponentDeposited;
+    const hasActiveStake = !!myRecord?.deposited || legacyDeposited;
+    const roomEnded = !room || ['finished', 'completed', 'expired'].includes(room.status);
+    if (hasActiveStake && !roomEnded) {
+      throw new Error('Your previous stake is still active. Leave that room and wait for its refund before searching again.');
+    }
+
+    const oldRef = this.roomRef;
+    const oldPlayerId = this.localPlayerId;
+    if (this._roomListener) {
+      try { oldRef.off('value', this._roomListener); } catch (_) {}
+      this._roomListener = null;
+    }
+    try { oldRef.off(); } catch (_) {}
+    if (room && oldPlayerId && players[oldPlayerId] && !myRecord?.deposited) {
+      try { await oldRef.child('players/' + oldPlayerId).remove(); } catch (_) {}
+      if (Object.keys(players).length <= 1) {
+        try { await oldRef.remove(); } catch (_) {}
+      }
+    }
+    if (this.authUid) {
+      try { await oldRef.child('presence/' + this.authUid).remove(); } catch (_) {}
+    }
+
+    this.roomRef = null;
+    this.roomCode = '';
+    this.localPlayerId = null;
+    this.playerIds = [];
+    this.roomPlayers = {};
+    this.isHost = false;
+    this.isMultiplayer = false;
+    this._matchedMode = false;
+    this.lobbyTier = null;
+    this.stakingState = { hostDeposited: false, opponentDeposited: false };
+    this._consumeLobbyContext();
+    this._clearLastRoom();
+    if (this.uiManager.resetLobbyState) this.uiManager.resetLobbyState();
+    return 'clear';
+  }
+
   _prepareForNewRoom() {
     // Reset room and match UI only. Wallet/provider state is intentionally
     // outside this method and remains connected.
@@ -2781,6 +2858,37 @@ class Game {
     }
   }
 
+  _applyMaxClash(d1, d2, targetSegments = 25) {
+    for (const dragon of [d1, d2]) {
+      if (!dragon || !dragon.segments || !dragon.alive) continue;
+      const target = Math.max(CONFIG.DRAGON_START_SEGMENTS, Math.min(targetSegments, dragon.segments.length));
+      if (dragon.segments.length > target) dragon.segments.splice(target);
+      dragon._prevSegments = dragon.segments.length;
+      dragon.immunityTimer = Math.max(Number(dragon.immunityTimer || 0), 900);
+    }
+  }
+
+  _publishMaxClash(d1, d2, targetSegments) {
+    if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef) return null;
+    const playerIds = [d1?.playerId, d2?.playerId].filter(Boolean);
+    if (playerIds.length !== 2) return null;
+    const eventRef = this.combatEventsRef.push();
+    const eventId = eventRef.key;
+    if (!eventId) return null;
+    this._rememberCombatEvent(eventId);
+    eventRef.set({
+      type: 'max_clash',
+      matchId: this.matchId,
+      playerIds,
+      targetSegments,
+      createdAt: Date.now()
+    }).catch(error => {
+      console.error('[Combat] Failed to publish maximum-growth clash:', error);
+      this._processedCombatEvents.delete(eventId);
+    });
+    return eventId;
+  }
+
   _publishCombatDeath(victim, killer) {
     if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef) return null;
     const victimId = victim && victim.playerId;
@@ -2832,7 +2940,7 @@ class Game {
     this._combatEventListener = snapshot => {
       const eventId = snapshot.key;
       const event = snapshot.val();
-      if (!eventId || !event || event.type !== 'death') return;
+      if (!eventId || !event || !['death', 'max_clash'].includes(event.type)) return;
       if (event.matchId !== this.matchId) return;
       if (this._processedCombatEvents.has(eventId)) return;
 
@@ -2841,6 +2949,15 @@ class Game {
       if (typeof event.createdAt === 'number' &&
           event.createdAt < this._combatListenStartedAt - 5000) {
         this._rememberCombatEvent(eventId);
+        return;
+      }
+
+      if (event.type === 'max_clash') {
+        const [firstId, secondId] = Array.isArray(event.playerIds) ? event.playerIds : [];
+        const first = this._getDragonByPlayerId(firstId);
+        const second = this._getDragonByPlayerId(secondId);
+        this._rememberCombatEvent(eventId);
+        if (first && second) this._applyMaxClash(first, second, Number(event.targetSegments || 25));
         return;
       }
 
@@ -3018,6 +3135,7 @@ class Game {
       angle: this.localDragon.angle,
       score: this.localDragon.score || 0,
       segments: this.localDragon.segments.length,
+      atMaxGrowth: this.localDragon.segments.length >= CONFIG.DRAGON_MAX_SEGMENTS,
       lives: this.localDragon.lives,
       alive: this.localDragon.alive,
       attackActive: !!this.localDragon.attackActive,
@@ -3080,6 +3198,7 @@ class Game {
       }
       dragon.attackActive = !!pos.attackActive;
       dragon.boostActive = dragon.attackActive;
+      dragon._networkAtMaxGrowth = !!pos.atMaxGrowth;
 
       if (!isConfirmedRespawn && typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
         this._resizeRemoteDragon(dragon, pos.segments);
