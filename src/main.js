@@ -35,6 +35,18 @@ function isWalletReturnLaunch() {
   }
 }
 
+function isPhantomStakeReturnLaunch() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const returnType = params.get('walletReturn');
+    const walletType = params.get('walletType') || 'phantom';
+    return walletType === 'phantom'
+      && (returnType === 'signTransaction' || returnType === 'signAndSendTransaction');
+  } catch (_) {
+    return false;
+  }
+}
+
 class EventBus {
   constructor() {
     this.listeners = new Map();
@@ -219,17 +231,25 @@ class Game {
     this._roomListener = null;
     this._walletReturnBooting = false;
     this._queuedWalletResult = null;
+    this._holdPhantomStakeReturn = false;
+    this._deferredStakeResult = null;
     this.init();
   }
 
   async init() {
     const walletReturnLaunch = isWalletReturnLaunch();
+    const phantomStakeReturnLaunch = isPhantomStakeReturnLaunch();
+    this._holdPhantomStakeReturn = phantomStakeReturnLaunch;
+    this._phantomStakeReturnStartedAt = phantomStakeReturnLaunch ? Date.now() : 0;
     this.bootLoader = new BootLoader(walletReturnLaunch);
     // A wallet return must never reveal the default active title screen while
     // Firebase and assets restore. Hold the player in the lobby shell instead.
     try {
       const params = new URLSearchParams(window.location.search);
-      if (walletReturnLaunch) {
+      if (phantomStakeReturnLaunch) {
+        this.uiManager.showScreen('loadingScreen');
+        this._setLoadingMessage('Confirming your stake...');
+      } else if (walletReturnLaunch) {
         this.uiManager.showScreen('lobbyScreen');
       } else {
         this.uiManager.showScreen('loadingScreen');
@@ -293,10 +313,13 @@ class Game {
         if (walletAssetPromise) await walletAssetPromise;
         this._walletReturnBooting = false;
         await this._flushQueuedWalletResult();
+        await this._finishPhantomStakeReturn();
         if (!restored && !this.roomRef) {
-          const screen = await this.determineStartScreen();
-          if (screen === 'titleScreen') this.enterMainMenu();
-          else this.uiManager.showScreen(screen);
+          if (!phantomStakeReturnLaunch) {
+            const screen = await this.determineStartScreen();
+            if (screen === 'titleScreen') this.enterMainMenu();
+            else this.uiManager.showScreen(screen);
+          }
         }
         await this.loadGameAssets();
       } else
@@ -336,6 +359,7 @@ class Game {
     if (this.roomRef) {
       await this.loadGameAssets();
     }
+    await this._finishPhantomStakeReturn();
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
@@ -695,8 +719,40 @@ class Game {
       await this._resumeStakingAction(result.pendingAction, result.signature);
     } else {
       await this._restoreLobbyContextIfPresent();
-      this.eventBus.emit('staking:error', { message: result.message || 'Staking transaction failed.' });
+      this._emitStakeResult('staking:error', {
+        message: result.message || 'Staking failed. Please try again.'
+      });
     }
+  }
+
+  _emitStakeResult(event, data) {
+    if (this._holdPhantomStakeReturn) {
+      this._deferredStakeResult = { event, data };
+      return;
+    }
+    this.eventBus.emit(event, data);
+  }
+
+  async _finishPhantomStakeReturn() {
+    if (!this._holdPhantomStakeReturn) return;
+    const elapsed = Date.now() - (this._phantomStakeReturnStartedAt || Date.now());
+    if (elapsed < 900) {
+      await new Promise(resolve => setTimeout(resolve, 900 - elapsed));
+    }
+    this._holdPhantomStakeReturn = false;
+    if (this.roomRef) {
+      this.uiManager.showScreen('lobbyScreen');
+      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
+    } else {
+      this.uiManager.showScreen('mpMenuScreen');
+      this._deferredStakeResult = {
+        event: 'staking:error',
+        data: { message: 'Could not restore your match room. Your stake was not submitted. Please try again.' }
+      };
+    }
+    const notice = this._deferredStakeResult;
+    this._deferredStakeResult = null;
+    if (notice) this.eventBus.emit(notice.event, notice.data);
   }
 
   async _autoResumeLastRoom() {
@@ -776,7 +832,7 @@ class Game {
   }
 
   _assertLobbyScreen() {
-    if (!this.roomRef) return;
+    if (!this.roomRef || this._holdPhantomStakeReturn) return;
     const cur = this.uiManager.currentScreen;
     if (cur === 'loadingScreen' || cur === 'titleScreen') {
       this.uiManager.showScreen('lobbyScreen');
@@ -2033,7 +2089,7 @@ class Game {
     this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showLoginDrop(this.username, this.isGuest);
     this.uiManager.setMatchedLobbyMode(this._matchedMode, this.lobbyTier);
-    this.uiManager.showScreen('lobbyScreen');
+    if (!this._holdPhantomStakeReturn) this.uiManager.showScreen('lobbyScreen');
     this.uiManager.updateLobbyArena(this.lobbyArenaIndex, this.isHost && !this._matchedMode);
     this._attachRoomListener();
     this._ensurePresence();
@@ -2142,7 +2198,7 @@ class Game {
       } else if (this.roomRef) {
         pendingAction = { type: 'joinRoom' };
       } else {
-        this.eventBus.emit('staking:error', {
+        this._emitStakeResult('staking:error', {
           message: 'Stake resume failed: no room context found. Please try placing your bet again.'
         });
         return;
@@ -2161,7 +2217,7 @@ class Game {
       return completed;
     } catch (err) {
       console.error('[Staking] resume failed:', err);
-      this.eventBus.emit('staking:error', {
+      this._emitStakeResult('staking:error', {
         message: err?.message || 'Stake confirmation failed. Please try placing your bet again.'
       });
     } finally {
@@ -2181,7 +2237,7 @@ class Game {
     if (isStakeAction) {
       if (!signature) {
         console.error('[Staking] resume attempted without a signature — not marking deposited');
-        this.eventBus.emit('staking:error', {
+        this._emitStakeResult('staking:error', {
           message: 'Your wallet did not return a transaction. No tokens moved. Please try placing your bet again.'
         });
         return false;
@@ -2189,7 +2245,7 @@ class Game {
       const landed = await this._verifyTxLanded(signature);
       if (!landed) {
         console.error(`[Staking] mobile-redirect signature ${signature} did NOT land on-chain — not marking deposited`);
-        this.eventBus.emit('staking:error', {
+        this._emitStakeResult('staking:error', {
           message: 'Your stake transaction did not confirm on-chain. No tokens moved. Please try placing your bet again.'
         });
         return false;
@@ -2311,7 +2367,9 @@ class Game {
     updates[`players/${myId}/depositTx`] = signature;
     await this.roomRef.update(updates);
     this._consumeLobbyContext();
-    this.eventBus.emit('staking:confirmed', { label: `Deposit confirmed on-chain (tx ${String(signature).slice(0, 8)}…).` });
+    this._emitStakeResult('staking:confirmed', {
+      label: `Stake confirmed (tx ${String(signature).slice(0, 8)}…).`
+    });
   }
 
   _refreshStakingUI() {
