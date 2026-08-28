@@ -186,6 +186,8 @@ class Game {
     this._predictedCombatDeaths = new Map();
     this._combatListenStartedAt = 0;
     this.assetsLoaded = false;
+    this._assetsLoadPromise = null;
+    this._assetRetryNotified = false;
     this.matchStats = {};
     this.winner = null;
     this.currentWaveIndex = -1;
@@ -207,6 +209,16 @@ class Game {
 
   async init() {
     this.bootLoader = new BootLoader();
+    // A wallet return must never reveal the default active title screen while
+    // Firebase and assets restore. Hold the player in the lobby shell instead.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('walletReturn') || params.get('autoConnectWallet')) {
+        this.uiManager.showScreen('lobbyScreen');
+      } else {
+        this.uiManager.showScreen('loadingScreen');
+      }
+    } catch (_) {}
     this._loadAuthSnapshot();
     this.setupEventListeners();
     this._setupSprintButton();
@@ -249,6 +261,7 @@ class Game {
     // until Firebase auth and the exact room have been restored.
     this._walletReturnBooting = urlHasWalletReturn;
     this.walletManager.processMobileRedirect();
+    const walletAssetPromise = urlHasWalletReturn ? this.loadGameAssets() : null;
     this._handoffResumeRoom = await this._redeemAuthHandoff();
     if (this.authUid && this.roomRef) {
       this.uiManager.setAccount(this.authUid, this.db);
@@ -265,6 +278,7 @@ class Game {
         // return. Restore the exact room first, then reconcile the result.
         const queuedAction = this._queuedWalletResult && this._queuedWalletResult.pendingAction;
         const restored = await this._restoreWalletReturnRoom(queuedAction);
+        if (walletAssetPromise) await walletAssetPromise;
         this._walletReturnBooting = false;
         await this._flushQueuedWalletResult();
         if (!restored && !this.roomRef) {
@@ -316,26 +330,66 @@ class Game {
   }
 
   async loadGameAssets() {
-    if (this._assetsLoadStarted) return;
+    if (this.assetsLoaded) return true;
+    if (this._assetsLoadPromise) return this._assetsLoadPromise;
     this._assetsLoadStarted = true;
-    this.bootLoader.startWatchdog();
-    while (true) {
-      try {
-        await AssetLoader.preloadAll(
-          (done, total) => this.bootLoader.setProgress(done, total),
-          bootExtraImages()
-        );
-        await this.arenaManager.preloadAll();
-        this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
-        this.assetsLoaded = true;
-        console.log('[Assets] All dragon and arena assets loaded successfully');
-        this.bootLoader.finish();
-        return;
-      } catch (e) {
-        console.error('Asset load failed:', e);
-        await new Promise(resolve => this.bootLoader.fail(resolve));
+    this._assetsLoadPromise = (async () => {
+      this.bootLoader.startWatchdog();
+      while (true) {
+        try {
+          await AssetLoader.preloadAll(
+            (done, total) => this.bootLoader.setProgress(done, total),
+            bootExtraImages()
+          );
+          // Select-screen portraits are required UI, not decorative extras.
+          // Do not expose menus while any of them is still broken/missing.
+          await Promise.all(Object.values(DRAGON_IMAGES).map(url => AssetLoader.loadImage(url)));
+          await this.arenaManager.preloadAll();
+          const arenasReady = this.arenaManager.loadedImages.every(
+            image => image && image.complete && image.naturalWidth > 0
+          );
+          if (!arenasReady) {
+            this.arenaManager.preloadPromise = null;
+            throw new Error('One or more required arena images failed to load.');
+          }
+          this.uiManager.buildDragonSelect(AssetLoader.getAllDragons());
+          this.assetsLoaded = true;
+          console.log('[Assets] All dragon and arena assets loaded successfully');
+          this.bootLoader.finish();
+          return true;
+        } catch (e) {
+          console.error('Asset load failed:', e);
+          if (this.roomRef || this._walletReturnBooting) {
+            if (this.roomRef && !this._assetRetryNotified) {
+              this._assetRetryNotified = true;
+              this.eventBus.emit('staking:error', {
+                message: 'Dragon artwork is still loading. The arena will open when every required asset is ready.'
+              });
+            }
+            await new Promise(resolve => setTimeout(resolve, 1500));
+          } else {
+            await new Promise(resolve => this.bootLoader.fail(resolve));
+          }
+        }
       }
+    })();
+    return this._assetsLoadPromise;
+  }
+
+  async _ensureGameAssetsReady(dragonName = null, arenaIndex = null) {
+    await this.loadGameAssets();
+    const selected = String(dragonName || this.selectedDragon || 'ignis').toLowerCase();
+    const dragon = AssetLoader.getDragonByName(selected);
+    if (!dragon || !dragon.head || !dragon.body || !dragon.tail) {
+      throw new Error(`Required dragon artwork is unavailable for ${selected}.`);
     }
+    if (arenaIndex !== null && arenaIndex !== undefined) {
+      this.arenaManager.selectArena(arenaIndex);
+    }
+    if (!this.arenaManager.isReady()) {
+      throw new Error('No arena artwork is available.');
+    }
+    return true;
   }
 
   enterMainMenu() {
@@ -2287,7 +2341,16 @@ class Game {
     });
   }
 
-  startLocalGame(mode, difficulty, arenaIndex) {
+  async startLocalGame(mode, difficulty, arenaIndex) {
+    try {
+      await this._ensureGameAssetsReady(this.selectedDragon || 'ignis', arenaIndex);
+    } catch (error) {
+      console.error('[GameStart] blocked until assets are ready:', error);
+      this.eventBus.emit('staking:error', {
+        message: 'The selected dragon or arena artwork could not load. The match was not started.'
+      });
+      return false;
+    }
     this.gameModeManager.setMode(mode);
     this.arenaManager.setMode(mode, arenaIndex);
     this.currentWaveIndex = typeof mode === 'string' ? AI_WAVES.findIndex(w => w.id === mode) : -1;
@@ -2359,6 +2422,7 @@ class Game {
     if (this.isMultiplayer) {
       this.startNetworkSync();
     }
+    return true;
   }
 
   initMatchStats(dragon) {
@@ -2670,7 +2734,7 @@ class Game {
           .then(() => {
             this.arenaManager.selectArena(this.lobbyArenaIndex);
             if (!this.arenaManager.isReady()) throw new Error('No arena artwork is available.');
-            this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
+            return this.startLocalGame(this.selectedMode, 'advanced', this.lobbyArenaIndex);
           })
           .catch(error => {
             console.error('[AutoMatch] arena start blocked:', error);
@@ -2917,7 +2981,7 @@ class Game {
     if (this.uiManager.resetLobbyState) this.uiManager.resetLobbyState();
   }
 
-  startMpGame() {
+  async startMpGame() {
     if (!this.lobbyTier) {
       this.eventBus.emit('staking:error', { message: 'Pick a stake tier and place your bet before starting.' });
       return;
@@ -2932,6 +2996,15 @@ class Game {
     }
     if (!everyoneStaked) {
       this.eventBus.emit('staking:error', { message: 'All players must deposit their stake before the match can start.' });
+      return;
+    }
+    try {
+      await this._ensureGameAssetsReady(this.selectedDragon || 'ignis', this.lobbyArenaIndex);
+    } catch (error) {
+      console.error('[Multiplayer] start blocked until assets are ready:', error);
+      this.eventBus.emit('staking:error', {
+        message: 'Dragon and arena artwork must finish loading before the match can start.'
+      });
       return;
     }
     if (this.roomRef && this.isHost) {
@@ -2954,7 +3027,7 @@ class Game {
       });
     }
     this.isMultiplayer = true;
-    this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced', this.lobbyArenaIndex);
+    await this.startLocalGame(this.selectedMpMode || 'FFA', 'advanced', this.lobbyArenaIndex);
   }
 
   _getDragonByPlayerId(playerId) {
