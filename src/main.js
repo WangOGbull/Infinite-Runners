@@ -19,6 +19,21 @@ import FirebaseMatchmaking from './firebaseMatchmaking.js';
 const BACKEND_URL = 'https://infiniterunners-firebase-backend-production.up.railway.app';
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
 const LAST_ROOM_KEY = 'lastRoomInfo';
+const BOOT_COMPLETE_KEY = 'infiniteRunnersBootCompleteV2';
+
+function isWalletReturnLaunch() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return !!(
+      params.get('walletReturn')
+      || params.get('autoConnectWallet')
+      || params.get('handoff')
+      || params.get('resumeRoom')
+    );
+  } catch (_) {
+    return false;
+  }
+}
 
 class EventBus {
   constructor() {
@@ -42,7 +57,7 @@ class EventBus {
 }
 
 class BootLoader {
-  constructor() {
+  constructor(forceSkip = false) {
     this.el = document.getElementById('bootScreen');
     this.fill = document.getElementById('bootBarFill');
     this.pct = document.getElementById('bootPct');
@@ -51,9 +66,9 @@ class BootLoader {
     this.retryBtn = document.getElementById('bootRetryBtn');
     this.lastTick = Date.now();
     this.done = false;
-    this.skipIntro = false;
+    this.skipIntro = !!forceSkip;
     try {
-      this.skipIntro = localStorage.getItem('infiniteRunnersBootComplete') === '1';
+      this.skipIntro = this.skipIntro || localStorage.getItem(BOOT_COMPLETE_KEY) === '1';
     } catch (_) {}
     if (this.skipIntro && this.el) {
       // Assets still validate in the background; only the repeated full-screen
@@ -89,7 +104,7 @@ class BootLoader {
     if (this.pct) this.pct.textContent = '100%';
     if (this.status) this.status.textContent = 'The arena awaits.';
     this.hideNetWarning();
-    try { localStorage.setItem('infiniteRunnersBootComplete', '1'); } catch (_) {}
+    try { localStorage.setItem(BOOT_COMPLETE_KEY, '1'); } catch (_) {}
     if (this.el) {
       if (this.skipIntro) {
         if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
@@ -208,12 +223,13 @@ class Game {
   }
 
   async init() {
-    this.bootLoader = new BootLoader();
+    const walletReturnLaunch = isWalletReturnLaunch();
+    this.bootLoader = new BootLoader(walletReturnLaunch);
     // A wallet return must never reveal the default active title screen while
     // Firebase and assets restore. Hold the player in the lobby shell instead.
     try {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('walletReturn') || params.get('autoConnectWallet')) {
+      if (walletReturnLaunch) {
         this.uiManager.showScreen('lobbyScreen');
       } else {
         this.uiManager.showScreen('loadingScreen');
@@ -252,11 +268,7 @@ class Game {
     }
     this.effectsSystem.init();
     this.effectsSystem._preloadAudio();
-    let urlHasWalletReturn = false;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      urlHasWalletReturn = !!(params.get('walletReturn') || params.get('autoConnectWallet'));
-    } catch (_) {}
+    let urlHasWalletReturn = walletReturnLaunch;
     // A wallet redirect may emit its result synchronously. Hold that result
     // until Firebase auth and the exact room have been restored.
     this._walletReturnBooting = urlHasWalletReturn;
