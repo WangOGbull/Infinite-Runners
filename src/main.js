@@ -305,7 +305,6 @@ class Game {
           const screen = await this.determineStartScreen();
           if (screen === 'titleScreen') {
             this.enterMainMenu();
-            this._autoResumeLastRoom();
           } else {
             this.uiManager.showScreen(screen);
           }
@@ -599,6 +598,28 @@ class Game {
         try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
         if (this.uiManager.showResumeFailed) {
           this.uiManager.showResumeFailed(`Room ${ctx.roomCode} is no longer available.`);
+        }
+        return;
+      }
+      const room = snap.val() || {};
+      if (['finished', 'completed', 'expired'].includes(room.status)) {
+        stop();
+        this._clearLastRoom();
+        if (this.uiManager.showResumeFailed) {
+          this.uiManager.showResumeFailed('Your previous room has ended. Start a new match.');
+        }
+        return;
+      }
+      const players = room.players || {};
+      const savedPlayerExists = !!(ctx.localPlayerId && players[ctx.localPlayerId]);
+      const authenticatedPlayerExists = !!(this.authUid && Object.values(players).some(
+        player => player && player.authUid === this.authUid
+      ));
+      if (!savedPlayerExists && !authenticatedPlayerExists) {
+        stop();
+        this._clearLastRoom();
+        if (this.uiManager.showResumeFailed) {
+          this.uiManager.showResumeFailed('That saved room no longer belongs to this player.');
         }
         return;
       }
@@ -1763,7 +1784,10 @@ class Game {
       const raw = localStorage.getItem(LAST_ROOM_KEY);
       if (!raw) return null;
       const ctx = JSON.parse(raw);
-      if (!ctx.savedAt || Date.now() - ctx.savedAt > 2 * 60 * 60 * 1000) return null;
+      if (!ctx.savedAt || Date.now() - ctx.savedAt > 2 * 60 * 60 * 1000) {
+        localStorage.removeItem(LAST_ROOM_KEY);
+        return null;
+      }
       return ctx;
     } catch (_) {
       return null;
