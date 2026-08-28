@@ -68,7 +68,7 @@ class BootLoader {
     this.done = false;
     this.skipIntro = !!forceSkip;
     try {
-      this.skipIntro = this.skipIntro || localStorage.getItem(BOOT_COMPLETE_KEY) === '1';
+      this.skipIntro = this.skipIntro || sessionStorage.getItem(BOOT_COMPLETE_KEY) === '1';
     } catch (_) {}
     if (this.skipIntro && this.el) {
       // Assets still validate in the background; only the repeated full-screen
@@ -104,7 +104,7 @@ class BootLoader {
     if (this.pct) this.pct.textContent = '100%';
     if (this.status) this.status.textContent = 'The arena awaits.';
     this.hideNetWarning();
-    try { localStorage.setItem(BOOT_COMPLETE_KEY, '1'); } catch (_) {}
+    try { sessionStorage.setItem(BOOT_COMPLETE_KEY, '1'); } catch (_) {}
     if (this.el) {
       if (this.skipIntro) {
         if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
