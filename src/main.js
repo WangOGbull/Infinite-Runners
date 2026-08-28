@@ -200,6 +200,8 @@ class Game {
     this._inputMap = new Map();
     this._domRefs = {};
     this._roomListener = null;
+    this._walletReturnBooting = false;
+    this._queuedWalletResult = null;
     this.init();
   }
 
@@ -238,6 +240,14 @@ class Game {
     }
     this.effectsSystem.init();
     this.effectsSystem._preloadAudio();
+    let urlHasWalletReturn = false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      urlHasWalletReturn = !!(params.get('walletReturn') || params.get('autoConnectWallet'));
+    } catch (_) {}
+    // A wallet redirect may emit its result synchronously. Hold that result
+    // until Firebase auth and the exact room have been restored.
+    this._walletReturnBooting = urlHasWalletReturn;
     this.walletManager.processMobileRedirect();
     this._handoffResumeRoom = await this._redeemAuthHandoff();
     if (this.authUid && this.roomRef) {
@@ -248,12 +258,22 @@ class Game {
       `handoff: code=${this.walletManager._arrivedHandoffCode ? 'present' : 'none'} ` +
       `uid=${this.authUid ? 'restored' : 'MISSING'} room=${this._handoffResumeRoom || 'none'}`
     );
+    urlHasWalletReturn = !!(urlHasWalletReturn || this.walletManager._walletReturnType || this.walletManager._arrivedInWalletBrowser);
     if (!this.roomRef) {
-      let urlHasWalletReturn = false;
-      try {
-        const params = new URLSearchParams(window.location.search);
-        urlHasWalletReturn = !!(params.get('walletReturn') || this.walletManager._walletReturnType || this.walletManager._arrivedInWalletBrowser);
-      } catch (_) {}
+      if (urlHasWalletReturn) {
+        // Do not visit loading/title/main-menu screens during a wallet
+        // return. Restore the exact room first, then reconcile the result.
+        const queuedAction = this._queuedWalletResult && this._queuedWalletResult.pendingAction;
+        const restored = await this._restoreWalletReturnRoom(queuedAction);
+        this._walletReturnBooting = false;
+        await this._flushQueuedWalletResult();
+        if (!restored && !this.roomRef) {
+          const screen = await this.determineStartScreen();
+          if (screen === 'titleScreen') this.enterMainMenu();
+          else this.uiManager.showScreen(screen);
+        }
+        await this.loadGameAssets();
+      } else
       if (this.walletManager._arrivedInWalletBrowser) {
         // Wallet apps may reopen the game in a new browser tab. Keep the
         // persistent boot flag and restore the lobby directly; never place a
@@ -270,32 +290,6 @@ class Game {
           if (screen === 'titleScreen') this.enterMainMenu();
           else this.uiManager.showScreen(screen);
         }
-      } else if (urlHasWalletReturn) {
-        const alreadyRestored = !!this.roomRef;
-        if (!alreadyRestored) {
-          const savedRoom = this._getLastRoom();
-          this.uiManager.showScreen(savedRoom ? 'lobbyScreen' : 'titleScreen');
-        }
-        setTimeout(() => {
-          if (this._stakingResumeInFlight) return;
-          if (!this.roomRef && this.uiManager.currentScreen === 'loadingScreen') {
-            this.uiManager.showScreen('titleScreen');
-          }
-        }, 6000);
-        this.loadGameAssets().then(async () => {
-          if (this._stakingResumeInFlight) return;
-          if (this.roomRef) {
-            if (!this.authUid) await this._tryRestoreFirebaseAuth();
-            this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
-            this.uiManager.showLoginDrop(this.username, this.isGuest);
-            if (this.uiManager.currentScreen === 'loadingScreen') {
-              this.uiManager.showScreen('lobbyScreen');
-            }
-            return;
-          }
-          this.enterMainMenu();
-          this._autoResumeLastRoom();
-        });
       } else {
         await this.loadGameAssets();
         if (this.authUid && this._handoffResumeRoom) {
@@ -311,6 +305,8 @@ class Game {
         }
       }
     }
+    this._walletReturnBooting = false;
+    await this._flushQueuedWalletResult();
     if (this.roomRef) {
       await this.loadGameAssets();
     }
@@ -551,14 +547,89 @@ class Game {
         giveUp('Session did not carry over - tap Play to continue.');
         return;
       }
-      Promise.resolve(this.joinRoom(roomCode))
-        .then(() => {
-          if (this.roomRef) succeed();
-          else giveUp(`Room ${roomCode} is no longer available.`);
-        })
-        .catch((err) => giveUp(err?.message || 'Rejoin failed.'));
+      const restored = await this._restoreRoomByCode(roomCode);
+      if (restored) succeed();
+      else giveUp(`Room ${roomCode} is no longer available.`);
     } catch (err) {
       giveUp(err?.message || 'Rejoin failed.');
+    }
+  }
+
+  _roomCodeFromAction(action) {
+    if (!action || action.roomId === undefined || action.roomId === null) return null;
+    const value = String(action.roomId).trim();
+    if (!/^\d{1,6}$/.test(value)) return null;
+    return value.padStart(6, '0');
+  }
+
+  _peekLobbyContext() {
+    try {
+      const raw = localStorage.getItem(LOBBY_CONTEXT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  }
+
+  async _restoreRoomByCode(roomCode, preferredContext = null) {
+    if (!roomCode || !this.db) return false;
+    if (!this.authUid) await this._tryRestoreFirebaseAuth();
+    if (!this.authUid) return false;
+    const snap = await this.db.ref('rooms/' + roomCode).once('value');
+    if (!snap.exists()) return false;
+    const room = snap.val() || {};
+    if (['finished', 'completed', 'expired'].includes(room.status)) return false;
+    const players = room.players || {};
+    let localPlayerId = preferredContext && preferredContext.localPlayerId;
+    if (!localPlayerId || !players[localPlayerId] || players[localPlayerId].authUid !== this.authUid) {
+      const mine = Object.entries(players).find(([, player]) => player && player.authUid === this.authUid);
+      localPlayerId = mine && mine[0];
+    }
+    if (!localPlayerId || !players[localPlayerId]) return false;
+    const hostId = room.hostId || room.host || 'local';
+    const me = players[localPlayerId] || {};
+    await this._rejoinRoom({
+      roomCode: String(roomCode),
+      isHost: localPlayerId === hostId,
+      localPlayerId,
+      selectedDragon: me.dragon || (preferredContext && preferredContext.selectedDragon) || this.selectedDragon,
+      selectedMpMode: room.mode || (preferredContext && preferredContext.selectedMpMode) || '1v1',
+      lobbyTier: room.tier || (preferredContext && preferredContext.lobbyTier) || null,
+    }, room);
+    return true;
+  }
+
+  async _restoreWalletReturnRoom(pendingAction) {
+    const lobby = this._peekLobbyContext();
+    const last = this._getLastRoom();
+    const candidates = [
+      this._handoffResumeRoom,
+      this._roomCodeFromAction(pendingAction),
+      lobby && lobby.roomCode,
+      last && last.roomCode,
+    ].filter(Boolean);
+    for (const roomCode of [...new Set(candidates.map(String))]) {
+      try {
+        const context = (lobby && String(lobby.roomCode) === roomCode) ? lobby : last;
+        if (await this._restoreRoomByCode(roomCode, context)) {
+          try { localStorage.removeItem(LOBBY_CONTEXT_KEY); } catch (_) {}
+          console.log('[WalletReturn] restored exact room', roomCode);
+          return true;
+        }
+      } catch (err) {
+        console.warn('[WalletReturn] room restore failed:', roomCode, err?.message || err);
+      }
+    }
+    return false;
+  }
+
+  async _flushQueuedWalletResult() {
+    const result = this._queuedWalletResult;
+    if (!result || this._walletReturnBooting) return;
+    this._queuedWalletResult = null;
+    if (result.kind === 'confirmed') {
+      await this._resumeStakingAction(result.pendingAction, result.signature);
+    } else {
+      await this._restoreLobbyContextIfPresent();
+      this.eventBus.emit('staking:error', { message: result.message || 'Staking transaction failed.' });
     }
   }
 
@@ -1569,9 +1640,20 @@ class Game {
       if (err) err.textContent = message || 'Matchmaking failed.';
     });
     this.eventBus.on('wallet:txConfirmed', ({ signature, pendingAction }) => {
+      if (this._walletReturnBooting) {
+        this._queuedWalletResult = { kind: 'confirmed', signature, pendingAction };
+        return;
+      }
       this._resumeStakingAction(pendingAction, signature);
     });
     this.eventBus.on('wallet:txError', ({ message, pendingAction }) => {
+      if (this._walletReturnBooting) {
+        // A confirmed result always wins over a later duplicate/error event.
+        if (!this._queuedWalletResult || this._queuedWalletResult.kind !== 'confirmed') {
+          this._queuedWalletResult = { kind: 'error', message, pendingAction };
+        }
+        return;
+      }
       this._restoreLobbyContextIfPresent();
       this.eventBus.emit('staking:error', { message: message || 'Staking transaction failed.' });
     });
@@ -1864,7 +1946,7 @@ class Game {
     if (ctx && this.db) await this._rejoinRoom(ctx);
   }
 
-  async _rejoinRoom(ctx) {
+  async _rejoinRoom(ctx, knownRoom = null) {
     if (!this.authUid) await this._tryRestoreFirebaseAuth();
     this.roomCode = ctx.roomCode;
     this.isHost = ctx.isHost;
@@ -1873,13 +1955,25 @@ class Game {
     this.selectedMpMode = ctx.selectedMpMode || this.selectedMpMode;
     this.lobbyTier = ctx.lobbyTier;
     this.roomRef = this.db.ref('rooms/' + this.roomCode);
+    const room = knownRoom || (await this.roomRef.once('value')).val();
+    if (!room) {
+      this.roomRef = null;
+      return false;
+    }
+    this._matchedMode = !!room.matched;
+    this.selectedMpMode = room.mode || this.selectedMpMode;
+    this.lobbyTier = room.tier || this.lobbyTier;
+    this.lobbyArenaIndex = room.arenaIndex !== undefined ? room.arenaIndex : (this.lobbyArenaIndex || 0);
     this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showLoginDrop(this.username, this.isGuest);
+    this.uiManager.setMatchedLobbyMode(this._matchedMode, this.lobbyTier);
     this.uiManager.showScreen('lobbyScreen');
+    this.uiManager.updateLobbyArena(this.lobbyArenaIndex, this.isHost && !this._matchedMode);
     this._attachRoomListener();
     this._ensurePresence();
     this._persistLastRoom();
     this._syncStakeFromChain();
+    return true;
   }
 
   _ensurePresence() {
@@ -1963,6 +2057,17 @@ class Game {
   }
 
   async _resumeStakingAction(pendingAction, signature) {
+    let processedSignatures = [];
+    if (signature) {
+      try {
+        const key = 'irProcessedStakeSignatures';
+        processedSignatures = JSON.parse(localStorage.getItem(key) || '[]');
+        if (processedSignatures.includes(signature)) {
+          console.log('[Staking] duplicate wallet return ignored:', signature);
+          return;
+        }
+      } catch (_) {}
+    }
     if (!pendingAction) {
       const ctx = this._consumeLobbyContext();
       if (ctx && this.db && !this.roomRef) await this._rejoinRoom(ctx);
@@ -1979,7 +2084,15 @@ class Game {
     }
     this._stakingResumeInFlight = true;
     try {
-      return await this._resumeStakingActionInner(pendingAction, signature);
+      const completed = await this._resumeStakingActionInner(pendingAction, signature);
+      if (completed && signature) {
+        try {
+          localStorage.setItem('irProcessedStakeSignatures', JSON.stringify([
+            ...processedSignatures.slice(-19), signature
+          ]));
+        } catch (_) {}
+      }
+      return completed;
     } catch (err) {
       console.error('[Staking] resume failed:', err);
       this.eventBus.emit('staking:error', {
@@ -2005,7 +2118,7 @@ class Game {
         this.eventBus.emit('staking:error', {
           message: 'Your wallet did not return a transaction. No tokens moved. Please try placing your bet again.'
         });
-        return;
+        return false;
       }
       const landed = await this._verifyTxLanded(signature);
       if (!landed) {
@@ -2013,7 +2126,7 @@ class Game {
         this.eventBus.emit('staking:error', {
           message: 'Your stake transaction did not confirm on-chain. No tokens moved. Please try placing your bet again.'
         });
-        return;
+        return false;
       }
     }
     if (pendingAction.type === 'createRoom') {
@@ -2023,6 +2136,7 @@ class Game {
     } else if (['mutualCancel', 'claimDepositTimeout', 'claimSettleTimeout'].includes(pendingAction.type)) {
       this.eventBus.emit('staking:confirmed', { label: 'Refund transaction confirmed on-chain.' });
     }
+    return true;
   }
 
   async _preflightStakeCheck(tier) {
@@ -2458,6 +2572,8 @@ class Game {
     this._roomListener = (snap) => {
       const data = snap.val();
       if (!data) return;
+      this._matchedMode = !!data.matched;
+      this.uiManager.setMatchedLobbyMode(this._matchedMode, data.tier || this.lobbyTier);
       if (this.localPlayerId && data.kickedPlayers && data.kickedPlayers[this.localPlayerId]) {
         this._handleKickedFromRoom();
         return;
