@@ -67,6 +67,14 @@ class FirebaseMatchmaking {
         this.matched = true;
         this.matchId = result.matchId;
         this.roomCode = result.roomCode || null;
+        // The search is complete. Keeping its disconnect action armed can
+        // cancel an already-paired match when a mobile browser briefly drops
+        // its Firebase socket while switching screens or opening a wallet.
+        if (this.requestRef) {
+          this.requestRef.onDisconnect().cancel().catch(error => {
+            console.warn('[Matchmaking] could not disarm paired-search disconnect cleanup:', error?.message || error);
+          });
+        }
         const isInitiator = result.role === 'host';
         if (!this._matchedEmitted) {
           this._matchedEmitted = true;
