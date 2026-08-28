@@ -1,7 +1,7 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js?v=52';
+import { DragonManager } from './dragonManager.js?v=53';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
@@ -3446,14 +3446,42 @@ class Game {
         dragon.head.x = pos.x;
         dragon.head.y = pos.y;
         if (Number.isFinite(pos.angle)) dragon.angle = pos.angle;
-        dragon.remoteTarget = { x: pos.x, y: pos.y, angle: pos.angle };
+        dragon.remoteTarget = {
+          x: pos.x, y: pos.y, angle: pos.angle,
+          vx: 0, vy: 0,
+          snapshotT: Number(pos.t || 0),
+          receivedAt: now
+        };
         dragon.collisionRecoilX = 0;
         dragon.collisionRecoilY = 0;
         this.dragonManager.initDragonSegments(dragon, pos.x, pos.y);
         if (typeof pos.segments === 'number') this._resizeRemoteDragon(dragon, pos.segments);
       } else {
         // Normal live snapshots remain smoothly interpolated.
-        dragon.remoteTarget = { x: pos.x, y: pos.y, angle: pos.angle };
+        const previous = dragon.remoteTarget;
+        const snapshotT = Number(pos.t || 0);
+        if (!previous || snapshotT !== Number(previous.snapshotT || 0)) {
+          let vx = previous && Number.isFinite(previous.vx) ? previous.vx : 0;
+          let vy = previous && Number.isFinite(previous.vy) ? previous.vy : 0;
+          if (previous && snapshotT > Number(previous.snapshotT || 0)) {
+            const seconds = Math.max(0.025, Math.min(0.25,
+              (snapshotT - Number(previous.snapshotT || snapshotT)) / 1000));
+            const measuredVx = (pos.x - previous.x) / seconds;
+            const measuredVy = (pos.y - previous.y) / seconds;
+            // Suppress single-snapshot Firebase jitter while retaining turns.
+            vx = vx * 0.35 + measuredVx * 0.65;
+            vy = vy * 0.35 + measuredVy * 0.65;
+          }
+          dragon.remoteTarget = {
+            x: pos.x,
+            y: pos.y,
+            angle: pos.angle,
+            vx,
+            vy,
+            snapshotT,
+            receivedAt: now
+          };
+        }
       }
       dragon.attackActive = !!pos.attackActive;
       dragon.boostActive = dragon.attackActive;

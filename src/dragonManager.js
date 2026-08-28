@@ -485,18 +485,27 @@ export class DragonManager {
       // ============================================================
       if (dragon.isRemote) {
         if (dragon.remoteTarget) {
-          // Time-based interpolation feels the same at 30, 60, or 120 FPS.
-          // It smooths Firebase's 20 Hz snapshots without adding network
-          // delay or changing the position used by canonical host combat.
-          const lerp = 1 - Math.exp(-deltaTime / 45);
+          // Continue the remote dragon along its measured velocity between
+          // Firebase snapshots. Without this short prediction window it slows
+          // to a stop and jumps again at every 10/20 Hz network update.
+          const ageMs = Number.isFinite(dragon.remoteTarget.receivedAt)
+            ? Math.min(120, Math.max(0, performance.now() - dragon.remoteTarget.receivedAt))
+            : 0;
+          const predictedX = dragon.remoteTarget.x
+            + (Number(dragon.remoteTarget.vx) || 0) * ageMs / 1000;
+          const predictedY = dragon.remoteTarget.y
+            + (Number(dragon.remoteTarget.vy) || 0) * ageMs / 1000;
+          // A slightly wider time constant blends corrections instead of
+          // visibly snapping, and remains frame-rate independent.
+          const lerp = 1 - Math.exp(-deltaTime / 75);
 
           dragon.head.x +=
-            (dragon.remoteTarget.x -
+            (predictedX -
               dragon.head.x) *
             lerp;
 
           dragon.head.y +=
-            (dragon.remoteTarget.y -
+            (predictedY -
               dragon.head.y) *
             lerp;
 

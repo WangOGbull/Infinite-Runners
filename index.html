@@ -3702,7 +3702,24 @@
     50% { filter: drop-shadow(0 0 12px rgba(255,215,0,0.85)); }
   }
 </style>
-</head> 
+<script>
+  // Mark a Phantom stake return before the first body paint. The module
+  // restores the room later, but the boot/title layers must never flash first.
+  try {
+    const earlyParams = new URLSearchParams(window.location.search);
+    const earlyReturnType = earlyParams.get('walletReturn');
+    const earlyWalletType = earlyParams.get('walletType') || 'phantom';
+    if (earlyWalletType === 'phantom' &&
+        (earlyReturnType === 'signTransaction' || earlyReturnType === 'signAndSendTransaction')) {
+      document.documentElement.classList.add('phantom-stake-return');
+    }
+  } catch (_) {}
+</script>
+<style>
+  html.phantom-stake-return #bootScreen,
+  html.phantom-stake-return #titleScreen { display: none !important; }
+</style>
+</head>
 <body> 
 
 <!-- ===== BOOT LOADER ===== --> 
@@ -4359,7 +4376,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=59"></script>
+<script type="module" src="./src/main.js?v=60"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
