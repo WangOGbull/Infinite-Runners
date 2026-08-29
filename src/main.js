@@ -287,7 +287,9 @@ class Game {
       });
     }
     this.effectsSystem.init();
-    this.effectsSystem._preloadAudio();
+    // Start audio preload but don't block — timeout after 35s if network is slow
+    this._audioPreloadPromise = this.effectsSystem._preloadAudio()
+      .catch(e => console.warn('[Main] Audio preload failed:', e));
     let urlHasWalletReturn = walletReturnLaunch;
     // A wallet redirect may emit its result synchronously. Hold that result
     // until Firebase auth and the exact room have been restored.
@@ -3534,6 +3536,9 @@ class Game {
     this._frameCount = 0;
     this._pendingPurge = [];
     this._pendingCombatDeaths.clear();
+    // Log audio system status
+    const audioStatus = `loaded:${this.effectsSystem._audioLoadedCount} failed:${this.effectsSystem._audioFailedCount}`;
+    console.log(`[Game] Starting gameplay. Audio ${audioStatus}`);
     this._cacheGameDOM();
     if (this.uiManager.setLocalDragonRef) this.uiManager.setLocalDragonRef(this.localDragon);
     const sab = document.getElementById('stoneAgeBar');
