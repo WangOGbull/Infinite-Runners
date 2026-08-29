@@ -24,6 +24,8 @@ class EffectsSystem {
     this._audioContext = null;
     this._audioBuffers = {};
     this._audioLoaded = false;
+    this._audioLoadedCount = 0;
+    this._audioFailedCount = 0;
     this._masterVolume = 0.5;
 
     // Real audio file URLs (Mixkit free SFX, no attribution required)
@@ -37,30 +39,60 @@ class EffectsSystem {
       dragonDeath: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/d3a265df1_dragon-death.mp3'
     };
 
-    // Premium audio chain nodes (created lazily)
+    // Premium audio chain nodes (created lazily, reused)
     this._masterChain = null;
     this._reverbBuffer = null;
+    this._eqFilters = null; // Cache EQ filters to avoid per-frame creation
   }
 
-  // Preload all audio files — call after first user interaction
+  // Preload all audio files with 30s timeout — call after first user interaction
   async _preloadAudio() {
     if (this._audioLoaded) return;
     this._audioLoaded = true;
     const ctx = this._getAudioContext();
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn('[Audio] No AudioContext available');
+      return;
+    }
 
+    const timeoutMs = 30000;
+    const startTime = Date.now();
     const entries = Object.entries(this._audioFiles);
+    
     for (const [key, url] of entries) {
       try {
-        const response = await fetch(url);
-        if (!response.ok) continue;
+        // Abort individual fetch if total time exceeds timeout
+        if (Date.now() - startTime > timeoutMs) {
+          console.warn(`[Audio] Timeout loading ${key} (overall timeout reached)`);
+          this._audioFailedCount++;
+          continue;
+        }
+
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(() => controller.abort(), 8000);
+        
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(fetchTimeout);
+        
+        if (!response.ok) {
+          this._audioFailedCount++;
+          console.warn(`[Audio] Failed to fetch ${key}: ${response.status}`);
+          continue;
+        }
+
         const arrayBuffer = await response.arrayBuffer();
         const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
         this._audioBuffers[key] = audioBuffer;
+        this._audioLoadedCount++;
+        console.log(`[Audio] Loaded ${key}`);
       } catch (e) {
-        console.warn('Failed to load audio:', key, e);
+        this._audioFailedCount++;
+        console.warn(`[Audio] Failed to load ${key}:`, e.message);
       }
     }
+    
+    const total = entries.length;
+    console.log(`[Audio] Preload complete: ${this._audioLoadedCount}/${total} loaded, ${this._audioFailedCount} failed`);
   }
 
   // Build the premium master chain: compressor -> reverb send -> master gain -> destination
@@ -116,23 +148,12 @@ class EffectsSystem {
     return buffer;
   }
 
-  // Play a loaded audio buffer through the premium chain
-  _playBuffer(key, volume = 0.5, playbackRate = 1, subBassFreq = 0) {
+  // Get or create cached EQ filters
+  _getEQFilters() {
+    if (this._eqFilters) return this._eqFilters;
+    
     const ctx = this._getAudioContext();
-    if (!ctx) return false;
-
-    const buffer = this._audioBuffers[key];
-    if (!buffer) return false;
-
-    const chain = this._buildMasterChain();
-    if (!chain) return false;
-
-    const now = ctx.currentTime;
-
-    // Source -> EQ -> Compressor chain
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.value = playbackRate;
+    if (!ctx) return null;
 
     // EQ: low-shelf boost for warmth + high-shelf for clarity
     const lowShelf = ctx.createBiquadFilter();
@@ -145,13 +166,39 @@ class EffectsSystem {
     highShelf.frequency.value = 3000;
     highShelf.gain.value = 2;
 
+    lowShelf.connect(highShelf);
+    
+    this._eqFilters = { lowShelf, highShelf };
+    return this._eqFilters;
+  }
+
+  // Play a loaded audio buffer through the premium chain
+  _playBuffer(key, volume = 0.5, playbackRate = 1, subBassFreq = 0) {
+    const ctx = this._getAudioContext();
+    if (!ctx) return false;
+
+    const buffer = this._audioBuffers[key];
+    if (!buffer) return false;
+
+    const chain = this._buildMasterChain();
+    if (!chain) return false;
+
+    const eqFilters = this._getEQFilters();
+    if (!eqFilters) return false;
+
+    const now = ctx.currentTime;
+
+    // Source -> EQ -> Compressor chain
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = playbackRate;
+
     // Per-sound gain
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(Math.max(0.001, volume), now);
 
-    source.connect(lowShelf);
-    lowShelf.connect(highShelf);
-    highShelf.connect(gain);
+    source.connect(eqFilters.lowShelf);
+    eqFilters.highShelf.connect(gain);
     gain.connect(chain.compressor);
 
     // Sub-bass layer for depth (optional)
