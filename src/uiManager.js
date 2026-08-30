@@ -1035,12 +1035,18 @@ class UIManager {
       if (baStatus) { baStatus.textContent = 'Placing bet...'; baStatus.style.color = '#eab308'; }
       const depositBtn = document.getElementById('lobbyDepositBtn');
       if (depositBtn) depositBtn.disabled = true;
+      // Show confirming stake modal
+      this.showScreen('confirmingStakeModal');
     });
     this.eventBus.on('staking:confirmed', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
       if (statusText) { statusText.textContent = label || 'Bet placed!'; statusText.className = 'depositStatusText confirmed'; }
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Bet Placed'; baStatus.style.color = '#4ade80'; }
+      // Hide confirming stake modal and return to lobby
+      const confirmModal = document.getElementById('confirmingStakeModal');
+      if (confirmModal) confirmModal.style.display = 'none';
+      this.showScreen('lobbyScreen');
     });
     this.eventBus.on('staking:error', ({ message }) => {
       const safeMessage = message || 'Stake failed. No deposit was confirmed. Please try again.';
@@ -1048,6 +1054,11 @@ class UIManager {
       if (statusText) { statusText.textContent = safeMessage; statusText.className = 'depositStatusText error'; }
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Failed — try again'; baStatus.style.color = '#ef4444'; }
+
+      // Hide confirming stake modal and return to lobby
+      const confirmModal = document.getElementById('confirmingStakeModal');
+      if (confirmModal) confirmModal.style.display = 'none';
+      this.showScreen('lobbyScreen');
 
       // Always restore the retry control; a failed wallet/RPC attempt must not
       // leave the lobby in a permanent loading state.
