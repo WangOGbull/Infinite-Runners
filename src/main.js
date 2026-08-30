@@ -10,7 +10,7 @@ import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js?v=52';
-import EffectsSystem from './effectsSystem.js';
+import EffectsSystem from './effectsSystem.js?v=51';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
@@ -3378,15 +3378,15 @@ class Game {
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
     const now = Date.now();
-    // Use 20Hz near opponents for responsive combat and 10Hz elsewhere to
-    // avoid paying the higher Firebase/write cost for the whole match.
-    let syncInterval = 100;
+    // Use 50Hz near opponents for responsive combat and 30Hz elsewhere to
+    // reduce Firebase cost while keeping movement smooth.
+    let syncInterval = 33;
     const localHead = this.localDragon.head;
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.alive) continue;
       const dx = localHead.x - dragon.head.x;
       const dy = localHead.y - dragon.head.y;
-      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 50; break; }
+      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 20; break; }
     }
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
