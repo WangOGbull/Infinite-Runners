@@ -9,8 +9,8 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=53';
-import EffectsSystem from './effectsSystem.js?v=51';
+import UIManager from './uiManager.js?v=54';
+import EffectsSystem from './effectsSystem.js?v=52';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
@@ -2956,7 +2956,7 @@ class Game {
       // continuing here can incorrectly open a refund path after settlement.
       return;
     } else if (iStaked) {
-      this.eventBus.emit('staking:pending', {
+      this.eventBus.emit('staking:refundPending', {
         label: 'Refund in progress — your stake is being returned in full. Check your wallet in ~30 seconds to confirm your balance.'
       });
     }
@@ -2995,7 +2995,10 @@ class Game {
     this._clearLastRoom();
     if (this.uiManager.resetLobbyState) this.uiManager.resetLobbyState();
     if (iStaked && !matchStarted) {
-      this.uiManager.returnToMenuWithProcessing('titleScreen', 'Processing your refund…');
+      // Keep the Multiplayer menu ready behind the dedicated refund overlay.
+      // The overlay owns its 30-second progress/success lifecycle and closes
+      // itself, so the player is never trapped on a permanent loading screen.
+      this.uiManager.showScreen('mpMenuScreen');
     } else {
       this.uiManager.showScreen('titleScreen');
     }
