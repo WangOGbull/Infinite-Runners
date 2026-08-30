@@ -1035,17 +1035,17 @@ class UIManager {
       if (baStatus) { baStatus.textContent = 'Placing bet...'; baStatus.style.color = '#eab308'; }
       const depositBtn = document.getElementById('lobbyDepositBtn');
       if (depositBtn) depositBtn.disabled = true;
-      // Show confirming stake modal
-      this.showScreen('confirmingStakeModal');
+      // Show existing loading screen
+      const loadingMsg = document.getElementById('loadingMessage');
+      if (loadingMsg) loadingMsg.textContent = 'Confirming your stake...';
+      this.showScreen('loadingScreen');
     });
     this.eventBus.on('staking:confirmed', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
       if (statusText) { statusText.textContent = label || 'Bet placed!'; statusText.className = 'depositStatusText confirmed'; }
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Bet Placed'; baStatus.style.color = '#4ade80'; }
-      // Hide confirming stake modal and return to lobby
-      const confirmModal = document.getElementById('confirmingStakeModal');
-      if (confirmModal) confirmModal.style.display = 'none';
+      // Hide loading screen and return to lobby
       this.showScreen('lobbyScreen');
     });
     this.eventBus.on('staking:error', ({ message }) => {
@@ -1055,13 +1055,10 @@ class UIManager {
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Failed — try again'; baStatus.style.color = '#ef4444'; }
 
-      // Hide confirming stake modal and return to lobby
-      const confirmModal = document.getElementById('confirmingStakeModal');
-      if (confirmModal) confirmModal.style.display = 'none';
+      // Hide loading screen and return to lobby
       this.showScreen('lobbyScreen');
 
-      // Always restore the retry control; a failed wallet/RPC attempt must not
-      // leave the lobby in a permanent loading state.
+      // Always restore the retry control
       const depositBtn = document.getElementById('lobbyDepositBtn');
       const depositLabel = document.getElementById('depositBtnLabel');
       if (depositBtn) {
