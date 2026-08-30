@@ -26,7 +26,11 @@ class EffectsSystem {
     this._audioLoaded = false;
     this._audioLoadedCount = 0;
     this._audioFailedCount = 0;
-    this._masterVolume = 0.5;
+    const savedVolumeRaw = localStorage.getItem('irMasterVolume');
+    const savedVolume = savedVolumeRaw === null ? NaN : Number(savedVolumeRaw);
+    this._masterVolume = Number.isFinite(savedVolume) ? Math.min(1, Math.max(0, savedVolume / 100)) : 0.5;
+    this._soundEnabled = localStorage.getItem('irSoundEnabled') !== 'false';
+    this._reducedMotion = localStorage.getItem('irReducedMotion') === 'true';
 
     // Real audio file URLs (Mixkit free SFX, no attribution required)
     this._audioFiles = {
@@ -42,7 +46,6 @@ class EffectsSystem {
     // Premium audio chain nodes (created lazily, reused)
     this._masterChain = null;
     this._reverbBuffer = null;
-    this._eqFilters = null; // Cache EQ filters to avoid per-frame creation
   }
 
   // Preload all audio files with 30s timeout — call after first user interaction
@@ -102,15 +105,15 @@ class EffectsSystem {
 
     // Compressor for punch and loudness control
     const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.value = -12;
-    compressor.knee.value = 8;
-    compressor.ratio.value = 4;
-    compressor.attack.value = 0.002;
-    compressor.release.value = 0.1;
+    compressor.threshold.value = -18;
+    compressor.knee.value = 6;
+    compressor.ratio.value = 8;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
 
     // Master gain
     const masterGain = ctx.createGain();
-    masterGain.gain.value = this._masterVolume;
+    masterGain.gain.value = this._soundEnabled ? this._masterVolume : 0;
 
     // Reverb (convolver with synthesized impulse response)
     const reverb = ctx.createConvolver();
@@ -128,7 +131,7 @@ class EffectsSystem {
     // Reverb parallel path
     compressor.connect(reverb);
     reverb.connect(reverbGain);
-    reverbGain.connect(ctx.destination);
+    reverbGain.connect(masterGain);
 
     this._masterChain = { compressor, masterGain, reverb, reverbGain };
     return this._masterChain;
@@ -148,32 +151,9 @@ class EffectsSystem {
     return buffer;
   }
 
-  // Get or create cached EQ filters
-  _getEQFilters() {
-    if (this._eqFilters) return this._eqFilters;
-    
-    const ctx = this._getAudioContext();
-    if (!ctx) return null;
-
-    // EQ: low-shelf boost for warmth + high-shelf for clarity
-    const lowShelf = ctx.createBiquadFilter();
-    lowShelf.type = 'lowshelf';
-    lowShelf.frequency.value = 200;
-    lowShelf.gain.value = 4;
-
-    const highShelf = ctx.createBiquadFilter();
-    highShelf.type = 'highshelf';
-    highShelf.frequency.value = 3000;
-    highShelf.gain.value = 2;
-
-    lowShelf.connect(highShelf);
-    
-    this._eqFilters = { lowShelf, highShelf };
-    return this._eqFilters;
-  }
-
   // Play a loaded audio buffer through the premium chain
   _playBuffer(key, volume = 0.5, playbackRate = 1, subBassFreq = 0) {
+    if (!this._soundEnabled || this._masterVolume <= 0) return true;
     const ctx = this._getAudioContext();
     if (!ctx) return false;
 
@@ -182,9 +162,6 @@ class EffectsSystem {
 
     const chain = this._buildMasterChain();
     if (!chain) return false;
-
-    const eqFilters = this._getEQFilters();
-    if (!eqFilters) return false;
 
     const now = ctx.currentTime;
 
@@ -197,8 +174,17 @@ class EffectsSystem {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(Math.max(0.001, volume), now);
 
-    source.connect(eqFilters.lowShelf);
-    eqFilters.highShelf.connect(gain);
+    const lowShelf = ctx.createBiquadFilter();
+    lowShelf.type = 'lowshelf';
+    lowShelf.frequency.value = 200;
+    lowShelf.gain.value = 2;
+    const highShelf = ctx.createBiquadFilter();
+    highShelf.type = 'highshelf';
+    highShelf.frequency.value = 3000;
+    highShelf.gain.value = 1;
+    source.connect(lowShelf);
+    lowShelf.connect(highShelf);
+    highShelf.connect(gain);
     gain.connect(chain.compressor);
 
     // Sub-bass layer for depth (optional)
@@ -216,8 +202,45 @@ class EffectsSystem {
       subOsc.stop(now + 0.22);
     }
 
+    source.onended = () => {
+      try { source.disconnect(); } catch (_) {}
+      try { lowShelf.disconnect(); } catch (_) {}
+      try { highShelf.disconnect(); } catch (_) {}
+      try { gain.disconnect(); } catch (_) {}
+    };
     source.start(0);
     return true;
+  }
+
+  getAudioSettings() {
+    return { enabled: this._soundEnabled, volume: Math.round(this._masterVolume * 100) };
+  }
+
+  setSoundEnabled(enabled) {
+    this._soundEnabled = !!enabled;
+    localStorage.setItem('irSoundEnabled', String(this._soundEnabled));
+    if (!this._soundEnabled) this.stopSearchSound();
+    if (this._masterChain && this._audioContext) {
+      this._masterChain.masterGain.gain.setTargetAtTime(this._soundEnabled ? this._masterVolume : 0, this._audioContext.currentTime, 0.02);
+    }
+  }
+
+  setMasterVolume(percent) {
+    const value = Math.min(100, Math.max(0, Number(percent) || 0));
+    this._masterVolume = value / 100;
+    localStorage.setItem('irMasterVolume', String(value));
+    if (this._masterChain && this._audioContext) {
+      this._masterChain.masterGain.gain.setTargetAtTime(this._soundEnabled ? this._masterVolume : 0, this._audioContext.currentTime, 0.02);
+    }
+  }
+
+  setReducedMotion(enabled) {
+    this._reducedMotion = !!enabled;
+    if (this._reducedMotion) {
+      this.shake.x = 0;
+      this.shake.y = 0;
+      this.shake.intensity = 0;
+    }
   }
 
   init() {
@@ -232,6 +255,7 @@ class EffectsSystem {
   }
 
   startSearchSound() {
+    if (!this._soundEnabled || this._masterVolume <= 0) return;
     if (this._searchSound) return;
     const ctx = this._getAudioContext();
     const chain = this._buildMasterChain();
@@ -560,6 +584,7 @@ class EffectsSystem {
   }
 
   getShake() {
+    if (this._reducedMotion) return { x: 0, y: 0 };
     return {
       x: this.shake.x,
       y: this.shake.y
@@ -1006,7 +1031,7 @@ class EffectsSystem {
     gain.gain.setValueAtTime(0.08, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this._buildMasterChain().compressor);
     osc.start(now);
     osc.stop(now + 0.07);
   }
@@ -1044,7 +1069,7 @@ class EffectsSystem {
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this._buildMasterChain().compressor);
     source.start(now);
   }
 
@@ -1067,7 +1092,7 @@ class EffectsSystem {
     gain.gain.setValueAtTime(0.2, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this._buildMasterChain().compressor);
     osc.start(now);
     osc.stop(now + 0.52);
   }
@@ -1096,7 +1121,7 @@ class EffectsSystem {
     gain.gain.setValueAtTime(0.25, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this._buildMasterChain().compressor);
     osc.start(now);
     osc.stop(now + 0.38);
   }
@@ -1118,7 +1143,7 @@ class EffectsSystem {
       gain.gain.setValueAtTime(baseGain, now + i * 0.04);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.2);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this._buildMasterChain().compressor);
       osc.start(now + i * 0.04);
       osc.stop(now + i * 0.04 + 0.22);
     });
@@ -1128,7 +1153,7 @@ class EffectsSystem {
    * Respawn — Monster roar when dragons spawn/respawn into the arena.
    */
   playRespawnSound() {
-    if (this._playBuffer('respawn', 0.5, 1, 50)) return;
+    if (this._playBuffer('respawn', 0.18, 1)) return;
 
     // Fallback: low growl
     const ctx = this._getAudioContext();
@@ -1139,10 +1164,10 @@ class EffectsSystem {
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(150, now);
     osc.frequency.exponentialRampToValueAtTime(80, now + 0.4);
-    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.setValueAtTime(0.045, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this._buildMasterChain().compressor);
     osc.start(now);
     osc.stop(now + 0.5);
   }
@@ -1166,7 +1191,7 @@ class EffectsSystem {
       gain.gain.setValueAtTime(0.15, now + i * 0.1);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.4);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this._buildMasterChain().compressor);
       osc.start(now + i * 0.1);
       osc.stop(now + i * 0.1 + 0.45);
     });
@@ -1176,6 +1201,7 @@ class EffectsSystem {
    * Generic tone — kept for backward compatibility.
    */
   playTone(freq, type = 'sine', vol = 0.2, duration = 0.12) {
+    if (!this._soundEnabled || this._masterVolume <= 0) return;
     const ctx = this._getAudioContext();
     if (!ctx) return;
     const now = ctx.currentTime;
@@ -1187,7 +1213,7 @@ class EffectsSystem {
     gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol || 0.1), now + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.02, duration || 0.12));
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this._buildMasterChain().compressor);
     osc.start(now);
     osc.stop(now + Math.max(0.03, duration || 0.12) + 0.02);
   }

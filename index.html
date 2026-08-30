@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"> 
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> 
-<link rel="stylesheet" href="./src/styles.css?v=58">
+<link rel="stylesheet" href="./src/styles.css?v=59">
 
 <style> 
   html, body { overflow-x: hidden; max-width: 100vw; } 
@@ -3778,11 +3778,23 @@
     <div class="menuBtns"> 
       <button class="menuBtn" id="btnStartGame"><i data-lucide="gamepad-2"></i> Start Game</button> 
       <button class="menuBtn" id="btnLeaderboard"><i data-lucide="trophy"></i> Leaderboard</button> 
-      <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button> 
+      <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button>
+      <button class="menuBtn" id="btnSettings"><i data-lucide="settings"></i> Settings</button>
     </div> 
   </div> 
   <span class="copyright">2025 Infinite Runners Dragons Arena. All rights reserved.</span> 
-</div> 
+</div>
+
+<div id="settingsModal" class="settingsOverlay" aria-hidden="true">
+  <div class="settingsPanel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">Settings</h2>
+    <div class="settingsRow"><div><strong>Sound</strong><small>Game music and effects</small></div><button id="soundToggle" class="settingsToggle" type="button" aria-pressed="true">ON</button></div>
+    <label class="settingsVolume" for="soundVolume"><span>Volume <output id="soundVolumeValue">50%</output></span><input id="soundVolume" type="range" min="0" max="100" step="1" value="50"></label>
+    <div class="settingsRow"><div><strong>Reduced Motion</strong><small>Reduce screen shake and interface animation</small></div><button id="motionToggle" class="settingsToggle" type="button" aria-pressed="false">OFF</button></div>
+    <button id="fullscreenToggle" class="settingsAction" type="button">Toggle Fullscreen</button>
+    <button id="btnSettingsClose" class="settingsClose" type="button">Done</button>
+  </div>
+</div>
 
 <!-- ===== LOGIN ===== --> 
 <div id="loginScreen" class="screen"> 
@@ -4389,7 +4401,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=64"></script>
+<script type="module" src="./src/main.js?v=65"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
