@@ -9,7 +9,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=52';
+import UIManager from './uiManager.js?v=53';
 import EffectsSystem from './effectsSystem.js?v=51';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -1791,17 +1791,26 @@ class Game {
   checkMatchEnd() {
     const allDragons = this.dragonManager.getAllDragons();
 
-    // In MP, the server (watchMatches.js) is the authority for match end.
-    // We only trigger endGame locally when the LOCAL player is dead.
+    // Multiplayer deaths arrive through the host-authoritative combat event
+    // stream. Once that shared event leaves exactly one player with lives,
+    // freeze both clients immediately; the settlement listener remains active
+    // separately and fills in the canonical on-chain payout afterwards.
     if (this.isMultiplayer) {
+      const withLives = allDragons.filter(d => d.lives > 0);
+      if (allDragons.length > 1 && withLives.length === 1) {
+        this.winner = withLives[0];
+        this.endGame(true);
+        return;
+      }
+      if (allDragons.length > 1 && withLives.length === 0) {
+        this.winner = null;
+        this.endGame(true);
+        return;
+      }
       if (this.localDragon && this.localDragon.lives <= 0 && !this.localDragon.alive) {
         const living = this.dragonManager.getLivingDragons();
         const othersAlive = living.filter(d => d !== this.localDragon);
-        if (othersAlive.length === 0) {
-          // Await the backend's canonical settlement instead of ending from
-          // a client-side snapshot that may still be catching up.
-          return;
-        } else if (!this.isSpectating || !this.spectateTarget || !this.spectateTarget.alive) {
+        if (othersAlive.length > 0 && (!this.isSpectating || !this.spectateTarget || !this.spectateTarget.alive)) {
           this.enterSpectateMode(othersAlive);
         }
       }
@@ -2933,11 +2942,19 @@ class Game {
       ? this.stakingState.hostDeposited
       : this.stakingState.opponentDeposited;
     const iStaked = iStakedPerPlayer || iStakedLegacy;
-    const matchStarted = this.state === 'PLAYING' || this.state === 'GAME_OVER';
+    const matchStarted = this.state === 'PLAYING'
+      || this.state === 'GAME_OVER'
+      || this._settlementHandled;
     if (iStaked && matchStarted) {
       this.eventBus.emit('staking:error', {
-        message: 'Leaving a match in progress counts as a forfeit — your opponent(s) will be awarded the pot.'
+        message: this.state === 'GAME_OVER' || this._settlementHandled
+          ? 'This match has already ended. Its stake cannot be refunded.'
+          : 'Leaving a match in progress counts as a forfeit — your opponent(s) will be awarded the pot.'
       });
+      // Never delete a staked player's room record after gameplay starts.
+      // The backend treats player removal as an abandonment signal, so
+      // continuing here can incorrectly open a refund path after settlement.
+      return;
     } else if (iStaked) {
       this.eventBus.emit('staking:pending', {
         label: 'Refund in progress — your stake is being returned in full. Check your wallet in ~30 seconds to confirm your balance.'
