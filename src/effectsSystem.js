@@ -30,7 +30,7 @@ class EffectsSystem {
 
     // Real audio file URLs (Mixkit free SFX, no attribution required)
     this._audioFiles = {
-      eat: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/1486df0f3_food-collect-new.mp3',
+      eat: './assets/food-collect-bubble-pop.mp3',
       kill: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/2705fe0df_dragon-kill.mp3',
       hit: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/586846b71_hit-damage.mp3',
       death: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/53bdc70cd_game-over.mp3',
@@ -991,9 +991,8 @@ class EffectsSystem {
    * Uses real audio file. Pitch varies slightly so it never gets stale.
    */
   playEatSound() {
-    // Try real audio file first
-    const rate = 0.9 + Math.random() * 0.3; // 0.9x to 1.2x playback speed
-    if (this._playBuffer('eat', 0.3, rate, 80)) return;
+    // Play the approved collection asset at its original pitch and speed.
+    if (this._playBuffer('eat', 0.3, 1)) return;
 
     // Fallback: quick bright blip
     const ctx = this._getAudioContext();

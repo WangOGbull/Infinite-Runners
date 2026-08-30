@@ -1039,9 +1039,44 @@ class UIManager {
       // deliberately not a screen, so wallet handoff cannot expose the blank
       // arena loader or destroy the room the player must return to.
       const overlay = document.getElementById('stakeConfirmOverlay');
+      const overlayTitle = document.getElementById('stakeConfirmTitle');
       const overlayText = document.getElementById('stakeConfirmText');
+      const overlayHint = document.getElementById('stakeConfirmHint');
+      const overlaySpinner = document.getElementById('stakeConfirmSpinner');
+      if (this._refundOverlayTimer) clearTimeout(this._refundOverlayTimer);
+      if (this._refundOverlayCloseTimer) clearTimeout(this._refundOverlayCloseTimer);
+      this._refundOverlayTimer = null;
+      this._refundOverlayCloseTimer = null;
+      if (overlayTitle) overlayTitle.textContent = 'PHANTOM';
       if (overlayText) overlayText.textContent = label || 'Confirming your stake…';
+      if (overlayHint) overlayHint.textContent = 'Approve in Phantom, then return here. Your room is being kept open.';
+      if (overlaySpinner) overlaySpinner.style.display = 'block';
       if (overlay) overlay.style.display = 'flex';
+    });
+    this.eventBus.on('staking:refundPending', ({ label } = {}) => {
+      const overlay = document.getElementById('stakeConfirmOverlay');
+      const title = document.getElementById('stakeConfirmTitle');
+      const text = document.getElementById('stakeConfirmText');
+      const hint = document.getElementById('stakeConfirmHint');
+      const spinner = document.getElementById('stakeConfirmSpinner');
+      if (this._refundOverlayTimer) clearTimeout(this._refundOverlayTimer);
+      if (this._refundOverlayCloseTimer) clearTimeout(this._refundOverlayCloseTimer);
+      if (title) title.textContent = 'REFUND PROCESSING';
+      if (text) text.textContent = label || 'Your stake is being returned in full.';
+      if (hint) hint.textContent = 'Please wait while the refund is completed.';
+      if (spinner) spinner.style.display = 'block';
+      if (overlay) overlay.style.display = 'flex';
+      this._refundOverlayTimer = setTimeout(() => {
+        if (title) title.textContent = 'REFUND SUCCESSFUL';
+        if (text) text.textContent = 'Your stake has been returned.';
+        if (hint) hint.textContent = 'You can now continue from the Multiplayer menu.';
+        if (spinner) spinner.style.display = 'none';
+        this._refundOverlayCloseTimer = setTimeout(() => {
+          if (overlay) overlay.style.display = 'none';
+          this._refundOverlayCloseTimer = null;
+        }, 3000);
+        this._refundOverlayTimer = null;
+      }, 30000);
     });
     this.eventBus.on('staking:confirmed', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
@@ -1049,6 +1084,10 @@ class UIManager {
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Bet Placed'; baStatus.style.color = '#4ade80'; }
       const overlay = document.getElementById('stakeConfirmOverlay');
+      if (this._refundOverlayTimer) clearTimeout(this._refundOverlayTimer);
+      if (this._refundOverlayCloseTimer) clearTimeout(this._refundOverlayCloseTimer);
+      this._refundOverlayTimer = null;
+      this._refundOverlayCloseTimer = null;
       if (overlay) overlay.style.display = 'none';
     });
     this.eventBus.on('staking:error', ({ message }) => {
@@ -1059,6 +1098,10 @@ class UIManager {
       if (baStatus) { baStatus.textContent = 'Failed — try again'; baStatus.style.color = '#ef4444'; }
 
       const overlay = document.getElementById('stakeConfirmOverlay');
+      if (this._refundOverlayTimer) clearTimeout(this._refundOverlayTimer);
+      if (this._refundOverlayCloseTimer) clearTimeout(this._refundOverlayCloseTimer);
+      this._refundOverlayTimer = null;
+      this._refundOverlayCloseTimer = null;
       if (overlay) overlay.style.display = 'none';
 
       // Always restore the retry control
