@@ -9,8 +9,8 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=54';
-import EffectsSystem from './effectsSystem.js?v=52';
+import UIManager from './uiManager.js?v=55';
+import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
@@ -1247,6 +1247,9 @@ class Game {
       if (screenId === 'matchmakingSearchScreen') this.effectsSystem.startSearchSound();
       else this.effectsSystem.stopSearchSound();
     });
+    this.eventBus.on('settings:soundEnabled', ({ enabled }) => this.effectsSystem.setSoundEnabled(enabled));
+    this.eventBus.on('settings:volume', ({ volume }) => this.effectsSystem.setMasterVolume(volume));
+    this.eventBus.on('settings:reducedMotion', ({ enabled }) => this.effectsSystem.setReducedMotion(enabled));
     this.eventBus.on('auth:googleSignIn', async () => {
       const result = await this.signInWithGoogle();
       if (result.error) this.uiManager.showAuthError(result.error);
@@ -3398,15 +3401,15 @@ class Game {
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
     const now = Date.now();
-    // Use 50Hz near opponents for responsive combat and 30Hz elsewhere to
-    // reduce Firebase cost while keeping movement smooth.
-    let syncInterval = 33;
+    // Cap sends so slow mobile connections cannot build a stale write queue.
+    // Remote dragons are interpolated locally between these updates.
+    let syncInterval = 100;
     const localHead = this.localDragon.head;
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.alive) continue;
       const dx = localHead.x - dragon.head.x;
       const dy = localHead.y - dragon.head.y;
-      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 20; break; }
+      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 50; break; }
     }
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
