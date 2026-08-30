@@ -1035,18 +1035,21 @@ class UIManager {
       if (baStatus) { baStatus.textContent = 'Placing bet...'; baStatus.style.color = '#eab308'; }
       const depositBtn = document.getElementById('lobbyDepositBtn');
       if (depositBtn) depositBtn.disabled = true;
-      // Show existing loading screen
-      const loadingMsg = document.getElementById('loadingMessage');
-      if (loadingMsg) loadingMsg.textContent = 'Confirming your stake...';
-      this.showScreen('loadingScreen');
+      // Keep the exact lobby mounted while Phantom is open. This overlay is
+      // deliberately not a screen, so wallet handoff cannot expose the blank
+      // arena loader or destroy the room the player must return to.
+      const overlay = document.getElementById('stakeConfirmOverlay');
+      const overlayText = document.getElementById('stakeConfirmText');
+      if (overlayText) overlayText.textContent = label || 'Confirming your stake…';
+      if (overlay) overlay.style.display = 'flex';
     });
     this.eventBus.on('staking:confirmed', ({ label }) => {
       const statusText = document.getElementById('depositStatusText');
       if (statusText) { statusText.textContent = label || 'Bet placed!'; statusText.className = 'depositStatusText confirmed'; }
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Bet Placed'; baStatus.style.color = '#4ade80'; }
-      // Hide loading screen and return to lobby
-      this.showScreen('lobbyScreen');
+      const overlay = document.getElementById('stakeConfirmOverlay');
+      if (overlay) overlay.style.display = 'none';
     });
     this.eventBus.on('staking:error', ({ message }) => {
       const safeMessage = message || 'Stake failed. No deposit was confirmed. Please try again.';
@@ -1055,8 +1058,8 @@ class UIManager {
       const baStatus = document.getElementById('baYourStatus');
       if (baStatus) { baStatus.textContent = 'Failed — try again'; baStatus.style.color = '#ef4444'; }
 
-      // Hide loading screen and return to lobby
-      this.showScreen('lobbyScreen');
+      const overlay = document.getElementById('stakeConfirmOverlay');
+      if (overlay) overlay.style.display = 'none';
 
       // Always restore the retry control
       const depositBtn = document.getElementById('lobbyDepositBtn');

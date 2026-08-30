@@ -4153,9 +4153,22 @@
   <div class="loadBox"><div class="infsym">&#8734;</div><div class="orbit1"></div><div class="orbit2"></div></div> 
   <h2 id="loadingMessage">Entering the Arena...</h2> 
   <div class="progbar"><div></div></div> 
-</div> 
+</div>
 
-<!-- ===== GAME ===== --> 
+<!-- Phantom staking handoff. This overlays the current lobby instead of
+     navigating to the arena loader, so the exact room remains visible and
+     mounted while the wallet confirmation is in progress. -->
+<div id="stakeConfirmOverlay" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:12000;align-items:center;justify-content:center;padding:24px;background:rgba(3,5,14,.82);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);">
+  <div style="width:min(420px,calc(100vw - 40px));padding:30px 24px;text-align:center;border:1px solid rgba(168,85,247,.65);border-radius:18px;background:linear-gradient(180deg,rgba(20,9,38,.98),rgba(5,8,20,.98));box-shadow:0 0 45px rgba(139,92,246,.28);">
+    <div style="font-family:'Cinzel Decorative',serif;font-size:25px;color:#f3d58b;letter-spacing:1.5px;margin-bottom:12px;">PHANTOM</div>
+    <div id="stakeConfirmText" style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:.5px;">Confirming your stake…</div>
+    <div style="margin-top:10px;font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(255,255,255,.68);">Approve in Phantom, then return here. Your room is being kept open.</div>
+    <div style="width:44px;height:44px;margin:22px auto 0;border:3px solid rgba(168,85,247,.25);border-top-color:#c084fc;border-radius:50%;animation:stakeConfirmSpin 1s linear infinite;"></div>
+  </div>
+</div>
+<style>@keyframes stakeConfirmSpin{to{transform:rotate(360deg)}}</style>
+
+<!-- ===== GAME ===== -->
 <div id="gameScreen" class="screen"> 
   <canvas id="gameCanvas"></canvas> 
   <!-- ===== NEW STONE AGE BAR ===== --> 
@@ -4376,7 +4389,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=62"></script>
+<script type="module" src="./src/main.js?v=63"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
