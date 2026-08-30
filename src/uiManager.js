@@ -766,6 +766,62 @@ class UIManager {
     if (btnLeader) btnLeader.addEventListener('click', () => this.showScreen('leaderboardScreen'));
     const btnHow = document.getElementById('btnHowToPlay');
     if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
+    const settingsModal = document.getElementById('settingsModal');
+    const soundToggle = document.getElementById('soundToggle');
+    const soundVolume = document.getElementById('soundVolume');
+    const soundVolumeValue = document.getElementById('soundVolumeValue');
+    const motionToggle = document.getElementById('motionToggle');
+    let soundEnabled = localStorage.getItem('irSoundEnabled') !== 'false';
+    const savedVolumeRaw = localStorage.getItem('irMasterVolume');
+    const savedVolume = savedVolumeRaw === null ? NaN : Number(savedVolumeRaw);
+    let volume = Number.isFinite(savedVolume) ? Math.min(100, Math.max(0, savedVolume)) : 50;
+    let reducedMotion = localStorage.getItem('irReducedMotion') === 'true';
+    const renderSettings = () => {
+      if (soundToggle) {
+        soundToggle.textContent = soundEnabled ? 'ON' : 'OFF';
+        soundToggle.setAttribute('aria-pressed', String(soundEnabled));
+      }
+      if (soundVolume) { soundVolume.value = String(volume); soundVolume.disabled = !soundEnabled; }
+      if (soundVolumeValue) soundVolumeValue.textContent = `${volume}%`;
+      if (motionToggle) {
+        motionToggle.textContent = reducedMotion ? 'ON' : 'OFF';
+        motionToggle.setAttribute('aria-pressed', String(reducedMotion));
+      }
+      document.documentElement.classList.toggle('reduced-motion', reducedMotion);
+    };
+    renderSettings();
+    document.getElementById('btnSettings')?.addEventListener('click', () => {
+      settingsModal?.classList.add('open');
+      settingsModal?.setAttribute('aria-hidden', 'false');
+    });
+    const closeSettings = () => {
+      settingsModal?.classList.remove('open');
+      settingsModal?.setAttribute('aria-hidden', 'true');
+    };
+    document.getElementById('btnSettingsClose')?.addEventListener('click', closeSettings);
+    settingsModal?.addEventListener('click', (event) => { if (event.target === settingsModal) closeSettings(); });
+    soundToggle?.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      renderSettings();
+      this.eventBus.emit('settings:soundEnabled', { enabled: soundEnabled });
+    });
+    soundVolume?.addEventListener('input', () => {
+      volume = Number(soundVolume.value);
+      renderSettings();
+      this.eventBus.emit('settings:volume', { volume });
+    });
+    motionToggle?.addEventListener('click', () => {
+      reducedMotion = !reducedMotion;
+      localStorage.setItem('irReducedMotion', String(reducedMotion));
+      renderSettings();
+      this.eventBus.emit('settings:reducedMotion', { enabled: reducedMotion });
+    });
+    document.getElementById('fullscreenToggle')?.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch (_) {}
+    });
     const btnBack = document.getElementById('btnDsBack');
     if (btnBack) btnBack.addEventListener('click', () => this.showScreen('titleScreen'));
     const nextBtn = document.getElementById('dsNextBtn');
