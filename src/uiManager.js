@@ -1015,9 +1015,10 @@ class UIManager {
     if (mainMenu) mainMenu.addEventListener('click', () => this.eventBus.emit('game:returnToMainMenu'));
     document.getElementById('btnMpMainMenu')?.addEventListener('click', () => this.eventBus.emit('game:returnToMainMenu'));
     document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
-    const resumeRoomBtn = document.getElementById('btnResumeRoom');
-    if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
-    document.getElementById('btnExitResumeRoom')?.addEventListener('click', () => this.eventBus.emit('ui:exitResumeRoom'));
+    const returnToActiveRoomBtn = document.getElementById('btnReturnToActiveRoom');
+    if (returnToActiveRoomBtn) {
+      returnToActiveRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:returnToActiveRoom'));
+    }
     document.getElementById('stakeConfirmCancel')?.addEventListener('click', () => this.eventBus.emit('staking:cancelWait'));
 
     const btnTierAdvance = document.getElementById('btnTierAdvance');
@@ -2151,15 +2152,23 @@ class UIManager {
     el.style.display = el.style.display === 'flex' ? 'none' : 'flex';
   }
 
-  showResumeRoomBanner(roomCode) {
-    const banner = document.getElementById('resumeRoomBanner');
-    const codeSpan = document.getElementById('resumeRoomCode');
-    if (codeSpan) codeSpan.textContent = roomCode;
-    if (banner) banner.style.display = 'block';
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+  showActiveRoomModal(roomCode) {
+    const modal = document.getElementById('activeRoomModal');
+    const code = document.getElementById('activeRoomCode');
+    if (code) code.textContent = roomCode || '';
+    if (modal) {
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
   }
 
-  hideResumeRoomBanner() { const banner = document.getElementById('resumeRoomBanner'); if (banner) banner.style.display = 'none'; }
+  hideActiveRoomModal() {
+    const modal = document.getElementById('activeRoomModal');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+  }
 
   _emitCustomTier(rawValue) {
     const hint = document.getElementById('customStakeHint');
@@ -2602,91 +2611,7 @@ class UIManager {
     if (el) el.classList.remove('active');
   }
 
-  // ------------------------------------------------------------------
-  // ROOM RESUME BANNER
-  //
-  // Shown on the title screen when a player arrives back from a wallet's
-  // in-app browser and we're rejoining their lobby. Built in JS rather than
-  // index.html so it carries its own styles and can't be broken by an
-  // unrelated markup edit.
-  //
-  // The countdown is reassurance, NOT a gate: main.js jumps the moment the
-  // rejoin resolves, which is usually well under a second. Nothing here
-  // blocks the Play button - if the rejoin fails, the player is simply told
-  // and carries on normally.
-  // ------------------------------------------------------------------
-  _ensureResumeBannerEl() {
-    if (document.getElementById('resumeBanner')) return;
-    const el = document.createElement('div');
-    el.id = 'resumeBanner';
-    el.style.cssText = [
-      'position:fixed', 'left:50%', 'top:18%', 'transform:translateX(-50%)',
-      'z-index:9000', 'display:none', 'min-width:260px', 'max-width:86vw',
-      'padding:14px 20px', 'border-radius:12px', 'text-align:center',
-      'background:linear-gradient(160deg, rgba(10,18,32,0.96), rgba(6,10,20,0.96))',
-      'border:1px solid rgba(64,224,255,0.55)',
-      'box-shadow:0 0 22px rgba(64,224,255,0.25), inset 0 0 18px rgba(64,224,255,0.06)',
-      'color:#dff6ff', 'font-size:14px', 'letter-spacing:0.4px',
-      'font-family:inherit', 'pointer-events:none',
-    ].join(';');
-    el.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
-        <div id="resumeBannerSpinner" style="width:16px;height:16px;border:2px solid rgba(64,224,255,0.25);border-top-color:#40e0ff;border-radius:50%;animation:resumeSpin 0.8s linear infinite;"></div>
-        <span id="resumeBannerText">Resuming your room…</span>
-      </div>
-      <div id="resumeBannerSub" style="margin-top:6px;font-size:11px;opacity:0.65;"></div>
-    `;
-    const style = document.createElement('style');
-    style.textContent = '@keyframes resumeSpin{to{transform:rotate(360deg)}}';
-    document.head.appendChild(style);
-    document.body.appendChild(el);
-  }
 
-  showResumeBanner(roomCode, seconds) {
-    this._ensureResumeBannerEl();
-    const el = document.getElementById('resumeBanner');
-    const text = document.getElementById('resumeBannerText');
-    const sub = document.getElementById('resumeBannerSub');
-    const spinner = document.getElementById('resumeBannerSpinner');
-    if (spinner) spinner.style.display = '';
-    if (text) text.textContent = `Resuming room ${roomCode}…`;
-    if (sub) sub.textContent = `${seconds}s`;
-    if (el) el.style.display = 'block';
-    return el;
-  }
-
-  updateResumeBanner(seconds) {
-    const sub = document.getElementById('resumeBannerSub');
-    if (sub) sub.textContent = `${Math.max(0, seconds)}s`;
-  }
-
-  // Terminal state: swaps the spinner for a plain message and fades out on
-  // its own, so a failed rejoin never leaves a permanent object on screen.
-  showResumeFailed(message) {
-    this._ensureResumeBannerEl();
-    const el = document.getElementById('resumeBanner');
-    const text = document.getElementById('resumeBannerText');
-    const sub = document.getElementById('resumeBannerSub');
-    const spinner = document.getElementById('resumeBannerSpinner');
-    if (spinner) spinner.style.display = 'none';
-    if (text) text.textContent = message || 'Could not rejoin your room.';
-    if (sub) sub.textContent = '';
-    if (el) {
-      el.style.display = 'block';
-      el.style.borderColor = 'rgba(255,140,90,0.55)';
-      el.style.boxShadow = '0 0 22px rgba(255,140,90,0.22)';
-      setTimeout(() => this.hideResumeBanner(), 6000);
-    }
-  }
-
-  hideResumeBanner() {
-    const el = document.getElementById('resumeBanner');
-    if (el) {
-      el.style.display = 'none';
-      el.style.borderColor = 'rgba(64,224,255,0.55)';
-      el.style.boxShadow = '0 0 22px rgba(64,224,255,0.25), inset 0 0 18px rgba(64,224,255,0.06)';
-    }
-  }
 }
 
 export default UIManager;
