@@ -202,6 +202,9 @@ class Game {
     this.lastBroadcast = 0;
     this.positionsListenerSet = false;
     this.combatEventsRef = null;
+    this.matchStateRef = null;
+    this._matchStateListener = null;
+    this._canonicalFinalResult = null;
     this._combatEventListener = null;
     this._processedCombatEvents = new Set();
     // Host-side acknowledgement lock: one unresolved death per victim/life.
@@ -759,50 +762,20 @@ class Game {
 
   async _autoResumeLastRoom() {
     if (this.roomRef) return;
-    const showFail = (m) => {
-      if (this.uiManager.showResumeFailed) this.uiManager.showResumeFailed(m);
-      console.warn('[Resume]', m);
-    };
-    if (!this.db) { showFail('Resume unavailable: no database connection.'); return; }
+    if (!this.db) return;
     const ctx = this._getLastRoom();
     if (!ctx || !ctx.roomCode) return;
-    const RESUME_LIMIT_MS = 5000;
-    let finished = false;
-    let remaining = Math.round(RESUME_LIMIT_MS / 1000);
-    if (this.uiManager.showResumeBanner) {
-      this.uiManager.showResumeBanner(ctx.roomCode, remaining);
-    }
-    const ticker = setInterval(() => {
-      remaining -= 1;
-      if (this.uiManager.updateResumeBanner) this.uiManager.updateResumeBanner(remaining);
-    }, 1000);
-    const timer = setTimeout(() => {
-      if (finished) return;
-      finished = true;
-      clearInterval(ticker);
-      if (this.uiManager.showResumeFailed) {
-        this.uiManager.showResumeFailed(`Couldn't rejoin room ${ctx.roomCode} in time. Tap Play to continue.`);
-      }
-    }, RESUME_LIMIT_MS);
-    const stop = () => { finished = true; clearTimeout(timer); clearInterval(ticker); };
     try {
       const snap = await this.db.ref('rooms/' + ctx.roomCode).once('value');
-      if (finished) return;
       if (!snap.exists()) {
-        stop();
-        try { localStorage.removeItem(LAST_ROOM_KEY); } catch (_) {}
-        if (this.uiManager.showResumeFailed) {
-          this.uiManager.showResumeFailed(`Room ${ctx.roomCode} is no longer available.`);
-        }
+        this._clearLastRoom();
+        this.uiManager.showResumeFailed('MATCH CANCELLED — No challengers remain in the arena.');
         return;
       }
       const room = snap.val() || {};
       if (['finished', 'completed', 'expired'].includes(room.status)) {
-        stop();
         this._clearLastRoom();
-        if (this.uiManager.showResumeFailed) {
-          this.uiManager.showResumeFailed('Your previous room has ended. Start a new match.');
-        }
+        this.uiManager.showResumeFailed('MATCH ENDED — The arena has already closed.');
         return;
       }
       const players = room.players || {};
@@ -811,24 +784,15 @@ class Game {
         player => player && player.authUid === this.authUid
       ));
       if (!savedPlayerExists && !authenticatedPlayerExists) {
-        stop();
         this._clearLastRoom();
-        if (this.uiManager.showResumeFailed) {
-          this.uiManager.showResumeFailed('That saved room no longer belongs to this player.');
-        }
+        this.uiManager.showResumeFailed('MATCH CANCELLED — Your dragon is no longer in this room.');
         return;
       }
-      stop();
-      this._rejoinRoom(ctx);
-      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
-      setTimeout(() => this._assertLobbyScreen(), 400);
-      setTimeout(() => this._assertLobbyScreen(), 1200);
-      console.log('[Resume] rejoined room', ctx.roomCode);
+      const otherActive = Object.entries(players).some(([id, player]) =>
+        id !== ctx.localPlayerId && player && !player.leftAt
+      );
+      if (otherActive || Object.keys(players).length > 0) this.uiManager.showResumeRoomBanner(ctx.roomCode);
     } catch (err) {
-      stop();
-      if (this.uiManager.showResumeFailed) {
-        this.uiManager.showResumeFailed('Could not rejoin your room. Tap Play to continue.');
-      }
       console.warn('[Resume] failed:', err?.message || err);
     }
   }
@@ -1642,6 +1606,24 @@ class Game {
       }
     });
     this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
+    this.eventBus.on('staking:cancelWait', () => this._cancelStakeWait());
+    this.eventBus.on('ui:resumeRoom', async () => {
+      const ctx = this._getLastRoom();
+      if (!ctx?.roomCode) return;
+      this.uiManager.hideResumeRoomBanner();
+      if (!(await this._restoreRoomByCode(ctx.roomCode, ctx))) {
+        this.uiManager.showResumeFailed('MATCH CANCELLED — No challengers remain in the arena.');
+        this._clearLastRoom();
+      }
+    });
+    this.eventBus.on('ui:exitResumeRoom', async () => {
+      const ctx = this._getLastRoom();
+      this.uiManager.hideResumeRoomBanner();
+      if (ctx?.roomCode && ctx?.localPlayerId && this.db) {
+        await this.db.ref(`rooms/${ctx.roomCode}/players/${ctx.localPlayerId}`).remove().catch(() => {});
+      }
+      this._clearLastRoom();
+    });
     this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
       try {
         await this._releaseStaleRoomForMatchmaking();
@@ -2321,6 +2303,29 @@ class Game {
       console.warn('[Staking] pre-flight balance check failed (non-fatal, proceeding):', err?.message || err);
       return true;
     }
+  }
+
+  async _cancelStakeWait() {
+    const cancel = document.getElementById('stakeConfirmCancel');
+    if (cancel) cancel.disabled = true;
+    const text = document.getElementById('stakeConfirmText');
+    if (text) text.textContent = 'Checking your room before retry…';
+    let deposited = false;
+    try {
+      const snap = this.roomRef && this.localPlayerId
+        ? await this.roomRef.child(`players/${this.localPlayerId}`).once('value')
+        : null;
+      const player = snap?.val() || {};
+      deposited = player.deposited === true || !!player.depositTx;
+    } catch (_) {}
+    if (deposited) {
+      this.eventBus.emit('staking:confirmed', { label: 'Stake already confirmed — room restored.' });
+    } else {
+      this.eventBus.emit('staking:error', {
+        message: 'Stake request cancelled. No confirmed room deposit was found; you may try again.'
+      });
+    }
+    if (cancel) { cancel.disabled = false; cancel.style.display = 'none'; }
   }
 
   async handleDeposit() {
@@ -3020,6 +3025,16 @@ class Game {
 
   async forfeitMatch() {
     if (!this.isMultiplayer || this.state !== 'PLAYING' || !this.roomRef || !this.localPlayerId) return;
+    if (this._endingGame || this._canonicalFinalResult || this._settlementHandled) {
+      this.uiManager.showForfeitError('This match has already ended. The result cannot be changed.');
+      return;
+    }
+    const finalSnap = await this.roomRef.child('matchState/finalResult').once('value').catch(() => null);
+    if (finalSnap && finalSnap.exists()) {
+      this._canonicalFinalResult = finalSnap.val();
+      this.uiManager.showForfeitError('This match has already ended. The result cannot be changed.');
+      return;
+    }
     const roomRef = this.roomRef;
     const playerId = this.localPlayerId;
     const authUid = this.authUid;
@@ -3305,8 +3320,36 @@ class Game {
     this.positionsListenerSet = false;
     this.lastBroadcast = 0;
     this._startCombatEventSync();
+    this._startMatchStateSync();
     this._watchSettlement();
     this._startConnectionWatchdog();
+  }
+
+  _startMatchStateSync() {
+    if (!this.roomRef || !this.matchId) return;
+    this.matchStateRef = this.roomRef.child('matchState');
+    this._canonicalFinalResult = null;
+    this._matchStateListener = this.matchStateRef.on('value', snapshot => {
+      const state = snapshot.val() || {};
+      if (state.finalResult && state.finalResult.matchId === this.matchId) {
+        this._canonicalFinalResult = state.finalResult;
+        const iWon = !!this.localPlayerId && state.finalResult.winnerId === this.localPlayerId;
+        const all = this.dragonManager.getAllDragons();
+        this.winner = iWon ? this.localDragon : (all.find(d => d.playerId === state.finalResult.winnerId) || null);
+        if (this.state === 'PLAYING') this.endGame(true);
+        return;
+      }
+      for (const [playerId, canonical] of Object.entries(state.players || {})) {
+        if (!canonical || canonical.matchId !== this.matchId) continue;
+        const dragon = this._getDragonByPlayerId(playerId);
+        if (!dragon) continue;
+        const lives = Math.max(0, Number(canonical.lives));
+        if (!Number.isFinite(lives)) continue;
+        dragon.lives = lives;
+        dragon.deaths = Math.max(Number(dragon.deaths || 0), 3 - lives);
+        if (lives === 0) dragon.alive = false;
+      }
+    });
   }
 
   _startConnectionWatchdog() {
@@ -3432,6 +3475,11 @@ class Game {
     for (const predicted of this._predictedCombatDeaths.values()) clearTimeout(predicted.timer);
     this._predictedCombatDeaths.clear();
     this._combatListenStartedAt = 0;
+    if (this.matchStateRef && this._matchStateListener) {
+      try { this.matchStateRef.off('value', this._matchStateListener); } catch (_) {}
+    }
+    this.matchStateRef = null;
+    this._matchStateListener = null;
     this.positionsListenerSet = false;
     this.remotePositions = {};
     this._clearConnectionWatchdog();

@@ -1017,6 +1017,8 @@ class UIManager {
     document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
+    document.getElementById('btnExitResumeRoom')?.addEventListener('click', () => this.eventBus.emit('ui:exitResumeRoom'));
+    document.getElementById('stakeConfirmCancel')?.addEventListener('click', () => this.eventBus.emit('staking:cancelWait'));
 
     const btnTierAdvance = document.getElementById('btnTierAdvance');
     if (btnTierAdvance) btnTierAdvance.addEventListener('click', () => {
@@ -1145,6 +1147,7 @@ class UIManager {
       const overlayText = document.getElementById('stakeConfirmText');
       const overlayHint = document.getElementById('stakeConfirmHint');
       const overlaySpinner = document.getElementById('stakeConfirmSpinner');
+      const cancel = document.getElementById('stakeConfirmCancel');
       if (this._refundOverlayTimer) clearTimeout(this._refundOverlayTimer);
       if (this._refundOverlayCloseTimer) clearTimeout(this._refundOverlayCloseTimer);
       this._refundOverlayTimer = null;
@@ -1153,6 +1156,11 @@ class UIManager {
       if (overlayText) overlayText.textContent = label || 'Confirming your stake…';
       if (overlayHint) overlayHint.textContent = 'Approve in Phantom, then return here. Your room is being kept open.';
       if (overlaySpinner) overlaySpinner.style.display = 'block';
+      if (cancel) {
+        cancel.style.display = 'none';
+        clearTimeout(this._stakeCancelTimer);
+        this._stakeCancelTimer = setTimeout(() => { cancel.style.display = 'inline-block'; }, 12000);
+      }
       if (overlay) overlay.style.display = 'flex';
     });
     this.eventBus.on('staking:refundPending', ({ label } = {}) => {

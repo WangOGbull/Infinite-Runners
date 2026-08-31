@@ -3760,7 +3760,7 @@
   <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button> 
   <div id="resumeRoomBanner" style="display:none; position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:50; background:rgba(0,0,0,0.7); border:1px solid rgba(0,180,216,0.4); border-radius:12px; padding:14px 20px; text-align:center; max-width:90vw;"> 
     <div style="color:#c8ccd8; font-size:13px; margin-bottom:8px;">You have a room in progress</div> 
-    <button id="btnResumeRoom" class="menuBtn" style="margin:0 auto;"><i data-lucide="rotate-ccw"></i> Resume Room <span id="resumeRoomCode"></span></button> 
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button id="btnResumeRoom" class="menuBtn" style="margin:0;"><i data-lucide="rotate-ccw"></i> Return <span id="resumeRoomCode"></span></button><button id="btnExitResumeRoom" class="menuBtn" style="margin:0;">Exit</button></div>
   </div> 
   <div class="content"> 
     <h1>Infinite Runners</h1> 
@@ -4176,6 +4176,7 @@
     <div id="stakeConfirmText" style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#fff;letter-spacing:.5px;">Confirming your stake…</div>
     <div id="stakeConfirmHint" style="margin-top:10px;font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(255,255,255,.68);">Approve in Phantom, then return here. Your room is being kept open.</div>
     <div id="stakeConfirmSpinner" style="width:44px;height:44px;margin:22px auto 0;border:3px solid rgba(168,85,247,.25);border-top-color:#c084fc;border-radius:50%;animation:stakeConfirmSpin 1s linear infinite;"></div>
+    <button id="stakeConfirmCancel" type="button" style="display:none;margin:18px auto 0;padding:9px 20px;border:1px solid rgba(243,213,139,.55);border-radius:9px;background:rgba(0,0,0,.28);color:#f3d58b;font:700 13px 'Rajdhani',sans-serif;letter-spacing:1px;">CANCEL &amp; CHECK ROOM</button>
   </div>
 </div>
 <style>@keyframes stakeConfirmSpin{to{transform:rotate(360deg)}}</style>
@@ -4402,7 +4403,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=66"></script>
+<script type="module" src="./src/main.js?v=67"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
