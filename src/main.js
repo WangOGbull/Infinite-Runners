@@ -1656,6 +1656,7 @@ class Game {
         opponentName: 'Opponent',
         opponentDragon: null
       });
+      this.effectsSystem.playOpponentFoundSound();
       if (this.db && opponentUid) {
         Promise.all([
           this.db.ref(`users/${opponentUid}/matchmakingProfile`).once('value'),
