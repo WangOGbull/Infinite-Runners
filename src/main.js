@@ -9,7 +9,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=55';
+import UIManager from './uiManager.js?v=56';
 import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -1345,11 +1345,20 @@ class Game {
       this.joinRoom(code);
     });
     this.eventBus.on('mp:leaveRoom', () => this.leaveRoom());
+    this.eventBus.on('mp:forfeitMatch', () => this.forfeitMatch());
     this.eventBus.on('mp:startGame', () => this.startMpGame());
     this.eventBus.on('lobby:kickPlayer', ({ playerId }) => this.kickPlayer(playerId));
     this.eventBus.on('game:pause', () => this.pauseGame());
     this.eventBus.on('game:resume', () => this.resumeGame());
     this.eventBus.on('game:quit', () => this.quitGame());
+    this.eventBus.on('game:returnToMainMenu', () => {
+      this.quitGame();
+      this.enterMainMenu();
+    });
+    this.eventBus.on('game:returnToMultiplayerMenu', () => {
+      this.quitGame();
+      this.uiManager.showScreen('mpMenuScreen');
+    });
     this.eventBus.on('game:restart', () => this.restartGame());
     this.eventBus.on('collision:eat', ({ dragon, food }) => {
       this.growthSystem.onEat(dragon, food);
@@ -1447,18 +1456,20 @@ class Game {
       if (!this.isMultiplayer || this.isHost || !dragon || !dragon.playerId) return;
       if (this._predictedCombatDeaths.has(dragon.playerId)) return;
 
-      const neon = (killer && CONFIG.DRAGON_NEON)
-        ? (CONFIG.DRAGON_NEON[killer.type] || '#ff6600')
-        : '#ff6600';
-      this.effectsSystem.spawnDeathExplosion(dragon.head.x, dragon.head.y, neon);
-      this.effectsSystem.addShake(dragon === this.localDragon ? 10 : 4, 300);
-      this.effectsSystem.flashVignette(dragon === this.localDragon ? '#ff0000' : neon, 0.3, 300);
-      if (dragon === this.localDragon) this.effectsSystem.playDragonDeathSound();
-
-      const timer = setTimeout(() => {
-        this._predictedCombatDeaths.delete(dragon.playerId);
-      }, 1200);
-      this._predictedCombatDeaths.set(dragon.playerId, { timer });
+      // If the host connection is stale, a non-host may be the only client
+      // that sees the collision. Accept only claims involving this client's
+      // own dragon; never witness unrelated remote-vs-remote combat.
+      if (dragon !== this.localDragon && killer !== this.localDragon) return;
+      const publishedId = this._publishCombatDeath(dragon, killer);
+      if (!publishedId) return;
+      // The publisher marks its own event as processed before Firebase echoes
+      // it back, so apply it locally once now. Other clients receive the same
+      // event through child_added and ignore any later duplicate claim.
+      this.eventBus.emit('dragon:death', {
+        dragon,
+        killer,
+        networkEventId: publishedId
+      });
     });
 
     this.eventBus.on('dragon:death', ({ dragon, killer, networkEventId = null }) => {
@@ -3007,6 +3018,34 @@ class Game {
     }
   }
 
+  async forfeitMatch() {
+    if (!this.isMultiplayer || this.state !== 'PLAYING' || !this.roomRef || !this.localPlayerId) return;
+    const roomRef = this.roomRef;
+    const playerId = this.localPlayerId;
+    const authUid = this.authUid;
+    try {
+      const updates = {};
+      updates[`players/${playerId}/forfeitedAt`] = firebase.database.ServerValue.TIMESTAMP;
+      updates[`players/${playerId}/forfeit`] = true;
+      if (authUid) {
+        updates[`presence/${authUid}/disconnectedAt`] = firebase.database.ServerValue.TIMESTAMP;
+        updates[`presence/${authUid}/intentionalForfeit`] = true;
+      }
+      // Preserve the staked player record. Presence is the backend's existing
+      // abandonment signal, while these fields make the intent explicit.
+      await roomRef.update(updates);
+    } catch (error) {
+      console.error('[Forfeit] Could not submit forfeit:', error);
+      this.uiManager.showForfeitError('Could not submit the forfeit. Check your connection and try again.');
+      return;
+    }
+
+    const opponent = this.dragonManager.getAllDragons().find(d => d !== this.localDragon) || null;
+    this.winner = opponent;
+    this.endGame(true);
+    this.uiManager.showForfeitDefeat('You forfeited the match. Your opponent has been awarded the victory and pot.');
+  }
+
   async _releaseStaleRoomForMatchmaking(nextRoomCode = null) {
     if (!this.roomRef) return 'clear';
     if (nextRoomCode && String(this.roomCode) === String(nextRoomCode)) return 'current';
@@ -3174,7 +3213,7 @@ class Game {
   }
 
   _publishCombatDeath(victim, killer) {
-    if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef) return null;
+    if (!this.isMultiplayer || !this.combatEventsRef) return null;
     const victimId = victim && victim.playerId;
     const killerId = killer && killer.playerId;
     if (!victimId) return null;
@@ -3559,6 +3598,7 @@ class Game {
     this._frameCount = 0;
     this._pendingPurge = [];
     this._pendingCombatDeaths.clear();
+    if (this.uiManager.resetForfeitState) this.uiManager.resetForfeitState();
     // Log audio system status
     const audioStatus = `loaded:${this.effectsSystem._audioLoadedCount} failed:${this.effectsSystem._audioFailedCount}`;
     console.log(`[Game] Starting gameplay. Audio ${audioStatus}`);
@@ -3578,12 +3618,17 @@ class Game {
     }
     this.uiManager.showScreen('gameScreen');
     const pauseBtn = document.getElementById('pauseBtn');
+    const mpExitBtn = document.getElementById('mpExitBtn');
     const scoreDisplay = document.getElementById('scoreDisplay');
     if (pauseBtn) {
       if (this.isMultiplayer) pauseBtn.style.setProperty('display', 'none', 'important');
       else pauseBtn.style.removeProperty('display');
       pauseBtn.setAttribute('aria-hidden', this.isMultiplayer ? 'true' : 'false');
       pauseBtn.disabled = this.isMultiplayer;
+    }
+    if (mpExitBtn) {
+      mpExitBtn.style.display = this.isMultiplayer ? 'flex' : 'none';
+      mpExitBtn.setAttribute('aria-hidden', this.isMultiplayer ? 'false' : 'true');
     }
     if (scoreDisplay) {
       if (this.isMultiplayer) scoreDisplay.style.setProperty('display', 'none', 'important');
@@ -3868,6 +3913,9 @@ class Game {
     this.uiManager.hideQuitConfirm();
     this.uiManager.showPauseOverlay(false);
     this.uiManager.hideCountdown();
+    if (this.uiManager.resetForfeitState) this.uiManager.resetForfeitState();
+    const mpExitBtn = document.getElementById('mpExitBtn');
+    if (mpExitBtn) mpExitBtn.style.display = 'none';
     this._pendingPurge = [];
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
@@ -4196,6 +4244,9 @@ class Game {
     this.dragonManager.clear();
     this.isPaused = false;
     this.stopNetworkSync();
+    if (this.uiManager.resetForfeitState) this.uiManager.resetForfeitState();
+    const mpExitBtn = document.getElementById('mpExitBtn');
+    if (mpExitBtn) mpExitBtn.style.display = 'none';
 
     // ── Reset ALL multiplayer state ──
     this.isMultiplayer = false;
