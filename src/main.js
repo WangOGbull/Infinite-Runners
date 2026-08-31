@@ -370,6 +370,9 @@ class Game {
       await this.loadGameAssets();
     }
     await this._finishPhantomStakeReturn();
+    // Direct wallet/lobby restoration always runs first. Only if the player is
+    // still outside a room do we offer the manual Active Room fallback.
+    if (!this.roomRef) await this._autoResumeLastRoom();
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
