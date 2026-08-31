@@ -914,3 +914,77 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .settingsVolume{display:block;padding:16px 0}.settingsVolume span{display:flex;justify-content:space-between}.settingsVolume input{width:100%;margin-top:12px;accent-color:#a855f7}.settingsVolume input:disabled{opacity:.35}
 .settingsAction,.settingsClose{width:100%;margin-top:12px;padding:12px;border-radius:12px;font:700 14px 'Rajdhani',sans-serif;letter-spacing:1px;cursor:pointer}.settingsAction{border:1px solid rgba(0,180,216,.55);background:rgba(0,180,216,.1);color:#9eeaff}.settingsClose{border:1px solid #a855f7;background:linear-gradient(135deg,#6d28d9,#4c1d95);color:#fff}
 html.reduced-motion *,html.reduced-motion *::before,html.reduced-motion *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+
+
+/* ===== ACTIVE ROOM RECOVERY MODAL ===== */
+.activeRoomModal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.activeRoomModal.open {
+  display: flex;
+}
+
+.activeRoomDialog {
+  width: min(360px, 92vw);
+  padding: 28px 24px 24px;
+  border: 1px solid #5e6b7c;
+  border-radius: 10px;
+  background: #11151b;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.65);
+  color: #f4f4f4;
+  text-align: center;
+}
+
+.activeRoomDialog h2 {
+  margin: 0 0 12px;
+  font-family: 'Cinzel', serif;
+  font-size: 22px;
+  letter-spacing: 1.5px;
+  color: #ffffff;
+}
+
+.activeRoomDialog p {
+  margin: 0 0 16px;
+  color: #c6cbd3;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.activeRoomCode {
+  margin-bottom: 20px;
+  color: #8f98a6;
+  font-size: 12px;
+  letter-spacing: 1.2px;
+}
+
+.activeRoomCode span {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.activeRoomReturnBtn {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #7a8798;
+  border-radius: 7px;
+  background: #242b35;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+}
+
+.activeRoomReturnBtn:active {
+  transform: translateY(1px);
+  background: #303946;
+}
