@@ -40,7 +40,9 @@ class EffectsSystem {
       death: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/53bdc70cd_game-over.mp3',
       respawn: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/dc5b302a3_dragon-respawn.mp3',
       victory: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/cd9d3ec3d_victory-roar.mp3',
-      dragonDeath: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/d3a265df1_dragon-death.mp3'
+      dragonDeath: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/d3a265df1_dragon-death.mp3',
+      searchSonar: './assets/automatch-sonar-search.mp3',
+      opponentFound: './assets/automatch-opponent-found.mp3'
     };
 
     // Premium audio chain nodes (created lazily, reused)
@@ -255,96 +257,55 @@ class EffectsSystem {
   }
 
   startSearchSound() {
+    this._searchRequested = true;
     if (!this._soundEnabled || this._masterVolume <= 0) return;
     if (this._searchSound) return;
     const ctx = this._getAudioContext();
     const chain = this._buildMasterChain();
     if (!ctx || !chain) return;
-
-    const now = ctx.currentTime;
-    const output = ctx.createGain();
-    output.gain.setValueAtTime(0.001, now);
-    output.gain.exponentialRampToValueAtTime(0.11, now + 0.45);
-    output.connect(chain.compressor);
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 720;
-    filter.Q.value = 1.8;
-    filter.connect(output);
-
-    const hum = ctx.createOscillator();
-    hum.type = 'sine';
-    hum.frequency.value = 58;
-    const humGain = ctx.createGain();
-    humGain.gain.value = 0.56;
-    hum.connect(humGain);
-    humGain.connect(filter);
-
-    const energy = ctx.createOscillator();
-    energy.type = 'triangle';
-    energy.frequency.value = 116;
-    const energyGain = ctx.createGain();
-    energyGain.gain.value = 0.2;
-    energy.connect(energyGain);
-    energyGain.connect(filter);
-
-    const drift = ctx.createOscillator();
-    drift.type = 'sine';
-    drift.frequency.value = 0.18;
-    const driftDepth = ctx.createGain();
-    driftDepth.gain.value = 36;
-    drift.connect(driftDepth);
-    driftDepth.connect(energy.frequency);
-
-    hum.start(now);
-    energy.start(now);
-    drift.start(now);
-    this._searchSound = { output, hum, energy, drift, pulseTimer: 0 };
-    this._playSearchPulse();
-    this._searchSound.pulseTimer = window.setInterval(() => this._playSearchPulse(), 1250);
-  }
-
-  _playSearchPulse() {
-    if (!this._searchSound) return;
-    const ctx = this._getAudioContext();
-    const chain = this._buildMasterChain();
-    if (!ctx || !chain) return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
+    const buffer = this._audioBuffers.searchSonar;
+    if (!buffer) {
+      this._preloadAudio().then(() => {
+        if (this._searchRequested && !this._searchSound) this.startSearchSound();
+      }).catch(() => {});
+      return;
+    }
+    const source = ctx.createBufferSource();
     const gain = ctx.createGain();
-    const filter = ctx.createBiquadFilter();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(260, now);
-    osc.frequency.exponentialRampToValueAtTime(620, now + 0.48);
-    filter.type = 'bandpass';
-    filter.frequency.value = 520;
-    filter.Q.value = 2.4;
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.exponentialRampToValueAtTime(0.055, now + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
-    osc.connect(filter);
-    filter.connect(gain);
+    source.buffer = buffer;
+    source.loop = true;
+    gain.gain.value = 0.34;
+    source.connect(gain);
     gain.connect(chain.compressor);
-    osc.start(now);
-    osc.stop(now + 0.58);
+    source.start();
+    this._searchSound = { source, gain };
   }
 
   stopSearchSound() {
+    this._searchRequested = false;
     const sound = this._searchSound;
     if (!sound) return;
     this._searchSound = null;
-    if (sound.pulseTimer) window.clearInterval(sound.pulseTimer);
-    const ctx = this._audioContext;
-    const now = ctx?.currentTime || 0;
-    try {
-      sound.output.gain.cancelScheduledValues(now);
-      sound.output.gain.setValueAtTime(Math.max(0.001, sound.output.gain.value), now);
-      sound.output.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-      sound.hum.stop(now + 0.2);
-      sound.energy.stop(now + 0.2);
-      sound.drift.stop(now + 0.2);
-    } catch (_) {}
+    try { sound.source.stop(); } catch (_) {}
+    try { sound.source.disconnect(); } catch (_) {}
+    try { sound.gain.disconnect(); } catch (_) {}
+  }
+
+  playOpponentFoundSound() {
+    if (!this._soundEnabled || this._masterVolume <= 0) return;
+    const ctx = this._getAudioContext();
+    const chain = this._buildMasterChain();
+    const buffer = this._audioBuffers.opponentFound;
+    if (!ctx || !chain || !buffer) return;
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    source.buffer = buffer;
+    gain.gain.value = 0.42;
+    source.connect(gain);
+    gain.connect(chain.compressor);
+    const duration = Math.min(2, buffer.duration);
+    source.start(ctx.currentTime, 0, duration);
+    source.stop(ctx.currentTime + duration + 0.02);
   }
 
   _addParticle(
