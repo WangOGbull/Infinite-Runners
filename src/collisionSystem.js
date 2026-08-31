@@ -117,8 +117,10 @@ class CollisionSystem {
       }
     }
 
-    // Every client keeps responsive recoil, sound and tail-hit feedback.
-    // Only death decisions are restricted to the multiplayer authority.
+    // In multiplayer, one client resolves the complete combat interaction.
+    // Other clients replay its ordered network events instead of independently
+    // inventing hits from an older interpolated opponent position.
+    if (!resolveDragonCombat) return;
     for (let i = 0; i < dragons.length; i++) {
       if (!dragons[i].alive) continue;
       for (let j = i + 1; j < dragons.length; j++) {
