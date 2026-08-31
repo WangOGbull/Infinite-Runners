@@ -201,6 +201,11 @@ class Game {
     this.positionsRef = null;
     this.lastBroadcast = 0;
     this.positionsListenerSet = false;
+    this._positionWriteInFlight = false;
+    this._pendingPositionPayload = null;
+    this._positionSequence = 0;
+    this._positionWriteGeneration = 0;
+    this._lastRemoteSequences = new Map();
     this.combatEventsRef = null;
     this.matchStateRef = null;
     this._matchStateListener = null;
@@ -1316,8 +1321,7 @@ class Game {
     this.eventBus.on('game:resume', () => this.resumeGame());
     this.eventBus.on('game:quit', () => this.quitGame());
     this.eventBus.on('game:returnToMainMenu', () => {
-      this.quitGame();
-      this.enterMainMenu();
+      this._returnToMainMenuSafely();
     });
     this.eventBus.on('game:returnToMultiplayerMenu', () => {
       this.quitGame();
@@ -1337,7 +1341,11 @@ class Game {
       }
       dragon._prevSegments = segments;
     });
-    this.eventBus.on('collision:tail-cut', ({ victim }) => {
+    this.eventBus.on('collision:tail-cut', ({ victim, networkEventId = null }) => {
+      if (this.isMultiplayer && !networkEventId) {
+        if (!this.isHost) return;
+        this._publishCombatReaction('tail_cut', { victimId: victim?.playerId });
+      }
       this.growthSystem.onCollisionTailCut(victim, 0.2);
     });
     this.eventBus.on('collision:max-clash', ({ d1, d2 }) => {
@@ -1350,7 +1358,14 @@ class Game {
         this._publishMaxClash(d1, d2, targetSegments);
       }
     });
-    this.eventBus.on('dragon:tailDamage', ({ victim, attacker }) => {
+    this.eventBus.on('dragon:tailDamage', ({ victim, attacker, networkEventId = null }) => {
+  if (this.isMultiplayer && !networkEventId) {
+    if (!this.isHost) return;
+    this._publishCombatReaction('tail_damage', {
+      victimId: victim?.playerId,
+      attackerId: attacker?.playerId
+    });
+  }
   this.growthSystem.onCollisionTailCut(
     victim,
     CONFIG.ATTACK_TAIL_DAMAGE_PERCENT
@@ -1380,9 +1395,20 @@ class Game {
   other,
   directionX,
   directionY,
-  force
+  force,
+  networkEventId = null
 }) => {
   if (!dragon) return;
+  if (this.isMultiplayer && !networkEventId) {
+    if (!this.isHost) return;
+    this._publishCombatReaction('recoil', {
+      dragonId: dragon?.playerId,
+      otherId: other?.playerId,
+      directionX,
+      directionY,
+      force
+    });
+  }
 
   this.dragonManager.applyCollisionRecoil(
     dragon,
@@ -3266,6 +3292,24 @@ class Game {
     return eventId;
   }
 
+  _publishCombatReaction(type, payload = {}) {
+    if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef) return null;
+    const eventRef = this.combatEventsRef.push();
+    const eventId = eventRef.key;
+    if (!eventId) return null;
+    this._rememberCombatEvent(eventId);
+    eventRef.set({
+      type,
+      matchId: this.matchId,
+      ...payload,
+      createdAt: Date.now()
+    }).catch(error => {
+      console.error(`[Combat] Failed to publish ${type}:`, error);
+      this._processedCombatEvents.delete(eventId);
+    });
+    return eventId;
+  }
+
   _startCombatEventSync() {
     if (!this.roomRef || !this.localPlayerId || !this.matchId) {
       console.error('[Combat] Cannot start sync without room, player and match identity.');
@@ -3279,7 +3323,9 @@ class Game {
     this._combatEventListener = snapshot => {
       const eventId = snapshot.key;
       const event = snapshot.val();
-      if (!eventId || !event || !['death', 'max_clash'].includes(event.type)) return;
+      if (!eventId || !event || ![
+        'death', 'max_clash', 'tail_cut', 'tail_damage', 'recoil'
+      ].includes(event.type)) return;
       if (event.matchId !== this.matchId) return;
       if (this._processedCombatEvents.has(eventId)) return;
 
@@ -3297,6 +3343,35 @@ class Game {
         const second = this._getDragonByPlayerId(secondId);
         this._rememberCombatEvent(eventId);
         if (first && second) this._applyMaxClash(first, second, Number(event.targetSegments || 25));
+        return;
+      }
+
+      if (event.type === 'tail_cut' || event.type === 'tail_damage') {
+        const victim = this._getDragonByPlayerId(event.victimId);
+        const attacker = this._getDragonByPlayerId(event.attackerId);
+        this._rememberCombatEvent(eventId);
+        if (!victim || !victim.alive) return;
+        this.eventBus.emit(event.type === 'tail_cut' ? 'collision:tail-cut' : 'dragon:tailDamage', {
+          victim,
+          attacker,
+          networkEventId: eventId
+        });
+        return;
+      }
+
+      if (event.type === 'recoil') {
+        const dragon = this._getDragonByPlayerId(event.dragonId);
+        const other = this._getDragonByPlayerId(event.otherId);
+        this._rememberCombatEvent(eventId);
+        if (!dragon || !dragon.alive) return;
+        this.eventBus.emit('collision:recoil', {
+          dragon,
+          other,
+          directionX: Number(event.directionX || 0),
+          directionY: Number(event.directionY || 0),
+          force: Number(event.force || 1),
+          networkEventId: eventId
+        });
         return;
       }
 
@@ -3320,6 +3395,13 @@ class Game {
     this.positionsRef = this.roomRef.child('positions');
     this.positionsListenerSet = false;
     this.lastBroadcast = 0;
+    this._positionWriteInFlight = false;
+    this._pendingPositionPayload = null;
+    // A timestamp prefix keeps sequences monotonic even if one phone refreshes
+    // and rejoins while the opponent still has this match open.
+    this._positionSequence = Date.now() * 1000;
+    this._positionWriteGeneration++;
+    this._lastRemoteSequences.clear();
     this._startCombatEventSync();
     this._startMatchStateSync();
     this._watchSettlement();
@@ -3334,6 +3416,10 @@ class Game {
       const state = snapshot.val() || {};
       if (state.finalResult && state.finalResult.matchId === this.matchId) {
         this._canonicalFinalResult = state.finalResult;
+        if (this.localDragon) {
+          this.localDragon.attackHeld = false;
+          this.localDragon.sprintHeld = false;
+        }
         const iWon = !!this.localPlayerId && state.finalResult.winnerId === this.localPlayerId;
         const all = this.dragonManager.getAllDragons();
         this.winner = iWon ? this.localDragon : (all.find(d => d.playerId === state.finalResult.winnerId) || null);
@@ -3483,7 +3569,31 @@ class Game {
     this._matchStateListener = null;
     this.positionsListenerSet = false;
     this.remotePositions = {};
+    this._pendingPositionPayload = null;
+    this._positionWriteInFlight = false;
+    this._positionWriteGeneration++;
+    this._lastRemoteSequences.clear();
     this._clearConnectionWatchdog();
+  }
+
+  _sendLatestPosition(payload) {
+    if (!this.positionsRef || !this.localPlayerId || !payload) return;
+    const playerRef = this.positionsRef.child(this.localPlayerId);
+    const generation = this._positionWriteGeneration;
+    this._positionWriteInFlight = true;
+    playerRef.set(payload).catch(error => {
+      console.warn('[Network] Position update failed:', error?.message || error);
+    }).finally(() => {
+      if (generation !== this._positionWriteGeneration) return;
+      this._positionWriteInFlight = false;
+      const latest = this._pendingPositionPayload;
+      this._pendingPositionPayload = null;
+      // A completed slow write may be obsolete. Send exactly one newest
+      // replacement, never the intermediate frames accumulated meanwhile.
+      if (latest && this.positionsRef && this.state === 'PLAYING') {
+        this._sendLatestPosition(latest);
+      }
+    });
   }
 
   broadcastPosition() {
@@ -3491,17 +3601,17 @@ class Game {
     const now = Date.now();
     // Cap sends so slow mobile connections cannot build a stale write queue.
     // Remote dragons are interpolated locally between these updates.
-    let syncInterval = 100;
+    let syncInterval = 66;
     const localHead = this.localDragon.head;
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.alive) continue;
       const dx = localHead.x - dragon.head.x;
       const dy = localHead.y - dragon.head.y;
-      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 50; break; }
+      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 33; break; }
     }
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
-    this.positionsRef.child(this.localPlayerId).set({
+    const payload = {
       x: this.localDragon.head.x,
       y: this.localDragon.head.y,
       angle: this.localDragon.angle,
@@ -3511,8 +3621,14 @@ class Game {
       lives: this.localDragon.lives,
       alive: this.localDragon.alive,
       attackActive: !!this.localDragon.attackActive,
+      seq: ++this._positionSequence,
       t: now
-    });
+    };
+    if (this._positionWriteInFlight) {
+      this._pendingPositionPayload = payload;
+      return;
+    }
+    this._sendLatestPosition(payload);
   }
 
   applyRemotePositions() {
@@ -3523,7 +3639,20 @@ class Game {
       this._lastRemoteApply = 0;
       // Just cache the snapshot — don't process it here
       this.positionsRef.on('value', snap => {
-        this._remotePosCache = snap.val() || {};
+        const incoming = snap.val() || {};
+        for (const [playerId, position] of Object.entries(incoming)) {
+          if (!position || playerId === this.localPlayerId) continue;
+          const sequence = Number(position.seq);
+          const previous = this._lastRemoteSequences.get(playerId);
+          if (Number.isFinite(sequence)) {
+            if (Number.isFinite(previous) && sequence <= previous) continue;
+            this._lastRemoteSequences.set(playerId, sequence);
+          } else {
+            const previousTime = Number(this._remotePosCache[playerId]?.t || 0);
+            if (Number(position.t || 0) <= previousTime) continue;
+          }
+          this._remotePosCache[playerId] = position;
+        }
       });
     }
 
@@ -4350,6 +4479,22 @@ class Game {
     if (canvas) {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  _returnToMainMenuSafely() {
+    // Mount the destination before cleanup so an incidental teardown error
+    // can never expose the particle background as an empty page.
+    this.enterMainMenu();
+    try {
+      this.quitGame();
+    } catch (error) {
+      console.error('[Navigation] Game cleanup failed while returning to menu:', error);
+    } finally {
+      this.enterMainMenu();
+      requestAnimationFrame(() => {
+        try { this.uiManager.showScreen('titleScreen'); } catch (_) {}
+      });
     }
   }
 
