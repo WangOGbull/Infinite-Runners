@@ -9,7 +9,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=56';
+import UIManager from './uiManager.js?v=57';
 import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -370,6 +370,9 @@ class Game {
       await this.loadGameAssets();
     }
     await this._finishPhantomStakeReturn();
+    // Direct wallet/lobby restoration always runs first. Only if the player is
+    // still outside a room do we offer the manual Active Room fallback.
+    if (!this.roomRef) await this._autoResumeLastRoom();
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
@@ -606,52 +609,17 @@ class Game {
   }
 
   async _beginRoomResume(roomCode) {
-    if (!roomCode || !this.db) return;
+    if (!roomCode || !this.db) return false;
     if (!this.authUid) await this._tryRestoreFirebaseAuth();
-    const RESUME_LIMIT_MS = 5000;
-    let finished = false;
-    const banner = this.uiManager.showResumeBanner
-      ? this.uiManager.showResumeBanner(roomCode, Math.round(RESUME_LIMIT_MS / 1000))
-      : null;
-    const succeed = () => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      clearInterval(ticker);
-      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
-    };
-    const giveUp = (message) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      clearInterval(ticker);
-      if (this.uiManager.showResumeFailed) {
-        this.uiManager.showResumeFailed(message || `Couldn't rejoin room ${roomCode}. Tap Play to continue.`);
-      } else if (this.uiManager.hideResumeBanner) {
-        this.uiManager.hideResumeBanner();
-      }
-      console.warn('[Resume]', message || 'rejoin failed');
-    };
-    let remaining = Math.round(RESUME_LIMIT_MS / 1000);
-    const ticker = setInterval(() => {
-      remaining -= 1;
-      if (remaining >= 0 && this.uiManager.updateResumeBanner) {
-        this.uiManager.updateResumeBanner(remaining);
-      }
-    }, 1000);
-    const timer = setTimeout(() => {
-      giveUp(`Couldn't rejoin room ${roomCode} in time. Tap Play to continue.`);
-    }, RESUME_LIMIT_MS);
+    if (!this.authUid) return false;
     try {
-      if (!this.authUid) {
-        giveUp('Session did not carry over - tap Play to continue.');
-        return;
-      }
-      const restored = await this._restoreRoomByCode(roomCode);
-      if (restored) succeed();
-      else giveUp(`Room ${roomCode} is no longer available.`);
+      return await Promise.race([
+        this._restoreRoomByCode(roomCode),
+        new Promise(resolve => setTimeout(() => resolve(false), 5000))
+      ]);
     } catch (err) {
-      giveUp(err?.message || 'Rejoin failed.');
+      console.warn('[Resume] direct room restore failed:', err?.message || err);
+      return false;
     }
   }
 
@@ -752,7 +720,7 @@ class Game {
     this._holdPhantomStakeReturn = false;
     if (this.roomRef) {
       this.uiManager.showScreen('lobbyScreen');
-      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
+      if (this.uiManager.hideActiveRoomModal) this.uiManager.hideActiveRoomModal();
     } else {
       this.uiManager.showScreen('mpMenuScreen');
       this._deferredStakeResult = {
@@ -774,13 +742,11 @@ class Game {
       const snap = await this.db.ref('rooms/' + ctx.roomCode).once('value');
       if (!snap.exists()) {
         this._clearLastRoom();
-        this.uiManager.showResumeFailed('MATCH CANCELLED — No challengers remain in the arena.');
         return;
       }
       const room = snap.val() || {};
       if (['finished', 'completed', 'expired'].includes(room.status)) {
         this._clearLastRoom();
-        this.uiManager.showResumeFailed('MATCH ENDED — The arena has already closed.');
         return;
       }
       const players = room.players || {};
@@ -790,13 +756,12 @@ class Game {
       ));
       if (!savedPlayerExists && !authenticatedPlayerExists) {
         this._clearLastRoom();
-        this.uiManager.showResumeFailed('MATCH CANCELLED — Your dragon is no longer in this room.');
         return;
       }
       const otherActive = Object.entries(players).some(([id, player]) =>
         id !== ctx.localPlayerId && player && !player.leftAt
       );
-      if (otherActive || Object.keys(players).length > 0) this.uiManager.showResumeRoomBanner(ctx.roomCode);
+      if (otherActive || Object.keys(players).length > 0) this.uiManager.showActiveRoomModal(ctx.roomCode);
     } catch (err) {
       console.warn('[Resume] failed:', err?.message || err);
     }
@@ -807,7 +772,7 @@ class Game {
     const cur = this.uiManager.currentScreen;
     if (cur === 'loadingScreen' || cur === 'titleScreen') {
       this.uiManager.showScreen('lobbyScreen');
-      if (this.uiManager.hideResumeBanner) this.uiManager.hideResumeBanner();
+      if (this.uiManager.hideActiveRoomModal) this.uiManager.hideActiveRoomModal();
     }
   }
 
@@ -1633,22 +1598,13 @@ class Game {
     });
     this.eventBus.on('lobby:depositRequested', () => this.handleDeposit());
     this.eventBus.on('staking:cancelWait', () => this._cancelStakeWait());
-    this.eventBus.on('ui:resumeRoom', async () => {
+    this.eventBus.on('ui:returnToActiveRoom', async () => {
       const ctx = this._getLastRoom();
       if (!ctx?.roomCode) return;
-      this.uiManager.hideResumeRoomBanner();
+      this.uiManager.hideActiveRoomModal();
       if (!(await this._restoreRoomByCode(ctx.roomCode, ctx))) {
-        this.uiManager.showResumeFailed('MATCH CANCELLED — No challengers remain in the arena.');
         this._clearLastRoom();
       }
-    });
-    this.eventBus.on('ui:exitResumeRoom', async () => {
-      const ctx = this._getLastRoom();
-      this.uiManager.hideResumeRoomBanner();
-      if (ctx?.roomCode && ctx?.localPlayerId && this.db) {
-        await this.db.ref(`rooms/${ctx.roomCode}/players/${ctx.localPlayerId}`).remove().catch(() => {});
-      }
-      this._clearLastRoom();
     });
     this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
       try {
@@ -2446,12 +2402,17 @@ class Game {
     const playersArr = Object.values(this.roomPlayers || {});
     const myRecord = (this.roomPlayers && this.localPlayerId)
       ? this.roomPlayers[this.localPlayerId] : null;
-    const myDeposited = !!(
-      (myRecord && myRecord.deposited)
-      || (this.isHost ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited)
-    );
     const mode = this.selectedMpMode || '1v1';
     const isFFA = mode !== '1v1' && playersArr.length >= 2;
+    // Four-player modes use only this exact player's confirmed record.
+    // opponentDeposited is a legacy 1v1 flag and cannot represent every
+    // non-host seat in FFA or 2v2.
+    const myDeposited = isFFA
+      ? !!(myRecord && myRecord.deposited === true)
+      : !!(
+          (myRecord && myRecord.deposited)
+          || (this.isHost ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited)
+        );
     const allPlayersDeposited = isFFA
       ? (playersArr.length >= 2 && playersArr.every(p => !!(p && p.deposited)))
       : (this.stakingState.hostDeposited && this.stakingState.opponentDeposited);
@@ -2803,9 +2764,17 @@ class Game {
         id,
         isLocal: id === this.localPlayerId,
         isHost: id === computedHostId,
-        deposited: (p && p.deposited !== undefined)
-          ? !!p.deposited
-          : (id === stampedHostId ? this.stakingState.hostDeposited : this.stakingState.opponentDeposited),
+        deposited: (
+          data.mode === 'FFA'
+          || data.mode === '2v2'
+          || Number(data.maxPlayers || 0) > 2
+        )
+          ? !!(p && p.deposited === true)
+          : ((p && p.deposited !== undefined)
+              ? !!p.deposited
+              : (id === stampedHostId
+                  ? this.stakingState.hostDeposited
+                  : this.stakingState.opponentDeposited)),
       }));
       const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
       const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
