@@ -9,7 +9,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=56';
+import UIManager from './uiManager.js?v=57';
 import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
