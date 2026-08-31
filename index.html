@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"> 
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> 
-<link rel="stylesheet" href="./src/styles.css?v=59">
+<link rel="stylesheet" href="./src/styles.css?v=60">
 
 <style> 
   html, body { overflow-x: hidden; max-width: 100vw; } 
@@ -4210,9 +4210,10 @@
   <!-- ===== EXISTING HUD (restyled to match reference layout) ===== --> 
   <div id="gameHud"> 
     <div class="hudLeft"> 
-      <div class="hudTopRow"> 
-        <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button> 
-        <div id="timerDisplay">0:00</div> 
+      <div class="hudTopRow">
+        <button id="pauseBtn" class="icon-btn"><i data-lucide="pause"></i></button>
+        <button id="mpExitBtn" class="icon-btn" type="button" aria-label="Open multiplayer exit menu"><i data-lucide="log-out"></i></button>
+        <div id="timerDisplay">0:00</div>
       </div> 
     </div> 
     <div class="hudRight"> 
@@ -4401,7 +4402,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=65"></script>
+<script type="module" src="./src/main.js?v=66"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
