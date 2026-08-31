@@ -231,6 +231,23 @@ class UIManager {
     document.body.appendChild(quitConfirm);
     this._quitConfirmDialog = quitConfirm;
 
+    const mpExitDialog = document.createElement('div');
+    mpExitDialog.id = 'mpExitDialog';
+    mpExitDialog.className = 'mpExitDialog';
+    mpExitDialog.innerHTML = `
+      <div class="mpExitBox" role="dialog" aria-modal="false" aria-labelledby="mpExitTitle">
+        <h3 id="mpExitTitle">Exit Match</h3>
+        <p>The match continues while this menu is open. If you forfeit, your opponent wins the match and the pot.</p>
+        <p id="mpExitError" style="display:none;color:#ff9b9b;"></p>
+        <div class="mpExitSound"><span>Game Sound</span><button id="mpSoundToggle" type="button">ON</button></div>
+        <div class="mpExitActions">
+          <button id="mpExitCancel" class="mpExitCancel" type="button">Cancel</button>
+          <button id="mpExitForfeit" class="mpExitForfeit" type="button">Forfeit</button>
+        </div>
+      </div>`;
+    document.body.appendChild(mpExitDialog);
+    this._mpExitDialog = mpExitDialog;
+
     const arenaModal = document.createElement('div');
     arenaModal.id = 'arenaSelectModal';
     arenaModal.className = 'screen';
@@ -953,6 +970,33 @@ class UIManager {
     if (depositBtn) depositBtn.addEventListener('click', () => this.eventBus.emit('lobby:depositRequested'));
     const pauseBtn = document.getElementById('pauseBtn');
     if (pauseBtn) pauseBtn.addEventListener('click', () => this.eventBus.emit('game:pause'));
+    const mpExitBtn = document.getElementById('mpExitBtn');
+    const mpExitDialog = this._mpExitDialog || document.getElementById('mpExitDialog');
+    const mpSoundToggle = document.getElementById('mpSoundToggle');
+    const renderMpSound = () => {
+      const enabled = localStorage.getItem('irSoundEnabled') !== 'false';
+      if (mpSoundToggle) {
+        mpSoundToggle.textContent = enabled ? 'ON' : 'OFF';
+        mpSoundToggle.setAttribute('aria-pressed', String(enabled));
+      }
+    };
+    if (mpExitBtn) mpExitBtn.addEventListener('click', () => {
+      const error = document.getElementById('mpExitError');
+      if (error) { error.style.display = 'none'; error.textContent = ''; }
+      renderMpSound();
+      mpExitDialog?.classList.add('active');
+    });
+    document.getElementById('mpExitCancel')?.addEventListener('click', () => mpExitDialog?.classList.remove('active'));
+    document.getElementById('mpExitForfeit')?.addEventListener('click', () => {
+      mpExitDialog?.classList.remove('active');
+      this.eventBus.emit('mp:forfeitMatch');
+    });
+    mpSoundToggle?.addEventListener('click', () => {
+      const enabled = localStorage.getItem('irSoundEnabled') === 'false';
+      localStorage.setItem('irSoundEnabled', String(enabled));
+      this.eventBus.emit('settings:soundEnabled', { enabled });
+      renderMpSound();
+    });
     const resumeBtn = document.getElementById('btnResume');
     if (resumeBtn) resumeBtn.addEventListener('click', () => this.eventBus.emit('game:resume'));
     const quitBtn = document.getElementById('btnQuit');
@@ -968,7 +1012,9 @@ class UIManager {
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
     const mainMenu = document.getElementById('btnMainMenu');
-    if (mainMenu) mainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.returnToMenuWithProcessing('dragonSelectScreen', 'Wrapping up the match…'); });
+    if (mainMenu) mainMenu.addEventListener('click', () => this.eventBus.emit('game:returnToMainMenu'));
+    document.getElementById('btnMpMainMenu')?.addEventListener('click', () => this.eventBus.emit('game:returnToMainMenu'));
+    document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
     const resumeRoomBtn = document.getElementById('btnResumeRoom');
     if (resumeRoomBtn) resumeRoomBtn.addEventListener('click', () => this.eventBus.emit('ui:resumeRoom'));
 
@@ -1753,14 +1799,14 @@ class UIManager {
     this.showScreen('gameOverScreen');
   }
 
-  showForfeitDefeat() {
+  showForfeitDefeat(message = 'You lost your connection to the arena. The match went to your opponent.') {
     if (this._forfeitDefeatShown) return;
     this._forfeitDefeatShown = true;
     const titleEl = document.getElementById('goTitle');
     const subEl = document.getElementById('goSubtitle');
     if (titleEl) { titleEl.textContent = 'MATCH ENDED'; titleEl.style.color = '#ff6e6e'; }
     if (subEl) {
-      subEl.textContent = 'You lost your connection to the arena. The match went to your opponent.';
+      subEl.textContent = message;
       subEl.style.color = '#e0a3a3';
       subEl.style.display = 'block';
     }
@@ -1769,6 +1815,21 @@ class UIManager {
     const stakeBox = document.getElementById('goStakeBox');
     if (stakeBox) stakeBox.style.display = 'none';
     this.showScreen('gameOverScreen');
+  }
+
+  resetForfeitState() {
+    this._forfeitDefeatShown = false;
+    const dialog = this._mpExitDialog || document.getElementById('mpExitDialog');
+    if (dialog) dialog.classList.remove('active');
+    const error = document.getElementById('mpExitError');
+    if (error) { error.style.display = 'none'; error.textContent = ''; }
+  }
+
+  showForfeitError(message) {
+    const dialog = this._mpExitDialog || document.getElementById('mpExitDialog');
+    const error = document.getElementById('mpExitError');
+    if (error) { error.textContent = message; error.style.display = 'block'; }
+    if (dialog) dialog.classList.add('active');
   }
 
   showCountdown(seconds, onComplete) {
@@ -2315,13 +2376,24 @@ class UIManager {
 
 
   showScreen(screenId) {
+    const requested = this.screens[screenId];
+    const safeTarget = requested || this.screens.titleScreen;
+    if (!safeTarget) {
+      console.error(`[UI] Cannot show missing screen: ${screenId}`);
+      return;
+    }
+    if (!requested) {
+      console.error(`[UI] Missing screen ${screenId}; returning to title screen.`);
+      screenId = 'titleScreen';
+    }
     // Close any open modal overlays when switching screens
     const lbProfile = document.getElementById('lbProfileModal');
     if (lbProfile) lbProfile.style.display = 'none';
     const profile = document.getElementById('profileModal');
     if (profile) profile.classList.remove('active');
     Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
-    if (this.screens[screenId]) { this.screens[screenId].classList.add('active'); this.currentScreen = screenId; }
+    safeTarget.classList.add('active');
+    this.currentScreen = screenId;
     this.eventBus.emit('ui:screenChanged', { screenId });
     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
     const _shown = this.screens[screenId];
