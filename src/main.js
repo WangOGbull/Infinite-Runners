@@ -7,7 +7,7 @@ import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
 import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
-import CollisionSystem from './collisionSystem.js?v=54';
+import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js?v=58';
 import EffectsSystem from './effectsSystem.js?v=53';
@@ -207,7 +207,6 @@ class Game {
     this._positionWriteGeneration = 0;
     this._lastRemoteSequences = new Map();
     this._connectionInterrupted = false;
-    this._remoteFreshnessMs = 1500;
     this.combatEventsRef = null;
     this.matchStateRef = null;
     this._matchStateListener = null;
@@ -1445,12 +1444,27 @@ class Game {
     if (isLocal) this.effectsSystem.playHeadCollisionSound();
   }
 });
-    this.eventBus.on('collision:predicted-death', () => {
-      // Non-host clients never create canonical deaths. They wait for the
-      // host event, preventing two phones from deciding different outcomes.
+    this.eventBus.on('collision:predicted-death', ({ dragon, killer }) => {
+      if (!this.isMultiplayer || this.isHost || !dragon || !dragon.playerId) return;
+      if (this._predictedCombatDeaths.has(dragon.playerId)) return;
+
+      // If the host connection is stale, a non-host may be the only client
+      // that sees the collision. Accept only claims involving this client's
+      // own dragon; never witness unrelated remote-vs-remote combat.
+      if (dragon !== this.localDragon && killer !== this.localDragon) return;
+      const publishedId = this._publishCombatDeath(dragon, killer);
+      if (!publishedId) return;
+      // The publisher marks its own event as processed before Firebase echoes
+      // it back, so apply it locally once now. Other clients receive the same
+      // event through child_added and ignore any later duplicate claim.
+      this.eventBus.emit('dragon:death', {
+        dragon,
+        killer,
+        networkEventId: publishedId
+      });
     });
 
-    this.eventBus.on('dragon:death', async ({ dragon, killer, networkEventId = null }) => {
+    this.eventBus.on('dragon:death', ({ dragon, killer, networkEventId = null }) => {
       const isRemote = !!dragon.isRemote;
       const isLocal = dragon === this.localDragon;
       const predicted = networkEventId && dragon.playerId
@@ -1464,7 +1478,7 @@ class Game {
       // The host is the only multiplayer combat resolver. Publish its
       // decision once so every client applies the identical death.
       if (this.isMultiplayer && this.isHost && !networkEventId) {
-        const publishedId = await this._publishCombatDeath(dragon, killer);
+        const publishedId = this._publishCombatDeath(dragon, killer);
         if (!publishedId) {
           console.warn('[Combat] Death was not published; missing player identity or room reference.');
           return;
@@ -2635,108 +2649,113 @@ class Game {
     this._persistLastRoom();
   }
 
-  joinRoom(code) {
+  async joinRoom(code) {
     if (!this.db) {
       alert('Multiplayer not available.');
       return;
     }
-    if (this._joinInProgress) {
-      console.warn('[joinRoom] already in progress — ignoring duplicate call');
-      return;
-    }
+    if (this._joinInProgress) return;
     if (this.roomRef) {
-      console.warn('[joinRoom] already in a room — ignoring duplicate call');
+      const err = document.getElementById('mpJoinError');
+      if (err) err.textContent = 'Already joining or connected to a room.';
       return;
     }
+
+    const normalizedCode = String(code || '').replace(/\D/g, '').slice(0, 6);
+    const errEl = document.getElementById('mpJoinError');
+    if (normalizedCode.length !== 6) {
+      if (errEl) errEl.textContent = 'Enter the complete 6-digit room code.';
+      return;
+    }
+
     this._prepareForNewRoom();
     this._joinInProgress = true;
-    this.roomCode = code;
+    this.roomCode = normalizedCode;
     this.isHost = false;
-    this.roomRef = this.db.ref('rooms/' + code);
+    const candidateRoomRef = this.db.ref('rooms/' + normalizedCode);
+    this.roomRef = candidateRoomRef;
+    if (errEl) errEl.textContent = 'Joining room…';
 
-    // Retry up to 4 times with 700ms delay. The host's roomRef.set() is
-    // async — if the opponent tries to join immediately after receiving
-    // the code, Firebase may not have completed the write yet, causing
-    // a false "Room not found". Each retry gives the write more time to
-    // propagate.
-    const _tryRead = (attempt) => {
-      this.roomRef.once('value').then(snapshot => {
-        const data = snapshot.val();
-        if (!data) {
-          if (attempt < 4) {
-            console.log('[joinRoom] room not found, retry ' + (attempt + 1) + '/4 in 700ms');
-            setTimeout(() => _tryRead(attempt + 1), 700);
-            return;
-          }
-          const err = document.getElementById('mpJoinError');
-          if (err) err.textContent = 'Room not found. Double-check the code and try again.';
-          this.roomRef = null;
-          return;
-        }
+    try {
+      let snapshot = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        snapshot = await candidateRoomRef.once('value');
+        if (snapshot.exists()) break;
+        if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 700));
+      }
 
-        // ── Room exists — join it ──
-        const _MP_MAX = { '1v1': 2, 'FFA': 4, '2v2': 4 };
-        const roomMax = data.maxPlayers || _MP_MAX[data.mode] || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode]) || 4;
-        const existingPlayers = data.players || {};
+      const data = snapshot && snapshot.val();
+      if (!data) throw new Error('ROOM_NOT_FOUND');
+      if (['playing', 'finished', 'completed', 'expired'].includes(data.status)) {
+        throw new Error('ROOM_UNAVAILABLE');
+      }
 
-        // If we already have a player record (e.g. rejoining), reuse it
-        if (this.authUid) {
-          const preExisting = Object.entries(existingPlayers)
-            .find(([, p]) => p && p.authUid && p.authUid === this.authUid);
-          if (preExisting) {
-            const [existingKey] = preExisting;
-            console.log('[joinRoom] found existing record ' + existingKey + ' for my authUid — reusing');
-            this.localPlayerId = existingKey;
-            this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
-            this.selectedMpMode = data.mode || this.selectedMpMode;
-            this.lobbyTier = data.tier || null;
-            this._matchedMode = !!data.matched;
-            this.uiManager.setMatchedLobbyMode(!!data.matched, this.lobbyTier);
-            this.uiManager.showScreen('lobbyScreen');
-            this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
-            this._attachRoomListener();
-            this._ensurePresence();
-            this._persistLastRoom();
-            return;
-          }
-        }
+      const caps = { '1v1': 2, 'FFA': 4, '2v2': 4 };
+      const roomMax = data.maxPlayers
+        || caps[data.mode]
+        || (CONFIG.MAX_PLAYERS && CONFIG.MAX_PLAYERS[data.mode])
+        || 4;
+      const existingPlayers = data.players || {};
+      let playerId = null;
 
-        const playerCount = Object.keys(existingPlayers).length;
-        if (playerCount >= roomMax) {
-          const err = document.getElementById('mpJoinError');
-          if (err) err.textContent = 'Room is full';
-          this.roomRef = null;
-          return;
-        }
+      if (this.authUid) {
+        const preExisting = Object.entries(existingPlayers)
+          .find(([, player]) => player && player.authUid === this.authUid);
+        if (preExisting) playerId = preExisting[0];
+      }
 
-        const newPlayerRef = this.roomRef.child('players').push({
-          name: this.username || ('Player ' + (playerCount + 1)),
+      if (!playerId) {
+        const playersRef = candidateRoomRef.child('players');
+        playerId = playersRef.push().key;
+        if (!playerId) throw new Error('JOIN_ID_FAILED');
+        const playerRecord = {
+          name: this.username || ('Player ' + (Object.keys(existingPlayers).length + 1)),
           dragon: this.selectedDragon || 'ignis',
           ready: true,
           joinedAt: firebase.database.ServerValue.TIMESTAMP,
           authUid: this.authUid || null,
+        };
+        const result = await playersRef.transaction(players => {
+          const current = players || {};
+          const mine = this.authUid && Object.entries(current)
+            .find(([, player]) => player && player.authUid === this.authUid);
+          if (mine) {
+            playerId = mine[0];
+            return current;
+          }
+          if (Object.keys(current).length >= roomMax) return;
+          current[playerId] = playerRecord;
+          return current;
         });
-        this.localPlayerId = newPlayerRef.key;
-        this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
-        this.selectedMpMode = data.mode || this.selectedMpMode;
-        this.lobbyTier = data.tier || null;
-        this._matchedMode = !!data.matched;
-        this.uiManager.setMatchedLobbyMode(!!data.matched, this.lobbyTier);
-        this.uiManager.showScreen('lobbyScreen');
-        this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
-        this._attachRoomListener();
-        this._ensurePresence();
-        this._persistLastRoom();
-      }).catch(err => {
-        console.error('[joinRoom] error:', err);
-        const errEl = document.getElementById('mpJoinError');
-        if (errEl) errEl.textContent = 'Connection error. Try again.';
-        this.roomRef = null;
-      }).finally(() => {
-        this._joinInProgress = false;
-      });
-    };
-    _tryRead(0);
+        if (!result.committed) throw new Error('ROOM_FULL');
+      }
+
+      this.localPlayerId = playerId;
+      this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
+      this.selectedMpMode = data.mode || this.selectedMpMode;
+      this.lobbyTier = data.tier || null;
+      this._matchedMode = !!data.matched;
+      this.uiManager.setMatchedLobbyMode(this._matchedMode, this.lobbyTier);
+      this.uiManager.showScreen('lobbyScreen');
+      this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
+      this._attachRoomListener();
+      this._ensurePresence();
+      this._persistLastRoom();
+      if (errEl) errEl.textContent = '';
+    } catch (error) {
+      console.error('[joinRoom] failed:', error);
+      const messages = {
+        ROOM_NOT_FOUND: 'Room not found. Double-check the code and try again.',
+        ROOM_UNAVAILABLE: 'This room is no longer available.',
+        ROOM_FULL: 'Room is full.',
+      };
+      if (errEl) errEl.textContent = messages[error?.message] || 'Connection error. Try again.';
+      if (this.roomRef === candidateRoomRef) this.roomRef = null;
+      this.roomCode = '';
+      this.localPlayerId = null;
+    } finally {
+      this._joinInProgress = false;
+    }
   }
 
   _attachRoomListener() {
@@ -3246,8 +3265,8 @@ class Game {
     return eventId;
   }
 
-  async _publishCombatDeath(victim, killer) {
-    if (!this.isMultiplayer || !this.combatEventsRef || this._connectionInterrupted) return null;
+  _publishCombatDeath(victim, killer) {
+    if (!this.isMultiplayer || !this.combatEventsRef) return null;
     const victimId = victim && victim.playerId;
     const killerId = killer && killer.playerId;
     if (!victimId) return null;
@@ -3269,22 +3288,19 @@ class Game {
     // Mark before writing so the host does not process its own child_added
     // notification after already applying the collision locally.
     this._rememberCombatEvent(eventId);
-    try {
-      await eventRef.set({
-        type: 'death',
-        matchId: this.matchId,
-        victimId,
-        killerId: killerId || null,
-        createdAt: Date.now()
-      });
-      return eventId;
-    } catch (error) {
+    eventRef.set({
+      type: 'death',
+      matchId: this.matchId,
+      victimId,
+      killerId: killerId || null,
+      createdAt: Date.now()
+    }).catch(error => {
       console.error('[Combat] Failed to publish authoritative death:', error);
       this._processedCombatEvents.delete(eventId);
       const current = this._pendingCombatDeaths.get(victimId);
       if (current && current.eventId === eventId) this._pendingCombatDeaths.delete(victimId);
-      return null;
-    }
+    });
+    return eventId;
   }
 
   _publishCombatReaction(type, payload = {}) {
@@ -3418,7 +3434,16 @@ class Game {
         const iWon = !!this.localPlayerId && state.finalResult.winnerId === this.localPlayerId;
         const all = this.dragonManager.getAllDragons();
         this.winner = iWon ? this.localDragon : (all.find(d => d.playerId === state.finalResult.winnerId) || null);
-        if (this.state === 'PLAYING') this.endGame(true);
+        if (this.state === 'PLAYING') {
+          this.endGame(true);
+          if (!iWon
+              && state.finalResult.reason === 'network_disconnect'
+              && state.finalResult.forfeitedPlayerId === this.localPlayerId) {
+            this.uiManager.showForfeitDefeat(
+              'A network error occurred. Your opponent won the match.'
+            );
+          }
+        }
         return;
       }
       for (const [playerId, canonical] of Object.entries(state.players || {})) {
@@ -3440,29 +3465,40 @@ class Game {
       this.localDragon.attackHeld = false;
       this.localDragon.sprintHeld = false;
     }
-    for (const dragon of this.dragonManager.getAllDragons()) {
-      if (dragon.isRemote) dragon._networkStale = !!interrupted;
-    }
 
     let overlay = document.getElementById('networkReconnectOverlay');
     if (interrupted && this.state === 'PLAYING') {
       if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'networkReconnectOverlay';
-        overlay.setAttribute('role', 'status');
-        overlay.innerHTML = '<strong>RECONNECTING…</strong><span>Combat is paused while the arena reconnects.</span>';
-        Object.assign(overlay.style, {
-          position: 'fixed', inset: '0', zIndex: '10050',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', gap: '10px', textAlign: 'center',
-          color: '#fff', background: 'rgba(3, 6, 12, 0.72)',
-          fontFamily: 'inherit', letterSpacing: '0.08em'
-        });
-        const detail = overlay.querySelector('span');
-        if (detail) Object.assign(detail.style, {
-          maxWidth: '320px', fontSize: '13px', opacity: '0.82',
-          letterSpacing: '0.02em', padding: '0 20px'
-        });
+        overlay.setAttribute('role', 'alert');
+        overlay.innerHTML = `
+          <div class="networkReconnectSpinner" aria-hidden="true"></div>
+          <strong>NETWORK ERROR</strong>
+          <span>Reconnecting to the arena…</span>
+        `;
+        const style = document.createElement('style');
+        style.id = 'networkReconnectStyle';
+        style.textContent = `
+          #networkReconnectOverlay {
+            position: fixed; inset: 0; z-index: 10050; display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            gap: 12px; text-align: center; color: #fff;
+            background: rgba(3, 6, 12, .30);
+            -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
+            font-family: inherit; letter-spacing: .08em;
+          }
+          #networkReconnectOverlay strong { font-size: clamp(22px, 6vw, 34px); color: #ff8d8d; }
+          #networkReconnectOverlay span { font-size: 14px; letter-spacing: .03em; }
+          .networkReconnectSpinner {
+            width: 58px; height: 58px; border-radius: 50%;
+            border: 4px solid rgba(61, 222, 255, .22);
+            border-top-color: #3ddeff; border-right-color: #9f5cff;
+            animation: networkReconnectSpin .8s linear infinite;
+          }
+          @keyframes networkReconnectSpin { to { transform: rotate(360deg); } }
+        `;
+        document.head.appendChild(style);
         document.body.appendChild(overlay);
       }
       overlay.style.display = 'flex';
@@ -3633,7 +3669,7 @@ class Game {
   }
 
   broadcastPosition() {
-    if (!this.positionsRef || !this.localDragon || !this.localPlayerId) return;
+    if (!this.positionsRef || !this.localDragon || !this.localPlayerId || this._connectionInterrupted) return;
     const now = Date.now();
     // Cap sends so slow mobile connections cannot build a stale write queue.
     // Remote dragons are interpolated locally between these updates.
@@ -3687,10 +3723,7 @@ class Game {
             const previousTime = Number(this._remotePosCache[playerId]?.t || 0);
             if (Number(position.t || 0) <= previousTime) continue;
           }
-          this._remotePosCache[playerId] = {
-            ...position,
-            _receivedAt: performance.now()
-          };
+          this._remotePosCache[playerId] = position;
         }
       });
     }
@@ -3707,15 +3740,7 @@ class Game {
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.playerId) continue;
       const pos = remoteData[dragon.playerId];
-      if (!pos) {
-        dragon._networkStale = true;
-        continue;
-      }
-      const receivedAt = Number(pos._receivedAt || 0);
-      dragon._networkStale = this._connectionInterrupted
-        || !receivedAt
-        || performance.now() - receivedAt > this._remoteFreshnessMs;
-      if (dragon._networkStale) continue;
+      if (!pos) continue;
 
       // A host-published death remains locked until the victim broadcasts a
       // lower life count. Older snapshots may move the corpse, but cannot set
@@ -3902,12 +3927,14 @@ class Game {
     for (const dragon of _livingDragons) {
       let angle;
       if (dragon === this.localDragon) {
-        angle = this.movementSystem.getInputAngle(
-          dragon.id,
-          dragon.head.x,
-          dragon.head.y,
-          this.cameraSystem
-        );
+        angle = this._connectionInterrupted
+          ? (dragon.angle || 0)
+          : this.movementSystem.getInputAngle(
+              dragon.id,
+              dragon.head.x,
+              dragon.head.y,
+              this.cameraSystem
+            );
       } else if (dragon.isRemote) {
         angle = dragon.angle;
       } else if (this.aiController) {
@@ -3995,7 +4022,10 @@ class Game {
     }
 
     if (this.localDragon) {
-      this.localDragon.attackHeld = this.localDragon.alive && this.movementSystem.isAttackHeld();
+      this.localDragon.attackHeld = !this._connectionInterrupted
+        && this.localDragon.alive
+        && this.movementSystem.isAttackHeld();
+      if (this._connectionInterrupted) this.localDragon.sprintHeld = false;
     }
 
     this._updateSprintMath(deltaTime);
@@ -4546,10 +4576,8 @@ class Game {
         this._setNetworkInterrupted(false);
         document.getElementById('loadingOverlay')?.classList.remove('active');
         document.getElementById('mpExitDialog')?.classList.remove('active');
-        document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-        const title = document.getElementById('titleScreen');
-        if (title) title.classList.add('active');
-        this.uiManager.currentScreen = 'titleScreen';
+        this.uiManager.showScreen('titleScreen');
+        this.uiManager._ensureScreenInvariant?.();
         this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
         this.uiManager.showLoginDrop(this.username, this.isGuest);
         if (this.walletManager.connected && this.walletManager.publicKey) {
@@ -4559,16 +4587,7 @@ class Game {
             this.walletManager.walletType
           );
         }
-        const enforceTitle = () => {
-          const activeTitle = document.getElementById('titleScreen');
-          if (!activeTitle) return;
-          document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.toggle('active', screen === activeTitle);
-          });
-          this.uiManager.currentScreen = 'titleScreen';
-        };
-        requestAnimationFrame(enforceTitle);
-        [100, 500, 1500].forEach(delay => setTimeout(enforceTitle, delay));
+        queueMicrotask(() => this.uiManager._ensureScreenInvariant?.());
       } catch (fallbackError) {
         console.error('[Navigation] Hard Main Menu recovery failed:', fallbackError);
       }
