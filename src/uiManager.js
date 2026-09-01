@@ -1028,9 +1028,24 @@ class UIManager {
     });
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
-    const mainMenu = document.getElementById('btnMainMenu');
-    if (mainMenu) mainMenu.addEventListener('click', () => this.eventBus.emit('game:returnToMainMenu'));
-    document.getElementById('btnMpMainMenu')?.addEventListener('click', () => this.eventBus.emit('game:returnToMainMenu'));
+    const bindMainMenu = (button) => {
+      if (!button) return;
+      let lastActivation = 0;
+      const activate = (event) => {
+        const now = Date.now();
+        if (now - lastActivation < 700) return;
+        lastActivation = now;
+        event?.preventDefault();
+        event?.stopPropagation();
+        this.eventBus.emit('game:returnToMainMenu');
+      };
+      // pointerup bypasses mobile browsers that suppress the synthetic click
+      // after a long touch, scroll, settlement render, or DOM repaint.
+      button.addEventListener('pointerup', activate);
+      button.addEventListener('click', activate);
+    };
+    bindMainMenu(document.getElementById('btnMainMenu'));
+    bindMainMenu(document.getElementById('btnMpMainMenu'));
     document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
     const returnToActiveRoomBtn = document.getElementById('btnReturnToActiveRoom');
     if (returnToActiveRoomBtn) {
