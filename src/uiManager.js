@@ -55,13 +55,24 @@ class UIManager {
   _installScreenInvariant() {
     if (this._screenInvariantObserver) return;
     const repair = () => {
-      const activeScreens = document.querySelectorAll('.screen.active');
-      if (activeScreens.length > 0) return;
       const target = this.screens[this.currentScreen] || this.screens.titleScreen;
       if (!target) return;
+      const style = window.getComputedStyle(target);
+      const targetVisible = target.classList.contains('active')
+        && style.display !== 'none'
+        && style.visibility !== 'hidden';
+      if (targetVisible) return;
+
+      Object.values(this.screens).forEach(screen => {
+        if (screen && screen !== target) screen.classList.remove('active');
+      });
       target.classList.add('active');
+      target.style.removeProperty('display');
+      target.style.removeProperty('visibility');
+      target.style.removeProperty('opacity');
+      target.setAttribute('aria-hidden', 'false');
       this.currentScreen = target.id || 'titleScreen';
-      console.warn('[UI] Recovered a transition that left no active screen.');
+      console.warn('[UI] Recovered a hidden or missing current screen.');
     };
     this._ensureScreenInvariant = repair;
     this._screenInvariantObserver = new MutationObserver(() => queueMicrotask(repair));
