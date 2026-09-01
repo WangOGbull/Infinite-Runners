@@ -3424,6 +3424,7 @@ class Game {
     if (!this.roomRef || !this.matchId) return;
     this.matchStateRef = this.roomRef.child('matchState');
     this._canonicalFinalResult = null;
+    this._canonicalOutcomePending = false;
     this._matchStateListener = this.matchStateRef.on('value', snapshot => {
       const state = snapshot.val() || {};
       if (state.finalResult && state.finalResult.matchId === this.matchId) {
@@ -3457,6 +3458,34 @@ class Game {
         dragon.lives = lives;
         dragon.deaths = Math.max(Number(dragon.deaths || 0), 3 - lives);
         if (lives === 0) dragon.alive = false;
+      }
+
+      // The backend has already accepted every zero-life state at this point.
+      // Stop the arena immediately when exactly one canonical contender remains;
+      // payout still waits for finalResult/settlement authority.
+      if (this.state === 'PLAYING' && !this._canonicalOutcomePending) {
+        const contenders = (this.playerIds || []).filter(playerId => {
+          const canonical = state.players && state.players[playerId];
+          if (canonical && canonical.matchId === this.matchId
+              && Number.isFinite(Number(canonical.lives))) {
+            return Number(canonical.lives) > 0;
+          }
+          const dragon = this._getDragonByPlayerId(playerId);
+          return !!dragon && Number(dragon.lives || 0) > 0;
+        });
+        if (contenders.length === 1 && (this.playerIds || []).length >= 2) {
+          this._canonicalOutcomePending = true;
+          const winnerId = contenders[0];
+          const all = this.dragonManager.getAllDragons();
+          this.winner = winnerId === this.localPlayerId
+            ? this.localDragon
+            : (all.find(dragon => dragon.playerId === winnerId) || null);
+          if (this.localDragon) {
+            this.localDragon.attackHeld = false;
+            this.localDragon.sprintHeld = false;
+          }
+          this.endGame(true);
+        }
       }
     });
   }
@@ -4581,6 +4610,14 @@ class Game {
         document.getElementById('loadingOverlay')?.classList.remove('active');
         document.getElementById('mpExitDialog')?.classList.remove('active');
         this.uiManager.showScreen('titleScreen');
+        const titleScreen = document.getElementById('titleScreen');
+        if (titleScreen) {
+          titleScreen.classList.add('active');
+          titleScreen.style.removeProperty('display');
+          titleScreen.style.removeProperty('visibility');
+          titleScreen.style.removeProperty('opacity');
+          titleScreen.setAttribute('aria-hidden', 'false');
+        }
         this.uiManager._ensureScreenInvariant?.();
         this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
         this.uiManager.showLoginDrop(this.username, this.isGuest);
