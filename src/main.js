@@ -205,6 +205,8 @@ class Game {
     this._pendingPositionPayload = null;
     this._positionSequence = 0;
     this._positionWriteGeneration = 0;
+    this._positionWriteToken = 0;
+    this._positionWriteTimeout = null;
     this._lastRemoteSequences = new Map();
     this._connectionInterrupted = false;
     this._hadNetworkInterruption = false;
@@ -3677,6 +3679,11 @@ class Game {
     this._pendingPositionPayload = null;
     this._positionWriteInFlight = false;
     this._positionWriteGeneration++;
+    this._positionWriteToken++;
+    if (this._positionWriteTimeout) {
+      clearTimeout(this._positionWriteTimeout);
+      this._positionWriteTimeout = null;
+    }
     this._lastRemoteSequences.clear();
     this._clearConnectionWatchdog();
   }
@@ -3685,20 +3692,39 @@ class Game {
     if (!this.positionsRef || !this.localPlayerId || !payload) return;
     const playerRef = this.positionsRef.child(this.localPlayerId);
     const generation = this._positionWriteGeneration;
+    const token = ++this._positionWriteToken;
     this._positionWriteInFlight = true;
-    playerRef.set(payload).catch(error => {
-      console.warn('[Network] Position update failed:', error?.message || error);
-    }).finally(() => {
-      if (generation !== this._positionWriteGeneration) return;
+    let finished = false;
+
+    const finish = (timedOut = false) => {
+      if (finished) return;
+      finished = true;
+      if (generation !== this._positionWriteGeneration || token !== this._positionWriteToken) return;
+      if (this._positionWriteTimeout) {
+        clearTimeout(this._positionWriteTimeout);
+        this._positionWriteTimeout = null;
+      }
       this._positionWriteInFlight = false;
       const latest = this._pendingPositionPayload;
       this._pendingPositionPayload = null;
-      // A completed slow write may be obsolete. Send exactly one newest
-      // replacement, never the intermediate frames accumulated meanwhile.
+      // A stalled mobile Firebase request must not freeze this player forever.
+      // Drop the obsolete request and send exactly the newest accumulated frame.
+      if (timedOut) {
+        console.warn('[Network] Position write stalled; advancing to newest frame.');
+      }
       if (latest && this.positionsRef && this.state === 'PLAYING') {
         this._sendLatestPosition(latest);
       }
-    });
+    };
+
+    this._positionWriteTimeout = setTimeout(() => finish(true), 1200);
+    playerRef.set(payload).then(
+      () => finish(false),
+      error => {
+        console.warn('[Network] Position update failed:', error?.message || error);
+        finish(false);
+      }
+    );
   }
 
   broadcastPosition() {
