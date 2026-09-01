@@ -237,9 +237,8 @@ class UIManager {
     mpExitDialog.innerHTML = `
       <div class="mpExitBox" role="dialog" aria-modal="false" aria-labelledby="mpExitTitle">
         <h3 id="mpExitTitle">Exit Match</h3>
-        <p>The match continues while this menu is open. If you forfeit, your opponent wins the match and the pot.</p>
+        <p>If you forfeit, your opponent wins the match and the pot.</p>
         <p id="mpExitError" style="display:none;color:#ff9b9b;"></p>
-        <div class="mpExitSound"><span>Game Sound</span><button id="mpSoundToggle" type="button">ON</button></div>
         <div class="mpExitActions">
           <button id="mpExitCancel" class="mpExitCancel" type="button">Cancel</button>
           <button id="mpExitForfeit" class="mpExitForfeit" type="button">Forfeit</button>
@@ -972,30 +971,15 @@ class UIManager {
     if (pauseBtn) pauseBtn.addEventListener('click', () => this.eventBus.emit('game:pause'));
     const mpExitBtn = document.getElementById('mpExitBtn');
     const mpExitDialog = this._mpExitDialog || document.getElementById('mpExitDialog');
-    const mpSoundToggle = document.getElementById('mpSoundToggle');
-    const renderMpSound = () => {
-      const enabled = localStorage.getItem('irSoundEnabled') !== 'false';
-      if (mpSoundToggle) {
-        mpSoundToggle.textContent = enabled ? 'ON' : 'OFF';
-        mpSoundToggle.setAttribute('aria-pressed', String(enabled));
-      }
-    };
     if (mpExitBtn) mpExitBtn.addEventListener('click', () => {
       const error = document.getElementById('mpExitError');
       if (error) { error.style.display = 'none'; error.textContent = ''; }
-      renderMpSound();
       mpExitDialog?.classList.add('active');
     });
     document.getElementById('mpExitCancel')?.addEventListener('click', () => mpExitDialog?.classList.remove('active'));
     document.getElementById('mpExitForfeit')?.addEventListener('click', () => {
       mpExitDialog?.classList.remove('active');
       this.eventBus.emit('mp:forfeitMatch');
-    });
-    mpSoundToggle?.addEventListener('click', () => {
-      const enabled = localStorage.getItem('irSoundEnabled') === 'false';
-      localStorage.setItem('irSoundEnabled', String(enabled));
-      this.eventBus.emit('settings:soundEnabled', { enabled });
-      renderMpSound();
     });
     const resumeBtn = document.getElementById('btnResume');
     if (resumeBtn) resumeBtn.addEventListener('click', () => this.eventBus.emit('game:resume'));
@@ -1043,7 +1027,6 @@ class UIManager {
     });
     const walletClose = document.getElementById('btnWalletClose');
     if (walletClose) walletClose.addEventListener('click', () => this.showScreen('titleScreen'));
-    this._ensureResumeBannerEl();
     const wOpt = document.getElementById('wOptPhantom');
     if (wOpt) wOpt.addEventListener('click', () => this.eventBus.emit('wallet:connectRequest'));
     // The second tile in this modal used to be Jupiter, which had NO click
@@ -2408,6 +2391,10 @@ class UIManager {
     if (lbProfile) lbProfile.style.display = 'none';
     const profile = document.getElementById('profileModal');
     if (profile) profile.classList.remove('active');
+    const exitDialog = this._mpExitDialog || document.getElementById('mpExitDialog');
+    if (exitDialog) exitDialog.classList.remove('active');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('active');
     Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     safeTarget.classList.add('active');
     this.currentScreen = screenId;

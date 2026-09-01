@@ -9,7 +9,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=57';
+import UIManager from './uiManager.js?v=58';
 import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -265,6 +265,20 @@ class Game {
     } catch (_) {}
     this._loadAuthSnapshot();
     this.setupEventListeners();
+    this._installMobileWalletReturnFallback();
+    // WalletManager restores an existing mobile session before the UI
+    // listeners exist. Re-announce that already-restored state after every
+    // listener is ready; no session data is changed or recreated.
+    setTimeout(() => {
+      if (this.walletManager.connected && this.walletManager.publicKey) {
+        this.eventBus.emit('wallet:connected', {
+          address: this.walletManager.publicKey.toString(),
+          balance: this.walletManager.balance,
+          walletType: this.walletManager.walletType,
+          linkCode: this.walletManager._arrivedLinkCode || null
+        });
+      }
+    }, 0);
     this._setupSprintButton();
     await this.setupFirebase();
     // ── Late-arrival auth recovery ──
@@ -376,6 +390,28 @@ class Game {
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
+  }
+
+  _installMobileWalletReturnFallback() {
+    const recover = () => {
+      setTimeout(async () => {
+        const wallet = this.walletManager;
+        if (!wallet || wallet.connected || !wallet.connecting) return;
+        wallet.connecting = false;
+        this.eventBus.emit('wallet:error', {
+          message: 'Phantom did not open this request. Your room is still active; try again from the lobby.'
+        });
+        if (this.roomRef) {
+          this._assertLobbyScreen();
+        } else {
+          await this._autoResumeLastRoom();
+        }
+      }, 400);
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') recover();
+    });
+    window.addEventListener('pageshow', recover);
   }
 
   async loadGameAssets() {
@@ -4452,18 +4488,41 @@ class Game {
   }
 
   _returnToMainMenuSafely() {
-    // Mount the destination before cleanup so an incidental teardown error
-    // can never expose the particle background as an empty page.
-    this.enterMainMenu();
     try {
       this.quitGame();
     } catch (error) {
       console.error('[Navigation] Game cleanup failed while returning to menu:', error);
     } finally {
-      this.enterMainMenu();
-      requestAnimationFrame(() => {
-        try { this.uiManager.showScreen('titleScreen'); } catch (_) {}
-      });
+      // Screen recovery is deliberately independent of multiplayer cleanup:
+      // even if teardown fails, never leave the particle layer with every
+      // actual screen hidden.
+      try {
+        this.uiManager.resetForfeitState?.();
+        this.uiManager.hideActiveRoomModal?.();
+        document.getElementById('loadingOverlay')?.classList.remove('active');
+        document.getElementById('mpExitDialog')?.classList.remove('active');
+        document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+        const title = document.getElementById('titleScreen');
+        if (title) title.classList.add('active');
+        this.uiManager.currentScreen = 'titleScreen';
+        this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
+        this.uiManager.showLoginDrop(this.username, this.isGuest);
+        if (this.walletManager.connected && this.walletManager.publicKey) {
+          this.uiManager.updateWalletDisplay(
+            this.walletManager.publicKey.toString(),
+            this.walletManager.balance,
+            this.walletManager.walletType
+          );
+        }
+        requestAnimationFrame(() => {
+          const activeTitle = document.getElementById('titleScreen');
+          if (activeTitle && !activeTitle.classList.contains('active')) {
+            activeTitle.classList.add('active');
+          }
+        });
+      } catch (fallbackError) {
+        console.error('[Navigation] Hard Main Menu recovery failed:', fallbackError);
+      }
     }
   }
 
