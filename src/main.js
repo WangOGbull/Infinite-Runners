@@ -7,7 +7,7 @@ import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
 import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
-import CollisionSystem from './collisionSystem.js';
+import CollisionSystem from './collisionSystem.js?v=54';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js?v=58';
 import EffectsSystem from './effectsSystem.js?v=53';
@@ -206,6 +206,8 @@ class Game {
     this._positionSequence = 0;
     this._positionWriteGeneration = 0;
     this._lastRemoteSequences = new Map();
+    this._connectionInterrupted = false;
+    this._remoteFreshnessMs = 1500;
     this.combatEventsRef = null;
     this.matchStateRef = null;
     this._matchStateListener = null;
@@ -1443,27 +1445,12 @@ class Game {
     if (isLocal) this.effectsSystem.playHeadCollisionSound();
   }
 });
-    this.eventBus.on('collision:predicted-death', ({ dragon, killer }) => {
-      if (!this.isMultiplayer || this.isHost || !dragon || !dragon.playerId) return;
-      if (this._predictedCombatDeaths.has(dragon.playerId)) return;
-
-      // If the host connection is stale, a non-host may be the only client
-      // that sees the collision. Accept only claims involving this client's
-      // own dragon; never witness unrelated remote-vs-remote combat.
-      if (dragon !== this.localDragon && killer !== this.localDragon) return;
-      const publishedId = this._publishCombatDeath(dragon, killer);
-      if (!publishedId) return;
-      // The publisher marks its own event as processed before Firebase echoes
-      // it back, so apply it locally once now. Other clients receive the same
-      // event through child_added and ignore any later duplicate claim.
-      this.eventBus.emit('dragon:death', {
-        dragon,
-        killer,
-        networkEventId: publishedId
-      });
+    this.eventBus.on('collision:predicted-death', () => {
+      // Non-host clients never create canonical deaths. They wait for the
+      // host event, preventing two phones from deciding different outcomes.
     });
 
-    this.eventBus.on('dragon:death', ({ dragon, killer, networkEventId = null }) => {
+    this.eventBus.on('dragon:death', async ({ dragon, killer, networkEventId = null }) => {
       const isRemote = !!dragon.isRemote;
       const isLocal = dragon === this.localDragon;
       const predicted = networkEventId && dragon.playerId
@@ -1477,7 +1464,7 @@ class Game {
       // The host is the only multiplayer combat resolver. Publish its
       // decision once so every client applies the identical death.
       if (this.isMultiplayer && this.isHost && !networkEventId) {
-        const publishedId = this._publishCombatDeath(dragon, killer);
+        const publishedId = await this._publishCombatDeath(dragon, killer);
         if (!publishedId) {
           console.warn('[Combat] Death was not published; missing player identity or room reference.');
           return;
@@ -3259,8 +3246,8 @@ class Game {
     return eventId;
   }
 
-  _publishCombatDeath(victim, killer) {
-    if (!this.isMultiplayer || !this.combatEventsRef) return null;
+  async _publishCombatDeath(victim, killer) {
+    if (!this.isMultiplayer || !this.combatEventsRef || this._connectionInterrupted) return null;
     const victimId = victim && victim.playerId;
     const killerId = killer && killer.playerId;
     if (!victimId) return null;
@@ -3282,19 +3269,22 @@ class Game {
     // Mark before writing so the host does not process its own child_added
     // notification after already applying the collision locally.
     this._rememberCombatEvent(eventId);
-    eventRef.set({
-      type: 'death',
-      matchId: this.matchId,
-      victimId,
-      killerId: killerId || null,
-      createdAt: Date.now()
-    }).catch(error => {
+    try {
+      await eventRef.set({
+        type: 'death',
+        matchId: this.matchId,
+        victimId,
+        killerId: killerId || null,
+        createdAt: Date.now()
+      });
+      return eventId;
+    } catch (error) {
       console.error('[Combat] Failed to publish authoritative death:', error);
       this._processedCombatEvents.delete(eventId);
       const current = this._pendingCombatDeaths.get(victimId);
       if (current && current.eventId === eventId) this._pendingCombatDeaths.delete(victimId);
-    });
-    return eventId;
+      return null;
+    }
   }
 
   _publishCombatReaction(type, payload = {}) {
@@ -3444,27 +3434,66 @@ class Game {
     });
   }
 
+  _setNetworkInterrupted(interrupted) {
+    this._connectionInterrupted = !!interrupted;
+    if (this.localDragon && interrupted) {
+      this.localDragon.attackHeld = false;
+      this.localDragon.sprintHeld = false;
+    }
+    for (const dragon of this.dragonManager.getAllDragons()) {
+      if (dragon.isRemote) dragon._networkStale = !!interrupted;
+    }
+
+    let overlay = document.getElementById('networkReconnectOverlay');
+    if (interrupted && this.state === 'PLAYING') {
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'networkReconnectOverlay';
+        overlay.setAttribute('role', 'status');
+        overlay.innerHTML = '<strong>RECONNECTING…</strong><span>Combat is paused while the arena reconnects.</span>';
+        Object.assign(overlay.style, {
+          position: 'fixed', inset: '0', zIndex: '10050',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', gap: '10px', textAlign: 'center',
+          color: '#fff', background: 'rgba(3, 6, 12, 0.72)',
+          fontFamily: 'inherit', letterSpacing: '0.08em'
+        });
+        const detail = overlay.querySelector('span');
+        if (detail) Object.assign(detail.style, {
+          maxWidth: '320px', fontSize: '13px', opacity: '0.82',
+          letterSpacing: '0.02em', padding: '0 20px'
+        });
+        document.body.appendChild(overlay);
+      }
+      overlay.style.display = 'flex';
+    } else if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
   _startConnectionWatchdog() {
     if (!this.lobbyTier) return;
     this._clearConnectionWatchdog();
     const onOffline = () => {
-      if (this.state !== 'PLAYING') return;
-      this.uiManager.showForfeitDefeat();
+      if (this.state === 'PLAYING') this._setNetworkInterrupted(true);
+    };
+    const onOnline = () => {
+      // Firebase's connected signal below is the authority for resuming.
+      if (this.state === 'PLAYING' && !this._connRef) this._setNetworkInterrupted(false);
     };
     this._offlineHandler = onOffline;
+    this._onlineHandler = onOnline;
     window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
     try {
       this._connRef = firebase.database().ref('.info/connected');
       this._connListener = this._connRef.on('value', (snap) => {
         if (snap.val() === false && this.state === 'PLAYING') {
-          clearTimeout(this._connDropTimer);
-          this._connDropTimer = setTimeout(() => {
-            if (this.state === 'PLAYING') this.uiManager.showForfeitDefeat();
-          }, 6000);
+          this._setNetworkInterrupted(true);
         } else if (snap.val() === true) {
           clearTimeout(this._connDropTimer);
-          // Reconnected — re-establish presence so server knows we're back
           if (this.roomRef) this._ensurePresence();
+          this._setNetworkInterrupted(false);
         }
       });
     } catch (_) {}
@@ -3472,9 +3501,11 @@ class Game {
 
   _clearConnectionWatchdog() {
     if (this._offlineHandler) { try { window.removeEventListener('offline', this._offlineHandler); } catch (_) {} this._offlineHandler = null; }
+    if (this._onlineHandler) { try { window.removeEventListener('online', this._onlineHandler); } catch (_) {} this._onlineHandler = null; }
     if (this._connRef && this._connListener) { try { this._connRef.off('value', this._connListener); } catch (_) {} }
     clearTimeout(this._connDropTimer);
     this._connRef = null; this._connListener = null;
+    this._setNetworkInterrupted(false);
   }
 
   _watchSettlement() {
@@ -3656,7 +3687,10 @@ class Game {
             const previousTime = Number(this._remotePosCache[playerId]?.t || 0);
             if (Number(position.t || 0) <= previousTime) continue;
           }
-          this._remotePosCache[playerId] = position;
+          this._remotePosCache[playerId] = {
+            ...position,
+            _receivedAt: performance.now()
+          };
         }
       });
     }
@@ -3673,7 +3707,15 @@ class Game {
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.playerId) continue;
       const pos = remoteData[dragon.playerId];
-      if (!pos) continue;
+      if (!pos) {
+        dragon._networkStale = true;
+        continue;
+      }
+      const receivedAt = Number(pos._receivedAt || 0);
+      dragon._networkStale = this._connectionInterrupted
+        || !receivedAt
+        || performance.now() - receivedAt > this._remoteFreshnessMs;
+      if (dragon._networkStale) continue;
 
       // A host-published death remains locked until the victim broadcasts a
       // lower life count. Older snapshots may move the corpse, but cannot set
@@ -4499,6 +4541,9 @@ class Game {
       try {
         this.uiManager.resetForfeitState?.();
         this.uiManager.hideActiveRoomModal?.();
+        clearTimeout(this.uiManager._processingTimer);
+        this.uiManager._processingTimer = null;
+        this._setNetworkInterrupted(false);
         document.getElementById('loadingOverlay')?.classList.remove('active');
         document.getElementById('mpExitDialog')?.classList.remove('active');
         document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
@@ -4514,12 +4559,16 @@ class Game {
             this.walletManager.walletType
           );
         }
-        requestAnimationFrame(() => {
+        const enforceTitle = () => {
           const activeTitle = document.getElementById('titleScreen');
-          if (activeTitle && !activeTitle.classList.contains('active')) {
-            activeTitle.classList.add('active');
-          }
-        });
+          if (!activeTitle) return;
+          document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.toggle('active', screen === activeTitle);
+          });
+          this.uiManager.currentScreen = 'titleScreen';
+        };
+        requestAnimationFrame(enforceTitle);
+        [100, 500, 1500].forEach(delay => setTimeout(enforceTitle, delay));
       } catch (fallbackError) {
         console.error('[Navigation] Hard Main Menu recovery failed:', fallbackError);
       }
