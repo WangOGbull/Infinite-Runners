@@ -45,10 +45,32 @@ class UIManager {
       this.initLucide();
       this.initParticles();
       this.bindEvents();
+      this._installScreenInvariant();
       console.log("UIManager loaded.");
     } catch (e) {
       console.error("UI Manager Crash:", e);
     }
+  }
+
+  _installScreenInvariant() {
+    if (this._screenInvariantObserver) return;
+    const repair = () => {
+      const activeScreens = document.querySelectorAll('.screen.active');
+      if (activeScreens.length > 0) return;
+      const target = this.screens[this.currentScreen] || this.screens.titleScreen;
+      if (!target) return;
+      target.classList.add('active');
+      this.currentScreen = target.id || 'titleScreen';
+      console.warn('[UI] Recovered a transition that left no active screen.');
+    };
+    this._ensureScreenInvariant = repair;
+    this._screenInvariantObserver = new MutationObserver(() => queueMicrotask(repair));
+    this._screenInvariantObserver.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    queueMicrotask(repair);
   }
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
