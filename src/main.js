@@ -207,6 +207,7 @@ class Game {
     this._positionWriteGeneration = 0;
     this._lastRemoteSequences = new Map();
     this._connectionInterrupted = false;
+    this._hadNetworkInterruption = false;
     this.combatEventsRef = null;
     this.matchStateRef = null;
     this._matchStateListener = null;
@@ -3437,7 +3438,8 @@ class Game {
         if (this.state === 'PLAYING') {
           this.endGame(true);
           if (!iWon
-              && state.finalResult.reason === 'network_disconnect'
+              && this._hadNetworkInterruption
+              && ['network_disconnect', 'forfeit'].includes(state.finalResult.reason)
               && state.finalResult.forfeitedPlayerId === this.localPlayerId) {
             this.uiManager.showForfeitDefeat(
               'A network error occurred. Your opponent won the match.'
@@ -3461,6 +3463,7 @@ class Game {
 
   _setNetworkInterrupted(interrupted) {
     this._connectionInterrupted = !!interrupted;
+    if (interrupted && this.state === 'PLAYING') this._hadNetworkInterruption = true;
     if (this.localDragon && interrupted) {
       this.localDragon.attackHeld = false;
       this.localDragon.sprintHeld = false;
@@ -3509,6 +3512,7 @@ class Game {
 
   _startConnectionWatchdog() {
     if (!this.lobbyTier) return;
+    this._hadNetworkInterruption = false;
     this._clearConnectionWatchdog();
     const onOffline = () => {
       if (this.state === 'PLAYING') this._setNetworkInterrupted(true);
