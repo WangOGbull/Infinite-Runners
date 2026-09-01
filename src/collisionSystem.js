@@ -91,7 +91,7 @@ class CollisionSystem {
 
     const eatenThisFrame = new Set();
     for (const dragon of dragons) {
-      if (!dragon.alive) continue;
+      if (!dragon.alive || dragon._networkStale) continue;
       if (dragon.immunityTimer > 0) continue;
       const head = dragon.head;
       const nearbyFood = this.foodHash.query(head.x, head.y, foodThreshold);
@@ -110,7 +110,7 @@ class CollisionSystem {
 
     this.bodyHash.clear();
     for (const dragon of dragons) {
-      if (!dragon.alive) continue;
+      if (!dragon.alive || dragon._networkStale) continue;
       const segs = dragon.segments;
       for (let i = 1; i < segs.length; i++) {
         this.bodyHash.insert(segs[i].x, segs[i].y, { seg: segs[i], dragon, index: i });
@@ -122,9 +122,9 @@ class CollisionSystem {
     // inventing hits from an older interpolated opponent position.
     if (!resolveDragonCombat) return;
     for (let i = 0; i < dragons.length; i++) {
-      if (!dragons[i].alive) continue;
+      if (!dragons[i].alive || dragons[i]._networkStale) continue;
       for (let j = i + 1; j < dragons.length; j++) {
-        if (!dragons[j].alive) continue;
+        if (!dragons[j].alive || dragons[j]._networkStale) continue;
         this.checkDragonCollisions(dragons[i], dragons[j], resolveDragonCombat);
       }
     }
@@ -189,6 +189,7 @@ class CollisionSystem {
   }
 
   checkDragonCollisions(d1, d2, resolveDeath = true) {
+    if (d1._networkStale || d2._networkStale) return;
     if (d1.immunityTimer > 0 || d2.immunityTimer > 0) return;
 
     const dx = d1.head.x - d2.head.x;
