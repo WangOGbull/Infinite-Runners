@@ -4025,9 +4025,10 @@ class Game {
               (snapshotT - Number(previous.snapshotT || snapshotT)) / 1000));
             const measuredVx = (pos.x - previous.x) / seconds;
             const measuredVy = (pos.y - previous.y) / seconds;
-            // Suppress single-snapshot Firebase jitter while retaining turns.
-            vx = vx * 0.35 + measuredVx * 0.65;
-            vy = vy * 0.35 + measuredVy * 0.65;
+            // Damp uneven mobile packet spacing without freezing turns.
+            // The renderer predicts briefly from this filtered velocity.
+            vx = vx * 0.6 + measuredVx * 0.4;
+            vy = vy * 0.6 + measuredVy * 0.4;
           }
           dragon.remoteTarget = {
             x: pos.x,
