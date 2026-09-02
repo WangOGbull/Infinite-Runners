@@ -1,7 +1,7 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js?v=54';
+import { DragonManager } from './dragonManager.js?v=55';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
@@ -3954,10 +3954,10 @@ class Game {
       this.positionsRef.on('child_changed', this._positionListener);
     }
 
-    // Apply cached positions at 20Hz. This is local interpolation work and
-    // does not increase Firebase reads; it reduces close-combat visual delay.
+    // Consume cached network state every render frame. Snapshot insertion
+    // below is still guarded by sequence/timestamp identity, so the same
+    // cached packet is never appended twice.
     const now = performance.now();
-    if (now - this._lastRemoteApply < 50) return;
     this._lastRemoteApply = now;
 
     const remoteData = this._remotePosCache;
@@ -4003,42 +4003,88 @@ class Game {
         dragon.head.x = pos.x;
         dragon.head.y = pos.y;
         if (Number.isFinite(pos.angle)) dragon.angle = pos.angle;
-        dragon.remoteTarget = {
+        const respawnSnapshot = {
           x: pos.x, y: pos.y, angle: pos.angle,
           vx: 0, vy: 0,
           snapshotT: Number(pos.t || 0),
+          snapshotSeq: Number(pos.seq),
+          streamId: typeof pos.streamId === 'string' ? pos.streamId : '',
           receivedAt: now
         };
+        dragon.remoteTarget = respawnSnapshot;
+        dragon.remoteSnapshots = [respawnSnapshot];
+        dragon.remotePacketInterval = 100;
+        dragon.remotePacketJitter = 0;
         dragon.collisionRecoilX = 0;
         dragon.collisionRecoilY = 0;
         this.dragonManager.initDragonSegments(dragon, pos.x, pos.y);
         if (typeof pos.segments === 'number') this._resizeRemoteDragon(dragon, pos.segments);
       } else {
-        // Normal live snapshots remain smoothly interpolated.
+        // Add each accepted network state to a small render-time snapshot
+        // buffer. receivedAt uses this client's monotonic clock, avoiding
+        // interpolation errors when two devices have different wall clocks.
         const previous = dragon.remoteTarget;
         const snapshotT = Number(pos.t || 0);
-        if (!previous || snapshotT !== Number(previous.snapshotT || 0)) {
+        const snapshotSeq = Number(pos.seq);
+        const streamId = typeof pos.streamId === 'string' ? pos.streamId : '';
+        const isNewSnapshot = !previous
+          || streamId !== (previous.streamId || '')
+          || (Number.isFinite(snapshotSeq) && snapshotSeq !== previous.snapshotSeq)
+          || snapshotT !== Number(previous.snapshotT || 0);
+
+        if (isNewSnapshot) {
           let vx = previous && Number.isFinite(previous.vx) ? previous.vx : 0;
           let vy = previous && Number.isFinite(previous.vy) ? previous.vy : 0;
-          if (previous && snapshotT > Number(previous.snapshotT || 0)) {
-            const seconds = Math.max(0.025, Math.min(0.25,
-              (snapshotT - Number(previous.snapshotT || snapshotT)) / 1000));
+          if (previous) {
+            const arrivalMs = Math.max(1, now - Number(previous.receivedAt || now));
+            const seconds = Math.max(0.025, Math.min(0.25, arrivalMs / 1000));
             const measuredVx = (pos.x - previous.x) / seconds;
             const measuredVy = (pos.y - previous.y) / seconds;
-            // Damp uneven mobile packet spacing without freezing turns.
-            // The renderer predicts briefly from this filtered velocity.
-            vx = vx * 0.6 + measuredVx * 0.4;
-            vy = vy * 0.6 + measuredVy * 0.4;
+            vx = vx * 0.35 + measuredVx * 0.65;
+            vy = vy * 0.35 + measuredVy * 0.65;
+
+            const priorInterval = Number(dragon.remotePacketInterval) || arrivalMs;
+            const difference = Math.abs(arrivalMs - priorInterval);
+            dragon.remotePacketInterval = priorInterval * 0.8 + arrivalMs * 0.2;
+            dragon.remotePacketJitter =
+              (Number(dragon.remotePacketJitter) || 0) * 0.8 + difference * 0.2;
           }
-          dragon.remoteTarget = {
+
+          const snapshot = {
             x: pos.x,
             y: pos.y,
             angle: pos.angle,
             vx,
             vy,
             snapshotT,
+            snapshotSeq: Number.isFinite(snapshotSeq) ? snapshotSeq : null,
+            streamId,
             receivedAt: now
           };
+
+          if (!Array.isArray(dragon.remoteSnapshots)) {
+            dragon.remoteSnapshots = [];
+          }
+
+          const lastBuffered = dragon.remoteSnapshots[dragon.remoteSnapshots.length - 1];
+          const correctionDistance = lastBuffered
+            ? Math.hypot(snapshot.x - lastBuffered.x, snapshot.y - lastBuffered.y)
+            : 0;
+
+          // Respawns are handled above. This protects against reconnects or
+          // stream resets producing a visible flight across the whole arena.
+          if (lastBuffered && (streamId !== (lastBuffered.streamId || '') || correctionDistance > 900)) {
+            dragon.remoteSnapshots.length = 0;
+            dragon.head.x = snapshot.x;
+            dragon.head.y = snapshot.y;
+            if (Number.isFinite(snapshot.angle)) dragon.angle = snapshot.angle;
+          }
+
+          dragon.remoteSnapshots.push(snapshot);
+          if (dragon.remoteSnapshots.length > 8) {
+            dragon.remoteSnapshots.splice(0, dragon.remoteSnapshots.length - 8);
+          }
+          dragon.remoteTarget = snapshot;
         }
       }
       dragon.attackActive = !!pos.attackActive;
@@ -4211,10 +4257,15 @@ class Game {
       inputMap.set(dragon.id, angle);
     }
 
+    // Feed newly received snapshots into remote buffers before rendering
+    // this frame. Local/AI movement remains unchanged.
+    if (this.isMultiplayer) {
+      this.applyRemotePositions();
+    }
+
     this.dragonManager.update(deltaTime, inputMap, this.arenaManager.getInnerBounds());
 
     if (this.isMultiplayer) {
-      this.applyRemotePositions();
       this.broadcastPosition();
     }
 
