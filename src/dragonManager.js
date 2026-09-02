@@ -89,6 +89,14 @@ export class DragonManager {
       remotePacketInterval: 100,
       remotePacketJitter: 0,
       remoteInterpolationDelay: 100,
+      remoteRenderStats: {
+        frames: 0,
+        interpolated: 0,
+        extrapolated: 0,
+        capped: 0,
+        maxHeadStep: 0,
+        maxSnapshotDistance: 0
+      },
       aiTargetAngle: null,
 
       spawnTime: Date.now(),
@@ -521,6 +529,10 @@ export class DragonManager {
           let renderX = dragon.remoteTarget.x;
           let renderY = dragon.remoteTarget.y;
           let renderAngle = dragon.remoteTarget.angle;
+          let renderMode = 'hold';
+          let extrapolationMs = 0;
+          const previousHeadX = dragon.head.x;
+          const previousHeadY = dragon.head.y;
 
           if (
             snapshots.length >= 2
@@ -532,6 +544,7 @@ export class DragonManager {
             const alpha = Math.max(0, Math.min(1, (renderAt - from.receivedAt) / span));
             renderX = from.x + (to.x - from.x) * alpha;
             renderY = from.y + (to.y - from.y) * alpha;
+            renderMode = 'interpolated';
 
             if (Number.isFinite(from.angle) && Number.isFinite(to.angle)) {
               let angleDiff = to.angle - from.angle;
@@ -543,10 +556,11 @@ export class DragonManager {
             const latest = snapshots[snapshots.length - 1] || dragon.remoteTarget;
             // Extrapolate only across a very short uncovered gap. Never let
             // prediction drift grow until the next packet snaps it backward.
-            const extrapolationMs = Math.max(
+            extrapolationMs = Math.max(
               0,
               Math.min(40, renderAt - Number(latest.receivedAt || renderAt))
             );
+            renderMode = extrapolationMs > 0 ? 'extrapolated' : 'hold';
             renderX = latest.x + (Number(latest.vx) || 0) * extrapolationMs / 1000;
             renderY = latest.y + (Number(latest.vy) || 0) * extrapolationMs / 1000;
             renderAngle = latest.angle;
@@ -554,6 +568,19 @@ export class DragonManager {
 
           dragon.head.x = renderX;
           dragon.head.y = renderY;
+
+          const renderStats = dragon.remoteRenderStats || (dragon.remoteRenderStats = {
+            frames: 0, interpolated: 0, extrapolated: 0, capped: 0,
+            maxHeadStep: 0, maxSnapshotDistance: 0
+          });
+          renderStats.frames++;
+          if (renderMode === 'interpolated') renderStats.interpolated++;
+          if (renderMode === 'extrapolated') renderStats.extrapolated++;
+          if (renderMode === 'extrapolated' && extrapolationMs >= 39.5) renderStats.capped++;
+          renderStats.maxHeadStep = Math.max(
+            renderStats.maxHeadStep || 0,
+            Math.hypot(renderX - previousHeadX, renderY - previousHeadY)
+          );
 
           if (Number.isFinite(renderAngle)) {
             let angleDiff = renderAngle - dragon.angle;
