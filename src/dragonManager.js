@@ -85,6 +85,10 @@ export class DragonManager {
       isRemote: false,
       playerId: null,
       remoteTarget: null,
+      remoteSnapshots: [],
+      remotePacketInterval: 100,
+      remotePacketJitter: 0,
+      remoteInterpolationDelay: 100,
       aiTargetAngle: null,
 
       spawnTime: Date.now(),
@@ -485,36 +489,78 @@ export class DragonManager {
       // ============================================================
       if (dragon.isRemote) {
         if (dragon.remoteTarget) {
-          // Continue the remote dragon along its measured velocity between
-          // Firebase snapshots. Without this short prediction window it slows
-          // to a stop and jumps again at every 10/20 Hz network update.
-          const ageMs = Number.isFinite(dragon.remoteTarget.receivedAt)
-            ? Math.min(200, Math.max(0, performance.now() - dragon.remoteTarget.receivedAt))
-            : 0;
-          const predictedX = dragon.remoteTarget.x
-            + (Number(dragon.remoteTarget.vx) || 0) * ageMs / 1000;
-          const predictedY = dragon.remoteTarget.y
-            + (Number(dragon.remoteTarget.vy) || 0) * ageMs / 1000;
-          // Blend corrections without stopping between uneven mobile
-          // packets. Prediction covers brief 20 Hz gaps while the exponential
-          // correction remains frame-rate independent.
-          const lerp = 1 - Math.exp(-deltaTime / 90);
+          const snapshots = Array.isArray(dragon.remoteSnapshots)
+            ? dragon.remoteSnapshots
+            : [];
 
-          dragon.head.x +=
-            (predictedX -
-              dragon.head.x) *
-            lerp;
+          // Keep enough delay to stay between real snapshots at the measured
+          // packet cadence, while capping added visual latency for combat.
+          const desiredDelay = Math.max(
+            60,
+            Math.min(
+              120,
+              (Number(dragon.remotePacketInterval) || 100)
+                + (Number(dragon.remotePacketJitter) || 0) * 1.5
+            )
+          );
+          const delayBlend = 1 - Math.exp(-deltaTime / 250);
+          dragon.remoteInterpolationDelay +=
+            (desiredDelay - dragon.remoteInterpolationDelay) * delayBlend;
 
-          dragon.head.y +=
-            (predictedY -
-              dragon.head.y) *
-            lerp;
+          const renderAt = performance.now() - dragon.remoteInterpolationDelay;
 
-          if (Number.isFinite(dragon.remoteTarget.angle)) {
-            let angleDiff = dragon.remoteTarget.angle - dragon.angle;
+          // Old snapshots can be discarded once the render clock has passed
+          // them, but retain one prior point for interpolation.
+          while (
+            snapshots.length >= 3
+            && snapshots[1].receivedAt <= renderAt
+          ) {
+            snapshots.shift();
+          }
+
+          let renderX = dragon.remoteTarget.x;
+          let renderY = dragon.remoteTarget.y;
+          let renderAngle = dragon.remoteTarget.angle;
+
+          if (
+            snapshots.length >= 2
+            && renderAt <= snapshots[1].receivedAt
+          ) {
+            const from = snapshots[0];
+            const to = snapshots[1];
+            const span = Math.max(1, to.receivedAt - from.receivedAt);
+            const alpha = Math.max(0, Math.min(1, (renderAt - from.receivedAt) / span));
+            renderX = from.x + (to.x - from.x) * alpha;
+            renderY = from.y + (to.y - from.y) * alpha;
+
+            if (Number.isFinite(from.angle) && Number.isFinite(to.angle)) {
+              let angleDiff = to.angle - from.angle;
+              while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+              while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+              renderAngle = from.angle + angleDiff * alpha;
+            }
+          } else {
+            const latest = snapshots[snapshots.length - 1] || dragon.remoteTarget;
+            // Extrapolate only across a very short uncovered gap. Never let
+            // prediction drift grow until the next packet snaps it backward.
+            const extrapolationMs = Math.max(
+              0,
+              Math.min(40, renderAt - Number(latest.receivedAt || renderAt))
+            );
+            renderX = latest.x + (Number(latest.vx) || 0) * extrapolationMs / 1000;
+            renderY = latest.y + (Number(latest.vy) || 0) * extrapolationMs / 1000;
+            renderAngle = latest.angle;
+          }
+
+          dragon.head.x = renderX;
+          dragon.head.y = renderY;
+
+          if (Number.isFinite(renderAngle)) {
+            let angleDiff = renderAngle - dragon.angle;
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-            dragon.angle += angleDiff * lerp;
+            const angleBlend = 1 - Math.exp(-deltaTime / 35);
+            dragon.angle += angleDiff * angleBlend;
           }
         }
 
