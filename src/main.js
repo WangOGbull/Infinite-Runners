@@ -3220,7 +3220,8 @@ class Game {
         gameConfig: {
           mode: this.selectedMpMode || 'FFA',
           arenaIndex: this.lobbyArenaIndex,
-          playerIds: this.playerIds
+          playerIds: this.playerIds,
+          hostPlayerId: this.localPlayerId
         }
       });
     }
@@ -3255,6 +3256,22 @@ class Game {
     }
   }
 
+  _sendRealtimeCombatEvent(eventId, event) {
+    const socket = this._realtimeSocket;
+    if (!eventId || !event || !this._realtimeReady || socket?.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+    try {
+      socket.send(JSON.stringify({
+        type: 'combat',
+        event: { eventId, ...event }
+      }));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   _publishMaxClash(d1, d2, targetSegments) {
     if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef) return null;
     const playerIds = [d1?.playerId, d2?.playerId].filter(Boolean);
@@ -3263,16 +3280,19 @@ class Game {
     const eventId = eventRef.key;
     if (!eventId) return null;
     this._rememberCombatEvent(eventId);
-    eventRef.set({
+    const event = {
       type: 'max_clash',
       matchId: this.matchId,
       playerIds,
       targetSegments,
       createdAt: Date.now()
-    }).catch(error => {
-      console.error('[Combat] Failed to publish maximum-growth clash:', error);
-      this._processedCombatEvents.delete(eventId);
-    });
+    };
+    if (!this._sendRealtimeCombatEvent(eventId, event)) {
+      eventRef.set(event).catch(error => {
+        console.error('[Combat] Failed to publish maximum-growth clash:', error);
+        this._processedCombatEvents.delete(eventId);
+      });
+    }
     return eventId;
   }
 
@@ -3299,18 +3319,21 @@ class Game {
     // Mark before writing so the host does not process its own child_added
     // notification after already applying the collision locally.
     this._rememberCombatEvent(eventId);
-    eventRef.set({
+    const event = {
       type: 'death',
       matchId: this.matchId,
       victimId,
       killerId: killerId || null,
       createdAt: Date.now()
-    }).catch(error => {
-      console.error('[Combat] Failed to publish authoritative death:', error);
-      this._processedCombatEvents.delete(eventId);
-      const current = this._pendingCombatDeaths.get(victimId);
-      if (current && current.eventId === eventId) this._pendingCombatDeaths.delete(victimId);
-    });
+    };
+    if (!this._sendRealtimeCombatEvent(eventId, event)) {
+      eventRef.set(event).catch(error => {
+        console.error('[Combat] Failed to publish authoritative death:', error);
+        this._processedCombatEvents.delete(eventId);
+        const current = this._pendingCombatDeaths.get(victimId);
+        if (current && current.eventId === eventId) this._pendingCombatDeaths.delete(victimId);
+      });
+    }
     return eventId;
   }
 
@@ -3320,15 +3343,18 @@ class Game {
     const eventId = eventRef.key;
     if (!eventId) return null;
     this._rememberCombatEvent(eventId);
-    eventRef.set({
+    const event = {
       type,
       matchId: this.matchId,
       ...payload,
       createdAt: Date.now()
-    }).catch(error => {
-      console.error(`[Combat] Failed to publish ${type}:`, error);
-      this._processedCombatEvents.delete(eventId);
-    });
+    };
+    if (!this._sendRealtimeCombatEvent(eventId, event)) {
+      eventRef.set(event).catch(error => {
+        console.error(`[Combat] Failed to publish ${type}:`, error);
+        this._processedCombatEvents.delete(eventId);
+      });
+    }
     return eventId;
   }
 
@@ -3461,6 +3487,15 @@ class Game {
         this._remotePosCache = {};
         this._lastRemoteSequences.clear();
         console.info('[GameSync] Railway realtime channel ready.');
+        return;
+      }
+      if (message.type === 'combat' && message.matchId === this.matchId) {
+        if (typeof this._combatEventListener === 'function') {
+          this._combatEventListener({
+            key: message.eventId,
+            val: () => message.event
+          });
+        }
         return;
       }
       if (message.type !== 'snapshot' || message.matchId !== this.matchId) return;
