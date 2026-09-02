@@ -1,7 +1,7 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js?v=55';
+import { DragonManager } from './dragonManager.js?v=56';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
@@ -215,6 +215,13 @@ class Game {
     this._realtimeReconnectTimer = null;
     this._realtimeGeneration = 0;
     this._syncDiagnostics = { sent: 0, received: 0, rejected: 0, lastLog: 0 };
+    this._frameSyncDiagnostics = {
+      startedAt: performance.now(),
+      frames: 0,
+      over34ms: 0,
+      over50ms: 0,
+      maxFrameMs: 0
+    };
     this._lastRemoteSequences = new Map();
     this._connectionInterrupted = false;
     this._hadNetworkInterruption = false;
@@ -4070,6 +4077,12 @@ class Game {
           const correctionDistance = lastBuffered
             ? Math.hypot(snapshot.x - lastBuffered.x, snapshot.y - lastBuffered.y)
             : 0;
+          if (dragon.remoteRenderStats) {
+            dragon.remoteRenderStats.maxSnapshotDistance = Math.max(
+              dragon.remoteRenderStats.maxSnapshotDistance || 0,
+              correctionDistance
+            );
+          }
 
           // Respawns are handled above. This protects against reconnects or
           // stream resets producing a visible flight across the whole arena.
@@ -4184,9 +4197,58 @@ class Game {
   loop() {
     if (this.state !== 'PLAYING') return;
     const now = performance.now();
-    let deltaTime = now - this.lastTime;
+    const rawDeltaTime = now - this.lastTime;
+    let deltaTime = rawDeltaTime;
     this.lastTime = now;
     if (deltaTime > CONFIG.MAX_DELTA_TIME) deltaTime = CONFIG.MAX_DELTA_TIME;
+
+    if (this.isMultiplayer) {
+      const frameStats = this._frameSyncDiagnostics;
+      frameStats.frames++;
+      if (rawDeltaTime > 34) frameStats.over34ms++;
+      if (rawDeltaTime > 50) frameStats.over50ms++;
+      frameStats.maxFrameMs = Math.max(frameStats.maxFrameMs, rawDeltaTime);
+
+      if (now - frameStats.startedAt >= 5000) {
+        const remotes = this.dragonManager.getAllDragons()
+          .filter(dragon => dragon.isRemote)
+          .map(dragon => {
+            const stats = dragon.remoteRenderStats || {};
+            const frames = Math.max(1, stats.frames || 0);
+            const result = {
+              player: dragon.playerId,
+              packetMs: Math.round(Number(dragon.remotePacketInterval) || 0),
+              jitterMs: Math.round(Number(dragon.remotePacketJitter) || 0),
+              delayMs: Math.round(Number(dragon.remoteInterpolationDelay) || 0),
+              buffer: Array.isArray(dragon.remoteSnapshots) ? dragon.remoteSnapshots.length : 0,
+              interpolatedPct: Math.round((stats.interpolated || 0) * 100 / frames),
+              extrapolatedPct: Math.round((stats.extrapolated || 0) * 100 / frames),
+              cappedPct: Math.round((stats.capped || 0) * 100 / frames),
+              maxHeadStep: Math.round((stats.maxHeadStep || 0) * 10) / 10,
+              maxSnapshotDistance: Math.round((stats.maxSnapshotDistance || 0) * 10) / 10
+            };
+            dragon.remoteRenderStats = {
+              frames: 0, interpolated: 0, extrapolated: 0, capped: 0,
+              maxHeadStep: 0, maxSnapshotDistance: 0
+            };
+            return result;
+          });
+
+        console.info('[FrameSync][5s]', {
+          frames: frameStats.frames,
+          over34ms: frameStats.over34ms,
+          over50ms: frameStats.over50ms,
+          maxFrameMs: Math.round(frameStats.maxFrameMs * 10) / 10,
+          remotes
+        });
+        frameStats.startedAt = now;
+        frameStats.frames = 0;
+        frameStats.over34ms = 0;
+        frameStats.over50ms = 0;
+        frameStats.maxFrameMs = 0;
+      }
+    }
+
     if (!this.isPaused) {
       this.update(deltaTime);
       this.render();
