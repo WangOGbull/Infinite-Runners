@@ -204,6 +204,7 @@ class Game {
     this._positionWriteInFlight = false;
     this._pendingPositionPayload = null;
     this._positionSequence = 0;
+    this._positionStreamId = null;
     this._positionWriteGeneration = 0;
     this._positionWriteToken = 0;
     this._positionWriteTimeout = null;
@@ -3415,7 +3416,13 @@ class Game {
     this._pendingPositionPayload = null;
     // A timestamp prefix keeps sequences monotonic even if one phone refreshes
     // and rejoins while the opponent still has this match open.
-    this._positionSequence = Date.now() * 1000;
+    this._positionSequence = 0;
+    this._positionStreamId = [
+      this.matchId || 'match',
+      this.localPlayerId || 'player',
+      Date.now().toString(36),
+      Math.random().toString(36).slice(2, 8)
+    ].join(':');
     this._positionWriteGeneration++;
     this._lastRemoteSequences.clear();
     this._startCombatEventSync();
@@ -3730,6 +3737,7 @@ class Game {
       lives: this.localDragon.lives,
       alive: this.localDragon.alive,
       attackActive: !!this.localDragon.attackActive,
+      streamId: this._positionStreamId,
       seq: ++this._positionSequence,
       t: now
     };
@@ -3753,20 +3761,32 @@ class Game {
         const position = snap.val();
         if (!position || !playerId || playerId === this.localPlayerId) return;
         const sequence = Number(position.seq);
-        const previous = this._lastRemoteSequences.get(playerId);
-        if (Number.isFinite(sequence)) {
-          if (Number.isFinite(previous) && sequence <= previous) {
-            this._syncDiagnostics.rejected++;
-            return;
-          }
-          this._lastRemoteSequences.set(playerId, sequence);
-        } else {
-          const previousTime = Number(this._remotePosCache[playerId]?.t || 0);
-          if (Number(position.t || 0) <= previousTime) {
-            this._syncDiagnostics.rejected++;
-            return;
-          }
+        const timestamp = Number(position.t || 0);
+        const streamId = typeof position.streamId === 'string' ? position.streamId : '';
+        const previous = this._lastRemoteSequences.get(playerId) || null;
+        const sameStream = !!(streamId && previous?.streamId && streamId === previous.streamId);
+        const newerSequence = Number.isFinite(sequence)
+          && (!Number.isFinite(previous?.seq) || sequence > previous.seq);
+        const newerTimestamp = Number.isFinite(timestamp)
+          && timestamp > Number(previous?.t || 0);
+
+        // Sequence numbers are only comparable inside one browser stream.
+        // A refresh, respawned client, cached older build, or reordered
+        // non-blocking write must not lock this player out forever.
+        if (previous && sameStream && !newerSequence) {
+          this._syncDiagnostics.rejected++;
+          return;
         }
+        if (previous && !sameStream && !newerTimestamp) {
+          this._syncDiagnostics.rejected++;
+          return;
+        }
+
+        this._lastRemoteSequences.set(playerId, {
+          streamId,
+          seq: Number.isFinite(sequence) ? sequence : null,
+          t: Number.isFinite(timestamp) ? timestamp : Date.now()
+        });
         this._syncDiagnostics.received++;
         this._remotePosCache[playerId] = position;
       };
