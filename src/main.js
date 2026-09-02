@@ -9,7 +9,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=58';
+import UIManager from './uiManager.js?v=59';
 import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -207,6 +207,8 @@ class Game {
     this._positionWriteGeneration = 0;
     this._positionWriteToken = 0;
     this._positionWriteTimeout = null;
+    this._positionListener = null;
+    this._syncDiagnostics = { sent: 0, received: 0, rejected: 0, lastLog: 0 };
     this._lastRemoteSequences = new Map();
     this._connectionInterrupted = false;
     this._hadNetworkInterruption = false;
@@ -3684,6 +3686,8 @@ class Game {
       clearTimeout(this._positionWriteTimeout);
       this._positionWriteTimeout = null;
     }
+    this._positionListener = null;
+    this._syncDiagnostics = { sent: 0, received: 0, rejected: 0, lastLog: 0 };
     this._lastRemoteSequences.clear();
     this._clearConnectionWatchdog();
   }
@@ -3691,40 +3695,14 @@ class Game {
   _sendLatestPosition(payload) {
     if (!this.positionsRef || !this.localPlayerId || !payload) return;
     const playerRef = this.positionsRef.child(this.localPlayerId);
-    const generation = this._positionWriteGeneration;
-    const token = ++this._positionWriteToken;
-    this._positionWriteInFlight = true;
-    let finished = false;
-
-    const finish = (timedOut = false) => {
-      if (finished) return;
-      finished = true;
-      if (generation !== this._positionWriteGeneration || token !== this._positionWriteToken) return;
-      if (this._positionWriteTimeout) {
-        clearTimeout(this._positionWriteTimeout);
-        this._positionWriteTimeout = null;
-      }
-      this._positionWriteInFlight = false;
-      const latest = this._pendingPositionPayload;
-      this._pendingPositionPayload = null;
-      // A stalled mobile Firebase request must not freeze this player forever.
-      // Drop the obsolete request and send exactly the newest accumulated frame.
-      if (timedOut) {
-        console.warn('[Network] Position write stalled; advancing to newest frame.');
-      }
-      if (latest && this.positionsRef && this.state === 'PLAYING') {
-        this._sendLatestPosition(latest);
-      }
-    };
-
-    this._positionWriteTimeout = setTimeout(() => finish(true), 1200);
-    playerRef.set(payload).then(
-      () => finish(false),
-      error => {
-        console.warn('[Network] Position update failed:', error?.message || error);
-        finish(false);
-      }
-    );
+    this._syncDiagnostics.sent++;
+    // Do not wait for the server acknowledgement before publishing the next
+    // frame. Firebase preserves this client's write order and coalesces its
+    // local cache; acknowledgement-gating reduced mobile movement to the
+    // network round-trip rate and made the dragon freeze on other screens.
+    playerRef.set(payload).catch(error => {
+      console.warn('[Network] Position update failed:', error?.message || error);
+    });
   }
 
   broadcastPosition() {
@@ -3732,13 +3710,13 @@ class Game {
     const now = Date.now();
     // Cap sends so slow mobile connections cannot build a stale write queue.
     // Remote dragons are interpolated locally between these updates.
-    let syncInterval = 66;
+    let syncInterval = 80;
     const localHead = this.localDragon.head;
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.alive) continue;
       const dx = localHead.x - dragon.head.x;
       const dy = localHead.y - dragon.head.y;
-      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 33; break; }
+      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 50; break; }
     }
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
@@ -3768,23 +3746,32 @@ class Game {
       this.positionsListenerSet = true;
       this._remotePosCache = {};
       this._lastRemoteApply = 0;
-      // Just cache the snapshot — don't process it here
-      this.positionsRef.on('value', snap => {
-        const incoming = snap.val() || {};
-        for (const [playerId, position] of Object.entries(incoming)) {
-          if (!position || playerId === this.localPlayerId) continue;
-          const sequence = Number(position.seq);
-          const previous = this._lastRemoteSequences.get(playerId);
-          if (Number.isFinite(sequence)) {
-            if (Number.isFinite(previous) && sequence <= previous) continue;
-            this._lastRemoteSequences.set(playerId, sequence);
-          } else {
-            const previousTime = Number(this._remotePosCache[playerId]?.t || 0);
-            if (Number(position.t || 0) <= previousTime) continue;
+      // Subscribe per player. A whole-tree value listener rebuilt every
+      // player's snapshot for every movement write, which scales poorly in FFA.
+      this._positionListener = snap => {
+        const playerId = snap.key;
+        const position = snap.val();
+        if (!position || !playerId || playerId === this.localPlayerId) return;
+        const sequence = Number(position.seq);
+        const previous = this._lastRemoteSequences.get(playerId);
+        if (Number.isFinite(sequence)) {
+          if (Number.isFinite(previous) && sequence <= previous) {
+            this._syncDiagnostics.rejected++;
+            return;
           }
-          this._remotePosCache[playerId] = position;
+          this._lastRemoteSequences.set(playerId, sequence);
+        } else {
+          const previousTime = Number(this._remotePosCache[playerId]?.t || 0);
+          if (Number(position.t || 0) <= previousTime) {
+            this._syncDiagnostics.rejected++;
+            return;
+          }
         }
-      });
+        this._syncDiagnostics.received++;
+        this._remotePosCache[playerId] = position;
+      };
+      this.positionsRef.on('child_added', this._positionListener);
+      this.positionsRef.on('child_changed', this._positionListener);
     }
 
     // Apply cached positions at 20Hz. This is local interpolation work and
@@ -3795,6 +3782,23 @@ class Game {
 
     const remoteData = this._remotePosCache;
     if (!remoteData) return;
+
+    if (now - this._syncDiagnostics.lastLog >= 5000) {
+      const ages = {};
+      for (const [playerId, pos] of Object.entries(remoteData)) {
+        ages[playerId] = Math.max(0, Date.now() - Number(pos?.t || Date.now()));
+      }
+      console.info('[Sync][5s]', {
+        sent: this._syncDiagnostics.sent,
+        received: this._syncDiagnostics.received,
+        rejected: this._syncDiagnostics.rejected,
+        remoteAgeMs: ages
+      });
+      this._syncDiagnostics.sent = 0;
+      this._syncDiagnostics.received = 0;
+      this._syncDiagnostics.rejected = 0;
+      this._syncDiagnostics.lastLog = now;
+    }
 
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.playerId) continue;
