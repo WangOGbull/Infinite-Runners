@@ -1,7 +1,7 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js?v=53';
+import { DragonManager } from './dragonManager.js?v=54';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
