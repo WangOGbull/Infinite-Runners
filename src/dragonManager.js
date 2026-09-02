@@ -489,15 +489,16 @@ export class DragonManager {
           // Firebase snapshots. Without this short prediction window it slows
           // to a stop and jumps again at every 10/20 Hz network update.
           const ageMs = Number.isFinite(dragon.remoteTarget.receivedAt)
-            ? Math.min(120, Math.max(0, performance.now() - dragon.remoteTarget.receivedAt))
+            ? Math.min(200, Math.max(0, performance.now() - dragon.remoteTarget.receivedAt))
             : 0;
           const predictedX = dragon.remoteTarget.x
             + (Number(dragon.remoteTarget.vx) || 0) * ageMs / 1000;
           const predictedY = dragon.remoteTarget.y
             + (Number(dragon.remoteTarget.vy) || 0) * ageMs / 1000;
-          // A slightly wider time constant blends corrections instead of
-          // visibly snapping, and remains frame-rate independent.
-          const lerp = 1 - Math.exp(-deltaTime / 75);
+          // Blend corrections without stopping between uneven mobile
+          // packets. Prediction covers brief 20 Hz gaps while the exponential
+          // correction remains frame-rate independent.
+          const lerp = 1 - Math.exp(-deltaTime / 90);
 
           dragon.head.x +=
             (predictedX -
