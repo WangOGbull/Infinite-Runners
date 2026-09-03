@@ -468,7 +468,7 @@ class UIManager {
     if (leftArrow) leftArrow.style.display = 'flex';
     if (rightArrow) rightArrow.style.display = 'flex';
     this.renderNavDots();
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+    if (typeof lucide !== 'undefined') requestAnimationFrame(() => lucide.createIcons());
   }
 
   showDragonModal(dragon) {
@@ -1032,22 +1032,13 @@ class UIManager {
       if (!button) return;
       let lastActivation = 0;
       const activate = (event) => {
-        // Always consume duplicate pointer/touch/click events so the same
-        // physical tap cannot fall through onto the newly revealed title.
-        event?.preventDefault();
-        event?.stopPropagation();
         const now = Date.now();
         if (now - lastActivation < 700) return;
         lastActivation = now;
         this.eventBus.emit('game:returnToMainMenu');
       };
-
-      // Use the physical press directly. Calling button.click() from a
-      // document-level handler is unreliable in mobile in-app browsers after
-      // the canvas and settlement panel repaint.
-      button.addEventListener('pointerdown', activate, { passive: false });
-      button.addEventListener('touchend', activate, { passive: false });
-      button.addEventListener('click', activate);
+      // _tap handles pointerdown + ghost-click suppression consistently
+      this._tap(button, activate);
     };
     bindMainMenu(document.getElementById('btnMainMenu'));
     bindMainMenu(document.getElementById('btnMpMainMenu'));
@@ -1419,7 +1410,7 @@ class UIManager {
       const waitingText = document.getElementById('lobbyWaitingText');
       if (startBtn) startBtn.style.display = (!isAutoMatch && isHost && this._stakingBothDeposited) ? 'flex' : 'none';
       if (waitingText) waitingText.style.display = isAutoMatch ? 'block' : (isHost ? 'none' : 'block');
-      if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+      if (typeof lucide !== 'undefined') requestAnimationFrame(() => lucide.createIcons());
     } catch (e) { console.warn('updateLobby error:', e); }
   }
 
@@ -2239,7 +2230,7 @@ class UIManager {
   _openModeSelectModal() {
     const m = document.getElementById('mpModeSelectModal');
     if (m) m.classList.add('open');
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20);
+    if (typeof lucide !== 'undefined') requestAnimationFrame(() => lucide.createIcons());
   }
   _closeModeSelectModal() {
     const m = document.getElementById('mpModeSelectModal');
@@ -2307,7 +2298,7 @@ class UIManager {
       hint.innerHTML = '<i data-lucide="chevrons-down"></i>';
       hint.addEventListener('click', () => { try { screenEl.scrollBy({ top: screenEl.clientHeight * 0.7, behavior: 'smooth' }); } catch (_) {} });
       screenEl.appendChild(hint);
-      if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20);
+      if (typeof lucide !== 'undefined') requestAnimationFrame(() => lucide.createIcons());
       if (!this._lobbyScrollBound) {
         this._lobbyScrollBound = true;
         screenEl.addEventListener('scroll', () => {
@@ -2370,7 +2361,10 @@ class UIManager {
           + '<span><i class="fa-solid fa-gamepad"></i>' + r.matches + '</span>'
           + '</div></div>';
       }).join('');
-      if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+      if (typeof lucide !== 'undefined') {
+      if (this._lucidePending) cancelAnimationFrame(this._lucidePending);
+      this._lucidePending = requestAnimationFrame(() => { this._lucidePending = null; lucide.createIcons(); });
+    }
       // Attach click handlers to leaderboard rows for MP profile modal
       list.querySelectorAll(".lbRow[data-uid]").forEach(row => {
         row.style.cursor = "pointer";
@@ -2452,7 +2446,10 @@ class UIManager {
     safeTarget.classList.add('active');
     this.currentScreen = screenId;
     this.eventBus.emit('ui:screenChanged', { screenId });
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
+    if (typeof lucide !== 'undefined') {
+      if (this._lucidePending) cancelAnimationFrame(this._lucidePending);
+      this._lucidePending = requestAnimationFrame(() => { this._lucidePending = null; lucide.createIcons(); });
+    }
     const _shown = this.screens[screenId];
     if (_shown) {
       try { _shown.scrollTop = 0; } catch (_) {}
@@ -2490,7 +2487,7 @@ class UIManager {
     this._setOpponentFoundPortrait('oppFoundYourDragon', yourDragon);
     this.updateOpponentFoundRival({ name: opponentName, dragon: opponentDragon });
     this.showScreen('opponentFoundScreen');
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
+    if (typeof lucide !== 'undefined') requestAnimationFrame(() => lucide.createIcons());
   }
 
   updateOpponentFoundRival({ name, dragon } = {}) {
@@ -2523,7 +2520,7 @@ class UIManager {
     setDisp('modeSelectorHost', on);
     setDisp('lobbyTierSelector', on);
     setDisp('lobbyArenaSelector', on);
-    if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 30);
+    if (typeof lucide !== 'undefined') requestAnimationFrame(() => lucide.createIcons());
   }
 
   updateAutoMatchHud({ enabled = false, ready = 0, total = 2, deadlineAt = 0, startAt = 0 } = {}) {
