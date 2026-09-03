@@ -198,11 +198,16 @@ class WalletManager {
     const config = { commitment: 'confirmed' };
     if (this._authTokenProvider) {
       config.fetchMiddleware = async (info, init, fetchFn) => {
-        const token = await this._authTokenProvider();
-        if (!token) throw new Error('Sign in is required for blockchain access.');
-        const headers = new Headers(init?.headers || {});
-        headers.set('Authorization', `Bearer ${token}`);
-        return fetchFn(info, { ...(init || {}), headers });
+        const requestWithToken = async (forceRefresh = false) => {
+          const token = await this._authTokenProvider(forceRefresh);
+          if (!token) throw new Error('Wallet balance authentication is still restoring.');
+          const headers = new Headers(init?.headers || {});
+          headers.set('Authorization', `Bearer ${token}`);
+          return fetchFn(info, { ...(init || {}), headers });
+        };
+        let response = await requestWithToken(false);
+        if (response.status === 401) response = await requestWithToken(true);
+        return response;
       };
     }
     this.connection = new solanaWeb3.Connection(RPC_ENDPOINT, config);
@@ -1300,7 +1305,11 @@ class WalletManager {
     try {
       const lamports = await this.connection.getBalance(this.publicKey, 'confirmed');
       this.balance = lamports / solanaWeb3.LAMPORTS_PER_SOL;
-    } catch (err) { console.error('[WalletManager] balance fetch failed:', err); this.balance = null; }
+    } catch (err) {
+      this.balance = null;
+      console.error('[WalletManager] balance fetch failed:', err);
+      throw err;
+    }
     return this.balance;
   }
 
@@ -1314,7 +1323,10 @@ class WalletManager {
         return accountInfo.value.uiAmount || 0;
       }
       return 0;
-    } catch (err) { console.warn('[WalletManager] Token fetch failed:', err); return 0; }
+    } catch (err) {
+      console.warn('[WalletManager] Token fetch failed:', err);
+      throw err;
+    }
   }
 
   async scanBalances() {
@@ -1338,7 +1350,7 @@ class WalletManager {
   async getSpendableBalances() {
     const sol = await this._refreshBalance();
     const infinite = await this._scanTokenBalance('C8KsvkMBuqmvX416MWTJGKW9S9MpKiUjmpnj1fhzpump');
-    return { sol: sol || 0, infinite: infinite || 0 };
+    return { sol, infinite };
   }
 
   async signTestMessage() {
