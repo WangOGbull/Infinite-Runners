@@ -9,7 +9,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=59';
+import UIManager from './uiManager.js?v=60';
 import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=50';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -4917,46 +4917,79 @@ class Game {
   }
 
   _returnToMainMenuSafely() {
-    try {
-      this.quitGame();
-    } catch (error) {
-      console.error('[Navigation] Game cleanup failed while returning to menu:', error);
-    } finally {
-      // Screen recovery is deliberately independent of multiplayer cleanup:
-      // even if teardown fails, never leave the particle layer with every
-      // actual screen hidden.
-      try {
-        this.uiManager.resetForfeitState?.();
-        this.uiManager.hideActiveRoomModal?.();
-        clearTimeout(this.uiManager._processingTimer);
-        this.uiManager._processingTimer = null;
-        this._setNetworkInterrupted(false);
-        document.getElementById('loadingOverlay')?.classList.remove('active');
-        document.getElementById('mpExitDialog')?.classList.remove('active');
-        this.uiManager.showScreen('titleScreen');
-        const titleScreen = document.getElementById('titleScreen');
-        if (titleScreen) {
-          titleScreen.classList.add('active');
-          titleScreen.style.removeProperty('display');
-          titleScreen.style.removeProperty('visibility');
-          titleScreen.style.removeProperty('opacity');
-          titleScreen.setAttribute('aria-hidden', 'false');
-        }
-        this.uiManager._ensureScreenInvariant?.();
-        this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
-        this.uiManager.showLoginDrop(this.username, this.isGuest);
-        if (this.walletManager.connected && this.walletManager.publicKey) {
-          this.uiManager.updateWalletDisplay(
-            this.walletManager.publicKey.toString(),
-            this.walletManager.balance,
-            this.walletManager.walletType
-          );
-        }
-        queueMicrotask(() => this.uiManager._ensureScreenInvariant?.());
-      } catch (fallbackError) {
-        console.error('[Navigation] Hard Main Menu recovery failed:', fallbackError);
+    if (this._returningToMainMenu) return;
+    this._returningToMainMenu = true;
+
+    const revealTitle = () => {
+      // Navigation happens first. Slow mobile cleanup must never be able to
+      // trap the player on the finished-match screen or a blank layer.
+      this.uiManager.resetForfeitState?.();
+      this.uiManager.hideActiveRoomModal?.();
+      clearTimeout(this.uiManager._processingTimer);
+      this.uiManager._processingTimer = null;
+      this._setNetworkInterrupted(false);
+
+      [
+        'loadingOverlay',
+        'networkReconnectOverlay',
+        'countdownOverlay',
+        'pauseOverlay',
+        'spectateOverlay',
+        'mpExitDialog',
+        'mpGameOver',
+        'gameOverScreen'
+      ].forEach(id => {
+        const element = document.getElementById(id);
+        if (!element) return;
+        element.classList.remove('active', 'open');
+        if (id === 'networkReconnectOverlay') element.style.display = 'none';
+      });
+
+      this.uiManager.showScreen('titleScreen');
+      const titleScreen = document.getElementById('titleScreen');
+      if (titleScreen) {
+        titleScreen.classList.add('active');
+        titleScreen.style.removeProperty('display');
+        titleScreen.style.removeProperty('visibility');
+        titleScreen.style.removeProperty('opacity');
+        titleScreen.style.pointerEvents = 'auto';
+        titleScreen.setAttribute('aria-hidden', 'false');
       }
+      this.uiManager._ensureScreenInvariant?.();
+    };
+
+    try {
+      revealTitle();
+    } catch (error) {
+      console.error('[Navigation] Immediate Main Menu reveal failed:', error);
     }
+
+    // Release the touch event and paint the title screen before tearing down
+    // Firebase/WebSocket listeners and the finished match.
+    requestAnimationFrame(() => {
+      try {
+        this.quitGame();
+      } catch (error) {
+        console.error('[Navigation] Game cleanup failed while returning to menu:', error);
+      } finally {
+        try {
+          revealTitle();
+          this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
+          this.uiManager.showLoginDrop(this.username, this.isGuest);
+          if (this.walletManager.connected && this.walletManager.publicKey) {
+            this.uiManager.updateWalletDisplay(
+              this.walletManager.publicKey.toString(),
+              this.walletManager.balance,
+              this.walletManager.walletType
+            );
+          }
+          queueMicrotask(() => this.uiManager._ensureScreenInvariant?.());
+        } catch (fallbackError) {
+          console.error('[Navigation] Hard Main Menu recovery failed:', fallbackError);
+        }
+        this._returningToMainMenu = false;
+      }
+    });
   }
 
   _cacheGameDOM() {

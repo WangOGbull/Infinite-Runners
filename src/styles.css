@@ -496,7 +496,8 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .goStat{text-align:center}
 .goStat .num{font-family:'Cinzel Decorative',cursive;font-size:20px;color:#48cae4}
 .goStat .lbl{font-size:9px;letter-spacing:1px;color:rgba(255,255,255,0.3);margin-top:2px}
-.goActions{display:flex;gap:10px}
+.goActions{display:flex;gap:10px;position:relative;z-index:2200;pointer-events:auto}
+#btnMainMenu,#btnMpMainMenu{position:relative;z-index:2201;pointer-events:auto!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 
 /* ==================== HOW TO PLAY ==================== */
 #howToPlayScreen{background:rgba(3,8,20,0.95);overflow-y:auto;padding:16px}
