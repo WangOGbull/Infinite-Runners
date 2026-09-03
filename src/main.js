@@ -11,7 +11,7 @@ import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js?v=60';
 import EffectsSystem from './effectsSystem.js?v=53';
-import WalletManager from './walletManager.js?v=50';
+import WalletManager from './walletManager.js?v=51';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -302,6 +302,11 @@ class Game {
     }, 0);
     this._setupSprintButton();
     await this.setupFirebase();
+    this.walletManager.setAuthTokenProvider(async () => {
+      const user = this.auth?.currentUser;
+      if (!user) return null;
+      return user.getIdToken(false);
+    });
     // ── Late-arrival auth recovery ──
     // If determineStartScreen() or _tryRestoreFirebaseAuth() already timed
     // out and dropped the player into guest mode, this persistent listener
