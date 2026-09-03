@@ -159,7 +159,8 @@ class WalletManager {
           signature = result.signature;
         } else if (typeof window.solflare.signTransaction === 'function') {
           const signed = await window.solflare.signTransaction(tx);
-          signature = await this.connection.sendRawTransaction(signed.serialize());
+          const authenticatedConnection = await this._getAuthenticatedConnection();
+          signature = await authenticatedConnection.sendRawTransaction(signed.serialize());
         } else {
           throw new Error('Solflare provider has no sign method');
         }
@@ -187,7 +188,6 @@ class WalletManager {
 
   setAuthTokenProvider(provider) {
     this._authTokenProvider = typeof provider === 'function' ? provider : null;
-    this._initConnection();
   }
 
   _initConnection() {
@@ -195,22 +195,21 @@ class WalletManager {
       console.error('[WalletManager] solana web3.js not loaded');
       return;
     }
-    const config = { commitment: 'confirmed' };
-    if (this._authTokenProvider) {
-      config.fetchMiddleware = async (info, init, fetchFn) => {
-        const requestWithToken = async (forceRefresh = false) => {
-          const token = await this._authTokenProvider(forceRefresh);
-          if (!token) throw new Error('Wallet balance authentication is still restoring.');
-          const headers = new Headers(init?.headers || {});
-          headers.set('Authorization', `Bearer ${token}`);
-          return fetchFn(info, { ...(init || {}), headers });
-        };
-        let response = await requestWithToken(false);
-        if (response.status === 401) response = await requestWithToken(true);
-        return response;
-      };
-    }
-    this.connection = new solanaWeb3.Connection(RPC_ENDPOINT, config);
+    // Read-only balance requests need no Firebase header. Web3.js 1.x
+    // fetchMiddleware is callback-based, so an async token middleware leaves
+    // the SDK with an undefined Response and breaks every balance lookup.
+    this.connection = new solanaWeb3.Connection(RPC_ENDPOINT, 'confirmed');
+  }
+
+  async _getAuthenticatedConnection() {
+    if (!this._authTokenProvider) throw new Error('Wallet authentication is unavailable.');
+    let token = await this._authTokenProvider(false);
+    if (!token) token = await this._authTokenProvider(true);
+    if (!token) throw new Error('Sign in is required to submit this transaction.');
+    return new solanaWeb3.Connection(RPC_ENDPOINT, {
+      commitment: 'confirmed',
+      httpHeaders: { Authorization: `Bearer ${token}` }
+    });
   }
 
   getProvider() {
@@ -914,7 +913,8 @@ class WalletManager {
           return;
         }
         const signedTxBytes = b58decode(result.transaction);
-        this.connection.sendRawTransaction(signedTxBytes)
+        this._getAuthenticatedConnection()
+          .then(connection => connection.sendRawTransaction(signedTxBytes))
           .then(signature => { this.eventBus.emit('wallet:txConfirmed', { signature, pendingAction }); })
           .catch(err => {
             this._debugLog(`=> sendRawTransaction FAILED: ${err?.message || err}`);
