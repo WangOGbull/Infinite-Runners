@@ -5,7 +5,7 @@
 // and submitted to mainnet, where a devnet blockhash can never land -
 // which is what every "expired: block height exceeded" failure actually
 // was. Same Helius API key works on both clusters.
-const RPC_ENDPOINT = 'https://mainnet.helius-rpc.com/?api-key=de2fb44b-73e1-4ee5-aa9d-b1134825a8b0';
+const RPC_ENDPOINT = 'https://infiniterunners-firebase-backend-production.up.railway.app/solana-rpc';
 
 function clusterFromEndpoint(endpoint) {
   if (endpoint.includes('devnet')) return 'devnet';
@@ -185,9 +185,27 @@ class WalletManager {
     this._handleMobileRedirect();
   }
 
+  setAuthTokenProvider(provider) {
+    this._authTokenProvider = typeof provider === 'function' ? provider : null;
+    this._initConnection();
+  }
+
   _initConnection() {
-    if (typeof solanaWeb3 === 'undefined') { console.error('[WalletManager] solana web3.js not loaded'); return; }
-    this.connection = new solanaWeb3.Connection(RPC_ENDPOINT, 'confirmed');
+    if (typeof solanaWeb3 === 'undefined') {
+      console.error('[WalletManager] solana web3.js not loaded');
+      return;
+    }
+    const config = { commitment: 'confirmed' };
+    if (this._authTokenProvider) {
+      config.fetchMiddleware = async (info, init, fetchFn) => {
+        const token = await this._authTokenProvider();
+        if (!token) throw new Error('Sign in is required for blockchain access.');
+        const headers = new Headers(init?.headers || {});
+        headers.set('Authorization', `Bearer ${token}`);
+        return fetchFn(info, { ...(init || {}), headers });
+      };
+    }
+    this.connection = new solanaWeb3.Connection(RPC_ENDPOINT, config);
   }
 
   getProvider() {
@@ -372,6 +390,44 @@ class WalletManager {
         window.location.href = url;
       } catch (_) { /* nothing further we can do */ }
     }
+  }
+
+  _launchPhantomAndroid(universalUrl, pendingAction) {
+    if (this._phantomStakeLaunchPending) return false;
+    this._phantomStakeLaunchPending = true;
+    const appUrl = universalUrl.replace(/^https:\/\/phantom\.app\/ul\//, 'phantom://');
+    let leftPage = false;
+    let timer = null;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        leftPage = true;
+        cleanup();
+      }
+    };
+    const onPageHide = () => {
+      leftPage = true;
+      cleanup();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', onPageHide, { once: true });
+    this._debugLog(`sendTransaction: launching Phantom Android protocol (${appUrl.length} chars)`);
+    this._navigateTopLevel(appUrl);
+    timer = setTimeout(() => {
+      cleanup();
+      this._phantomStakeLaunchPending = false;
+      if (!leftPage && document.visibilityState === 'visible') {
+        this.eventBus.emit('wallet:txError', {
+          message: 'Phantom did not open. Open Infinite Runners from Phantom Explore and try Place Bet again.',
+          pendingAction: pendingAction || null
+        });
+      }
+    }, 1800);
+    return true;
   }
 
   _navigateToUniversalLink(url) {
@@ -1327,7 +1383,17 @@ class WalletManager {
         this._navigateTopLevel(browseUrl);
         return { deepLinked: true };
       }
-      this._navigateTopLevel(this._buildMobileSignTransactionUrl(serialized, pendingAction));
+      const signUrl = this._buildMobileSignTransactionUrl(serialized, pendingAction);
+      const isAndroidPhantom = /Android/i.test(navigator.userAgent)
+        && this.walletType === 'phantom'
+        && this._arrivedInWalletBrowser !== 'phantom';
+      if (isAndroidPhantom) {
+        this._launchPhantomAndroid(signUrl, pendingAction);
+      } else {
+        // iOS/Safari uses Phantom's official universal link. Inside Phantom,
+        // the injected provider branch above signs without any navigation.
+        this._navigateTopLevel(signUrl);
+      }
       return { deepLinked: true };
     }
     throw new Error('No wallet provider available.');

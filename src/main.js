@@ -11,7 +11,7 @@ import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js?v=60';
 import EffectsSystem from './effectsSystem.js?v=53';
-import WalletManager from './walletManager.js?v=50';
+import WalletManager from './walletManager.js?v=51';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
 import FirebaseMatchmaking from './firebaseMatchmaking.js';
@@ -302,6 +302,11 @@ class Game {
     }, 0);
     this._setupSprintButton();
     await this.setupFirebase();
+    this.walletManager.setAuthTokenProvider(async () => {
+      const user = this.auth?.currentUser;
+      if (!user) return null;
+      return user.getIdToken(false);
+    });
     // ── Late-arrival auth recovery ──
     // If determineStartScreen() or _tryRestoreFirebaseAuth() already timed
     // out and dropped the player into guest mode, this persistent listener
@@ -1474,14 +1479,9 @@ class Game {
       if (dragon !== this.localDragon && killer !== this.localDragon) return;
       const publishedId = this._publishCombatDeath(dragon, killer);
       if (!publishedId) return;
-      // The publisher marks its own event as processed before Firebase echoes
-      // it back, so apply it locally once now. Other clients receive the same
-      // event through child_added and ignore any later duplicate claim.
-      this.eventBus.emit('dragon:death', {
-        dragon,
-        killer,
-        networkEventId: publishedId
-      });
+      // Effects, lives, scores and match end wait for the canonical event
+      // echoed by Railway. A rejected prediction must never create a local
+      // winner that disagrees with settlement.
     });
 
     this.eventBus.on('dragon:death', ({ dragon, killer, networkEventId = null }) => {
@@ -1495,14 +1495,12 @@ class Game {
         this._predictedCombatDeaths.delete(dragon.playerId);
       }
 
-      // The host is the only multiplayer combat resolver. Publish its
-      // decision once so every client applies the identical death.
-      if (this.isMultiplayer && this.isHost && !networkEventId) {
+      // All multiplayer collision detections are claims. Railway validates
+      // and echoes one canonical event before either client mutates lives.
+      if (this.isMultiplayer && !networkEventId) {
         const publishedId = this._publishCombatDeath(dragon, killer);
-        if (!publishedId) {
-          console.warn('[Combat] Death was not published; missing player identity or room reference.');
-          return;
-        }
+        if (!publishedId) console.warn('[Combat] Death claim could not be submitted.');
+        return;
       }
 
       // ── Visual effects for ALL dragons (local + remote) ──
@@ -3306,7 +3304,8 @@ class Game {
   }
 
   _publishCombatDeath(victim, killer) {
-    if (!this.isMultiplayer || !this.combatEventsRef || this._settlementLocked) return null; // Don't publish after settlement
+    if (!this.isMultiplayer || !this.combatEventsRef || this._settlementLocked) return null;
+    if (!this._realtimeReady || this._realtimeSocket?.readyState !== WebSocket.OPEN) return null;
     const victimId = victim && victim.playerId;
     const killerId = killer && killer.playerId;
     if (!victimId) return null;
@@ -3325,9 +3324,6 @@ class Game {
     // lower life count before another death can be published for this player.
     this._pendingCombatDeaths.set(victimId, { eventId, previousLives });
 
-    // Mark before writing so the host does not process its own child_added
-    // notification after already applying the collision locally.
-    this._rememberCombatEvent(eventId);
     const event = {
       type: 'death',
       matchId: this.matchId,
@@ -3336,12 +3332,8 @@ class Game {
       createdAt: Date.now()
     };
     if (!this._sendRealtimeCombatEvent(eventId, event)) {
-      eventRef.set(event).catch(error => {
-        console.error('[Combat] Failed to publish authoritative death:', error);
-        this._processedCombatEvents.delete(eventId);
-        const current = this._pendingCombatDeaths.get(victimId);
-        if (current && current.eventId === eventId) this._pendingCombatDeaths.delete(victimId);
-      });
+      this._pendingCombatDeaths.delete(victimId);
+      return null;
     }
     return eventId;
   }
@@ -3507,8 +3499,9 @@ class Game {
         }
         this.positionsListenerSet = false;
         this._positionListener = null;
-        this._remotePosCache = {};
-        this._lastRemoteSequences.clear();
+        // Preserve the last rendered state across the Firebase -> WebSocket
+        // handoff. Clearing it here made opponents vanish until the first
+        // Railway snapshot arrived.
         console.info('[GameSync] Railway realtime channel ready.');
         return;
       }
@@ -3519,6 +3512,13 @@ class Game {
             val: () => message.event
           });
         }
+        return;
+      }
+      if (message.type === 'combat_error' && message.matchId === this.matchId) {
+        for (const [victimId, pending] of this._pendingCombatDeaths.entries()) {
+          if (pending?.eventId === message.eventId) this._pendingCombatDeaths.delete(victimId);
+        }
+        console.warn('[Combat] Claim rejected:', message.reason || 'invalid_claim');
         return;
       }
       if (message.type !== 'snapshot' || message.matchId !== this.matchId) return;
@@ -3942,9 +3942,11 @@ class Game {
     }
     
     const status = this._realtimeReady ? '🟢 WebSocket' : '🟡 Firebase';
-    const latency = this._syncDiagnostics?.lastLatency || 0;
+    const latency = Number.isFinite(this._syncDiagnostics?.lastLatency)
+      ? `${Math.round(this._syncDiagnostics.lastLatency)}ms`
+      : '--';
     const updates = this._syncDiagnostics?.received || 0;
-    this._connectionStatusOverlay.textContent = `${status} | ${updates} upd | ${latency}ms`;
+    this._connectionStatusOverlay.textContent = `${status} | ${updates} upd | ${latency}`;
   }
 
   broadcastPosition() {
@@ -3952,20 +3954,12 @@ class Game {
     if (this._settlementLocked) return; // Stop broadcasting once settlement is decided
     this._updateConnectionStatusOverlay(); // Show connection status
     const now = Date.now();
-    // Cap sends so slow mobile connections cannot build a stale write queue.
-    // Remote dragons are interpolated locally between these updates.
-    // MOBILE FIX: Increased from 80ms base/50ms nearby to 150ms/100ms to prevent:
-    //   - Firebase write queue buildup on slow mobile connections
-    //   - Network congestion causing out-of-order position/combat events
-    //   - Position updates arriving after settlement has locked
-    let syncInterval = 150; // Base: mobile-safe interval
-    const localHead = this.localDragon.head;
-    for (const dragon of this.dragonManager.getAllDragons()) {
-      if (!dragon.isRemote || !dragon.alive) continue;
-      const dx = localHead.x - dragon.head.x;
-      const dy = localHead.y - dragon.head.y;
-      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 100; break; } // Nearby: faster but still safe
-    }
+    // WebSocket carries latest-state-only movement at 20 Hz. Firebase remains
+    // a recovery path and is deliberately slower so it cannot compete with
+    // the realtime stream or accumulate a write backlog.
+    const usingRealtime = this._realtimeReady
+      && this._realtimeSocket?.readyState === WebSocket.OPEN;
+    const syncInterval = usingRealtime ? 50 : 100;
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
     const payload = {
@@ -3983,7 +3977,7 @@ class Game {
       seq: ++this._positionSequence,
       t: now
     };
-    if (this._realtimeReady && this._realtimeSocket?.readyState === WebSocket.OPEN) {
+    if (usingRealtime) {
       if (this._realtimeSocket.bufferedAmount < 64 * 1024) {
         this._syncDiagnostics.sent++;
         this._realtimeSocket.send(JSON.stringify(payload));
@@ -4001,7 +3995,7 @@ class Game {
     if (!this.positionsRef && !this._realtimeReady) return;
     if (!this._realtimeReady && !this.positionsListenerSet) {
       this.positionsListenerSet = true;
-      this._remotePosCache = {};
+      this._remotePosCache ||= {};
       this._lastRemoteApply = 0;
       // Subscribe per player. A whole-tree value listener rebuilt every
       // player's snapshot for every movement write, which scales poorly in FFA.
@@ -4173,14 +4167,10 @@ class Game {
             );
           }
 
-          // Respawns are handled above. This protects against reconnects or
-          // stream resets producing a visible flight across the whole arena.
-          if (lastBuffered && (streamId !== (lastBuffered.streamId || '') || correctionDistance > 900)) {
-            dragon.remoteSnapshots.length = 0;
-            dragon.head.x = snapshot.x;
-            dragon.head.y = snapshot.y;
-            if (Number.isFinite(snapshot.angle)) dragon.angle = snapshot.angle;
-          }
+          // A transport reconnect or a large correction is not a respawn.
+          // Preserve the rendered position and let the bounded snapshot
+          // renderer converge; only the confirmed-respawn branch may rebuild
+          // or teleport a remote dragon.
 
           dragon.remoteSnapshots.push(snapshot);
           if (dragon.remoteSnapshots.length > 8) {
@@ -5057,7 +5047,7 @@ class Game {
       }
       
       // Specifically re-enable MAIN MENU button
-      const mainMenuBtn = document.querySelector('[data-screen="titleScreen"] button:contains("MAIN"), .main-menu-btn, #mainMenuBtn');
+      const mainMenuBtn = document.querySelector('.main-menu-btn, #mainMenuBtn');
       if (mainMenuBtn) {
         mainMenuBtn.disabled = false;
         mainMenuBtn.style.pointerEvents = 'auto';
