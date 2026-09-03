@@ -302,10 +302,25 @@ class Game {
     }, 0);
     this._setupSprintButton();
     await this.setupFirebase();
-    this.walletManager.setAuthTokenProvider(async () => {
-      const user = this.auth?.currentUser;
+    this.walletManager.setAuthTokenProvider(async (forceRefresh = false) => {
+      let user = this.auth?.currentUser || null;
+      if (!user && this.auth) {
+        user = await new Promise(resolve => {
+          let unsubscribe = null;
+          const timer = setTimeout(() => {
+            if (unsubscribe) unsubscribe();
+            resolve(null);
+          }, 8000);
+          unsubscribe = this.auth.onAuthStateChanged(restoredUser => {
+            if (!restoredUser) return;
+            clearTimeout(timer);
+            if (unsubscribe) unsubscribe();
+            resolve(restoredUser);
+          });
+        });
+      }
       if (!user) return null;
-      return user.getIdToken(false);
+      return user.getIdToken(forceRefresh);
     });
     // ── Late-arrival auth recovery ──
     // If determineStartScreen() or _tryRestoreFirebaseAuth() already timed
@@ -2345,8 +2360,11 @@ class Game {
       }
       return true;
     } catch (err) {
-      console.warn('[Staking] pre-flight balance check failed (non-fatal, proceeding):', err?.message || err);
-      return true;
+      console.warn('[Staking] pre-flight balance verification failed:', err?.message || err);
+      this.eventBus.emit('staking:error', {
+        message: 'Unable to verify this wallet balance right now. Your balance was not treated as zero. Please tap Try Stake Again.'
+      });
+      return false;
     }
   }
 
