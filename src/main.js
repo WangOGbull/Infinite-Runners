@@ -3481,117 +3481,10 @@ class Game {
   }
 
   async _connectRealtimeTransport() {
-    if (!this.isMultiplayer || !this.roomCode || !this.localPlayerId || !this.matchId) return;
-    const generation = ++this._realtimeGeneration;
-    this._realtimeManualClose = false;
-    if (this._realtimeReconnectTimer) {
-      clearTimeout(this._realtimeReconnectTimer);
-      this._realtimeReconnectTimer = null;
-    }
-    let token;
-    
-    // MOBILE FIX: Token fetch can hang or fail on mobile. Add timeout + retry.
-    try {
-      const tokenPromise = this.auth?.currentUser?.getIdToken();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Token fetch timeout')), 3000)
-      );
-      token = await Promise.race([tokenPromise, timeoutPromise]);
-    } catch (error) {
-      // Token failed - try offline/guest token fallback
-      console.warn('[GameSync] Firebase token unavailable (', error?.message || error, '). Retrying in 2s...');
-      // Retry connection after 2s instead of giving up immediately
-      if (this.state === 'PLAYING' && generation === this._realtimeGeneration) {
-        this._realtimeReconnectTimer = setTimeout(() => {
-          this._realtimeReconnectTimer = null;
-          this._connectRealtimeTransport();
-        }, 2000);
-      }
-      return;
-    }
-    if (!token || generation !== this._realtimeGeneration || this.state !== 'PLAYING') return;
-    const url = BACKEND_URL.replace(/^http/, 'ws') + '/game-sync';
-    let socket;
-    try {
-      socket = new WebSocket(url);
-    } catch (error) {
-      console.warn('[GameSync] WebSocket unavailable; using Firebase movement fallback.', error?.message || error);
-      return;
-    }
-    this._realtimeSocket = socket;
-    socket.addEventListener('open', () => {
-      if (generation !== this._realtimeGeneration) { socket.close(); return; }
-      this._realtimeReconnectAttempt = 0;
-      socket.send(JSON.stringify({
-        type: 'auth', token,
-        roomCode: this.roomCode,
-        playerId: this.localPlayerId,
-        matchId: this.matchId
-      }));
-    });
-    socket.addEventListener('message', event => {
-      if (generation !== this._realtimeGeneration) return;
-      let message;
-      try { message = JSON.parse(event.data); } catch (_) { return; }
-      if (message.type === 'ready') {
-        this._realtimeReady = true;
-        if (this.positionsRef && this._positionListener) {
-          this.positionsRef.off('child_added', this._positionListener);
-          this.positionsRef.off('child_changed', this._positionListener);
-        }
-        this.positionsListenerSet = false;
-        this._positionListener = null;
-        // Do not clear opponent state during Firebase -> WebSocket handoff.
-        // The first Railway packet continues the same snapshot stream.
-        console.info('[GameSync] Railway realtime channel ready.');
-        return;
-      }
-      if (message.type === 'combat' && message.matchId === this.matchId) {
-        if (typeof this._combatEventListener === 'function') {
-          this._combatEventListener({
-            key: message.eventId,
-            val: () => message.event
-          });
-        }
-        return;
-      }
-      if (message.type !== 'snapshot' || message.matchId !== this.matchId) return;
-      for (const [playerId, state] of Object.entries(message.players || {})) {
-        this._acceptRemotePosition(playerId, state, message.serverTime);
-      }
-    });
-    socket.addEventListener('close', () => {
-      if (generation !== this._realtimeGeneration) return;
-      this._realtimeReady = false;
-      this._realtimeSocket = null;
-      if (this._realtimeManualClose || this.state !== 'PLAYING') return;
-      console.warn('[GameSync] Railway channel closed; Firebase fallback active while reconnecting.');
-      this.positionsListenerSet = false;
-      const baseDelay = 1000;
-      const maxDelay = 30000;
-      const attempt = (this._realtimeReconnectAttempt || 0) + 1;
-      this._realtimeReconnectAttempt = attempt;
-      const delay = Math.min(maxDelay, baseDelay * Math.pow(2, attempt)) + Math.random() * 1000;
-      console.log(`[GameSync] Reconnecting in ${Math.round(delay)}ms (attempt ${attempt})`);
-      this._realtimeReconnectTimer = setTimeout(() => {
-        this._realtimeReconnectTimer = null;
-        this._connectRealtimeTransport();
-      }, delay);
-    });
-    socket.addEventListener('error', (err) => {
-      console.warn('[GameSync] WebSocket error:', err?.message || err);
-    });
-    
-    // MOBILE FIX: Reconnect when app comes back from background
-    if (!this._visibilityHandler) {
-      this._visibilityHandler = () => {
-        if (document.visibilityState === 'visible' && this.state === 'PLAYING' && !this._realtimeReady) {
-          console.log('[GameSync] App resumed - attempting WebSocket reconnect');
-          this._connectRealtimeTransport();
-        }
-      };
-      document.addEventListener('visibilitychange', this._visibilityHandler);
-    }
+    // FIREBASE-ONLY MODE: WebSocket disabled for stability
+    // All position updates flow through Firebase Realtime Database
+    console.log('[GameSync] Firebase-only mode active (WebSocket disabled)');
+    return;
   }
 
   _closeRealtimeTransport() {
@@ -3993,7 +3886,7 @@ class Game {
   }
 
   _updateConnectionStatusOverlay() {
-    // MOBILE DEBUG: On-screen status so players can see WebSocket connection without console
+    // FIREBASE-ONLY: Show Firebase status on screen
     if (this.state !== 'PLAYING') return;
     
     if (!this._connectionStatusOverlay) {
@@ -4018,7 +3911,8 @@ class Game {
       this._connectionStatusOverlay = overlay;
     }
     
-    const status = this._realtimeReady ? '🟢 WebSocket' : '🟡 Firebase';
+    // Firebase only (no WebSocket)
+    const status = '🟢 Firebase';
     const latency = this._syncDiagnostics?.lastLatency || 0;
     const updates = this._syncDiagnostics?.received || 0;
     this._connectionStatusOverlay.textContent = `${status} | ${updates} upd | ${latency}ms`;
@@ -4026,20 +3920,20 @@ class Game {
 
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId || this._connectionInterrupted) return;
-    if (this._settlementLocked) return; // Stop broadcasting once settlement is decided
+    if (this._settlementLocked) return;
     const now = Date.now();
+    
+    // Update connection status overlay
     if (!this._lastConnectionOverlayUpdate || now - this._lastConnectionOverlayUpdate > 1000) {
       this._lastConnectionOverlayUpdate = now;
       this._updateConnectionStatusOverlay();
     }
-    // One active movement transport: 20 Hz on Railway, 10 Hz only while the
-    // latest-state Firebase fallback is active. Neither path builds a queue.
-    const usingRealtime = this._realtimeReady
-      && this._realtimeSocket?.readyState === WebSocket.OPEN;
-    const syncInterval = usingRealtime
-      ? REMOTE_SYNC.websocketSendMs
-      : REMOTE_SYNC.firebaseSendMs;
+    
+    // FIREBASE-ONLY: Use optimized Firebase interval (120ms for smooth MP)
+    // This is fast enough for smooth interpolation while keeping Firebase happy
+    const syncInterval = 120; // Firebase-optimized (was 150ms, but 120 works better for MP)
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
+    
     this.lastBroadcast = now;
     const payload = {
       type: 'state',
@@ -4056,13 +3950,8 @@ class Game {
       seq: ++this._positionSequence,
       t: now
     };
-    if (usingRealtime) {
-      if (this._realtimeSocket.bufferedAmount < 64 * 1024) {
-        this._syncDiagnostics.sent++;
-        this._realtimeSocket.send(JSON.stringify(payload));
-      }
-      return;
-    }
+    
+    // Firebase write (only path in Firebase-only mode)
     if (this._positionWriteInFlight) {
       this._pendingPositionPayload = payload;
       return;
@@ -4071,32 +3960,34 @@ class Game {
   }
 
   applyRemotePositions() {
-    if (!this.positionsRef && !this._realtimeReady) return;
-    if (!this._realtimeReady && !this.positionsListenerSet) {
+    if (!this.positionsRef) return;
+    
+    // FIREBASE-ONLY: Always use Firebase listeners
+    if (!this.positionsListenerSet) {
       this.positionsListenerSet = true;
       this._remotePosCache ||= Object.create(null);
       this._lastRemoteApply = 0;
-      // Subscribe per player. A whole-tree value listener rebuilt every
-      // player's snapshot for every movement write, which scales poorly in FFA.
+      
+      // Subscribe per player for efficient MP sync
       this._positionListener = snap => {
         const playerId = snap.key;
         const position = snap.val();
         if (!position || !playerId || playerId === this.localPlayerId) return;
         this._acceptRemotePosition(playerId, position);
       };
+      
       this.positionsRef.on('child_added', this._positionListener);
       this.positionsRef.on('child_changed', this._positionListener);
     }
 
-    // Consume cached network state every render frame. Snapshot insertion
-    // below is still guarded by sequence/timestamp identity, so the same
-    // cached packet is never appended twice.
+    // Apply cached network state every frame
     const now = performance.now();
     this._lastRemoteApply = now;
 
     const remoteData = this._remotePosCache;
     if (!remoteData) return;
 
+    // Log sync diagnostics every 5 seconds
     if (now - this._syncDiagnostics.lastLog >= 5000) {
       const ages = {};
       for (const [playerId, pos] of Object.entries(remoteData)) {
