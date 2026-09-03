@@ -3521,6 +3521,7 @@ class Game {
     this._realtimeSocket = socket;
     socket.addEventListener('open', () => {
       if (generation !== this._realtimeGeneration) { socket.close(); return; }
+      this._realtimeReconnectAttempt = 0;
       socket.send(JSON.stringify({
         type: 'auth', token,
         roomCode: this.roomCode,
@@ -3566,10 +3567,16 @@ class Game {
       if (this._realtimeManualClose || this.state !== 'PLAYING') return;
       console.warn('[GameSync] Railway channel closed; Firebase fallback active while reconnecting.');
       this.positionsListenerSet = false;
+      const baseDelay = 1000;
+      const maxDelay = 30000;
+      const attempt = (this._realtimeReconnectAttempt || 0) + 1;
+      this._realtimeReconnectAttempt = attempt;
+      const delay = Math.min(maxDelay, baseDelay * Math.pow(2, attempt)) + Math.random() * 1000;
+      console.log(`[GameSync] Reconnecting in ${Math.round(delay)}ms (attempt ${attempt})`);
       this._realtimeReconnectTimer = setTimeout(() => {
         this._realtimeReconnectTimer = null;
         this._connectRealtimeTransport();
-      }, 1000);
+      }, delay);
     });
     socket.addEventListener('error', (err) => {
       console.warn('[GameSync] WebSocket error:', err?.message || err);
@@ -3927,6 +3934,18 @@ class Game {
       normalized
     );
     if (!decision.accepted) {
+      const cached = this._remotePosCache[playerId];
+      const newTime = Number(normalized.t) || 0;
+      const oldTime = cached ? (Number(cached.t) || 0) : 0;
+      if (newTime > oldTime + 50) {
+        this._lastRemoteSequences.set(playerId, { seq: Number(normalized.seq) || 0, t: newTime });
+        this._remotePosCache[playerId] = normalized;
+        this._syncDiagnostics.received++;
+        if (Number.isFinite(normalized.t)) {
+          this._syncDiagnostics.lastLatency = Math.min(999, Math.max(0, Date.now() - normalized.t));
+        }
+        return true;
+      }
       this._syncDiagnostics.rejected++;
       return false;
     }
@@ -4008,8 +4027,11 @@ class Game {
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId || this._connectionInterrupted) return;
     if (this._settlementLocked) return; // Stop broadcasting once settlement is decided
-    this._updateConnectionStatusOverlay(); // Show connection status
     const now = Date.now();
+    if (!this._lastConnectionOverlayUpdate || now - this._lastConnectionOverlayUpdate > 1000) {
+      this._lastConnectionOverlayUpdate = now;
+      this._updateConnectionStatusOverlay();
+    }
     // One active movement transport: 20 Hz on Railway, 10 Hz only while the
     // latest-state Firebase fallback is active. Neither path builds a queue.
     const usingRealtime = this._realtimeReady
