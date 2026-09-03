@@ -1,7 +1,12 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js?v=56';
+import { DragonManager } from './dragonManager.js?v=57';
+import {
+  REMOTE_SYNC,
+  classifyRemoteSnapshot,
+  isConfirmedRemoteRespawn,
+} from './remoteSync.js?v=1';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
@@ -225,6 +230,7 @@ class Game {
       maxFrameMs: 0
     };
     this._lastRemoteSequences = new Map();
+    this._remotePosCache = Object.create(null);
     this._connectionInterrupted = false;
     this._hadNetworkInterruption = false;
     this.combatEventsRef = null;
@@ -1597,9 +1603,13 @@ class Game {
 
       // ── Authority split: local/AI vs remote ──
       if (isRemote) {
-        // REMOTE: visual death only. Remote client owns lives/respawn/purge.
-        // Lives are NOT decremented — applyRemotePositions will sync them
-        // when the remote client broadcasts its updated state.
+        // The canonical combat event hides the remote dragon. Match state
+        // owns lives; a lower-life movement acknowledgement only supplies
+        // the remote client's confirmed respawn coordinates.
+        dragon._remoteDeathPreviousLives = Math.max(
+          Number(dragon.lives) || 0,
+          Number(dragon._remoteReportedLives) || 0
+        );
         dragon.alive = false;
         if (killer === this.localDragon) {
           this._lastKiller = null;
@@ -3530,8 +3540,8 @@ class Game {
         }
         this.positionsListenerSet = false;
         this._positionListener = null;
-        this._remotePosCache = {};
-        this._lastRemoteSequences.clear();
+        // Do not clear opponent state during Firebase -> WebSocket handoff.
+        // The first Railway packet continues the same snapshot stream.
         console.info('[GameSync] Railway realtime channel ready.');
         return;
       }
@@ -3546,14 +3556,7 @@ class Game {
       }
       if (message.type !== 'snapshot' || message.matchId !== this.matchId) return;
       for (const [playerId, state] of Object.entries(message.players || {})) {
-        if (!state || playerId === this.localPlayerId) continue;
-        const previous = this._remotePosCache?.[playerId];
-        if (previous && Number(state.seq) <= Number(previous.seq)) continue;
-        this._syncDiagnostics.received++;
-        this._remotePosCache[playerId] = {
-          ...state,
-          t: Number(state.t || message.serverTime || Date.now())
-        };
+        this._acceptRemotePosition(playerId, state, message.serverTime);
       }
     });
     socket.addEventListener('close', () => {
@@ -3628,6 +3631,7 @@ class Game {
       Math.random().toString(36).slice(2, 8)
     ].join(':');
     this._positionWriteGeneration++;
+    this._remotePosCache = Object.create(null);
     this._lastRemoteSequences.clear();
     this._startCombatEventSync();
     this._startMatchStateSync();
@@ -3905,7 +3909,38 @@ class Game {
     this._positionListener = null;
     this._syncDiagnostics = { sent: 0, received: 0, rejected: 0, lastLog: 0 };
     this._lastRemoteSequences.clear();
+    this._remotePosCache = Object.create(null);
     this._clearConnectionWatchdog();
+  }
+
+  _acceptRemotePosition(playerId, state, fallbackTimestamp = Date.now()) {
+    if (!playerId || playerId === this.localPlayerId || !state) return false;
+
+    const normalized = {
+      ...state,
+      x: Number(state.x),
+      y: Number(state.y),
+      t: Number(state.t || fallbackTimestamp || Date.now()),
+    };
+    const decision = classifyRemoteSnapshot(
+      this._lastRemoteSequences.get(playerId) || null,
+      normalized
+    );
+    if (!decision.accepted) {
+      this._syncDiagnostics.rejected++;
+      return false;
+    }
+
+    this._lastRemoteSequences.set(playerId, decision.cursor);
+    this._remotePosCache[playerId] = normalized;
+    this._syncDiagnostics.received++;
+    if (Number.isFinite(normalized.t)) {
+      this._syncDiagnostics.lastLatency = Math.min(
+        999,
+        Math.max(0, Date.now() - normalized.t)
+      );
+    }
+    return true;
   }
 
   _sendLatestPosition(payload) {
@@ -3975,20 +4010,13 @@ class Game {
     if (this._settlementLocked) return; // Stop broadcasting once settlement is decided
     this._updateConnectionStatusOverlay(); // Show connection status
     const now = Date.now();
-    // Cap sends so slow mobile connections cannot build a stale write queue.
-    // Remote dragons are interpolated locally between these updates.
-    // MOBILE FIX: Increased from 80ms base/50ms nearby to 150ms/100ms to prevent:
-    //   - Firebase write queue buildup on slow mobile connections
-    //   - Network congestion causing out-of-order position/combat events
-    //   - Position updates arriving after settlement has locked
-    let syncInterval = 150; // Base: mobile-safe interval
-    const localHead = this.localDragon.head;
-    for (const dragon of this.dragonManager.getAllDragons()) {
-      if (!dragon.isRemote || !dragon.alive) continue;
-      const dx = localHead.x - dragon.head.x;
-      const dy = localHead.y - dragon.head.y;
-      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 100; break; } // Nearby: faster but still safe
-    }
+    // One active movement transport: 20 Hz on Railway, 10 Hz only while the
+    // latest-state Firebase fallback is active. Neither path builds a queue.
+    const usingRealtime = this._realtimeReady
+      && this._realtimeSocket?.readyState === WebSocket.OPEN;
+    const syncInterval = usingRealtime
+      ? REMOTE_SYNC.websocketSendMs
+      : REMOTE_SYNC.firebaseSendMs;
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
     const payload = {
@@ -4006,7 +4034,7 @@ class Game {
       seq: ++this._positionSequence,
       t: now
     };
-    if (this._realtimeReady && this._realtimeSocket?.readyState === WebSocket.OPEN) {
+    if (usingRealtime) {
       if (this._realtimeSocket.bufferedAmount < 64 * 1024) {
         this._syncDiagnostics.sent++;
         this._realtimeSocket.send(JSON.stringify(payload));
@@ -4024,7 +4052,7 @@ class Game {
     if (!this.positionsRef && !this._realtimeReady) return;
     if (!this._realtimeReady && !this.positionsListenerSet) {
       this.positionsListenerSet = true;
-      this._remotePosCache = {};
+      this._remotePosCache ||= Object.create(null);
       this._lastRemoteApply = 0;
       // Subscribe per player. A whole-tree value listener rebuilt every
       // player's snapshot for every movement write, which scales poorly in FFA.
@@ -4032,42 +4060,7 @@ class Game {
         const playerId = snap.key;
         const position = snap.val();
         if (!position || !playerId || playerId === this.localPlayerId) return;
-        const sequence = Number(position.seq);
-        const timestamp = Number(position.t || 0);
-        const streamId = typeof position.streamId === 'string' ? position.streamId : '';
-        const previous = this._lastRemoteSequences.get(playerId) || null;
-        const sameStream = !!(streamId && previous?.streamId && streamId === previous.streamId);
-        const newerSequence = Number.isFinite(sequence)
-          && (!Number.isFinite(previous?.seq) || sequence > previous.seq);
-        const newerTimestamp = Number.isFinite(timestamp)
-          && timestamp > Number(previous?.t || 0);
-
-        // Sequence numbers are only comparable inside one browser stream.
-        // A refresh, respawned client, cached older build, or reordered
-        // non-blocking write must not lock this player out forever.
-        if (previous && sameStream && !newerSequence) {
-          this._syncDiagnostics.rejected++;
-          return;
-        }
-        if (previous && !sameStream && !newerTimestamp) {
-          this._syncDiagnostics.rejected++;
-          return;
-        }
-
-        this._lastRemoteSequences.set(playerId, {
-          streamId,
-          seq: Number.isFinite(sequence) ? sequence : null,
-          t: Number.isFinite(timestamp) ? timestamp : Date.now()
-        });
-        this._syncDiagnostics.received++;
-        
-        // Track latency: time since server sent the update
-        if (Number.isFinite(timestamp)) {
-          const latency = Math.max(0, Date.now() - timestamp);
-          this._syncDiagnostics.lastLatency = Math.min(999, latency); // Cap at 999ms for display
-        }
-        
-        this._remotePosCache[playerId] = position;
+        this._acceptRemotePosition(playerId, position);
       };
       this.positionsRef.on('child_added', this._positionListener);
       this.positionsRef.on('child_changed', this._positionListener);
@@ -4114,7 +4107,14 @@ class Game {
         pendingDeath = null;
       }
 
-      const isConfirmedRespawn = pos.alive === true && !dragon.alive && !pendingDeath;
+      const reportedLives = Number(pos.lives);
+      const deathLives = Number(dragon._remoteDeathPreviousLives);
+      const isConfirmedRespawn = !dragon.alive && isConfirmedRemoteRespawn({
+        reportedAlive: pos.alive,
+        reportedLives,
+        deathLives,
+        pendingDeath: !!pendingDeath,
+      });
       if (isConfirmedRespawn) {
         // Rebuild the complete body while it is still hidden. Interpolating
         // from the death location exposed a travelling shadow and leaked the
@@ -4134,6 +4134,9 @@ class Game {
         dragon.remoteSnapshots = [respawnSnapshot];
         dragon.remotePacketInterval = 100;
         dragon.remotePacketJitter = 0;
+        dragon.lives = reportedLives;
+        dragon.alive = true;
+        dragon._remoteDeathPreviousLives = null;
         dragon.collisionRecoilX = 0;
         dragon.collisionRecoilY = 0;
         this.dragonManager.initDragonSegments(dragon, pos.x, pos.y);
@@ -4159,8 +4162,10 @@ class Game {
             const seconds = Math.max(0.025, Math.min(0.25, arrivalMs / 1000));
             const measuredVx = (pos.x - previous.x) / seconds;
             const measuredVy = (pos.y - previous.y) / seconds;
-            vx = vx * 0.35 + measuredVx * 0.65;
-            vy = vy * 0.35 + measuredVy * 0.65;
+            const measuredSpeed = Math.hypot(measuredVx, measuredVy);
+            const velocityScale = measuredSpeed > 900 ? 900 / measuredSpeed : 1;
+            vx = vx * 0.35 + measuredVx * velocityScale * 0.65;
+            vy = vy * 0.35 + measuredVy * velocityScale * 0.65;
 
             const priorInterval = Number(dragon.remotePacketInterval) || arrivalMs;
             const difference = Math.abs(arrivalMs - priorInterval);
@@ -4196,15 +4201,6 @@ class Game {
             );
           }
 
-          // Respawns are handled above. This protects against reconnects or
-          // stream resets producing a visible flight across the whole arena.
-          if (lastBuffered && (streamId !== (lastBuffered.streamId || '') || correctionDistance > 900)) {
-            dragon.remoteSnapshots.length = 0;
-            dragon.head.x = snapshot.x;
-            dragon.head.y = snapshot.y;
-            if (Number.isFinite(snapshot.angle)) dragon.angle = snapshot.angle;
-          }
-
           dragon.remoteSnapshots.push(snapshot);
           if (dragon.remoteSnapshots.length > 8) {
             dragon.remoteSnapshots.splice(0, dragon.remoteSnapshots.length - 8);
@@ -4219,20 +4215,10 @@ class Game {
       if (!isConfirmedRespawn && typeof pos.segments === 'number' && pos.segments !== dragon.segments.length) {
         this._resizeRemoteDragon(dragon, pos.segments);
       }
-      if (!pendingDeath && typeof pos.lives === 'number' && pos.lives !== dragon.lives) {
-        dragon.lives = pos.lives;
-      }
-      if (typeof pos.alive === 'boolean' && pos.alive !== dragon.alive) {
-        if (pos.alive && pendingDeath) {
-          // Ignore stale resurrection until the victim acknowledges life loss.
-          dragon.alive = false;
-        } else if (pos.alive) {
-          dragon.alive = true;
-          this.effectsSystem.spawnParticles(pos.x, pos.y, '#00ff88', 10, 3, 400);
-        } else {
-          dragon.alive = false;
-        }
-      }
+      // Movement snapshots never kill or revive a dragon. Canonical combat
+      // events hide it; only the life-decremented respawn acknowledgement
+      // above can reveal it again.
+      if (Number.isFinite(reportedLives)) dragon._remoteReportedLives = reportedLives;
     }
   }
 
@@ -5080,11 +5066,10 @@ class Game {
       }
       
       // Specifically re-enable MAIN MENU button
-      const mainMenuBtn = document.querySelector('[data-screen="titleScreen"] button:contains("MAIN"), .main-menu-btn, #mainMenuBtn');
-      if (mainMenuBtn) {
-        mainMenuBtn.disabled = false;
-        mainMenuBtn.style.pointerEvents = 'auto';
-      }
+      document.querySelectorAll('#btnMainMenu, #btnMpMainMenu').forEach(button => {
+        button.disabled = false;
+        button.style.pointerEvents = 'auto';
+      });
       
       this.uiManager._ensureScreenInvariant?.();
     };
