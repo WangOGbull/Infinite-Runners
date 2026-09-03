@@ -1032,11 +1032,13 @@ class UIManager {
       if (!button) return;
       let lastActivation = 0;
       const activate = (event) => {
+        // Always consume duplicate pointer/touch/click events so the same
+        // physical tap cannot fall through onto the newly revealed title.
+        event?.preventDefault();
+        event?.stopPropagation();
         const now = Date.now();
         if (now - lastActivation < 700) return;
         lastActivation = now;
-        event?.preventDefault();
-        event?.stopPropagation();
         this.eventBus.emit('game:returnToMainMenu');
       };
 
