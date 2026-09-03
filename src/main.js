@@ -4931,6 +4931,7 @@ class Game {
 
       [
         'loadingOverlay',
+        'networkReconnectOverlay',
         'countdownOverlay',
         'pauseOverlay',
         'spectateOverlay',
