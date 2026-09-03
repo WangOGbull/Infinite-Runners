@@ -3304,7 +3304,7 @@ class Game {
   }
 
   _publishCombatDeath(victim, killer) {
-    if (!this.isMultiplayer || !this.combatEventsRef) return null;
+    if (!this.isMultiplayer || !this.combatEventsRef || this._settlementLocked) return null; // Don't publish after settlement
     const victimId = victim && victim.playerId;
     const killerId = killer && killer.playerId;
     if (!victimId) return null;
@@ -3345,7 +3345,7 @@ class Game {
   }
 
   _publishCombatReaction(type, payload = {}) {
-    if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef) return null;
+    if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef || this._settlementLocked) return null; // Don't publish after settlement
     const eventRef = this.combatEventsRef.push();
     const eventId = eventRef.key;
     if (!eventId) return null;
@@ -3753,12 +3753,14 @@ class Game {
       if (!s || this._settlementHandled) return;
       if (s.status === 'draw_needs_dispute_resolution') {
         this._settlementHandled = true;
+        this._settlementLocked = true; // LOCK: Stop all position/combat broadcasts
         if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
         this.uiManager.showStakeBreakdown({ draw: true });
         return;
       }
       if (typeof s.status === 'string' && s.status.startsWith('error_')) {
         this._settlementHandled = true;
+        this._settlementLocked = true; // LOCK: Stop all position/combat broadcasts
         if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
         console.error(`[Settlement] backend error status for room ${this.roomCode}: ${s.status}`, s);
         this.uiManager.showStakeBreakdown({
@@ -3771,6 +3773,7 @@ class Game {
       }
       if (s.status !== 'settled') return;
       this._settlementHandled = true;
+      this._settlementLocked = true; // LOCK: Stop all position/combat broadcasts immediately
       if (this._settlementTimeoutId) { clearTimeout(this._settlementTimeoutId); this._settlementTimeoutId = null; }
       let iWon;
       if (s.winnerId) {
@@ -3873,16 +3876,21 @@ class Game {
 
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId || this._connectionInterrupted) return;
+    if (this._settlementLocked) return; // Stop broadcasting once settlement is decided
     const now = Date.now();
     // Cap sends so slow mobile connections cannot build a stale write queue.
     // Remote dragons are interpolated locally between these updates.
-    let syncInterval = 80;
+    // MOBILE FIX: Increased from 80ms base/50ms nearby to 150ms/100ms to prevent:
+    //   - Firebase write queue buildup on slow mobile connections
+    //   - Network congestion causing out-of-order position/combat events
+    //   - Position updates arriving after settlement has locked
+    let syncInterval = 150; // Base: mobile-safe interval
     const localHead = this.localDragon.head;
     for (const dragon of this.dragonManager.getAllDragons()) {
       if (!dragon.isRemote || !dragon.alive) continue;
       const dx = localHead.x - dragon.head.x;
       const dy = localHead.y - dragon.head.y;
-      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 50; break; }
+      if (dx * dx + dy * dy < 700 * 700) { syncInterval = 100; break; } // Nearby: faster but still safe
     }
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     this.lastBroadcast = now;
@@ -4890,6 +4898,7 @@ class Game {
     this._settlementRef = null;
     this._settlementListener = null;
     this._settlementHandled = false;
+    this._settlementLocked = false; // Prevents position/combat broadcasts after settlement decided
     if (this._settlementTimeoutId) {
       clearTimeout(this._settlementTimeoutId);
       this._settlementTimeoutId = null;
