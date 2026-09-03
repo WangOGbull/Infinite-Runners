@@ -1,5 +1,6 @@
 import CONFIG from './config.js';
 import * as AL from './assetLoader.js';
+import { getRemoteRenderTiming } from './remoteSync.js?v=1';
 
 const AssetLoader = AL.default || AL;
 
@@ -89,6 +90,8 @@ export class DragonManager {
       remotePacketInterval: 100,
       remotePacketJitter: 0,
       remoteInterpolationDelay: 100,
+      _remoteDeathPreviousLives: null,
+      _remoteReportedLives: null,
       remoteRenderStats: {
         frames: 0,
         interpolated: 0,
@@ -503,14 +506,11 @@ export class DragonManager {
 
           // Keep enough delay to stay between real snapshots at the measured
           // packet cadence, while capping added visual latency for combat.
-          const desiredDelay = Math.max(
-            60,
-            Math.min(
-              120,
-              (Number(dragon.remotePacketInterval) || 100)
-                + (Number(dragon.remotePacketJitter) || 0) * 1.5
-            )
+          const timing = getRemoteRenderTiming(
+            dragon.remotePacketInterval,
+            dragon.remotePacketJitter
           );
+          const desiredDelay = timing.interpolationMs;
           const delayBlend = 1 - Math.exp(-deltaTime / 250);
           dragon.remoteInterpolationDelay +=
             (desiredDelay - dragon.remoteInterpolationDelay) * delayBlend;
@@ -556,16 +556,28 @@ export class DragonManager {
             const latest = snapshots[snapshots.length - 1] || dragon.remoteTarget;
             // Extrapolate only across a very short uncovered gap. Never let
             // prediction drift grow until the next packet snaps it backward.
-            extrapolationMs = Math.max(
-              0,
-              Math.min(40, renderAt - Number(latest.receivedAt || renderAt))
-            );
+            extrapolationMs = Math.max(0, Math.min(
+              timing.extrapolationMs,
+              renderAt - Number(latest.receivedAt || renderAt)
+            ));
             renderMode = extrapolationMs > 0 ? 'extrapolated' : 'hold';
             renderX = latest.x + (Number(latest.vx) || 0) * extrapolationMs / 1000;
             renderY = latest.y + (Number(latest.vy) || 0) * extrapolationMs / 1000;
             renderAngle = latest.angle;
           }
 
+          // Bound correction speed after packet loss or a transport change.
+          // This prevents a large accepted correction from becoming a
+          // one-frame teleport while still converging quickly.
+          const correctionX = renderX - previousHeadX;
+          const correctionY = renderY - previousHeadY;
+          const correctionDistance = Math.hypot(correctionX, correctionY);
+          const maxHeadStep = Math.max(12, deltaTime * 1.25);
+          if (correctionDistance > maxHeadStep) {
+            const correctionScale = maxHeadStep / correctionDistance;
+            renderX = previousHeadX + correctionX * correctionScale;
+            renderY = previousHeadY + correctionY * correctionScale;
+          }
           dragon.head.x = renderX;
           dragon.head.y = renderY;
 
@@ -576,7 +588,8 @@ export class DragonManager {
           renderStats.frames++;
           if (renderMode === 'interpolated') renderStats.interpolated++;
           if (renderMode === 'extrapolated') renderStats.extrapolated++;
-          if (renderMode === 'extrapolated' && extrapolationMs >= 39.5) renderStats.capped++;
+          if (renderMode === 'extrapolated'
+              && extrapolationMs >= timing.extrapolationMs - 0.5) renderStats.capped++;
           renderStats.maxHeadStep = Math.max(
             renderStats.maxHeadStep || 0,
             Math.hypot(renderX - previousHeadX, renderY - previousHeadY)
