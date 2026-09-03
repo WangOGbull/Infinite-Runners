@@ -211,6 +211,8 @@ class Game {
     this._positionListener = null;
     this._realtimeSocket = null;
     this._realtimeReady = false;
+    this._visibilityHandler = null; // Track handler for cleanup
+    this._connectionStatusOverlay = null; // On-screen connection status (no console needed)
     this._realtimeManualClose = false;
     this._realtimeReconnectTimer = null;
     this._realtimeGeneration = 0;
@@ -3454,10 +3456,24 @@ class Game {
       this._realtimeReconnectTimer = null;
     }
     let token;
+    
+    // MOBILE FIX: Token fetch can hang or fail on mobile. Add timeout + retry.
     try {
-      token = await this.auth?.currentUser?.getIdToken();
+      const tokenPromise = this.auth?.currentUser?.getIdToken();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Token fetch timeout')), 3000)
+      );
+      token = await Promise.race([tokenPromise, timeoutPromise]);
     } catch (error) {
-      console.warn('[GameSync] Firebase token unavailable; using Firebase movement fallback.', error?.message || error);
+      // Token failed - try offline/guest token fallback
+      console.warn('[GameSync] Firebase token unavailable (', error?.message || error, '). Retrying in 2s...');
+      // Retry connection after 2s instead of giving up immediately
+      if (this.state === 'PLAYING' && generation === this._realtimeGeneration) {
+        this._realtimeReconnectTimer = setTimeout(() => {
+          this._realtimeReconnectTimer = null;
+          this._connectRealtimeTransport();
+        }, 2000);
+      }
       return;
     }
     if (!token || generation !== this._realtimeGeneration || this.state !== 'PLAYING') return;
@@ -3529,7 +3545,20 @@ class Game {
         this._connectRealtimeTransport();
       }, 1000);
     });
-    socket.addEventListener('error', () => {});
+    socket.addEventListener('error', (err) => {
+      console.warn('[GameSync] WebSocket error:', err?.message || err);
+    });
+    
+    // MOBILE FIX: Reconnect when app comes back from background
+    if (!this._visibilityHandler) {
+      this._visibilityHandler = () => {
+        if (document.visibilityState === 'visible' && this.state === 'PLAYING' && !this._realtimeReady) {
+          console.log('[GameSync] App resumed - attempting WebSocket reconnect');
+          this._connectRealtimeTransport();
+        }
+      };
+      document.addEventListener('visibilitychange', this._visibilityHandler);
+    }
   }
 
   _closeRealtimeTransport() {
@@ -3544,6 +3573,18 @@ class Game {
     this._realtimeSocket = null;
     if (socket) {
       try { socket.close(1000, 'Match ended'); } catch (_) {}
+    }
+    
+    // Clean up visibility handler
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
+    
+    // Remove connection status overlay
+    if (this._connectionStatusOverlay) {
+      this._connectionStatusOverlay.remove();
+      this._connectionStatusOverlay = null;
     }
   }
 
@@ -3874,9 +3915,42 @@ class Game {
     });
   }
 
+  _updateConnectionStatusOverlay() {
+    // MOBILE DEBUG: On-screen status so players can see WebSocket connection without console
+    if (this.state !== 'PLAYING') return;
+    
+    if (!this._connectionStatusOverlay) {
+      const overlay = document.createElement('div');
+      overlay.id = 'mp-connection-status';
+      overlay.style.cssText = `
+        position: fixed;
+        top: 50px;
+        right: 10px;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.7);
+        color: #0f0;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-family: monospace;
+        line-height: 1.4;
+        pointer-events: none;
+        white-space: nowrap;
+      `;
+      document.body.appendChild(overlay);
+      this._connectionStatusOverlay = overlay;
+    }
+    
+    const status = this._realtimeReady ? '🟢 WebSocket' : '🟡 Firebase';
+    const latency = this._syncDiagnostics?.lastLatency || 0;
+    const updates = this._syncDiagnostics?.received || 0;
+    this._connectionStatusOverlay.textContent = `${status} | ${updates} upd | ${latency}ms`;
+  }
+
   broadcastPosition() {
     if (!this.positionsRef || !this.localDragon || !this.localPlayerId || this._connectionInterrupted) return;
     if (this._settlementLocked) return; // Stop broadcasting once settlement is decided
+    this._updateConnectionStatusOverlay(); // Show connection status
     const now = Date.now();
     // Cap sends so slow mobile connections cannot build a stale write queue.
     // Remote dragons are interpolated locally between these updates.
@@ -3963,6 +4037,13 @@ class Game {
           t: Number.isFinite(timestamp) ? timestamp : Date.now()
         });
         this._syncDiagnostics.received++;
+        
+        // Track latency: time since server sent the update
+        if (Number.isFinite(timestamp)) {
+          const latency = Math.max(0, Date.now() - timestamp);
+          this._syncDiagnostics.lastLatency = Math.min(999, latency); // Cap at 999ms for display
+        }
+        
         this._remotePosCache[playerId] = position;
       };
       this.positionsRef.on('child_added', this._positionListener);
@@ -4964,6 +5045,24 @@ class Game {
         titleScreen.style.pointerEvents = 'auto';
         titleScreen.setAttribute('aria-hidden', 'false');
       }
+      
+      // MOBILE FIX: Re-enable all buttons in title screen (pointer-events + disabled state)
+      const buttons = titleScreen?.querySelectorAll('button, [role="button"]');
+      if (buttons) {
+        buttons.forEach(btn => {
+          btn.disabled = false;
+          btn.style.pointerEvents = 'auto';
+          btn.style.opacity = '1';
+        });
+      }
+      
+      // Specifically re-enable MAIN MENU button
+      const mainMenuBtn = document.querySelector('[data-screen="titleScreen"] button:contains("MAIN"), .main-menu-btn, #mainMenuBtn');
+      if (mainMenuBtn) {
+        mainMenuBtn.disabled = false;
+        mainMenuBtn.style.pointerEvents = 'auto';
+      }
+      
       this.uiManager._ensureScreenInvariant?.();
     };
 
