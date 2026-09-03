@@ -1039,25 +1039,16 @@ class UIManager {
         event?.stopPropagation();
         this.eventBus.emit('game:returnToMainMenu');
       };
-      // pointerup bypasses mobile browsers that suppress the synthetic click
-      // after a long touch, scroll, settlement render, or DOM repaint.
-      button.addEventListener('pointerup', activate);
+
+      // Use the physical press directly. Calling button.click() from a
+      // document-level handler is unreliable in mobile in-app browsers after
+      // the canvas and settlement panel repaint.
+      button.addEventListener('pointerdown', activate, { passive: false });
+      button.addEventListener('touchend', activate, { passive: false });
       button.addEventListener('click', activate);
     };
     bindMainMenu(document.getElementById('btnMainMenu'));
     bindMainMenu(document.getElementById('btnMpMainMenu'));
-    // Capture the initial press at document level. This remains reachable even
-    // when a mobile browser suppresses click/pointerup after the settlement
-    // panel repaints over the game-over screen.
-    document.addEventListener('pointerdown', event => {
-      const button = event.target?.closest?.('#btnMainMenu, #btnMpMainMenu');
-      if (!button) return;
-      event.preventDefault();
-      event.stopPropagation();
-      // Reuse the button's deduplicated activation path so pointerup/click
-      // cannot trigger a second teardown.
-      button.click();
-    }, true);
     document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
     const returnToActiveRoomBtn = document.getElementById('btnReturnToActiveRoom');
     if (returnToActiveRoomBtn) {
