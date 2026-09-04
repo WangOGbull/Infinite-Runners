@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [html, main, ui, css] = await Promise.all([
+const [html, main, ui, css, mobileActivation] = await Promise.all([
   readFile(new URL('../index.html', import.meta.url), 'utf8'),
   readFile(new URL('../src/main.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/uiManager.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/styles.css', import.meta.url), 'utf8'),
+  readFile(new URL('../src/mobileActivation.js', import.meta.url), 'utf8'),
 ]);
 
 test('there is no global emoji back button', () => {
@@ -26,10 +27,15 @@ test('Main Menu button exists only inside the game-over screen', () => {
   assert.match(css, /#gameOverScreen:not\(\.active\) #btnMainMenu/);
 });
 
-test('Main Menu uses the shared mobile-safe tap path', () => {
+test('Main Menu uses a dedicated mobile activation path', () => {
   assert.match(ui, /bindMainMenu\(document\.getElementById\('btnMainMenu'\)\)/);
-  assert.match(ui, /this\._tap\(button, activate\)/);
+  assert.match(ui, /bindMobileActivation\(button/);
+  assert.doesNotMatch(ui, /this\._tap\(button, activate\)/);
   assert.match(ui, /this\.eventBus\.emit\('game:returnToMainMenu'\)/);
   assert.match(main, /this\.eventBus\.on\('game:returnToMainMenu'/);
   assert.match(main, /this\._returnToMainMenuSafely\(\)/);
+  assert.match(html, /id="btnMainMenu"[^>]+data-immediate-action="true"/);
+  assert.match(mobileActivation, /addEventListener\('pointerup'/);
+  assert.match(mobileActivation, /addEventListener\('touchend'/);
+  assert.match(mobileActivation, /addEventListener\('click'/);
 });
