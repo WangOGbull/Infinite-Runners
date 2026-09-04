@@ -437,6 +437,33 @@ class Game {
     this.stakingManager.getDisplayTiers()
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
+    
+    // INITIALIZE BACK BUTTON (after eventBus is ready)
+    this._initBackButton();
+  }
+  
+  _initBackButton() {
+    const backBtn = document.getElementById('btnBack');
+    if (!backBtn) return;
+    
+    // Handle back button click
+    backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.eventBus.emit('game:returnToMainMenu');
+    }, { passive: false });
+    
+    // Hide back button on title screen (nowhere to go back to)
+    this.eventBus.on('ui:screenChanged', ({ screenId }) => {
+      if (!backBtn) return;
+      if (screenId === 'titleScreen') {
+        backBtn.style.display = 'none';
+        backBtn.style.pointerEvents = 'none';
+      } else {
+        backBtn.style.display = 'flex';
+        backBtn.style.pointerEvents = 'auto';
+      }
+    });
   }
 
   _installMobileWalletReturnFallback() {
@@ -1371,14 +1398,6 @@ class Game {
     this.eventBus.on('game:returnToMainMenu', () => {
       this._returnToMainMenuSafely();
     });
-    
-    // BACK BUTTON: Top-left corner handler
-    const backBtn = document.getElementById('btnBack');
-    if (backBtn) {
-      backBtn.onclick = () => {
-        this.eventBus.emit('game:returnToMainMenu');
-      };
-    }
     this.eventBus.on('game:returnToMultiplayerMenu', () => {
       this.quitGame();
       this.uiManager.showScreen('mpMenuScreen');
