@@ -1030,25 +1030,24 @@ class UIManager {
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
     const bindMainMenu = (button) => {
       if (!button) return;
-      let lastActivation = -Infinity;
+      let navigating = false;
       const activate = (event) => {
-        if (event.type === 'pointerdown' && event.pointerType === 'mouse' && event.button !== 0) return;
-        const now = Date.now();
-        if (now - lastActivation < 700) {
-          if (event.cancelable) event.preventDefault();
-          return;
-        }
-        lastActivation = now;
-        if (event.cancelable) event.preventDefault();
-        event.stopPropagation();
+        if (navigating) return;
+        navigating = true;
+        if (event?.cancelable) event.preventDefault();
+        event?.stopPropagation();
+
+        // The button itself opens the title immediately. Game cleanup is a
+        // follow-up and cannot block or undo the visible navigation.
+        this.showScreen('titleScreen');
         this.eventBus.emit('game:returnToMainMenu');
+        setTimeout(() => { navigating = false; }, 700);
       };
 
-      // Mobile browsers can leave gameplay controls holding the pointer until
-      // pointerup. Navigate on pointerdown so that stale canvas capture cannot
-      // swallow the completed tap. Click remains for keyboard and desktop.
-      button.addEventListener('pointerdown', activate, { passive: false });
-      button.addEventListener('click', activate);
+      // Normal click for desktop/keyboard and touchend for mobile browsers.
+      // No pointer-event activation is used by this result-screen control.
+      button.onclick = activate;
+      button.ontouchend = activate;
     };
     bindMainMenu(document.getElementById('btnMainMenu'));
     bindMainMenu(document.getElementById('btnMpMainMenu'));
