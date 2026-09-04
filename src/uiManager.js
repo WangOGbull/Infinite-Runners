@@ -1049,7 +1049,8 @@ class UIManager {
       button.onclick = activate;
       button.ontouchend = activate;
     };
-    bindMainMenu(document.getElementById('btnMainMenu'));
+    // The primary post-match Main Menu control is a native link and needs
+    // no JavaScript activation. Keep the legacy MP modal control wired here.
     bindMainMenu(document.getElementById('btnMpMainMenu'));
     document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
     const returnToActiveRoomBtn = document.getElementById('btnReturnToActiveRoom');
