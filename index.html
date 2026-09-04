@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"> 
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> 
-<link rel="stylesheet" href="./src/styles.css?v=61">
+<link rel="stylesheet" href="./src/styles.css?v=62">
 
 <style> 
   html, body { overflow-x: hidden; max-width: 100vw; } 
@@ -48,35 +48,6 @@
     z-index: 1001 !important;
   }
   
-  /* BACK BUTTON: Top-left corner */
-  #btnBack {
-    position: fixed !important;
-    top: 16px !important;
-    left: 12px !important;
-    z-index: 9999 !important;
-    background: rgba(20, 20, 30, 0.85) !important;
-    border: 1px solid rgba(100, 200, 255, 0.3) !important;
-    border-radius: 8px !important;
-    width: 44px !important;
-    height: 44px !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    font-size: 24px !important;
-    color: #00e0ff !important;
-    transition: all 0.2s ease !important;
-    touch-action: none !important;
-  }
-  
-  #btnBack:active {
-    background: rgba(20, 20, 30, 0.95) !important;
-    border-color: #00e0ff !important;
-    transform: scale(0.95) !important;
-  } 
-   
-   
   #boostBtn span { display: none !important; } 
   #boostBtn.attack-ready { animation: attackPulse 1s ease-in-out infinite; } 
   #boostBtn.attack-active { transform: scale(0.92); filter: brightness(1.3); } 
@@ -3750,10 +3721,7 @@
 </head>
 <body> 
 
-<!-- BACK BUTTON: Top-left corner (global) -->
-<button id="btnBack" title="Back to Main Menu" aria-label="Back to Main Menu">↩️</button>
-
-<!-- ===== BOOT LOADER ===== --> 
+<!-- ===== BOOT LOADER ===== -->
 <div id="bootScreen"> 
   <div class="bootInner"> 
     <div class="bootLogo">&#8734;</div> 
@@ -4290,9 +4258,13 @@
     <div class="goStakeRows" id="goStakeRows"></div> 
     <a class="goStakeTx" id="goStakeTx" href="#" target="_blank" rel="noopener" style="display:none;"></a> 
   </div> 
-  <div class="goActions"> 
-    <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button> 
-  </div> 
+  <div class="goActions">
+    <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button>
+    <button class="goMainMenuBtn" id="btnMainMenu" type="button" aria-label="Return to Main Menu">
+      <span class="goMainMenuIcon" aria-hidden="true"><i data-lucide="home"></i></span>
+      <span>MAIN MENU</span>
+    </button>
+  </div>
 </div> 
 
 <!-- ===== TIER COMPLETE ===== --> 
@@ -4439,7 +4411,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=83"></script>
+<script type="module" src="./src/main.js?v=84"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
