@@ -498,6 +498,73 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .goStat .lbl{font-size:9px;letter-spacing:1px;color:rgba(255,255,255,0.3);margin-top:2px}
 .goActions{display:flex;gap:10px;position:relative;z-index:2200;pointer-events:auto}
 #btnMainMenu,#btnMpMainMenu{position:relative;z-index:2201;pointer-events:auto!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.goMainMenuBtn{
+  position:relative;
+  isolation:isolate;
+  min-width:210px;
+  height:48px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:11px;
+  overflow:hidden;
+  color:#f8e7b0;
+  border:1px solid rgba(225,181,78,.82);
+  border-radius:8px;
+  background:
+    linear-gradient(180deg,rgba(32,29,24,.98),rgba(7,10,17,.98)) padding-box,
+    linear-gradient(135deg,#ffe39a,#8a5b13 48%,#31d8ff) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255,239,189,.18),
+    inset 0 -10px 22px rgba(0,0,0,.34),
+    0 0 0 1px rgba(0,0,0,.75),
+    0 8px 24px rgba(0,0,0,.46),
+    0 0 18px rgba(224,174,55,.12);
+  font-family:'Cinzel Decorative',serif;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:1.7px;
+  text-shadow:0 1px 4px #000;
+  cursor:pointer;
+  transition:transform .14s ease,filter .14s ease,box-shadow .14s ease;
+}
+.goMainMenuBtn::before{
+  content:'';
+  position:absolute;
+  z-index:-1;
+  inset:3px;
+  border:1px solid rgba(85,218,255,.16);
+  border-radius:5px;
+  pointer-events:none;
+}
+.goMainMenuBtn::after{
+  content:'';
+  position:absolute;
+  z-index:-1;
+  top:-60%;
+  left:-35%;
+  width:42%;
+  height:220%;
+  transform:rotate(20deg);
+  background:linear-gradient(90deg,transparent,rgba(255,236,174,.14),transparent);
+  pointer-events:none;
+}
+.goMainMenuIcon{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  color:#55ddff;
+  border:1px solid rgba(85,221,255,.42);
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,rgba(85,221,255,.20),rgba(8,17,29,.92) 70%);
+  box-shadow:inset 0 0 9px rgba(85,221,255,.12),0 0 10px rgba(85,221,255,.12);
+}
+.goMainMenuIcon svg{width:16px;height:16px;stroke-width:2}
+.goMainMenuBtn:hover{filter:brightness(1.12);box-shadow:inset 0 1px 0 rgba(255,239,189,.22),0 8px 26px rgba(0,0,0,.5),0 0 22px rgba(224,174,55,.20)}
+.goMainMenuBtn:active{transform:translateY(1px) scale(.97);filter:brightness(.92)}
+.goMainMenuBtn:focus-visible{outline:2px solid #55ddff;outline-offset:3px}
+#gameOverScreen:not(.active) #btnMainMenu{display:none!important;pointer-events:none!important}
 
 /* ==================== HOW TO PLAY ==================== */
 #howToPlayScreen{background:rgba(3,8,20,0.95);overflow-y:auto;padding:16px}
