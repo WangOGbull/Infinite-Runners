@@ -1,5 +1,3 @@
-import { REMOTE_SYNC } from './remoteSync.js';
-
 export const REMOTE_SYNC = Object.freeze({
   websocketSendMs: 50,
   firebaseSendMs: 100,
