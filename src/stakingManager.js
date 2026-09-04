@@ -172,6 +172,78 @@ class StakingManager {
     return false;
   }
 
+  // Confirms over JSON-RPC HTTP polling only. The Railway /solana-rpc
+  // endpoint proxies Helius HTTP requests but does not expose a Solana
+  // WebSocket. web3.js confirmTransaction() would derive a wss:// Railway URL
+  // and retry it indefinitely, flooding the console while staking.
+  async _confirmTransactionOverHttp(signature, lastValidBlockHeight) {
+    let lastRpcError = null;
+
+    while (true) {
+      try {
+        const response = await this.connection.getSignatureStatus(signature, {
+          searchTransactionHistory: true,
+        });
+        const status = response && response.value;
+
+        if (status) {
+          if (status.err) {
+            const transactionError = new Error(
+              `Stake transaction failed on-chain: ${JSON.stringify(status.err)}`
+            );
+            transactionError.code = 'STAKE_ONCHAIN_FAILED';
+            throw transactionError;
+          }
+          if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') {
+            return status;
+          }
+        }
+
+        const blockHeight = await this.connection.getBlockHeight('confirmed');
+        if (blockHeight > lastValidBlockHeight) {
+          const expiredError = new Error(
+            `Signature ${signature} has expired: block height exceeded.`
+          );
+          expiredError.name = 'TransactionExpiredBlockheightExceededError';
+          throw expiredError;
+        }
+
+        lastRpcError = null;
+      } catch (err) {
+        if (
+          err?.name === 'TransactionExpiredBlockheightExceededError' ||
+          err?.code === 'STAKE_ONCHAIN_FAILED'
+        ) {
+          throw err;
+        }
+        // A temporary Helius/proxy failure must not trigger another wallet
+        // approval. Keep polling until the known blockhash validity ends.
+        lastRpcError = err;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // If status polling is temporarily unavailable, still try to obtain the
+      // current block height so a genuinely expired transaction can exit.
+      if (lastRpcError) {
+        try {
+          const blockHeight = await this.connection.getBlockHeight('confirmed');
+          if (blockHeight > lastValidBlockHeight) {
+            const expiredError = new Error(
+              `Signature ${signature} has expired: block height exceeded.`
+            );
+            expiredError.name = 'TransactionExpiredBlockheightExceededError';
+            throw expiredError;
+          }
+        } catch (heightError) {
+          if (heightError?.name === 'TransactionExpiredBlockheightExceededError') {
+            throw heightError;
+          }
+        }
+      }
+    }
+  }
+
   // Builds, sends, and confirms one attempt with a blockhash fetched at
   // the last possible moment (immediately before the wallet prompt), so
   // the ~60-90s validity window is spent almost entirely on the user's
@@ -199,8 +271,8 @@ class StakingManager {
 
     try {
       await _timed(
-        'connection.confirmTransaction',
-        () => connection.confirmTransaction({ signature: result.signature, blockhash, lastValidBlockHeight }, 'confirmed')
+        'connection.confirmTransaction (HTTP polling)',
+        () => this._confirmTransactionOverHttp(result.signature, lastValidBlockHeight)
       );
       return result;
     } catch (err) {
