@@ -27,13 +27,10 @@ test('Main Menu button exists only inside the game-over screen', () => {
   assert.match(css, /#gameOverScreen:not\(\.active\) #btnMainMenu/);
 });
 
-test('Main Menu stays in the same tab and opens the title directly', () => {
-  assert.match(ui, /resultMainMenu\.addEventListener\('click'/);
-  assert.match(ui, /event\.preventDefault\(\)/);
-  assert.match(ui, /this\.showScreen\('titleScreen'\)/);
-  assert.match(ui, /bindMainMenu\(document\.getElementById\('btnMpMainMenu'\)\)/);
+test('Main Menu uses uncancellable same-tab native navigation', () => {
   assert.match(html, /id="btnMainMenu"[^>]+href="\/"[^>]+target="_self"/);
   assert.doesNotMatch(html, /id="btnMainMenu"[^>]+target="_blank"/);
-  assert.match(ui, /this\.eventBus\.emit\('game:returnToMainMenu'\)/);
-  assert.match(main, /this\._returnToMainMenuSafely\(\)/);
+  assert.doesNotMatch(ui, /resultMainMenu\.addEventListener/);
+  assert.doesNotMatch(ui, /bindMainMenu\(document\.getElementById\('btnMainMenu'\)\)/);
+  assert.match(ui, /bindMainMenu\(document\.getElementById\('btnMpMainMenu'\)\)/);
 });
