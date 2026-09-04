@@ -268,6 +268,9 @@ class Game {
     this._queuedWalletResult = null;
     this._holdPhantomStakeReturn = false;
     this._deferredStakeResult = null;
+    // Invalidates delayed wallet-return callbacks after the player explicitly
+    // leaves a room, preventing mobile recovery from reopening the lobby.
+    this._stakeResumeGeneration = 0;
     this.init();
   }
 
@@ -2258,6 +2261,7 @@ class Game {
   }
 
   async _resumeStakingAction(pendingAction, signature) {
+    const resumeGeneration = this._stakeResumeGeneration;
     let processedSignatures = [];
     if (signature) {
       try {
@@ -2285,7 +2289,12 @@ class Game {
     }
     this._stakingResumeInFlight = true;
     try {
-      const completed = await this._resumeStakingActionInner(pendingAction, signature);
+      const completed = await this._resumeStakingActionInner(
+        pendingAction,
+        signature,
+        resumeGeneration
+      );
+      if (resumeGeneration !== this._stakeResumeGeneration) return false;
       if (completed && signature) {
         try {
           localStorage.setItem('irProcessedStakeSignatures', JSON.stringify([
@@ -2296,18 +2305,22 @@ class Game {
       return completed;
     } catch (err) {
       console.error('[Staking] resume failed:', err);
-      this._emitStakeResult('staking:error', {
-        message: err?.message || 'Stake confirmation failed. Please try placing your bet again.'
-      });
+      if (resumeGeneration === this._stakeResumeGeneration) {
+        this._emitStakeResult('staking:error', {
+          message: err?.message || 'Stake confirmation failed. Please try placing your bet again.'
+        });
+      }
     } finally {
-      this._stakingResumeInFlight = false;
-      this._assertLobbyScreen();
-      setTimeout(() => this._assertLobbyScreen(), 400);
-      setTimeout(() => this._assertLobbyScreen(), 1200);
+      if (resumeGeneration === this._stakeResumeGeneration) {
+        this._stakingResumeInFlight = false;
+        this._assertLobbyScreen();
+        setTimeout(() => this._assertLobbyScreen(), 400);
+        setTimeout(() => this._assertLobbyScreen(), 1200);
+      }
     }
   }
 
-  async _resumeStakingActionInner(pendingAction, signature) {
+  async _resumeStakingActionInner(pendingAction, signature, resumeGeneration) {
     if (!this.roomRef) {
       const ctx = this._consumeLobbyContext();
       if (ctx && this.db) await this._rejoinRoom(ctx);
@@ -2329,6 +2342,12 @@ class Game {
         });
         return false;
       }
+    }
+    // Leave Room is authoritative. A late Phantom/Helius response must
+    // never recreate or update a room after the player has exited it.
+    if (resumeGeneration !== this._stakeResumeGeneration || !this.roomRef) {
+      console.log('[Staking] ignored late wallet result after room exit');
+      return false;
     }
     if (pendingAction.type === 'createRoom') {
       await this._markDeposited('host', pendingAction.tier, signature);
@@ -3047,6 +3066,16 @@ class Game {
   }
 
   leaveRoom() {
+    // Explicit mobile exit wins over every delayed Phantom return callback.
+    // Clear the return hold first so no pending async completion can restore
+    // the lobby after this method navigates away.
+    this._stakeResumeGeneration += 1;
+    this._stakingResumeInFlight = false;
+    this._walletReturnBooting = false;
+    this._queuedWalletResult = null;
+    this._deferredStakeResult = null;
+    this._holdPhantomStakeReturn = false;
+
     const myRecord = (this.roomPlayers && this.localPlayerId)
       ? this.roomPlayers[this.localPlayerId] : null;
     const iStakedPerPlayer = !!(myRecord && myRecord.deposited);

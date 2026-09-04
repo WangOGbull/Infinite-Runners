@@ -913,12 +913,79 @@ class WalletManager {
           return;
         }
         const signedTxBytes = b58decode(result.transaction);
+        // Capture the signature from the exact bytes Phantom signed before
+        // broadcasting. If the RPC accepts the transaction but its HTTP
+        // response is lost, this lets us reconcile that same transaction
+        // instead of asking the player to sign and pay again.
+        let signedSignature = '';
+        try {
+          const signedTransaction = solanaWeb3.Transaction.from(signedTxBytes);
+          const signatureBytes = signedTransaction.signatures?.[0]?.signature;
+          if (signatureBytes) signedSignature = b58encode(signatureBytes);
+        } catch (signatureError) {
+          this._debugLog(`=> could not derive signed transaction signature: ${signatureError?.message || signatureError}`);
+        }
+
         this._getAuthenticatedConnection()
-          .then(connection => connection.sendRawTransaction(signedTxBytes))
-          .then(signature => { this.eventBus.emit('wallet:txConfirmed', { signature, pendingAction }); })
-          .catch(err => {
+          .then(async connection => {
+            let signature = '';
+            try {
+              signature = await connection.sendRawTransaction(signedTxBytes, {
+                preflightCommitment: 'confirmed',
+                maxRetries: 5,
+              });
+            } catch (firstError) {
+              // A confirmed blockhash can be temporarily absent from a
+              // preflight node behind an RPC load balancer. Rebroadcasting the
+              // IDENTICAL signed bytes with preflight skipped is idempotent:
+              // it has the same signature and cannot charge the player twice.
+              if (!/blockhash not found/i.test(firstError?.message || '')) throw firstError;
+              this._debugLog('=> preflight could not find blockhash; rebroadcasting identical signed bytes');
+              signature = await connection.sendRawTransaction(signedTxBytes, {
+                skipPreflight: true,
+                preflightCommitment: 'confirmed',
+                maxRetries: 5,
+              });
+            }
+            this.eventBus.emit('wallet:txConfirmed', {
+              signature: signature || signedSignature,
+              pendingAction
+            });
+          })
+          .catch(async err => {
             this._debugLog(`=> sendRawTransaction FAILED: ${err?.message || err}`);
-            this.eventBus.emit('wallet:txError', { message: err?.message || 'Failed to submit transaction.', pendingAction });
+
+            // A timeout or dropped RPC response is ambiguous. Check the exact
+            // derived signature before displaying failure; a confirmed
+            // transfer must continue into the Firebase deposited update.
+            if (signedSignature) {
+              try {
+                const connection = await this._getAuthenticatedConnection();
+                for (let attempt = 0; attempt < 8; attempt++) {
+                  const response = await connection.getSignatureStatus(signedSignature, {
+                    searchTransactionHistory: true,
+                  });
+                  const status = response && response.value;
+                  if (status?.err) break;
+                  if (status?.confirmationStatus === 'confirmed' || status?.confirmationStatus === 'finalized') {
+                    this._debugLog(`=> recovered confirmed signature after RPC error: ${signedSignature.slice(0, 8)}…`);
+                    this.eventBus.emit('wallet:txConfirmed', {
+                      signature: signedSignature,
+                      pendingAction
+                    });
+                    return;
+                  }
+                  await new Promise(resolve => setTimeout(resolve, 1500));
+                }
+              } catch (statusError) {
+                this._debugLog(`=> signature recovery check failed: ${statusError?.message || statusError}`);
+              }
+            }
+
+            this.eventBus.emit('wallet:txError', {
+              message: err?.message || 'Failed to submit transaction.',
+              pendingAction
+            });
           });
       }
     } catch (err) {
