@@ -1,4 +1,5 @@
 import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
+import { bindMobileActivation } from './mobileActivation.js?v=1';
 
 const WALLET_ICON_URLS = {
   phantom: 'https://i.postimg.cc/44mrJ4My/phantom-logo.webp',
@@ -1030,15 +1031,9 @@ class UIManager {
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
     const bindMainMenu = (button) => {
       if (!button) return;
-      let lastActivation = 0;
-      const activate = (event) => {
-        const now = Date.now();
-        if (now - lastActivation < 700) return;
-        lastActivation = now;
+      bindMobileActivation(button, () => {
         this.eventBus.emit('game:returnToMainMenu');
-      };
-      // _tap handles pointerdown + ghost-click suppression consistently
-      this._tap(button, activate);
+      });
     };
     bindMainMenu(document.getElementById('btnMainMenu'));
     bindMainMenu(document.getElementById('btnMpMainMenu'));
@@ -2469,7 +2464,8 @@ class UIManager {
     if (!this._ghostTapGuardInstalled) {
       this._ghostTapGuardInstalled = true;
       const guard = (e) => {
-        if (this._lastScreenSwitch && Date.now() - this._lastScreenSwitch < 350) {
+        const immediateAction = e.target?.closest?.('[data-immediate-action="true"]');
+        if (!immediateAction && this._lastScreenSwitch && Date.now() - this._lastScreenSwitch < 350) {
           e.preventDefault(); e.stopPropagation();
         }
       };
