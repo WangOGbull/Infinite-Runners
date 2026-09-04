@@ -1049,18 +1049,8 @@ class UIManager {
       button.onclick = activate;
       button.ontouchend = activate;
     };
-    const resultMainMenu = document.getElementById('btnMainMenu');
-    if (resultMainMenu) {
-      resultMainMenu.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        // Stay in this tab and reveal the title immediately. The href with
-        // target="_self" remains a same-tab fallback if JavaScript is unavailable.
-        this.showScreen('titleScreen');
-        this.eventBus.emit('game:returnToMainMenu');
-      });
-    }
+    // btnMainMenu is intentionally not bound in JavaScript. Its native
+    // href="/" target="_self" navigation cannot be cancelled by game state.
     bindMainMenu(document.getElementById('btnMpMainMenu'));
     document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
     const returnToActiveRoomBtn = document.getElementById('btnReturnToActiveRoom');
