@@ -4941,6 +4941,7 @@ class Game {
       this.uiManager._processingTimer = null;
       this._setNetworkInterrupted(false);
 
+      // Hide all game-end screens
       [
         'loadingOverlay',
         'networkReconnectOverlay',
@@ -4949,7 +4950,8 @@ class Game {
         'spectateOverlay',
         'mpExitDialog',
         'mpGameOver',
-        'gameOverScreen'
+        'gameOverScreen',
+        'tierCompleteScreen'
       ].forEach(id => {
         const element = document.getElementById(id);
         if (!element) return;
@@ -4968,7 +4970,26 @@ class Game {
         titleScreen.setAttribute('aria-hidden', 'false');
       }
       
-      // MOBILE FIX: Re-enable all buttons in title screen (pointer-events + disabled state)
+      // CRITICAL MOBILE FIX: Re-enable MAIN MENU button
+      // The button is in gameOverScreen, not titleScreen, so we need to find it globally
+      const mainMenuBtn = document.getElementById('btnMainMenu');
+      if (mainMenuBtn) {
+        mainMenuBtn.disabled = false;
+        mainMenuBtn.style.pointerEvents = 'auto';
+        mainMenuBtn.style.opacity = '1';
+        mainMenuBtn.style.removeProperty('display');
+        mainMenuBtn.style.removeProperty('visibility');
+      }
+      
+      // Also re-enable PLAY AGAIN button
+      const playAgainBtn = document.getElementById('btnPlayAgain');
+      if (playAgainBtn) {
+        playAgainBtn.disabled = false;
+        playAgainBtn.style.pointerEvents = 'auto';
+        playAgainBtn.style.opacity = '1';
+      }
+      
+      // Re-enable all buttons in title screen as fallback
       const buttons = titleScreen?.querySelectorAll('button, [role="button"]');
       if (buttons) {
         buttons.forEach(btn => {
@@ -4977,12 +4998,6 @@ class Game {
           btn.style.opacity = '1';
         });
       }
-      
-      // Specifically re-enable MAIN MENU button
-      document.querySelectorAll('#btnMainMenu, #btnMpMainMenu').forEach(button => {
-        button.disabled = false;
-        button.style.pointerEvents = 'auto';
-      });
       
       this.uiManager._ensureScreenInvariant?.();
     };
