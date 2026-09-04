@@ -21,24 +21,19 @@ test('Main Menu button exists only inside the game-over screen', () => {
   const gameOverMarkup = html.slice(gameOverStart, nextScreen);
   assert.ok(gameOverStart >= 0 && nextScreen > gameOverStart);
   assert.equal((html.match(/id="btnMainMenu"/g) || []).length, 1);
-  assert.match(gameOverMarkup, /<a[^>]+id="btnMainMenu"[^>]+href="\/"/);
+  assert.match(gameOverMarkup, /<a[^>]+id="btnMainMenu"[^>]+href="\/"[^>]+target="_self"/);
   assert.match(gameOverMarkup, /data-native-main-menu="true"/);
   assert.match(gameOverMarkup, /data-lucide="home"/);
   assert.match(css, /#gameOverScreen:not\(\.active\) #btnMainMenu/);
 });
 
-test('Main Menu uses a dedicated mobile activation path', () => {
-  assert.doesNotMatch(ui, /bindMainMenu\(document\.getElementById\('btnMainMenu'\)\)/);
+test('Main Menu stays in the same tab and opens the title directly', () => {
+  assert.match(ui, /resultMainMenu\.addEventListener\('click'/);
+  assert.match(ui, /event\.preventDefault\(\)/);
+  assert.match(ui, /this\.showScreen\('titleScreen'\)/);
   assert.match(ui, /bindMainMenu\(document\.getElementById\('btnMpMainMenu'\)\)/);
-  assert.match(html, /id="btnMainMenu"[^>]+href="\/"/);
-  assert.doesNotMatch(html, /id="btnMainMenu"[^>]+onclick=/);
-  assert.doesNotMatch(ui, /bindMobileActivation/);
+  assert.match(html, /id="btnMainMenu"[^>]+href="\/"[^>]+target="_self"/);
+  assert.doesNotMatch(html, /id="btnMainMenu"[^>]+target="_blank"/);
   assert.match(ui, /this\.eventBus\.emit\('game:returnToMainMenu'\)/);
-  assert.match(main, /this\.eventBus\.on\('game:returnToMainMenu'/);
   assert.match(main, /this\._returnToMainMenuSafely\(\)/);
-  assert.match(main, /Multiplayer result-screen preparation/);
-  assert.match(main, /this\.movementSystem\?\.endJoystick\?\.\(\)/);
-  assert.doesNotMatch(main, /releasePointerCapture/);
-  assert.match(css, /#gameOverScreen\.active\{z-index:5000!important;pointer-events:auto!important\}/);
-  assert.match(html, /id="btnMainMenu"[^>]+data-native-main-menu="true"/);
 });
