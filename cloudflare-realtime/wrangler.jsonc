@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "infinite-runners-realtime",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-04",
+  "workers_dev": true,
+  "vars": {
+    "FIREBASE_PROJECT_ID": "infinite-runners-dragonsarena",
+    "ALLOWED_ORIGINS": "https://infinite-runners.pages.dev"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GAME_ROOMS",
+        "class_name": "GameRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["GameRoom"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
