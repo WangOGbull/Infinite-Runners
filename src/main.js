@@ -14,7 +14,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=61';
+import UIManager from './uiManager.js?v=62';
 import EffectsSystem from './effectsSystem.js?v=53';
 import WalletManager from './walletManager.js?v=53';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -1971,6 +1971,26 @@ class Game {
       this.animationFrame = null;
     }
     this.stopNetworkSync();
+
+    // A mobile match can finish while joystick/attack/sprint pointers are
+    // still active. Clear them before the result screen receives its first tap.
+    const joystickPointerId = this.movementSystem?.joystickPointerId;
+    const joyArea = document.getElementById('joyArea');
+    if (joyArea && joystickPointerId !== null && joystickPointerId !== undefined) {
+      try {
+        if (joyArea.hasPointerCapture?.(joystickPointerId)) {
+          joyArea.releasePointerCapture(joystickPointerId);
+        }
+      } catch (_) {}
+    }
+    this.movementSystem?.endJoystick?.();
+    if (this.movementSystem) {
+      this.movementSystem.attackHeld = false;
+      this.movementSystem.keys?.clear?.();
+      this.movementSystem.inputAngles?.clear?.();
+      this.movementSystem.boosting?.clear?.();
+    }
+
     const canvas = document.getElementById('gameCanvas');
     if (canvas) {
       const ctx = canvas.getContext('2d');

@@ -1,5 +1,4 @@
 import CONFIG, { DRAGON_IMAGES, DRAGON_POWERS, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
-import { bindMobileActivation } from './mobileActivation.js?v=1';
 
 const WALLET_ICON_URLS = {
   phantom: 'https://i.postimg.cc/44mrJ4My/phantom-logo.webp',
@@ -1031,9 +1030,25 @@ class UIManager {
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
     const bindMainMenu = (button) => {
       if (!button) return;
-      bindMobileActivation(button, () => {
+      let lastActivation = -Infinity;
+      const activate = (event) => {
+        if (event.type === 'pointerdown' && event.pointerType === 'mouse' && event.button !== 0) return;
+        const now = Date.now();
+        if (now - lastActivation < 700) {
+          if (event.cancelable) event.preventDefault();
+          return;
+        }
+        lastActivation = now;
+        if (event.cancelable) event.preventDefault();
+        event.stopPropagation();
         this.eventBus.emit('game:returnToMainMenu');
-      });
+      };
+
+      // Mobile browsers can leave gameplay controls holding the pointer until
+      // pointerup. Navigate on pointerdown so that stale canvas capture cannot
+      // swallow the completed tap. Click remains for keyboard and desktop.
+      button.addEventListener('pointerdown', activate, { passive: false });
+      button.addEventListener('click', activate);
     };
     bindMainMenu(document.getElementById('btnMainMenu'));
     bindMainMenu(document.getElementById('btnMpMainMenu'));
