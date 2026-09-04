@@ -46,6 +46,34 @@
     touch-action: none;
     transition: transform 0.1s ease, filter 0.1s ease;
     z-index: 1001 !important;
+  }
+  
+  /* BACK BUTTON: Top-left corner */
+  #btnBack {
+    position: fixed !important;
+    top: 16px !important;
+    left: 12px !important;
+    z-index: 9999 !important;
+    background: rgba(20, 20, 30, 0.85) !important;
+    border: 1px solid rgba(100, 200, 255, 0.3) !important;
+    border-radius: 8px !important;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    font-size: 24px !important;
+    color: #00e0ff !important;
+    transition: all 0.2s ease !important;
+    touch-action: none !important;
+  }
+  
+  #btnBack:active {
+    background: rgba(20, 20, 30, 0.95) !important;
+    border-color: #00e0ff !important;
+    transform: scale(0.95) !important;
   } 
    
    
@@ -3722,6 +3750,9 @@
 </head>
 <body> 
 
+<!-- BACK BUTTON: Top-left corner (global) -->
+<button id="btnBack" title="Back to Main Menu" aria-label="Back to Main Menu">↩️</button>
+
 <!-- ===== BOOT LOADER ===== --> 
 <div id="bootScreen"> 
   <div class="bootInner"> 
@@ -4261,7 +4292,6 @@
   </div> 
   <div class="goActions"> 
     <button class="pBtn pBtnRes" id="btnPlayAgain"><i data-lucide="play"></i> PLAY AGAIN</button> 
-    <button class="pBtn pBtnOut" id="btnMainMenu"><i data-lucide="home"></i> MAIN MENU</button> 
   </div> 
 </div> 
 
@@ -4409,7 +4439,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=81"></script>
+<script type="module" src="./src/main.js?v=82"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
