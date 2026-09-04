@@ -491,6 +491,7 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 
 /* ==================== GAME OVER ==================== */
 #gameOverScreen{background:rgba(10,10,15,0.93)}
+#gameOverScreen.active{z-index:5000!important;pointer-events:auto!important}
 #gameOverScreen h1{font-family:'Cinzel Decorative',cursive;font-weight:900;font-size:32px;letter-spacing:4px;color:#ff4d4d;text-shadow:0 0 30px rgba(255,77,77,0.4);margin-bottom:16px}
 .goStats{display:flex;gap:20px;margin-bottom:20px}
 .goStat{text-align:center}
