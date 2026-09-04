@@ -28,13 +28,17 @@ test('Main Menu button exists only inside the game-over screen', () => {
 
 test('Main Menu uses a dedicated mobile activation path', () => {
   assert.match(ui, /bindMainMenu\(document\.getElementById\('btnMainMenu'\)\)/);
-  assert.match(ui, /button\.addEventListener\('pointerdown', activate/);
-  assert.match(ui, /button\.addEventListener\('click', activate/);
+  assert.match(ui, /button\.onclick = activate/);
+  assert.match(ui, /button\.ontouchend = activate/);
+  assert.doesNotMatch(ui, /addEventListener\('pointerdown', activate/);
+  assert.match(ui, /this\.showScreen\('titleScreen'\)/);
   assert.doesNotMatch(ui, /bindMobileActivation/);
   assert.match(ui, /this\.eventBus\.emit\('game:returnToMainMenu'\)/);
   assert.match(main, /this\.eventBus\.on\('game:returnToMainMenu'/);
   assert.match(main, /this\._returnToMainMenuSafely\(\)/);
+  assert.match(main, /Multiplayer result-screen preparation/);
   assert.match(main, /this\.movementSystem\?\.endJoystick\?\.\(\)/);
-  assert.match(main, /releasePointerCapture/);
+  assert.doesNotMatch(main, /releasePointerCapture/);
+  assert.match(css, /#gameOverScreen\.active\{z-index:5000!important;pointer-events:auto!important\}/);
   assert.match(html, /id="btnMainMenu"[^>]+data-immediate-action="true"/);
 });
