@@ -1371,6 +1371,14 @@ class Game {
     this.eventBus.on('game:returnToMainMenu', () => {
       this._returnToMainMenuSafely();
     });
+    
+    // BACK BUTTON: Top-left corner handler
+    const backBtn = document.getElementById('btnBack');
+    if (backBtn) {
+      backBtn.onclick = () => {
+        this.eventBus.emit('game:returnToMainMenu');
+      };
+    }
     this.eventBus.on('game:returnToMultiplayerMenu', () => {
       this.quitGame();
       this.uiManager.showScreen('mpMenuScreen');
