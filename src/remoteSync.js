@@ -1,10 +1,12 @@
+import { REMOTE_SYNC } from './remoteSync.js';
+
 export const REMOTE_SYNC = Object.freeze({
   websocketSendMs: 50,
   firebaseSendMs: 100,
-  minInterpolationMs: 70,
-  maxInterpolationMs: 160,
-  minExtrapolationMs: 80,
-  maxExtrapolationMs: 250,
+  minInterpolationMs: 80,
+  maxInterpolationMs: 220,
+  minExtrapolationMs: 100,
+  maxExtrapolationMs: 350,
 });
 
 export function classifyRemoteSnapshot(previous, state) {
