@@ -3543,6 +3543,20 @@ class Game {
         if (generation !== this._realtimeGeneration) return;
         try {
           const message = JSON.parse(event.data);
+          if (message.type === 'pong') {
+            if (Number.isFinite(this._networkPingStartedAt)) {
+              this._networkLatencyMs = Math.max(
+                0,
+                Math.round(performance.now() - this._networkPingStartedAt)
+              );
+              this._networkPingStartedAt = null;
+              this.uiManager.setNetworkQuality?.({
+                latency: this._networkLatencyMs,
+                transport: 'Cloudflare'
+              });
+            }
+            return;
+          }
           if (message.type === 'ready') {
             this._realtimeReady = true;
             console.info('[GameSync] Cloudflare movement relay connected');
@@ -3988,35 +4002,33 @@ class Game {
   }
 
   _updateConnectionStatusOverlay() {
-    // Show the active movement transport on screen
     if (this.state !== 'PLAYING') return;
-    
-    if (!this._connectionStatusOverlay) {
-      const overlay = document.createElement('div');
-      overlay.id = 'mp-connection-status';
-      overlay.style.cssText = `
-        position: fixed;
-        top: 50px;
-        right: 10px;
-        z-index: 9999;
-        background: rgba(0, 0, 0, 0.7);
-        color: #0f0;
-        padding: 8px 12px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-family: monospace;
-        line-height: 1.4;
-        pointer-events: none;
-        white-space: nowrap;
-      `;
-      document.body.appendChild(overlay);
-      this._connectionStatusOverlay = overlay;
+
+    const socket = this._realtimeSocket;
+    const now = performance.now();
+    if (
+      this._realtimeReady &&
+      socket?.readyState === WebSocket.OPEN &&
+      (!this._lastNetworkPingAt || now - this._lastNetworkPingAt >= 2000)
+    ) {
+      this._lastNetworkPingAt = now;
+      this._networkPingStartedAt = now;
+      try {
+        socket.send(JSON.stringify({ type: 'ping' }));
+      } catch (_) {
+        this._networkPingStartedAt = null;
+      }
     }
-    
-    const status = this._realtimeReady ? '🟢 Cloudflare' : '🟡 Firebase fallback';
-    const latency = this._syncDiagnostics?.lastLatency || 0;
-    const updates = this._syncDiagnostics?.received || 0;
-    this._connectionStatusOverlay.textContent = `${status} | ${updates} upd | ${latency}ms`;
+
+    const fallbackLatency = Number(this._syncDiagnostics?.lastLatency);
+    const latency = this._realtimeReady
+      ? this._networkLatencyMs
+      : (Number.isFinite(fallbackLatency) ? fallbackLatency : null);
+    this.uiManager.setNetworkQuality?.({
+      latency,
+      status: this._realtimeReady ? '' : 'Fallback',
+      transport: this._realtimeReady ? 'Cloudflare' : 'Firebase fallback'
+    });
   }
 
   broadcastPosition() {
