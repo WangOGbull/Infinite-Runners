@@ -3561,7 +3561,7 @@ class Game {
         // onclose activates Firebase fallback and schedules reconnection.
       };
 
-      socket.onclose = () => {
+      socket.onclose = event => {
         if (generation !== this._realtimeGeneration) return;
         this._realtimeReady = false;
         if (this._realtimeSocket === socket) this._realtimeSocket = null;
@@ -3571,7 +3571,10 @@ class Game {
           this._realtimeReconnectTimer = null;
           this._connectRealtimeTransport();
         }, 1500);
-        console.warn('[GameSync] Cloudflare disconnected; Firebase movement fallback active');
+        console.warn('[GameSync] Cloudflare disconnected; Firebase movement fallback active', {
+          code: event.code,
+          reason: event.reason || 'No close reason'
+        });
       };
     } catch (error) {
       if (generation !== this._realtimeGeneration || this._realtimeManualClose) return;
@@ -4268,6 +4271,14 @@ class Game {
   }
 
   startGameLoop() {
+    // Room listeners can report the same start twice. Only the newest start
+    // owns an animation loop; stale countdown callbacks are ignored.
+    const loopGeneration = (this._gameLoopGeneration || 0) + 1;
+    this._gameLoopGeneration = loopGeneration;
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
     this.state = 'PLAYING';
     this.isPaused = false;
     this.gameStartTime = Date.now();
@@ -4312,13 +4323,14 @@ class Game {
       scoreDisplay.setAttribute('aria-hidden', this.isMultiplayer ? 'true' : 'false');
     }
     this.uiManager.showCountdown(3, () => {
+      if (loopGeneration !== this._gameLoopGeneration || this.state !== 'PLAYING') return;
       this.lastTime = performance.now();
-      this.loop();
+      this.loop(loopGeneration);
     });
   }
 
-  loop() {
-    if (this.state !== 'PLAYING') return;
+  loop(loopGeneration = this._gameLoopGeneration) {
+    if (this.state !== 'PLAYING' || loopGeneration !== this._gameLoopGeneration) return;
     const now = performance.now();
     const rawDeltaTime = now - this.lastTime;
     let deltaTime = rawDeltaTime;
@@ -4376,7 +4388,7 @@ class Game {
       this.update(deltaTime);
       this.render();
     }
-    this.animationFrame = requestAnimationFrame(() => this.loop());
+    this.animationFrame = requestAnimationFrame(() => this.loop(loopGeneration));
   }
 
   update(deltaTime) {
