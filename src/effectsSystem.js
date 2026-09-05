@@ -24,6 +24,7 @@ class EffectsSystem {
     this._audioContext = null;
     this._audioBuffers = {};
     this._audioLoaded = false;
+    this._audioUnlockPromise = null;
     this._audioLoadedCount = 0;
     this._audioFailedCount = 0;
     const savedVolumeRaw = localStorage.getItem('irMasterVolume');
@@ -708,33 +709,54 @@ class EffectsSystem {
   // ================================================================
 
   _getAudioContext() {
-    if (
-      !this._audioContext
-    ) {
-      const AudioContextClass =
-        window.AudioContext ||
-        window.webkitAudioContext;
-
-      if (
-        !AudioContextClass
-      ) {
-        return null;
-      }
-
-      this._audioContext =
-        new AudioContextClass();
+    if (!this._audioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return null;
+      this._audioContext = new AudioContextClass();
     }
-
-    if (
-      this._audioContext.state ===
-      'suspended'
-    ) {
-      this._audioContext
-        .resume()
-        .catch(() => {});
-    }
-
     return this._audioContext;
+  }
+
+  // Must begin inside a trusted tap/click/keydown. Mobile browsers otherwise
+  // keep a successfully-loaded AudioContext suspended and every sound is silent.
+  unlockAudio() {
+    if (!this._soundEnabled || this._masterVolume <= 0) {
+      return Promise.resolve(false);
+    }
+
+    const ctx = this._getAudioContext();
+    if (!ctx) return Promise.resolve(false);
+    if (ctx.state === 'running') return Promise.resolve(true);
+    if (this._audioUnlockPromise) return this._audioUnlockPromise;
+
+    this._audioUnlockPromise = ctx.resume()
+      .then(() => {
+        if (ctx.state !== 'running') return false;
+
+        // A zero-volume buffer makes the unlock stick on iOS/WebKit.
+        const source = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        gain.gain.value = 0;
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start(0);
+        source.onended = () => {
+          try { source.disconnect(); } catch (_) {}
+          try { gain.disconnect(); } catch (_) {}
+        };
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        this._audioUnlockPromise = null;
+      });
+
+    return this._audioUnlockPromise;
+  }
+
+  isAudioRunning() {
+    return !!this._audioContext && this._audioContext.state === 'running';
   }
 
   _random(
