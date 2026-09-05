@@ -626,8 +626,9 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 @media(max-width:767px){
   #titleScreen{
     background-image:url('../assets/title-mobile-bg.png')!important;
-    background-size:cover!important;
-    background-position:center top!important;
+    /* Show the complete portrait artwork from top crystal to lower arena. */
+    background-size:100% 100%!important;
+    background-position:center!important;
     background-repeat:no-repeat!important;
   }
   #titleScreen .darken{background:rgba(4,3,14,.16)}
