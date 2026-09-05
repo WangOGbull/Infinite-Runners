@@ -36,12 +36,12 @@ class EffectsSystem {
     // Real audio file URLs (Mixkit free SFX, no attribution required)
     this._audioFiles = {
       eat: './assets/food-collect-bubble-pop.mp3',
-      kill: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/2705fe0df_dragon-kill.mp3',
-      hit: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/586846b71_hit-damage.mp3',
-      death: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/53bdc70cd_game-over.mp3',
-      respawn: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/dc5b302a3_dragon-respawn.mp3',
-      victory: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/cd9d3ec3d_victory-roar.mp3',
-      dragonDeath: 'https://base44.app/api/apps/6a7decc0634fef0eafb32f0e/files/mp/public/6a7decc0634fef0eafb32f0e/d3a265df1_dragon-death.mp3',
+      kill: './assets/audio/dragon-kill.mp3?v=1',
+      hit: './assets/audio/hit-damage.mp3?v=1',
+      death: './assets/audio/game-over.mp3?v=1',
+      respawn: './assets/audio/dragon-respawn.mp3?v=1',
+      victory: './assets/audio/victory-roar.mp3?v=1',
+      dragonDeath: './assets/audio/dragon-death.mp3?v=1',
       searchSonar: './assets/automatch-sonar-search.mp3',
       opponentFound: './assets/automatch-opponent-found.mp3'
     };
