@@ -1079,9 +1079,10 @@ html.reduced-motion *,html.reduced-motion *::before,html.reduced-motion *::after
   right: max(12px, env(safe-area-inset-right));
 }
 .networkQualityWidget[data-screen="gameScreen"] {
-  top: max(54px, calc(env(safe-area-inset-top) + 42px));
-  right: max(10px, env(safe-area-inset-right));
-  z-index: 1250;
+  top: max(15px, calc(env(safe-area-inset-top) + 12px));
+  left: 126px;
+  right: auto;
+  z-index: 149;
 }
 .networkQualityButton {
   min-width: 48px;
