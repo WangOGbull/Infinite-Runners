@@ -4315,6 +4315,7 @@ class Game {
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
+    this.uiManager.setNetworkGameplayMode?.(this.isMultiplayer);
     this.uiManager.showScreen('gameScreen');
     const pauseBtn = document.getElementById('pauseBtn');
     const mpExitBtn = document.getElementById('mpExitBtn');
