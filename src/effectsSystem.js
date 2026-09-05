@@ -61,42 +61,32 @@ class EffectsSystem {
       return;
     }
 
-    const timeoutMs = 30000;
-    const startTime = Date.now();
     const entries = Object.entries(this._audioFiles);
-    
-    for (const [key, url] of entries) {
-      try {
-        // Abort individual fetch if total time exceeds timeout
-        if (Date.now() - startTime > timeoutMs) {
-          console.warn(`[Audio] Timeout loading ${key} (overall timeout reached)`);
-          this._audioFailedCount++;
-          continue;
-        }
 
-        const controller = new AbortController();
-        const fetchTimeout = setTimeout(() => controller.abort(), 8000);
-        
+    // Fetch and decode together. Sequential loading allowed one slow CDN file
+    // to delay every sound behind it, sometimes until well after play began.
+    await Promise.all(entries.map(async ([key, url]) => {
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 10000);
+      try {
         const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(fetchTimeout);
-        
         if (!response.ok) {
           this._audioFailedCount++;
           console.warn(`[Audio] Failed to fetch ${key}: ${response.status}`);
-          continue;
+          return;
         }
-
         const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-        this._audioBuffers[key] = audioBuffer;
+        this._audioBuffers[key] = await ctx.decodeAudioData(arrayBuffer);
         this._audioLoadedCount++;
         console.log(`[Audio] Loaded ${key}`);
-      } catch (e) {
+      } catch (error) {
         this._audioFailedCount++;
-        console.warn(`[Audio] Failed to load ${key}:`, e.message);
+        console.warn(`[Audio] Failed to load ${key}:`, error.message);
+      } finally {
+        clearTimeout(fetchTimeout);
       }
-    }
-    
+    }));
+
     const total = entries.length;
     console.log(`[Audio] Preload complete: ${this._audioLoadedCount}/${total} loaded, ${this._audioFailedCount} failed`);
   }
