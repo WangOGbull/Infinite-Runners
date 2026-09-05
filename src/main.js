@@ -3329,20 +3329,10 @@ class Game {
     }
   }
 
-  _sendRealtimeCombatEvent(eventId, event) {
-    const socket = this._realtimeSocket;
-    if (!eventId || !event || !this._realtimeReady || socket?.readyState !== WebSocket.OPEN) {
-      return false;
-    }
-    try {
-      socket.send(JSON.stringify({
-        type: 'combat',
-        event: { eventId, ...event }
-      }));
-      return true;
-    } catch (_) {
-      return false;
-    }
+  _sendRealtimeCombatEvent() {
+    // Cloudflare carries movement only. Firebase remains authoritative for
+    // combat, collision reactions, deaths and settlement.
+    return false;
   }
 
   _publishMaxClash(d1, d2, targetSegments) {
@@ -3512,10 +3502,88 @@ class Game {
   }
 
   async _connectRealtimeTransport() {
-    // FIREBASE-ONLY MODE: WebSocket disabled for stability
-    // All position updates flow through Firebase Realtime Database
-    console.log('[GameSync] Firebase-only mode active (WebSocket disabled)');
-    return;
+    if (!this.roomCode || !this.matchId || !this.localPlayerId) return;
+
+    const generation = ++this._realtimeGeneration;
+    this._realtimeManualClose = false;
+    this._realtimeReady = false;
+
+    try {
+      const user = firebase.auth().currentUser;
+      if (!user) throw new Error('Firebase user is unavailable');
+      const token = await user.getIdToken();
+
+      if (generation !== this._realtimeGeneration || this._realtimeManualClose) return;
+
+      const endpoint = new URL(
+        'https://infinite-runners-realtime.infinitecoin.workers.dev/game-sync'
+      );
+      endpoint.protocol = 'wss:';
+      endpoint.searchParams.set('roomCode', this.roomCode);
+      endpoint.searchParams.set('matchId', this.matchId);
+
+      const socket = new WebSocket(endpoint.toString());
+      this._realtimeSocket = socket;
+
+      socket.onopen = () => {
+        if (generation !== this._realtimeGeneration || this._realtimeManualClose) {
+          socket.close(1000, 'Stale connection');
+          return;
+        }
+        socket.send(JSON.stringify({
+          type: 'auth',
+          token,
+          roomCode: this.roomCode,
+          matchId: this.matchId,
+          playerId: this.localPlayerId
+        }));
+      };
+
+      socket.onmessage = event => {
+        if (generation !== this._realtimeGeneration) return;
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'ready') {
+            this._realtimeReady = true;
+            console.info('[GameSync] Cloudflare movement relay connected');
+            return;
+          }
+          if (message.type !== 'snapshot' || !message.players) return;
+          for (const [playerId, state] of Object.entries(message.players)) {
+            this._acceptRemotePosition(playerId, state, message.serverTime);
+          }
+        } catch (error) {
+          console.warn('[GameSync] Invalid Cloudflare snapshot:', error?.message || error);
+        }
+      };
+
+      socket.onerror = () => {
+        // onclose activates Firebase fallback and schedules reconnection.
+      };
+
+      socket.onclose = () => {
+        if (generation !== this._realtimeGeneration) return;
+        this._realtimeReady = false;
+        if (this._realtimeSocket === socket) this._realtimeSocket = null;
+        if (this._realtimeManualClose || this.state !== 'PLAYING') return;
+        clearTimeout(this._realtimeReconnectTimer);
+        this._realtimeReconnectTimer = setTimeout(() => {
+          this._realtimeReconnectTimer = null;
+          this._connectRealtimeTransport();
+        }, 1500);
+        console.warn('[GameSync] Cloudflare disconnected; Firebase movement fallback active');
+      };
+    } catch (error) {
+      if (generation !== this._realtimeGeneration || this._realtimeManualClose) return;
+      this._realtimeReady = false;
+      console.warn('[GameSync] Cloudflare connection failed; Firebase movement fallback active:',
+        error?.message || error);
+      clearTimeout(this._realtimeReconnectTimer);
+      this._realtimeReconnectTimer = setTimeout(() => {
+        this._realtimeReconnectTimer = null;
+        if (this.state === 'PLAYING') this._connectRealtimeTransport();
+      }, 2000);
+    }
   }
 
   _closeRealtimeTransport() {
@@ -3917,7 +3985,7 @@ class Game {
   }
 
   _updateConnectionStatusOverlay() {
-    // FIREBASE-ONLY: Show Firebase status on screen
+    // Show the active movement transport on screen
     if (this.state !== 'PLAYING') return;
     
     if (!this._connectionStatusOverlay) {
@@ -3942,8 +4010,7 @@ class Game {
       this._connectionStatusOverlay = overlay;
     }
     
-    // Firebase only (no WebSocket)
-    const status = '🟢 Firebase';
+    const status = this._realtimeReady ? '🟢 Cloudflare' : '🟡 Firebase fallback';
     const latency = this._syncDiagnostics?.lastLatency || 0;
     const updates = this._syncDiagnostics?.received || 0;
     this._connectionStatusOverlay.textContent = `${status} | ${updates} upd | ${latency}ms`;
@@ -3960,9 +4027,9 @@ class Game {
       this._updateConnectionStatusOverlay();
     }
     
-    // FIREBASE-ONLY: Use optimized Firebase interval (120ms for smooth MP)
-    // This is fast enough for smooth interpolation while keeping Firebase happy
-    const syncInterval = 120; // Firebase-optimized (was 150ms, but 120 works better for MP)
+    // Cloudflare sends movement at 20 Hz. Firebase keeps its conservative
+    // interval and becomes active automatically whenever the socket is down.
+    const syncInterval = this._realtimeReady ? 50 : 120
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     
     this.lastBroadcast = now;
@@ -3982,7 +4049,18 @@ class Game {
       t: now
     };
     
-    // Firebase write (only path in Firebase-only mode)
+    const socket = this._realtimeSocket;
+    if (this._realtimeReady && socket?.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(JSON.stringify({ type: 'state', state: payload }));
+        this._syncDiagnostics.sent++;
+        return;
+      } catch (_) {
+        this._realtimeReady = false;
+      }
+    }
+
+    // Firebase movement fallback.
     if (this._positionWriteInFlight) {
       this._pendingPositionPayload = payload;
       return;
@@ -4001,6 +4079,9 @@ class Game {
       
       // Subscribe per player for efficient MP sync
       this._positionListener = snap => {
+        // Ignore slower Firebase movement while Cloudflare is healthy. The
+        // listener stays attached so fallback resumes without re-subscribing.
+        if (this._realtimeReady) return;
         const playerId = snap.key;
         const position = snap.val();
         if (!position || !playerId || playerId === this.localPlayerId) return;
