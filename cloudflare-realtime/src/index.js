@@ -7,7 +7,15 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
-      return Response.json({ ok: true, service: "infinite-runners-realtime" });
+      return Response.json(
+        { ok: true, service: "infinite-runners-realtime" },
+        {
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-store",
+          },
+        },
+      );
     }
 
     if (url.pathname !== "/game-sync") {
