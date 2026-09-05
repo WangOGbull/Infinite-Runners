@@ -622,15 +622,70 @@ i[data-lucide]{display:inline-block;vertical-align:middle;width:1em;height:1em}
 .menuBtn:hover{border-color:rgba(255,255,255,0.25);color:#fff;background:rgba(255,255,255,0.06)}
 
 /* ==================== RESPONSIVE ==================== */
+/* Mobile title composition: dedicated portrait artwork and uncropped titles. */
+@media(max-width:767px){
+  #titleScreen{
+    background-image:url('../assets/title-mobile-bg.png')!important;
+    background-size:cover!important;
+    background-position:center top!important;
+    background-repeat:no-repeat!important;
+  }
+  #titleScreen .darken{background:rgba(4,3,14,.16)}
+  #titleScreen .content{
+    width:100%;
+    max-width:720px;
+    gap:8px;
+    padding:12px 14px;
+    transform:translateY(3vh);
+  }
+  #titleScreen h1{
+    font-size:clamp(24px,6.2vw,38px);
+    letter-spacing:clamp(1px,.65vw,4px);
+    line-height:1.12;
+    white-space:nowrap;
+  }
+  #titleScreen h2{
+    font-size:clamp(16px,4vw,25px);
+    letter-spacing:clamp(2px,1vw,6px);
+    line-height:1.15;
+    white-space:nowrap;
+  }
+  #titleScreen h3{
+    font-size:clamp(10px,2.3vw,15px);
+    letter-spacing:clamp(2px,.8vw,6px);
+    line-height:1.2;
+    white-space:nowrap;
+  }
+  #titleScreen .subtitle{font-size:9px;letter-spacing:3px;margin-top:0}
+  #titleScreen .playBtn{
+    width:min(52vw,260px);
+    min-width:190px;
+    height:52px;
+    margin-top:10px;
+    font-size:15px;
+  }
+  #titleScreen .menuBtns{
+    display:grid;
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:8px;
+    width:min(calc(100% - 24px),680px);
+    margin-top:8px;
+  }
+  #titleScreen .menuBtn{
+    grid-column:span 2;
+    min-width:0;
+    padding:8px 5px;
+    justify-content:center;
+    white-space:nowrap;
+    font-size:clamp(8px,2.05vw,11px);
+    letter-spacing:clamp(.5px,.3vw,2px);
+  }
+  #titleScreen .menuBtn:last-child{grid-column:3 / span 2}
+}
+
 @media(max-width:480px){
-  #titleScreen h1{font-size:22px;letter-spacing:2px}
-  #titleScreen h2{font-size:15px;letter-spacing:3px}
-  #titleScreen h3{font-size:10px;letter-spacing:3px}
-  #titleScreen .subtitle{font-size:9px;margin-top:2px}
-  #titleScreen .playBtn{width:170px;height:42px;font-size:12px;margin-top:6px}
-  #titleScreen .menuBtns{gap:6px;margin-top:2px}
-  #titleScreen .menuBtn{padding:6px 14px;font-size:10px}
-  #titleScreen .content{gap:6px;padding:10px}
+  #titleScreen .playBtn{min-width:176px;height:46px;font-size:13px}
+  #titleScreen .content{padding-left:10px;padding-right:10px}
   #titleScreen .icon-btn{top:8px;right:8px;padding:5px 10px;font-size:10px}
   #titleScreen .copyright{font-size:7px;bottom:8px}
 
