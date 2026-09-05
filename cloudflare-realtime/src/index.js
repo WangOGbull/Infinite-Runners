@@ -49,12 +49,20 @@ export class GameRoom {
   }
 
   async fetch(request) {
+    const url = new URL(request.url);
+    const roomCode = url.searchParams.get("roomCode") || "";
+    const matchId = url.searchParams.get("matchId") || "";
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
 
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ authenticated: false });
+    server.serializeAttachment({
+      authenticated: false,
+      roomCode,
+      matchId,
+    });
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -114,13 +122,35 @@ export class GameRoom {
       this.env.FIREBASE_PROJECT_ID,
     );
 
-    if (!claims || claims.sub !== message.playerId) {
+    const attachment = socket.deserializeAttachment() || {};
+    if (
+      !claims ||
+      message.roomCode !== attachment.roomCode ||
+      message.matchId !== attachment.matchId
+    ) {
       socket.close(1008, "Invalid identity");
       return;
     }
 
-    const playerId = claims.sub;
-    socket.serializeAttachment({ authenticated: true, playerId });
+    const isMember = await verifyRoomMembership({
+      databaseUrl: this.env.FIREBASE_DATABASE_URL,
+      token: message.token,
+      roomCode: attachment.roomCode,
+      playerId: message.playerId,
+      uid: claims.sub,
+    });
+    if (!isMember) {
+      socket.close(1008, "Player is not a room member");
+      return;
+    }
+
+    const playerId = message.playerId;
+    socket.serializeAttachment({
+      authenticated: true,
+      playerId,
+      roomCode: attachment.roomCode,
+      matchId: attachment.matchId,
+    });
     socket.send(
       JSON.stringify({
         type: "ready",
@@ -208,6 +238,30 @@ function sanitizeState(value, depth = 0) {
     result[key.slice(0, 80)] = sanitizeState(item, depth + 1);
   }
   return result;
+}
+
+async function verifyRoomMembership({
+  databaseUrl,
+  token,
+  roomCode,
+  playerId,
+  uid,
+}) {
+  try {
+    if (!databaseUrl || !ROOM_KEY_RE.test(roomCode) || !ROOM_KEY_RE.test(playerId)) {
+      return false;
+    }
+    const endpoint =
+      `${String(databaseUrl).replace(/\/$/, "")}/rooms/` +
+      `${encodeURIComponent(roomCode)}/players/${encodeURIComponent(playerId)}.json` +
+      `?auth=${encodeURIComponent(token)}`;
+    const response = await fetch(endpoint, { cache: "no-store" });
+    if (!response.ok) return false;
+    const player = await response.json();
+    return player && player.authUid === uid;
+  } catch {
+    return false;
+  }
 }
 
 async function verifyFirebaseIdToken(token, projectId) {
