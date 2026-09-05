@@ -15,7 +15,7 @@ import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js?v=69';
-import EffectsSystem from './effectsSystem.js?v=54';
+import EffectsSystem from './effectsSystem.js?v=55';
 import WalletManager from './walletManager.js?v=53';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
@@ -273,6 +273,7 @@ class Game {
     this._stakeResumeGeneration = 0;
     this.effectsSystem.init();
     this._installAudioUnlockHandlers();
+    this._installMatchUnloadForfeitHandlers();
     this.init();
   }
 
@@ -462,6 +463,39 @@ class Game {
     };
     document.addEventListener('visibilitychange', recover);
     window.addEventListener('pageshow', unlock);
+  }
+
+  _installMatchUnloadForfeitHandlers() {
+    let published = false;
+    const publishForfeit = (event) => {
+      if (event && event.persisted) return;
+      if (published || !this.isMultiplayer || this.state !== 'PLAYING'
+          || !this.roomRef || !this.localPlayerId || !this.matchId) return;
+      published = true;
+
+      const createdAt = Date.now();
+      try {
+        localStorage.setItem('irForfeitedMatchId', this.matchId);
+        this.roomRef.update({
+          [`matchState/players/${this.localPlayerId}/matchId`]: this.matchId,
+          [`matchState/players/${this.localPlayerId}/lives`]: 0,
+          [`matchState/players/${this.localPlayerId}/forfeited`]: true,
+          [`matchState/players/${this.localPlayerId}/updatedAt`]: firebase.database.ServerValue.TIMESTAMP,
+          [`presence/${this.authUid || this.localPlayerId}/forfeitRequested`]: true,
+          [`presence/${this.authUid || this.localPlayerId}/forfeitPlayerId`]: this.localPlayerId,
+          [`presence/${this.authUid || this.localPlayerId}/matchId`]: this.matchId,
+          [`presence/${this.authUid || this.localPlayerId}/disconnectedAt`]: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {});
+        this.combatEventsRef?.push().set({
+          type: 'forfeit',
+          matchId: this.matchId,
+          victimId: this.localPlayerId,
+          createdAt
+        }).catch(() => {});
+      } catch (_) {}
+    };
+    window.addEventListener('beforeunload', publishForfeit);
+    window.addEventListener('pagehide', publishForfeit);
   }
 
   _installMobileWalletReturnFallback() {
@@ -1628,13 +1662,16 @@ class Game {
 
       // ── Authority split: local/AI vs remote ──
       if (isRemote) {
-        // The canonical combat event hides the remote dragon. Match state
-        // owns lives; a lower-life movement acknowledgement only supplies
-        // the remote client's confirmed respawn coordinates.
-        dragon._remoteDeathPreviousLives = Math.max(
+        // Every client applies each canonical death event exactly once.
+        // Previously remote dragons were only hidden here, leaving their lives
+        // unchanged on the winner's device and preventing FFA completion.
+        const previousLives = Math.max(
           Number(dragon.lives) || 0,
           Number(dragon._remoteReportedLives) || 0
         );
+        dragon._remoteDeathPreviousLives = previousLives;
+        dragon.deaths = (dragon.deaths || 0) + 1;
+        dragon.lives = Math.max(0, previousLives - 1);
         dragon.alive = false;
         if (killer === this.localDragon) {
           this._lastKiller = null;
@@ -2562,6 +2599,15 @@ class Game {
   }
 
   async startLocalGame(mode, difficulty, arenaIndex) {
+    // A match must not outrun the sound preload started by the player's tap.
+    // Every request runs concurrently and has its own timeout, so this cannot
+    // recreate the previous minute-long sequential delay.
+    if (this._audioPreloadPromise) {
+      await Promise.race([
+        this._audioPreloadPromise,
+        new Promise(resolve => setTimeout(resolve, 11000))
+      ]);
+    }
     try {
       await this._ensureGameAssetsReady(this.selectedDragon || 'ignis', arenaIndex);
     } catch (error) {
@@ -2959,6 +3005,15 @@ class Game {
           && this.state !== 'GAME_OVER'
           && !this._serverStartInFlight) {
         const gameConfig = data.gameConfig || {};
+        const lockedIds = Array.isArray(gameConfig.playerIds)
+          ? gameConfig.playerIds.filter(id => data.players && data.players[id])
+          : [];
+        if (lockedIds.length >= 2) {
+          this.playerIds = [...lockedIds];
+          this.roomPlayers = Object.fromEntries(
+            lockedIds.map(id => [id, data.players[id]])
+          );
+        }
         this.selectedMode = gameConfig.mode || data.mode || 'FFA';
         this.lobbyArenaIndex = gameConfig.arenaIndex !== undefined ? gameConfig.arenaIndex : (data.arenaIndex !== undefined ? data.arenaIndex : 0);
         this.isMultiplayer = true;
@@ -3307,14 +3362,19 @@ class Game {
         Date.now().toString(36),
         Math.random().toString(36).slice(2, 10)
       ].join('-');
-      this.roomRef.update({
+      const participantIds = [...this.playerIds];
+      await this.roomRef.update({
         status: 'playing',
         matchId: this.matchId,
+        // Lock settlement to the players who actually entered this match.
+        // A 3-player FFA must never continue waiting for a fourth deposit.
+        maxPlayers: participantIds.length,
         gameStartedAt: firebase.database.ServerValue.TIMESTAMP,
         gameConfig: {
           mode: this.selectedMpMode || 'FFA',
           arenaIndex: this.lobbyArenaIndex,
-          playerIds: this.playerIds,
+          playerIds: participantIds,
+          playerCount: participantIds.length,
           hostPlayerId: this.localPlayerId
         }
       });
@@ -3456,7 +3516,7 @@ class Game {
       const eventId = snapshot.key;
       const event = snapshot.val();
       if (!eventId || !event || ![
-        'death', 'max_clash', 'tail_cut', 'tail_damage', 'recoil'
+        'death', 'forfeit', 'max_clash', 'tail_cut', 'tail_damage', 'recoil'
       ].includes(event.type)) return;
       if (event.matchId !== this.matchId) return;
       if (this._processedCombatEvents.has(eventId)) return;
@@ -3466,6 +3526,18 @@ class Game {
       if (typeof event.createdAt === 'number' &&
           event.createdAt < this._combatListenStartedAt - 5000) {
         this._rememberCombatEvent(eventId);
+        return;
+      }
+
+      if (event.type === 'forfeit') {
+        const victim = this._getDragonByPlayerId(event.victimId);
+        this._rememberCombatEvent(eventId);
+        if (!victim) return;
+        victim.lives = 0;
+        victim.deaths = Math.max(Number(victim.deaths || 0), 3);
+        victim.alive = false;
+        this._pendingPurge.push({ dragon: victim, time: Date.now() });
+        this.checkMatchEnd();
         return;
       }
 
