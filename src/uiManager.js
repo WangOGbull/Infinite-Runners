@@ -533,6 +533,7 @@ class UIManager {
     this.renderSpecialPowers(dragon);
     this._modalDragon = dragon;
     modal.classList.add('active');
+    this._updateNetworkWidgetVisibility(this.currentScreen);
     if (typeof lucide !== 'undefined') lucide.createIcons();
     // If Firebase's clearedTiers fetch hadn't finished yet when this modal
     // opened (e.g. right after a page refresh), the powers above may have
@@ -549,6 +550,7 @@ class UIManager {
     const modal = document.getElementById('dragonDetailModal');
     if (modal) modal.classList.remove('active');
     this._modalDragon = null;
+    this._updateNetworkWidgetVisibility(this.currentScreen);
   }
 
   getDragonPowers(dragonKey) {
@@ -792,13 +794,25 @@ class UIManager {
     const modal = document.getElementById('networkQualityModal');
     if (!widget) return;
     const allowed = ['titleScreen', 'dragonSelectScreen', 'lobbyScreen', 'gameScreen'];
-    const visible = allowed.includes(screenId);
+    const multiplayerGameplay =
+      screenId !== 'gameScreen' || widget.dataset.multiplayer === 'true';
+    const dragonDetailOpen =
+      screenId === 'dragonSelectScreen' &&
+      document.getElementById('dragonDetailModal')?.classList.contains('active');
+    const visible = allowed.includes(screenId) && multiplayerGameplay && !dragonDetailOpen;
     widget.hidden = !visible;
     widget.dataset.screen = screenId;
     if (!visible && modal) modal.hidden = true;
     if (visible && screenId !== 'gameScreen' && this._networkProbe) {
       queueMicrotask(this._networkProbe);
     }
+  }
+
+  setNetworkGameplayMode(isMultiplayer) {
+    const widget = document.getElementById('networkQualityWidget');
+    if (!widget) return;
+    widget.dataset.multiplayer = isMultiplayer ? 'true' : 'false';
+    this._updateNetworkWidgetVisibility(this.currentScreen);
   }
 
   setNetworkQuality({ latency = null, status = '', transport = '' } = {}) {
