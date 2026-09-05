@@ -705,14 +705,21 @@ class UIManager {
 
   initParticles() {
     const canvas = document.getElementById('pCanvas');
-    if (!canvas) return;
+    if (!canvas || this._particleAnimationStarted) return;
+    this._particleAnimationStarted = true;
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     const particles = [];
-    for (let i = 0; i < 60; i++) {
+    const particleCount = window.innerWidth < 768 ? 24 : 60;
+    for (let i = 0; i < particleCount; i++) {
       particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: Math.random() * 2 + 0.5, dx: (Math.random() - 0.5) * 0.3, dy: (Math.random() - 0.5) * 0.3, alpha: Math.random() * 0.5 + 0.1 });
     }
     const animate = () => {
+      const screen = canvas.closest('.screen');
+      if (screen && !screen.classList.contains('active')) {
+        requestAnimationFrame(animate);
+        return;
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       particles.forEach(p => {
         p.x += p.dx; p.y += p.dy;
