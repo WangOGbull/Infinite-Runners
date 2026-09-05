@@ -1057,3 +1057,169 @@ html.reduced-motion *,html.reduced-motion *::before,html.reduced-motion *::after
   transform: translateY(1px);
   background: #303946;
 }
+
+
+/* Compact live network quality indicator */
+.networkQualityWidget {
+  position: fixed;
+  z-index: 8600;
+  font-family: 'Rajdhani', sans-serif;
+  pointer-events: auto;
+}
+.networkQualityWidget[data-screen="titleScreen"] {
+  top: max(82px, calc(env(safe-area-inset-top) + 70px));
+  left: max(14px, env(safe-area-inset-left));
+}
+.networkQualityWidget[data-screen="dragonSelectScreen"] {
+  top: max(82px, calc(env(safe-area-inset-top) + 70px));
+  right: max(14px, env(safe-area-inset-right));
+}
+.networkQualityWidget[data-screen="lobbyScreen"] {
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+}
+.networkQualityWidget[data-screen="gameScreen"] {
+  top: max(54px, calc(env(safe-area-inset-top) + 42px));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 1250;
+}
+.networkQualityButton {
+  min-width: 48px;
+  height: 27px;
+  padding: 4px 7px;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  color: #dcecff;
+  background: linear-gradient(145deg, rgba(5, 16, 28, .92), rgba(12, 26, 42, .82));
+  border: 1px solid rgba(83, 206, 255, .38);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .34), inset 0 0 10px rgba(48, 190, 255, .08);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.networkSignal {
+  height: 15px;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.networkSignal i {
+  width: 3px;
+  border-radius: 2px 2px 1px 1px;
+  background: rgba(126, 151, 169, .28);
+  box-shadow: none;
+  transition: background .25s ease, box-shadow .25s ease;
+}
+.networkSignal i:nth-child(1) { height: 4px; }
+.networkSignal i:nth-child(2) { height: 7px; }
+.networkSignal i:nth-child(3) { height: 11px; }
+.networkSignal i:nth-child(4) { height: 15px; }
+.networkQualityWidget[data-level="1"] .networkSignal i:nth-child(-n+1),
+.networkQualityWidget[data-level="2"] .networkSignal i:nth-child(-n+2),
+.networkQualityWidget[data-level="3"] .networkSignal i:nth-child(-n+3),
+.networkQualityWidget[data-level="4"] .networkSignal i:nth-child(-n+4) {
+  background: #42d9ff;
+  box-shadow: 0 0 7px rgba(66, 217, 255, .72);
+  animation: networkBarLive 1.8s ease-in-out infinite;
+}
+.networkQualityWidget[data-level="1"] .networkSignal i:nth-child(-n+1) {
+  background: #ff665f;
+  box-shadow: 0 0 7px rgba(255, 102, 95, .68);
+}
+.networkQualityWidget[data-level="2"] .networkSignal i:nth-child(-n+2) {
+  background: #f5ba4c;
+  box-shadow: 0 0 7px rgba(245, 186, 76, .62);
+}
+@keyframes networkBarLive {
+  0%, 100% { opacity: .68; }
+  50% { opacity: 1; }
+}
+.networkMiniLatency {
+  min-width: 29px;
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-align: right;
+}
+.networkQualityWidget:not([data-screen="gameScreen"]) .networkMiniLatency {
+  display: none;
+}
+.networkQualityWidget[data-screen="gameScreen"] .networkSignal {
+  display: none;
+}
+.networkQualityWidget[data-screen="gameScreen"] .networkQualityButton {
+  min-width: 46px;
+  height: 24px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  color: #87e9ff;
+}
+.networkQualityModal {
+  position: absolute;
+  top: calc(100% + 7px);
+  width: 178px;
+  padding: 10px;
+  color: #e8f5ff;
+  background: linear-gradient(155deg, rgba(4, 13, 24, .98), rgba(13, 25, 39, .96));
+  border: 1px solid rgba(87, 207, 255, .34);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .52), inset 0 0 20px rgba(56, 188, 255, .05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.networkQualityWidget[data-screen="titleScreen"] .networkQualityModal {
+  left: 0;
+}
+.networkQualityWidget:not([data-screen="titleScreen"]) .networkQualityModal {
+  right: 0;
+}
+.networkModalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 7px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid rgba(110, 198, 230, .16);
+  color: #d8b968;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+.networkModalHead button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  color: #8ea5b4;
+  background: transparent;
+  font: 18px/20px Arial, sans-serif;
+  cursor: pointer;
+}
+.networkMetric {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 11px;
+}
+.networkMetric span { color: #8093a3; }
+.networkMetric strong {
+  color: #dcecff;
+  font-weight: 600;
+  text-align: right;
+}
+@media (max-width: 480px) {
+  .networkQualityWidget[data-screen="titleScreen"] {
+    top: max(76px, calc(env(safe-area-inset-top) + 64px));
+    left: max(10px, env(safe-area-inset-left));
+  }
+  .networkQualityWidget[data-screen="dragonSelectScreen"] {
+    top: max(76px, calc(env(safe-area-inset-top) + 64px));
+    right: max(10px, env(safe-area-inset-right));
+  }
+}
