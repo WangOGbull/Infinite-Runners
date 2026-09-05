@@ -15,7 +15,7 @@ import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=55';
 import GameModeManager from './gameModeManager.js';
 import UIManager from './uiManager.js?v=69';
-import EffectsSystem from './effectsSystem.js?v=53';
+import EffectsSystem from './effectsSystem.js?v=54';
 import WalletManager from './walletManager.js?v=53';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
@@ -271,6 +271,8 @@ class Game {
     // Invalidates delayed wallet-return callbacks after the player explicitly
     // leaves a room, preventing mobile recovery from reopening the lobby.
     this._stakeResumeGeneration = 0;
+    this.effectsSystem.init();
+    this._installAudioUnlockHandlers();
     this.init();
   }
 
@@ -358,10 +360,6 @@ class Game {
         }
       });
     }
-    this.effectsSystem.init();
-    // Start audio preload but don't block — timeout after 35s if network is slow
-    this._audioPreloadPromise = this.effectsSystem._preloadAudio()
-      .catch(e => console.warn('[Main] Audio preload failed:', e));
     let urlHasWalletReturn = walletReturnLaunch;
     // A wallet redirect may emit its result synchronously. Hold that result
     // until Firebase auth and the exact room have been restored.
@@ -441,6 +439,29 @@ class Game {
       .then(tiers => this.uiManager.updateTierAmounts(tiers))
       .catch(err => console.warn('[Staking] Could not load tier amounts yet:', err.message));
     
+  }
+
+  _installAudioUnlockHandlers() {
+    const unlock = () => {
+      // Calling resume begins synchronously inside the trusted user gesture.
+      this.effectsSystem.unlockAudio().then((running) => {
+        if (!running || this._audioPreloadPromise) return;
+        this._audioPreloadPromise = this.effectsSystem._preloadAudio()
+          .catch(e => console.warn('[Main] Audio preload failed:', e));
+      });
+    };
+
+    // Keep these listeners active: Phantom/app switching can suspend audio again.
+    document.addEventListener('pointerdown', unlock, { capture: true, passive: true });
+    document.addEventListener('touchend', unlock, { capture: true, passive: true });
+    document.addEventListener('click', unlock, { capture: true, passive: true });
+    document.addEventListener('keydown', unlock, { capture: true, passive: true });
+
+    const recover = () => {
+      if (document.visibilityState === 'visible') unlock();
+    };
+    document.addEventListener('visibilitychange', recover);
+    window.addEventListener('pageshow', unlock);
   }
 
   _installMobileWalletReturnFallback() {
