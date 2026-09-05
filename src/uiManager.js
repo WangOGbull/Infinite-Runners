@@ -45,6 +45,7 @@ class UIManager {
       this.initLucide();
       this.initParticles();
       this.bindEvents();
+      this.initNetworkQuality();
       this._installScreenInvariant();
       console.log("UIManager loaded.");
     } catch (e) {
@@ -732,6 +733,92 @@ class UIManager {
     };
     animate();
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+  }
+
+  initNetworkQuality() {
+    if (this._networkQualityInitialized) return;
+    const widget = document.getElementById('networkQualityWidget');
+    const button = document.getElementById('networkQualityButton');
+    const modal = document.getElementById('networkQualityModal');
+    const close = document.getElementById('networkQualityClose');
+    if (!widget || !button || !modal) return;
+    this._networkQualityInitialized = true;
+
+    const setOpen = open => {
+      modal.hidden = !open;
+      button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      setOpen(modal.hidden);
+    });
+    close?.addEventListener('click', event => {
+      event.stopPropagation();
+      setOpen(false);
+    });
+    modal.addEventListener('click', event => event.stopPropagation());
+    document.addEventListener('click', () => setOpen(false));
+
+    this._networkProbe = async () => {
+      const screen = this.currentScreen;
+      if (document.hidden || !['titleScreen', 'dragonSelectScreen', 'lobbyScreen'].includes(screen)) return;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const startedAt = performance.now();
+      try {
+        const response = await fetch(
+          'https://infinite-runners-realtime.infinitecoin.workers.dev/health',
+          { cache: 'no-store', signal: controller.signal }
+        );
+        if (!response.ok) throw new Error('Network check failed');
+        this.setNetworkQuality({
+          latency: Math.round(performance.now() - startedAt),
+          transport: 'Cloudflare Edge'
+        });
+      } catch (_) {
+        this.setNetworkQuality({ latency: null, status: 'Offline', transport: 'Unavailable' });
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    this._networkProbeTimer = setInterval(this._networkProbe, 5000);
+    this._updateNetworkWidgetVisibility(this.currentScreen === 'title' ? 'titleScreen' : this.currentScreen);
+    queueMicrotask(this._networkProbe);
+  }
+
+  _updateNetworkWidgetVisibility(screenId) {
+    const widget = document.getElementById('networkQualityWidget');
+    const modal = document.getElementById('networkQualityModal');
+    if (!widget) return;
+    const allowed = ['titleScreen', 'dragonSelectScreen', 'lobbyScreen', 'gameScreen'];
+    const visible = allowed.includes(screenId);
+    widget.hidden = !visible;
+    widget.dataset.screen = screenId;
+    if (!visible && modal) modal.hidden = true;
+    if (visible && screenId !== 'gameScreen' && this._networkProbe) {
+      queueMicrotask(this._networkProbe);
+    }
+  }
+
+  setNetworkQuality({ latency = null, status = '', transport = '' } = {}) {
+    const widget = document.getElementById('networkQualityWidget');
+    if (!widget) return;
+    const numericLatency = Number(latency);
+    const hasLatency = Number.isFinite(numericLatency) && numericLatency >= 0;
+    const ms = hasLatency ? Math.round(numericLatency) : null;
+    const level = !hasLatency ? 0 : ms <= 80 ? 4 : ms <= 150 ? 3 : ms <= 300 ? 2 : 1;
+    const quality = status || (!hasLatency ? 'Checking…' : level === 4 ? 'Excellent' : level === 3 ? 'Good' : level === 2 ? 'Fair' : 'Weak');
+
+    widget.dataset.level = String(level);
+    const mini = document.getElementById('networkMiniLatency');
+    const statusText = document.getElementById('networkStatusText');
+    const latencyText = document.getElementById('networkLatencyText');
+    const transportText = document.getElementById('networkTransportText');
+    if (mini) mini.textContent = ms === null ? '-- ms' : `${ms} ms`;
+    if (statusText) statusText.textContent = quality;
+    if (latencyText) latencyText.textContent = ms === null ? '-- ms' : `${ms} ms`;
+    if (transportText && transport) transportText.textContent = transport;
   }
 
   bindEvents() {
@@ -2462,6 +2549,7 @@ class UIManager {
     Object.values(this.screens).forEach(s => { if (s) s.classList.remove('active'); });
     safeTarget.classList.add('active');
     this.currentScreen = screenId;
+    this._updateNetworkWidgetVisibility(screenId);
     this.eventBus.emit('ui:screenChanged', { screenId });
     if (typeof lucide !== 'undefined') {
       if (this._lucidePending) cancelAnimationFrame(this._lucidePending);
