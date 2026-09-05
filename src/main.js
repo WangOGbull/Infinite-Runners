@@ -458,11 +458,8 @@ class Game {
     document.addEventListener('click', unlock, { capture: true, passive: true });
     document.addEventListener('keydown', unlock, { capture: true, passive: true });
 
-    const recover = () => {
-      if (document.visibilityState === 'visible') unlock();
-    };
-    document.addEventListener('visibilitychange', recover);
-    window.addEventListener('pageshow', unlock);
+    // Do not call unlock from pageshow/visibilitychange: browsers reject
+    // AudioContext.resume() unless it runs inside a trusted player gesture.
   }
 
   _installMatchUnloadForfeitHandlers() {
