@@ -2446,8 +2446,14 @@ class UIManager {
       // we reliably know which row is the signed-in player, instead of
       // guessing off the username string (which can collide/confuse if two
       // accounts have similar names).
+      // Builder account is intentionally excluded from public rankings.
+      // Keep this UID-based so another player cannot hide themselves by
+      // choosing the same username.
+      const PUBLIC_LEADERBOARD_EXCLUDED_UIDS = new Set([
+        'pzwvqD7GNDXHVKZKAJU44NHAt892'
+      ]);
       const rows = Object.entries(users)
-        .filter(([uid, u]) => u && u.username)
+        .filter(([uid, u]) => u && u.username && !PUBLIC_LEADERBOARD_EXCLUDED_UIDS.has(uid))
         .map(([uid, u]) => ({
           uid,
           name: u.username,
