@@ -1546,25 +1546,9 @@ class Game {
     if (isLocal) this.effectsSystem.playHeadCollisionSound();
   }
 });
-    this.eventBus.on('collision:predicted-death', ({ dragon, killer }) => {
-      if (!this.isMultiplayer || this.isHost || !dragon || !dragon.playerId) return;
-      if (this._predictedCombatDeaths.has(dragon.playerId)) return;
-
-      // If the host connection is stale, a non-host may be the only client
-      // that sees the collision. Accept only claims involving this client's
-      // own dragon; never witness unrelated remote-vs-remote combat.
-      if (dragon !== this.localDragon && killer !== this.localDragon) return;
-      const publishedId = this._publishCombatDeath(dragon, killer);
-      if (!publishedId) return;
-      // The publisher marks its own event as processed before Firebase echoes
-      // it back, so apply it locally once now. Other clients receive the same
-      // event through child_added and ignore any later duplicate claim.
-      this.eventBus.emit('dragon:death', {
-        dragon,
-        killer,
-        networkEventId: publishedId
-      });
-    });
+    // Only the elected host publishes combat deaths. If it disconnects,
+    // the room listener elects the oldest remaining player before that
+    // client is allowed to resolve or publish further combat.
 
     this.eventBus.on('dragon:death', ({ dragon, killer, networkEventId = null }) => {
       const isRemote = !!dragon.isRemote;
@@ -2938,6 +2922,7 @@ class Game {
       if (computedHostId !== stampedHostId && this.localPlayerId === computedHostId) {
         try { this.roomRef.update({ hostId: computedHostId }); } catch (_) {}
       }
+      this.hostPlayerId = computedHostId;
       this.isHost = (this.localPlayerId === computedHostId);
       const players = Object.entries(this.roomPlayers).map(([id, p]) => ({
         ...p,
@@ -3438,7 +3423,7 @@ class Game {
   }
 
   _publishCombatDeath(victim, killer) {
-    if (!this.isMultiplayer || !this.combatEventsRef || this._settlementLocked) return null; // Don't publish after settlement
+    if (!this.isMultiplayer || !this.isHost || !this.combatEventsRef || this._settlementLocked) return null; // Don't publish after settlement
     const victimId = victim && victim.playerId;
     const killerId = killer && killer.playerId;
     if (!victimId) return null;
@@ -4262,6 +4247,12 @@ class Game {
         };
         dragon.remoteTarget = respawnSnapshot;
         dragon.remoteSnapshots = [respawnSnapshot];
+        dragon.networkCollisionHead = {
+          x: pos.x,
+          y: pos.y,
+          receivedAt: now,
+          predictionMs: 0
+        };
         dragon.remotePacketInterval = 100;
         dragon.remotePacketJitter = 0;
         dragon.lives = reportedLives;
