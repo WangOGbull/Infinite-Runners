@@ -922,7 +922,14 @@ class UIManager {
     const btnLeader = document.getElementById('btnLeaderboard');
     if (btnLeader) btnLeader.addEventListener('click', () => this.showScreen('leaderboardScreen'));
     const btnHow = document.getElementById('btnHowToPlay');
-    if (btnHow) btnHow.addEventListener('click', () => this.showScreen('howToPlayScreen'));
+    if (btnHow) btnHow.addEventListener('click', () => {
+      this._howToPlayReturnScreen =
+        this.currentScreen && this.currentScreen !== 'howToPlayScreen'
+          ? this.currentScreen
+          : 'titleScreen';
+      this.showScreen('howToPlayScreen');
+      document.getElementById('htpScroll')?.scrollTo({ top: 0 });
+    });
     const settingsModal = document.getElementById('settingsModal');
     const soundToggle = document.getElementById('soundToggle');
     const soundVolume = document.getElementById('soundVolume');
@@ -1395,10 +1402,18 @@ class UIManager {
       }
       if (e.key === 'Tab') { e.preventDefault(); this.toggleScoreboard(); }
     });
+    const closeHowToPlay = () => {
+      const destination =
+        this._howToPlayReturnScreen &&
+        this._howToPlayReturnScreen !== 'howToPlayScreen'
+          ? this._howToPlayReturnScreen
+          : 'titleScreen';
+      this.showScreen(destination);
+    };
     const htpClose = document.getElementById('btnHtpClose');
-    if (htpClose) htpClose.addEventListener('click', () => this.showScreen('titleScreen'));
+    if (htpClose) htpClose.addEventListener('click', closeHowToPlay);
     const gotIt = document.getElementById('btnGotIt');
-    if (gotIt) gotIt.addEventListener('click', () => this.showScreen('titleScreen'));
+    if (gotIt) gotIt.addEventListener('click', closeHowToPlay);
     const lbClose = document.getElementById('btnLeaderboardClose');
     if (lbClose) lbClose.addEventListener('click', () => this.showScreen('titleScreen'));
     document.querySelectorAll('.htpTab').forEach(tab => {
@@ -1407,6 +1422,7 @@ class UIManager {
         tab.classList.add('active');
         document.querySelectorAll('.htpPanel').forEach(p => p.classList.remove('active'));
         document.getElementById('htp' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1))?.classList.add('active');
+        document.getElementById('htpScroll')?.scrollTo({ top: 0, behavior: 'instant' });
       });
     });
   }
