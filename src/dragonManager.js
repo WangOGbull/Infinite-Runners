@@ -90,6 +90,9 @@ export class DragonManager {
       remotePacketInterval: 100,
       remotePacketJitter: 0,
       remoteInterpolationDelay: 100,
+      // Collision authority uses a current network pose while rendering stays
+      // behind the snapshot buffer for smooth movement.
+      networkCollisionHead: null,
       _remoteDeathPreviousLives: null,
       _remoteReportedLives: null,
       remoteRenderStats: {
@@ -510,6 +513,24 @@ export class DragonManager {
             dragon.remotePacketInterval,
             dragon.remotePacketJitter
           );
+          // Build a separate, tightly capped collision pose from the newest
+          // accepted packet. Never move the rendered head with this value.
+          const latestCollisionSnapshot =
+            snapshots[snapshots.length - 1] || dragon.remoteTarget;
+          const collisionPredictionMs = Math.max(0, Math.min(
+            160,
+            timing.extrapolationMs,
+            performance.now() - Number(latestCollisionSnapshot.receivedAt || performance.now())
+          ));
+          dragon.networkCollisionHead = {
+            x: latestCollisionSnapshot.x
+              + (Number(latestCollisionSnapshot.vx) || 0) * collisionPredictionMs / 1000,
+            y: latestCollisionSnapshot.y
+              + (Number(latestCollisionSnapshot.vy) || 0) * collisionPredictionMs / 1000,
+            receivedAt: Number(latestCollisionSnapshot.receivedAt || performance.now()),
+            predictionMs: collisionPredictionMs
+          };
+
           const desiredDelay = timing.interpolationMs;
           const delayBlend = 1 - Math.exp(-deltaTime / 250);
           dragon.remoteInterpolationDelay +=
