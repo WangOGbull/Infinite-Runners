@@ -2,20 +2,6 @@
 <html lang="en"> 
 <head> 
 <meta charset="UTF-8"> 
-<script>
-(function(){
-  var accessKey='void-7K9mQ4xR2pN8cL6v';
-  var url=new URL(window.location.href);
-  if(url.searchParams.get('arena_test')===accessKey){
-    sessionStorage.setItem('infiniteArenaMaintenanceAccess',accessKey);
-    url.searchParams.delete('arena_test');
-    history.replaceState(null,'',url.pathname+url.search+url.hash);
-  }
-  if(sessionStorage.getItem('infiniteArenaMaintenanceAccess')!==accessKey){
-    window.location.replace('./maintenance.html');
-  }
-})();
-</script>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"> 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"> 
 <title>Infinite Runners - Dragons Arena</title> 
