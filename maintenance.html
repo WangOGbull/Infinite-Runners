@@ -3,36 +3,87 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#050313">
-<title>Dragon Arena Update</title>
+<meta name="theme-color" content="#03020b">
+<title>Infinite Arena Update</title>
 <style>
+:root{--cyan:#20e8ff;--violet:#9b4dff;--pink:#e168ff;--gold:#f2cc72}
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:#03020b;color:#fff}
+html,body{margin:0;width:100%;min-height:100%;background:#020108;color:#fff}
 body{min-height:100dvh;display:grid;place-items:center;overflow:hidden;font-family:Georgia,"Times New Roman",serif}
-.arena{position:fixed;inset:0;background:
-linear-gradient(180deg,rgba(2,1,10,.12),rgba(2,1,10,.5)),
-url("./assets/title-mobile-bg.png") center/cover no-repeat;transform:scale(1.02)}
-.vignette{position:fixed;inset:0;background:radial-gradient(circle at 50% 42%,transparent 18%,rgba(2,1,10,.42) 62%,#020108 100%)}
-.panel{position:relative;z-index:1;width:min(88vw,520px);padding:32px 24px 29px;text-align:center;background:linear-gradient(145deg,rgba(12,7,32,.76),rgba(4,3,16,.9));border:1px solid rgba(167,102,255,.72);clip-path:polygon(24px 0,calc(100% - 24px) 0,100% 24px,100% calc(100% - 24px),calc(100% - 24px) 100%,24px 100%,0 calc(100% - 24px),0 24px);box-shadow:0 0 0 1px rgba(50,220,255,.18),0 0 45px rgba(103,29,220,.4),inset 0 0 35px rgba(71,25,131,.28)}
-.gem{width:28px;height:42px;margin:0 auto 19px;background:linear-gradient(145deg,#ecbfff 0,#9d42ff 42%,#491183 68%,#23dffc 100%);clip-path:polygon(50% 0,100% 42%,50% 100%,0 42%);filter:drop-shadow(0 0 12px #a647ff)}
-h1{margin:0;color:#e4baff;font-size:clamp(22px,5.5vw,34px);line-height:1.25;letter-spacing:.09em;text-shadow:0 0 18px rgba(171,73,255,.8)}
-.line{width:96px;height:1px;margin:20px auto;background:linear-gradient(90deg,transparent,#42ddff,transparent);box-shadow:0 0 9px #42ddff}
-p{margin:0;color:#c9c5da;font-size:clamp(15px,4vw,18px);letter-spacing:.08em}
-.status{display:inline-flex;align-items:center;gap:8px;margin-top:20px;color:#60eaff;font:700 11px Arial,sans-serif;letter-spacing:.18em}
-.dot{width:7px;height:7px;border-radius:50%;background:#60eaff;box-shadow:0 0 10px #60eaff;animation:pulse 1.4s ease-in-out infinite}
-@keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
-@media(max-width:520px){.arena{background-size:cover}.panel{padding:27px 18px 25px}}
+.space{position:fixed;inset:-3%;background:
+radial-gradient(circle at 50% 46%,rgba(88,26,180,.23),transparent 31%),
+linear-gradient(180deg,rgba(2,1,10,.28),rgba(2,1,10,.64)),
+url("./assets/title-mobile-bg.png") center/cover no-repeat;animation:spaceBreath 7s ease-in-out infinite alternate}
+.space:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 47%,transparent 8%,rgba(2,1,9,.16) 40%,#020108 92%)}
+.stars,.stars:before,.stars:after{position:fixed;inset:0;content:"";pointer-events:none;background-image:
+radial-gradient(circle,#fff 0 1px,transparent 1.7px),
+radial-gradient(circle,var(--cyan) 0 1px,transparent 1.8px),
+radial-gradient(circle,var(--violet) 0 1px,transparent 2px);
+background-size:97px 113px,151px 139px,211px 179px;background-position:12px 18px,43px 70px,80px 20px;opacity:.4;animation:starsDrift 18s linear infinite}
+.stars:before{transform:scale(1.25);opacity:.38;animation-duration:26s}
+.stars:after{transform:scale(.75);opacity:.7;animation-duration:12s}
+.stage{position:relative;z-index:2;width:min(94vw,760px);min-height:min(88vh,720px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;perspective:1000px;padding:26px}
+.portal{position:relative;width:min(78vw,560px);aspect-ratio:1.72;margin-bottom:clamp(16px,3vh,28px);transform-style:preserve-3d;animation:portalFloat 4s ease-in-out infinite}
+.orbit{position:absolute;inset:1% 13%;border:1px solid rgba(77,221,255,.26);border-radius:50%;transform:rotateX(67deg) rotateZ(-8deg);box-shadow:0 0 25px rgba(42,209,255,.18),inset 0 0 24px rgba(126,58,255,.18);animation:orbitSpin 7s linear infinite}
+.orbit.two{inset:10% 5%;border-color:rgba(186,83,255,.25);transform:rotateX(72deg) rotateZ(28deg);animation-direction:reverse;animation-duration:10s}
+.core{position:absolute;inset:0;filter:drop-shadow(0 0 10px rgba(39,231,255,.85)) drop-shadow(0 0 28px rgba(139,55,255,.7));transform:translateZ(45px)}
+.infinity{width:100%;height:100%;overflow:visible}
+.infinity path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.shadow{stroke:#170829;stroke-width:34;opacity:.88;transform:translate(0,9px)}
+.shell{stroke:url(#metal);stroke-width:29}
+.energy{stroke:url(#energy);stroke-width:16;stroke-dasharray:44 14;animation:energyFlow 1.55s linear infinite}
+.shine{stroke:#e9fbff;stroke-width:3;stroke-dasharray:8 30;opacity:.9;animation:energyFlow .9s linear infinite}
+.coreburst{position:absolute;left:50%;top:50%;width:54px;height:54px;border-radius:50%;transform:translate(-50%,-50%) translateZ(72px);background:radial-gradient(circle,#fff 0 4%,var(--cyan) 13%,var(--violet) 38%,transparent 68%);filter:blur(.3px);box-shadow:0 0 25px var(--cyan),0 0 70px var(--violet);animation:corePulse 1.8s ease-in-out infinite}
+.rune{color:var(--gold);font:700 clamp(9px,1.6vw,12px) Arial,sans-serif;letter-spacing:.42em;text-transform:uppercase;text-shadow:0 0 12px rgba(242,204,114,.55);margin-bottom:12px}
+h1{margin:0;color:#f0dcff;font-size:clamp(25px,5vw,44px);line-height:1.08;letter-spacing:.1em;text-shadow:0 0 12px rgba(209,115,255,.8),0 0 35px rgba(94,36,197,.75)}
+.divider{display:flex;align-items:center;gap:12px;width:min(76vw,320px);margin:18px auto}
+.divider:before,.divider:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,var(--cyan));box-shadow:0 0 9px var(--cyan)}
+.divider:after{background:linear-gradient(90deg,var(--cyan),transparent)}
+.diamond{width:9px;height:9px;border:1px solid var(--gold);transform:rotate(45deg);box-shadow:0 0 8px var(--gold)}
+p{margin:0;color:#d7d4e2;font-size:clamp(14px,3.5vw,18px);letter-spacing:.09em}
+.status{display:inline-flex;align-items:center;gap:9px;margin-top:18px;padding:8px 14px;border:1px solid rgba(42,226,255,.25);background:rgba(3,10,25,.55);color:var(--cyan);font:700 10px Arial,sans-serif;letter-spacing:.2em;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:corePulse 1.2s ease-in-out infinite}
+@keyframes energyFlow{to{stroke-dashoffset:-58}}
+@keyframes portalFloat{0%,100%{transform:translateY(0) rotateX(2deg)}50%{transform:translateY(-10px) rotateX(-2deg)}}
+@keyframes orbitSpin{to{transform:rotateX(67deg) rotateZ(352deg)}}
+@keyframes corePulse{50%{opacity:.58;transform:translate(-50%,-50%) translateZ(72px) scale(.72)}}
+@keyframes starsDrift{to{background-position:12px 131px,43px 209px,80px 199px}}
+@keyframes spaceBreath{to{transform:scale(1.035);filter:saturate(1.16)}}
+@media(max-width:520px){
+.stage{min-height:92dvh;padding:20px 13px}
+.portal{width:94vw;max-width:430px;margin-bottom:8px}
+.orbit{inset:4% 10%}
+.rune{margin-top:4px}
+h1{font-size:clamp(23px,7.6vw,34px)}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important}}
 </style>
 </head>
 <body>
-<div class="arena" aria-hidden="true"></div>
-<div class="vignette" aria-hidden="true"></div>
-<main class="panel">
-<div class="gem" aria-hidden="true"></div>
+<div class="space" aria-hidden="true"></div>
+<div class="stars" aria-hidden="true"></div>
+<main class="stage">
+<div class="portal" aria-hidden="true">
+<div class="orbit"></div><div class="orbit two"></div>
+<div class="core">
+<svg class="infinity" viewBox="0 0 600 340" role="img" aria-label="Animated Infinite symbol">
+<defs>
+<linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2cf0ff"/><stop offset=".27" stop-color="#5555d8"/><stop offset=".53" stop-color="#d669ff"/><stop offset=".78" stop-color="#5420a6"/><stop offset="1" stop-color="#2cf0ff"/></linearGradient>
+<linearGradient id="energy" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#eafcff"/><stop offset=".22" stop-color="#20e8ff"/><stop offset=".52" stop-color="#a54cff"/><stop offset=".78" stop-color="#f078ff"/><stop offset="1" stop-color="#20e8ff"/></linearGradient>
+</defs>
+<path class="shadow" d="M74 170C74 72 190 65 300 170S526 268 526 170 410 65 300 170 74 268 74 170"/>
+<path class="shell" d="M74 170C74 72 190 65 300 170S526 268 526 170 410 65 300 170 74 268 74 170"/>
+<path class="energy" d="M74 170C74 72 190 65 300 170S526 268 526 170 410 65 300 170 74 268 74 170"/>
+<path class="shine" d="M74 170C74 72 190 65 300 170S526 268 526 170 410 65 300 170 74 268 74 170"/>
+</svg>
+</div>
+<div class="coreburst"></div>
+</div>
+<div class="rune">Infinite Runners · Dragon Arena</div>
 <h1>ARENA UPDATE<br>IN PROGRESS</h1>
-<div class="line"></div>
+<div class="divider"><span class="diamond"></span></div>
 <p>Check back in 30 minutes.</p>
-<div class="status"><span class="dot"></span>DRAGON ARENA</div>
+<div class="status"><span class="dot"></span>FORGING THE ARENA</div>
 </main>
 </body>
 </html>
