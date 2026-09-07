@@ -177,10 +177,8 @@ class CollisionSystem {
     if (now - previousTime < this.recoilCooldown) return;
     this.recoilPairs.set(pairKey, now);
 
-    const head1 = this._getCollisionHead(d1);
-    const head2 = this._getCollisionHead(d2);
-    const dx = head1.x - head2.x;
-    const dy = head1.y - head2.y;
+    const dx = d1.head.x - d2.head.x;
+    const dy = d1.head.y - d2.head.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     let nx, ny;
     if (distance > 0.0001) {
@@ -226,8 +224,10 @@ class CollisionSystem {
   checkDragonCollisions(d1, d2, resolveDeath = true) {
     if (d1.immunityTimer > 0 || d2.immunityTimer > 0) return;
 
-    const dx = d1.head.x - d2.head.x;
-    const dy = d1.head.y - d2.head.y;
+    const head1 = this._getCollisionHead(d1);
+    const head2 = this._getCollisionHead(d2);
+    const dx = head1.x - head2.x;
+    const dy = head1.y - head2.y;
     const distSq = dx * dx + dy * dy;
     const headHitDist = (d1.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS) + (d2.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS);
     const headHitDistSq = headHitDist * headHitDist;
