@@ -4320,45 +4320,45 @@
 
 <!-- ===== HOW TO PLAY ===== --> 
 <div id="howToPlayScreen" class="screen"> 
-  <button class="htpClose" id="btnHtpClose"><i data-lucide="x"></i></button> 
+  <header class="htpHeader">
+    <button class="htpClose" id="btnHtpClose" type="button" aria-label="Back"><i data-lucide="arrow-left"></i><span>BACK</span></button>
+    <h2>HOW TO PLAY</h2>
+  </header>
   <div class="htpInner"> 
-    <h2>HOW TO PLAY</h2> 
-    <div class="htpTabs"> 
-      <button class="htpTab active" data-tab="controls">CONTROLS</button> 
-      <button class="htpTab" data-tab="mechanics">MECHANICS</button> 
-      <button class="htpTab" data-tab="tips">TIPS</button> 
-    </div> 
-    <div id="htpControls" class="htpPanel active">
-      <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile: Move</h4><p>Touch and drag anywhere to guide your dragon.</p></div>
-      <div class="htpCard"><h4><i data-lucide="zap"></i> Mobile: Sprint</h4><p>Tap the SPRINT button for a 5-second speed burst. Requires 20 &infin; food to charge.</p></div>
-      <div class="htpCard"><h4><i data-lucide="crosshair"></i> Mobile: Attack</h4><p>Tap the ATTACK button when charged to enable kill collisions. Requires 20 &infin; food to charge.</p></div>
-      <div class="htpCard" style="opacity:.6"><h4><i data-lucide="mouse"></i> PC</h4><p>Move = Mouse, Sprint = Space, Pause = ESC</p></div>
-    </div> 
-    <div id="htpMechanics" class="htpPanel">
-      <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Bigger dragon bounces the smaller one away. To actually KILL on head-on-head, your ATTACK meter must be charged. No attack = no kill, just a bump.</p></div>
-      <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>Hit a bigger dragon's tail = you lose segments (tail cut). Hit a smaller dragon's tail with ATTACK active = massive damage. Equal size = bounce.</p></div>
-      <div class="htpCard"><h4><i data-lucide="shield"></i> Head vs Body</h4><p>Hitting a dragon's mid-body does nothing — you pass through. Only head and tail contacts matter.</p></div>
-      <div class="htpCard"><h4><i data-lucide="zap"></i> Sprint</h4><p>Eat 20 &infin; food to fully charge. Tap SPRINT for a 5-second speed burst. No auto-regen — you earn every charge by eating.</p></div>
-      <div class="htpCard"><h4><i data-lucide="crosshair"></i> Attack</h4><p>Eat 20 &infin; food to charge ATTACK. When active, head-on-head kills smaller dragons and tail hits deal 30% segment damage. Without it, collisions just bounce.</p></div>
-      <div class="htpCard"><h4><i data-lucide="trending-up"></i> Growth Stages</h4><p>Hatchling (5 segments) &rarr; Drake (10) &rarr; Wyrm (15) &rarr; Ancient (25) &rarr; Max (50). Eat &infin; food to grow bigger and stronger.</p></div>
-      <div class="htpCard"><h4><i data-lucide="heart"></i> 3 Lives</h4><p>Each dragon has 3 lives. Die 3 times and you're eliminated from the round.</p></div>
-      <div class="htpCard"><h4><i data-lucide="infinity"></i> Small Dragon Protection</h4><p>Dragons under 8 segments (Hatchling) are fragile — bigger dragons can kill them even without ATTACK charged. Grow fast to survive.</p></div>
-    </div> 
-    <div id="htpTips" class="htpPanel"> 
-      <div class="htpCard"><h4 style="color:#9b4dff">Aegis</h4><p>Balanced. Great for beginners.</p></div> 
-      <div class="htpCard"><h4 style="color:#ff4d4d">Ignis</h4><p>Fast and aggressive. Rush opponents.</p></div> 
-      <div class="htpCard"><h4 style="color:#00b4d8">Infinite</h4><p>Longest body. Trap and block enemies.</p></div> 
-      <div class="htpCard"><h4 style="color:#ff00aa">Magnetron</h4><p>Tanky. Hard to kill.</p></div> 
-    </div> 
-    <div class="htpStakingTerms">
-      <h4>Terms &amp; Risk of Staking</h4>
-      <p><strong>Real money at stake.</strong> When you enter a match, your stake is locked and at risk. Only stake what you can <strong>afford to lose</strong>. There is no guarantee of winning — outcomes depend on gameplay skill and performance.</p>
-      <p><strong>You bear all losses.</strong> No refunds, chargebacks, or compensation will be issued for lost stakes. The game and its developers are not liable for any losses incurred while playing. If you may have a gambling problem, seek help immediately. 18+ only.</p>
-      <div class="htpContactLine">
-        Questions? Contact us at <a href="mailto:Contact@InfiniteCoinHQ.com">Contact@InfiniteCoinHQ.com</a>
+    <div class="htpTabs" role="tablist"> 
+      <button class="htpTab active" data-tab="controls" type="button">CONTROLS</button> 
+      <button class="htpTab" data-tab="mechanics" type="button">MECHANICS</button> 
+      <button class="htpTab" data-tab="tips" type="button">TIPS</button> 
+    </div>
+    <div class="htpScroll" id="htpScroll">
+      <div id="htpControls" class="htpPanel active">
+        <div class="htpCard"><h4><i data-lucide="smartphone"></i> Mobile Movement</h4><p>Touch and drag to guide your dragon.</p></div>
+        <div class="htpCard"><h4><i data-lucide="zap"></i> Sprint</h4><p>Collect 20 &infin; food, then tap SPRINT for a 5-second speed burst.</p></div>
+        <div class="htpCard"><h4><i data-lucide="crosshair"></i> Attack</h4><p>Collect 20 &infin; food, then tap ATTACK for 5 seconds of powered combat.</p></div>
+        <div class="htpCard"><h4><i data-lucide="mouse"></i> PC Controls</h4><p>Move with the mouse. Sprint with Space. Pause with ESC in solo play.</p></div>
+      </div> 
+      <div id="htpMechanics" class="htpPanel">
+        <div class="htpCard"><h4><i data-lucide="swords"></i> Head vs Head</h4><p>Attack defeats a smaller dragon. Dragons below 8 segments can also be defeated by a larger dragon without Attack. Other clashes bounce.</p></div>
+        <div class="htpCard"><h4><i data-lucide="scissors"></i> Head vs Tail</h4><p>A larger dragon striking a smaller tail defeats it. A smaller dragon striking a larger tail cuts segments; a Drake using Attack deals 30% tail damage.</p></div>
+        <div class="htpCard"><h4><i data-lucide="shield"></i> Mid-Body Contact</h4><p>Ordinary mid-body contact causes no damage. Head and tail contacts decide combat.</p></div>
+        <div class="htpCard"><h4><i data-lucide="trending-up"></i> Growth Stages</h4><p>Hatchling 5 &rarr; Drake 10 &rarr; Wyrm 15 &rarr; Ancient 25 &rarr; Max 50.</p></div>
+        <div class="htpCard"><h4><i data-lucide="heart"></i> Three Lives</h4><p>After the third death, the dragon is eliminated from the match.</p></div>
+      </div> 
+      <div id="htpTips" class="htpPanel"> 
+        <div class="htpCard"><h4><i data-lucide="infinity"></i> Grow Early</h4><p>Collect food quickly so you do not remain below 8 segments.</p></div> 
+        <div class="htpCard"><h4><i data-lucide="zap"></i> Save Sprint</h4><p>Use Sprint to escape danger or close distance at the right moment.</p></div> 
+        <div class="htpCard"><h4><i data-lucide="crosshair"></i> Time Attack</h4><p>Attack lasts 5 seconds. Activate it immediately before making contact.</p></div> 
+        <div class="htpCard"><h4><i data-lucide="eye"></i> Watch the Tail</h4><p>Protect your tail and approach larger dragons carefully.</p></div> 
+      </div> 
+      <div class="htpStakingTerms">
+        <h4>Terms &amp; Risk of Staking</h4>
+        <p><strong>Real money at stake.</strong> Your match stake is locked and at risk. Only stake what you can afford to lose. Winning is never guaranteed.</p>
+        <p><strong>You bear all losses.</strong> Lost stakes are not refundable. Gameplay is skill-based. 18+ only.</p>
+        <div class="htpContactLine">Questions? <a href="mailto:Contact@InfiniteCoinHQ.com">Contact@InfiniteCoinHQ.com</a></div>
       </div>
     </div>
-    <button class="gotItBtn" id="btnGotIt">GOT IT</button></div> 
+  </div>
+  <button class="gotItBtn" id="btnGotIt" type="button">DONE</button>
 </div> 
 
 <!-- ===== LEADERBOARD ===== --> 
