@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050313">
+<title>Dragon Arena Update</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#03020b;color:#fff}
+body{min-height:100dvh;display:grid;place-items:center;overflow:hidden;font-family:Georgia,"Times New Roman",serif}
+.arena{position:fixed;inset:0;background:
+linear-gradient(180deg,rgba(2,1,10,.12),rgba(2,1,10,.5)),
+url("./assets/title-mobile-bg.png") center/cover no-repeat;transform:scale(1.02)}
+.vignette{position:fixed;inset:0;background:radial-gradient(circle at 50% 42%,transparent 18%,rgba(2,1,10,.42) 62%,#020108 100%)}
+.panel{position:relative;z-index:1;width:min(88vw,520px);padding:32px 24px 29px;text-align:center;background:linear-gradient(145deg,rgba(12,7,32,.76),rgba(4,3,16,.9));border:1px solid rgba(167,102,255,.72);clip-path:polygon(24px 0,calc(100% - 24px) 0,100% 24px,100% calc(100% - 24px),calc(100% - 24px) 100%,24px 100%,0 calc(100% - 24px),0 24px);box-shadow:0 0 0 1px rgba(50,220,255,.18),0 0 45px rgba(103,29,220,.4),inset 0 0 35px rgba(71,25,131,.28)}
+.gem{width:28px;height:42px;margin:0 auto 19px;background:linear-gradient(145deg,#ecbfff 0,#9d42ff 42%,#491183 68%,#23dffc 100%);clip-path:polygon(50% 0,100% 42%,50% 100%,0 42%);filter:drop-shadow(0 0 12px #a647ff)}
+h1{margin:0;color:#e4baff;font-size:clamp(22px,5.5vw,34px);line-height:1.25;letter-spacing:.09em;text-shadow:0 0 18px rgba(171,73,255,.8)}
+.line{width:96px;height:1px;margin:20px auto;background:linear-gradient(90deg,transparent,#42ddff,transparent);box-shadow:0 0 9px #42ddff}
+p{margin:0;color:#c9c5da;font-size:clamp(15px,4vw,18px);letter-spacing:.08em}
+.status{display:inline-flex;align-items:center;gap:8px;margin-top:20px;color:#60eaff;font:700 11px Arial,sans-serif;letter-spacing:.18em}
+.dot{width:7px;height:7px;border-radius:50%;background:#60eaff;box-shadow:0 0 10px #60eaff;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
+@media(max-width:520px){.arena{background-size:cover}.panel{padding:27px 18px 25px}}
+</style>
+</head>
+<body>
+<div class="arena" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<main class="panel">
+<div class="gem" aria-hidden="true"></div>
+<h1>ARENA UPDATE<br>IN PROGRESS</h1>
+<div class="line"></div>
+<p>Check back in 30 minutes.</p>
+<div class="status"><span class="dot"></span>DRAGON ARENA</div>
+</main>
+</body>
+</html>
