@@ -1,7 +1,7 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
 import AssetLoader from './assetLoader.js';
-import { DragonManager } from './dragonManager.js?v=57';
+import { DragonManager } from './dragonManager.js?v=58';
 import {
   REMOTE_SYNC,
   classifyRemoteSnapshot,
@@ -12,9 +12,9 @@ import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
 import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
-import CollisionSystem from './collisionSystem.js?v=55';
+import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=69';
+import UIManager from './uiManager.js?v=70';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=53';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
