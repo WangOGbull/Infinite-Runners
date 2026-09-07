@@ -42,11 +42,12 @@ h1{margin:0;color:#f0dcff;font-size:clamp(25px,5vw,44px);line-height:1.08;letter
 .diamond{width:9px;height:9px;border:1px solid var(--gold);transform:rotate(45deg);box-shadow:0 0 8px var(--gold)}
 p{margin:0;color:#d7d4e2;font-size:clamp(14px,3.5vw,18px);letter-spacing:.09em}
 .status{display:inline-flex;align-items:center;gap:9px;margin-top:18px;padding:8px 14px;border:1px solid rgba(42,226,255,.25);background:rgba(3,10,25,.55);color:var(--cyan);font:700 10px Arial,sans-serif;letter-spacing:.2em;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:corePulse 1.2s ease-in-out infinite}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:dotPulse 1.2s ease-in-out infinite}
 @keyframes energyFlow{to{stroke-dashoffset:-58}}
 @keyframes portalFloat{0%,100%{transform:translateY(0) rotateX(2deg)}50%{transform:translateY(-10px) rotateX(-2deg)}}
 @keyframes orbitSpin{to{transform:rotateX(67deg) rotateZ(352deg)}}
 @keyframes corePulse{50%{opacity:.58;transform:translate(-50%,-50%) translateZ(72px) scale(.72)}}
+@keyframes dotPulse{50%{opacity:.3;transform:scale(.65)}}
 @keyframes starsDrift{to{background-position:12px 131px,43px 209px,80px 199px}}
 @keyframes spaceBreath{to{transform:scale(1.035);filter:saturate(1.16)}}
 @media(max-width:520px){
