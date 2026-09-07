@@ -56,6 +56,30 @@ class CollisionSystem {
     this._lastFoodCount = -1;
   }
 
+  _getCollisionHead(dragon) {
+    const pose = dragon && dragon.isRemote
+      ? dragon.networkCollisionHead
+      : null;
+
+    if (
+      pose
+      && Number.isFinite(pose.x)
+      && Number.isFinite(pose.y)
+    ) {
+      return pose;
+    }
+
+    return dragon.head;
+  }
+
+  _getCollisionOffset(dragon) {
+    const collisionHead = this._getCollisionHead(dragon);
+    return {
+      x: collisionHead.x - dragon.head.x,
+      y: collisionHead.y - dragon.head.y
+    };
+  }
+
   checkAll(dragonManager, foodSystem, arenaManager, resolveDragonCombat = true) {
     const dragons = dragonManager.getLivingDragons();
     const foods = foodSystem.getFoods();
@@ -112,8 +136,17 @@ class CollisionSystem {
     for (const dragon of dragons) {
       if (!dragon.alive) continue;
       const segs = dragon.segments;
+      const collisionOffset = this._getCollisionOffset(dragon);
       for (let i = 1; i < segs.length; i++) {
-        this.bodyHash.insert(segs[i].x, segs[i].y, { seg: segs[i], dragon, index: i });
+        const collisionX = segs[i].x + collisionOffset.x;
+        const collisionY = segs[i].y + collisionOffset.y;
+        this.bodyHash.insert(collisionX, collisionY, {
+          seg: segs[i],
+          collisionX,
+          collisionY,
+          dragon,
+          index: i
+        });
       }
     }
 
@@ -144,8 +177,10 @@ class CollisionSystem {
     if (now - previousTime < this.recoilCooldown) return;
     this.recoilPairs.set(pairKey, now);
 
-    const dx = d1.head.x - d2.head.x;
-    const dy = d1.head.y - d2.head.y;
+    const head1 = this._getCollisionHead(d1);
+    const head2 = this._getCollisionHead(d2);
+    const dx = head1.x - head2.x;
+    const dy = head1.y - head2.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     let nx, ny;
     if (distance > 0.0001) {
@@ -198,8 +233,8 @@ class CollisionSystem {
     const headHitDistSq = headHitDist * headHitDist;
 
     if (distSq < headHitDistSq) {
-      const mx = (d1.head.x + d2.head.x) / 2;
-      const my = (d1.head.y + d2.head.y) / 2;
+      const mx = (head1.x + head2.x) / 2;
+      const my = (head1.y + head2.y) / 2;
       this.eventBus.emit('collision:head-hit', { d1, d2, x: mx, y: my });
 
       const len1 = d1.segments ? d1.segments.length : 0;
@@ -247,7 +282,7 @@ class CollisionSystem {
   checkHeadVsBody(headDragon, bodyDragon, resolveDeath = true) {
     if (headDragon.immunityTimer > 0 || bodyDragon.immunityTimer > 0) return;
 
-    const head = headDragon.head;
+    const head = this._getCollisionHead(headDragon);
     const headRadius = headDragon.headRadius || CONFIG.DRAGON_HEAD_HITBOX_RADIUS;
     const bodyRadius = bodyDragon.headRadius || CONFIG.DRAGON_COLLISION_RADIUS;
     const hitDist = headRadius + bodyRadius;
@@ -262,8 +297,8 @@ class CollisionSystem {
     for (const item of nearby) {
       if (item.dragon !== bodyDragon) continue;
       const seg = item.seg;
-      const dx = head.x - seg.x;
-      const dy = head.y - seg.y;
+      const dx = head.x - item.collisionX;
+      const dy = head.y - item.collisionY;
       if (dx * dx + dy * dy >= hitDistSq) continue;
 
       const isTailHit = item.index === lastIdx;
