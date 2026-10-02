@@ -3718,6 +3718,7 @@
   html.phantom-stake-return #bootScreen,
   html.phantom-stake-return #titleScreen { display: none !important; }
 </style>
+<link rel="stylesheet" href="./src/cashWallet.css?v=2">
 </head>
 <body> 
 
@@ -3785,6 +3786,7 @@
       <button class="menuBtn" id="btnStartGame"><i data-lucide="gamepad-2"></i> Start Game</button> 
       <button class="menuBtn" id="btnLeaderboard"><i data-lucide="trophy"></i> Leaderboard</button> 
       <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button>
+      <button class="menuBtn irCashLaunch" id="btnCashWallet" type="button"><i class="fa-solid fa-coins" aria-hidden="true"></i> Cash Wallet</button>
       <button class="menuBtn" id="btnSettings"><i data-lucide="settings"></i> Settings</button>
     </div> 
   </div> 
@@ -4429,7 +4431,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=99"></script>
+<script type="module" src="./src/main.js?v=100"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
@@ -4594,5 +4596,6 @@
  
 
 
+<script src="./src/cashWallet.js?v=2" defer></script>
 </body> 
 </html>
