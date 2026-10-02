@@ -3718,7 +3718,7 @@
   html.phantom-stake-return #bootScreen,
   html.phantom-stake-return #titleScreen { display: none !important; }
 </style>
-<link rel="stylesheet" href="./src/cashWallet.css?v=2">
+<link rel="stylesheet" href="./src/cashWallet.css?v=3">
 </head>
 <body> 
 
@@ -3768,7 +3768,10 @@
   <img class="mobileTitleBackground" src="./assets/title-mobile-bg.webp?v=1" alt="" aria-hidden="true"> 
   <div class="darken"></div> 
   <button id="profileIconTitle" class="profileIconBtn profileIconTL"><i class="fa-solid fa-dragon"></i></button> 
-  <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button> 
+  <div class="titleWalletActions">
+    <button id="walletBtn" class="icon-btn"><i data-lucide="wallet"></i><span>Connect Wallet</span></button>
+    <button class="irCashLaunch" id="btnCashWallet" type="button"><i class="fa-solid fa-coins" aria-hidden="true"></i><span>Cash Wallet</span></button>
+  </div>
   <div class="content"> 
     <h1>Infinite Runners</h1> 
     <h2>^Dragons Arena^</h2> 
@@ -3783,10 +3786,8 @@
     </div> 
     <button class="playBtn" id="btnPlayNow"><i data-lucide="play"></i> PLAY NOW</button> 
     <div class="menuBtns"> 
-      <button class="menuBtn" id="btnStartGame"><i data-lucide="gamepad-2"></i> Start Game</button> 
       <button class="menuBtn" id="btnLeaderboard"><i data-lucide="trophy"></i> Leaderboard</button> 
       <button class="menuBtn" id="btnHowToPlay"><i data-lucide="help-circle"></i> How to Play</button>
-      <button class="menuBtn irCashLaunch" id="btnCashWallet" type="button"><i class="fa-solid fa-coins" aria-hidden="true"></i> Cash Wallet</button>
       <button class="menuBtn" id="btnSettings"><i data-lucide="settings"></i> Settings</button>
     </div> 
   </div> 
