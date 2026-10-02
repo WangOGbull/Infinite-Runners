@@ -23,9 +23,32 @@
     wallet.querySelectorAll('[data-panel]').forEach(el => el.hidden = el.dataset.panel !== name);
     wallet.querySelectorAll('[data-tab]').forEach(el => el.setAttribute('aria-pressed', String(el.dataset.tab === name)));
   };
-  launch.addEventListener('click', () => { if (!wallet.open) { show(selected); wallet.showModal(); } });
+  let opener = launch;
+  const openWallet = button => {
+    opener = button;
+    if (!wallet.open) { show(selected); wallet.showModal(); }
+  };
+  launch.addEventListener('click', () => openWallet(launch));
+  // These controls open the preview without changing tiers, stakes or rooms.
+  ['matchmakingTierScreen', 'lobbyScreen', 'bettingArenaScreen'].forEach(id => {
+    const screen = document.getElementById(id);
+    if (!screen) return;
+    const entry = document.createElement('div');
+    entry.className = 'irCashStakeAccess';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'irCashStakeLaunch';
+    button.textContent = 'Cash Wallet / BUY INFINITE';
+    button.addEventListener('click', () => openWallet(button));
+    const note = document.createElement('p');
+    note.textContent = 'Cash match entry coming soon. Current stakes use your connected token wallet.';
+    entry.append(button, note);
+    const stake = screen.querySelector('#lobbyDepositBtn, #baPlaceBetBtn');
+    if (stake) stake.before(entry);
+    else screen.append(entry);
+  });
   wallet.querySelector('[data-close]').addEventListener('click', () => wallet.close());
-  wallet.addEventListener('close', () => launch.focus());
+  wallet.addEventListener('close', () => opener.focus());
   wallet.addEventListener('click', event => {
     event.stopPropagation();
     const button = event.target.closest('button');
