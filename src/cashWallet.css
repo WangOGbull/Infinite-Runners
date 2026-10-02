@@ -7,9 +7,41 @@
 #matchmakingTierScreen{flex-direction:column;overflow-y:auto;gap:6px}
 #matchmakingTierScreen .daStakeModal.daStakeImageBox{width:min(calc(100vw - 12px),calc((100dvh - 112px) * 0.472328767),560px)}
 #matchmakingTierScreen .irCashStakeAccess{max-width:420px;margin:0 auto}
-.irCash{width:min(520px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #a68242;border-radius:20px;background:#10131d;color:#f2f0ea;box-shadow:0 24px 90px #000b;font-family:'Rajdhani',sans-serif;overflow:auto;overscroll-behavior:contain}
+.irCash{position:fixed;inset:0;margin:auto;box-sizing:border-box;min-width:0;height:fit-content;width:min(520px,calc(100vw - 24px));max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding:0;border:1px solid #a68242;border-radius:20px;background:#10131d;color:#f2f0ea;box-shadow:0 24px 90px #000b;font-family:'Rajdhani',sans-serif;overflow:hidden;overscroll-behavior:contain}
+ .irCash[open]{display:flex;flex-direction:column}
 .irCash::backdrop{background:#030711d9;backdrop-filter:blur(7px)}
-.irCash [hidden]{display:none!important}.irCash *{box-sizing:border-box}.irCash header{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid #ffffff15;background:linear-gradient(135deg,#282237,#141923)}
-.irCashEyebrow{font-size:11px;letter-spacing:3px;color:#d1b474}.irCash h2{font-family:'Cinzel Decorative',serif;font-size:24px;margin:7px 0 0}.irCash header button{width:44px;height:44px;font-size:28px;background:#ffffff08;color:#ddd;border:1px solid #ffffff25;border-radius:12px;cursor:pointer}
-.irCashBody{padding:22px 24px}.irCash p{font-size:15px;line-height:1.45;color:#acb3c5}.irCashNotice{margin:0 0 20px;padding:12px;border:1px solid #d1b47435;border-radius:10px;background:#d1b47408}.irCashBalance{padding:24px;border:1px solid #c7a25366;border-radius:16px;background:radial-gradient(at top right,#4b394255,transparent),#191b28}.irCashBalance>span{font-size:12px;letter-spacing:2px;color:#d1b474}.irCashBalance strong{display:block;font-size:46px;line-height:1.2;margin:10px 0}.irCashBalance small{font-size:16px;color:#aaa}.irCashBalance p{margin:0 0 18px}.irCashBreakdown{display:flex;border-top:1px solid #ffffff18;padding-top:16px;gap:20px}.irCashBreakdown span{flex:1;color:#aaa;font-size:14px}.irCashBreakdown b{display:block;color:#eee;font-size:20px;margin-top:4px}
+.irCash [hidden]{display:none!important}.irCash *{box-sizing:border-box}.irCash header{flex:0 0 auto;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid #ffffff15;background:linear-gradient(135deg,#282237,#141923)}
+.irCashEyebrow{font-size:11px;letter-spacing:3px;color:#d1b474}.irCash h2{font-family:'Cinzel Decorative',serif;font-size:24px;margin:7px 0 0}.irCash header button{flex:0 0 auto;width:44px;height:44px;font-size:28px;background:#ffffff08;color:#ddd;border:1px solid #ffffff25;border-radius:12px;cursor:pointer}
+.irCashBody{padding:22px 24px;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;user-select:text}.irCash p{font-size:15px;line-height:1.45;color:#acb3c5}.irCashNotice{margin:0 0 20px;padding:12px;border:1px solid #d1b47435;border-radius:10px;background:#d1b47408}.irCashBalance{padding:24px;border:1px solid #c7a25366;border-radius:16px;background:radial-gradient(at top right,#4b394255,transparent),#191b28}.irCashBalance>span{font-size:12px;letter-spacing:2px;color:#d1b474}.irCashBalance strong{display:block;font-size:46px;line-height:1.2;margin:10px 0}.irCashBalance small{font-size:16px;color:#aaa}.irCashBalance p{margin:0 0 18px}.irCashBreakdown{display:flex;border-top:1px solid #ffffff18;padding-top:16px;gap:20px}.irCashBreakdown span{flex:1;color:#aaa;font-size:14px}.irCashBreakdown b{display:block;color:#eee;font-size:20px;margin-top:4px}
 .irCashTabs{display:flex;gap:6px;margin:22px 0;padding:5px;background:#090c14;border-radius:12px}.irCashTabs button{flex:1;min-height:46px;border:0;border-radius:8px;background:transparent;color:#aab2c5;font:700 14px 'Rajdhani',sans-serif;cursor:pointer}.irCashTabs button[aria-pressed=true]{background:#3b3042;color:#f6d891}.irCash h3{font-size:20px;margin:0 0 14px}.irCash label{display:block;font-size:14px;color:#c5cbdb;margin:14px 0 8px}.irCash input,.irCash select{width:100%;min-width:0;min-height:48px;border:1px solid #ffffff22;border-radius:10px;background:#090d17;color:#eee;padding:12px;font:18px 'Rajdhani',sans-serif}.irCash input:focus,.irCash select:focus,.irCash button:focus-visible{outline:2px solid #e6c272;outline-offset:3px}.irCashInput{display:flex;align-items:center;gap:10px;padding-left:14px;background:#090d17;border:1px solid #ffffff22;border-radius:10px;font-size:22px}.irCashInput input{border:0;background:transparent}.irCashPresets{display:flex;gap:8px;margin-top:12px}.irCashPresets button{flex:1;min-height:42px;border:1px solid #ffffff22;border-radius:8px;background:#ffffff06;color:#ddd;font:700 16px 'Rajdhani',sans-serif;cursor:pointer}.irCashPrimary{width:100%;min-height:50px;border:1px solid #9b8247;border-radius:10px;background:linear-gradient(120deg,#8b713d,#594e37);color:#e8dfcd;font:700 18px 'Rajdhani',sans-serif}.irCashPrimary:disabled{cursor:not-allowed;opacity:.65}.irCashFootnote{font-size:13px!important}.irCashQuote{margin-top:16px;padding:14px;border:1px solid #ffffff18;border-radius:10px}.irCashQuote span{display:flex;justify-content:space-between;gap:10px;margin:8px 0;color:#aab2c5}.irCashQuote b{color:#eee}.irCashHistory{margin-top:24px;border-top:1px solid #ffffff18;padding-top:20px}.irCashHistory>div{padding:18px;text-align:center;border:1px dashed #ffffff25;border-radius:10px;color:#cbd0dd}.irCashHistory p{margin-bottom:0;font-size:13px}@media(max-width:380px){.irCashBody{padding:16px}.irCash header{padding:18px}.irCashTabs button{font-size:12px}}
+
+/* Keep the two title wallet controls together, above the main menu. */
+#titleScreen .titleWalletActions{position:absolute;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:10;display:flex;flex-direction:column;align-items:stretch;gap:6px;max-width:calc(100% - 104px)}
+#titleScreen .titleWalletActions #walletBtn{position:static;min-height:40px;justify-content:center;max-width:100%}
+#titleScreen .titleWalletActions .irCashLaunch{display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:7px 14px;border:1px solid #a68242;border-radius:50px;background:#151221dd;color:#f4d68e;font:700 12px 'Rajdhani',sans-serif;cursor:pointer;touch-action:manipulation}
+#titleScreen .titleWalletActions button:focus-visible{outline:2px solid #f4d68e;outline-offset:3px}
+.irCashQuote span{min-width:0;flex-wrap:wrap}.irCashQuote b{overflow-wrap:anywhere}
+@media(max-width:768px){
+  #titleScreen .menuBtns{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #titleScreen .menuBtn,#titleScreen .menuBtn:last-child{grid-column:auto}
+  .irCash{border-radius:16px}
+  .irCash header{padding:14px 16px}
+  .irCash h2{font-size:clamp(18px,5vw,24px);line-height:1.2}
+  .irCashEyebrow{font-size:10px;letter-spacing:2px}
+  .irCashBody{padding:16px}
+  .irCash .irCashNotice{font-size:13px;margin-bottom:14px;padding:10px}
+  .irCashBalance{padding:16px}
+  .irCashBalance strong{font-size:36px;margin:8px 0}
+  .irCashBalance p{font-size:13px;margin-bottom:12px}
+  .irCashBreakdown{gap:12px;padding-top:12px}
+  .irCashBreakdown b{font-size:18px}
+  .irCashTabs{margin:16px 0;gap:3px;padding:4px}
+  .irCashTabs button{min-width:0;padding:8px 3px;font-size:12px;overflow-wrap:normal}
+  .irCash h3{font-size:18px;margin-bottom:10px}
+  .irCash p{line-height:1.4}
+  .irCashHistory{margin-top:18px;padding-top:16px}
+}
+@media(max-height:560px){
+  #titleScreen{padding-top:108px;padding-bottom:12px}
+  #titleScreen .content{max-height:calc(100dvh - 124px);overflow-y:auto;transform:none}
+}
