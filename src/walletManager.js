@@ -505,6 +505,9 @@ class WalletManager {
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+      }).catch(() => {
+        // Balance availability does not change the signing connection.
+        this.eventBus.emit('wallet:balanceUpdated', { balance: null });
       });
     });
     provider.on('disconnect', () => {
@@ -876,6 +879,9 @@ class WalletManager {
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: null, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        }).catch(() => {
+          // Balance availability does not change the signing connection.
+          this.eventBus.emit('wallet:balanceUpdated', { balance: null });
         });
       } else if (returnType === 'signMessage') {
         this.eventBus.emit('wallet:signTestResult', {
@@ -1005,6 +1011,9 @@ class WalletManager {
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+      }).catch(() => {
+        // Balance availability does not change the signing connection.
+        this.eventBus.emit('wallet:balanceUpdated', { balance: null });
       });
     }
   }
@@ -1042,6 +1051,9 @@ class WalletManager {
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        }).catch(() => {
+          // Balance availability does not change the signing connection.
+          this.eventBus.emit('wallet:balanceUpdated', { balance: null });
         });
       };
       try {
@@ -1069,6 +1081,9 @@ class WalletManager {
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        }).catch(() => {
+          // Balance availability does not change the signing connection.
+          this.eventBus.emit('wallet:balanceUpdated', { balance: null });
         });
       };
       try {
@@ -1190,6 +1205,9 @@ class WalletManager {
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        }).catch(() => {
+          // Balance availability does not change the signing connection.
+          this.eventBus.emit('wallet:balanceUpdated', { balance: null });
         });
         return { address: this.publicKey.toString(), balance: this.balance };
       } catch (err) {
@@ -1264,6 +1282,9 @@ class WalletManager {
         this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
         this._refreshBalance().then(() => {
           this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+        }).catch(() => {
+          // Balance availability does not change the signing connection.
+          this.eventBus.emit('wallet:balanceUpdated', { balance: null });
         });
         this.connecting = false;
         return { address: this.publicKey.toString(), balance: this.balance };
@@ -1340,6 +1361,9 @@ class WalletManager {
       this.eventBus.emit('wallet:connected', { address: this.publicKey.toString(), balance: this.balance, walletType: this.walletType, linkCode: this._arrivedLinkCode });
       this._refreshBalance().then(() => {
         this.eventBus.emit('wallet:balanceUpdated', { balance: this.balance });
+      }).catch(() => {
+        // Balance availability does not change the signing connection.
+        this.eventBus.emit('wallet:balanceUpdated', { balance: null });
       });
       this.connecting = false;
       return { address: this.publicKey.toString(), balance: this.balance };
@@ -1486,3 +1510,4 @@ class WalletManager {
 }
 
 export default WalletManager;
+
