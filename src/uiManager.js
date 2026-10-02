@@ -1260,6 +1260,8 @@ class UIManager {
     });
     this.eventBus.on('wallet:connected', ({ address, balance, walletType }) => {
       this.setWalletModalState('connected');
+      const signResult = document.getElementById('wSignResult');
+      if (signResult) signResult.textContent = '';
       this.updateWalletDisplay(address, balance, walletType);
       if (this.currentScreen === 'walletSelectionModal') this.showScreen('walletModal');
     });    this.eventBus.on('wallet:disconnected', () => {
@@ -1270,10 +1272,10 @@ class UIManager {
     });
     this.eventBus.on('wallet:balanceUpdated', ({ balance }) => {
       const balEl = document.getElementById('wBalanceDisplay');
-      if (balEl && balance !== undefined && balance !== null) balEl.textContent = `${balance} SOL`;
+      if (balEl) balEl.textContent = balance !== undefined && balance !== null ? `${balance} SOL` : 'Balance unavailable';
     });
     this.eventBus.on('wallet:error', ({ message }) => {
-      this.setWalletModalState('disconnected');
+      this.setWalletModalState(window.game?.walletManager?.connected ? 'connected' : 'disconnected');
       const errEl = document.getElementById('walletError');
       if (errEl) { errEl.textContent = message; errEl.style.display = 'block'; }
     });
@@ -2277,11 +2279,23 @@ class UIManager {
   // Called when a wallet connects in an ISOLATED session (Solflare/Phantom's
   // own in-app browser) and syncs back to this account via the link-code
   // bridge (see main.js _watchWalletLinkSync). This tab's walletManager
-  // never actually connected anything itself - just reflect the now-synced
-  // address in the UI the same way a real connection would display.
+  // may not have a signing session. Keep linked identity separate from an
+  // active provider connection so signing and staking controls stay honest.
   showWalletSynced(address) {
-    this.setWalletModalState('connected');
-    this.updateWalletDisplay(address, null, 'synced');
+    const wm = window.game?.walletManager;
+    if (wm?.connected && wm.publicKey) {
+      this.setWalletModalState('connected');
+      this.updateWalletDisplay(wm.publicKey.toString(), wm.balance, wm.walletType);
+      return;
+    }
+    // An account-linked address is not a signing session in this browser.
+    this.setWalletModalState('disconnected');
+    this.updateWalletButton(null);
+    const error = document.getElementById('walletError');
+    if (error) {
+      error.textContent = 'Your wallet address is linked to your account. Connect your wallet in this browser to sign or stake.';
+      error.style.display = 'block';
+    }
   }
 
   updateWalletDisplay(address, balance, walletType) {
