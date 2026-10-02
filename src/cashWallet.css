@@ -1,5 +1,12 @@
 /* Scoped additive styles; never change existing game controls. */
 .irCashLaunch{color:#f4d68e!important;border-color:#a68242!important}
+.irCashStakeAccess{width:100%;margin:12px 0;flex:0 0 auto;text-align:center;box-sizing:border-box;padding:0 8px}
+.irCashStakeLaunch{width:100%;min-height:44px;padding:10px 14px;border:1px solid #a68242;border-radius:10px;background:#171526;color:#f4d68e;font:700 15px 'Rajdhani',sans-serif;cursor:pointer}
+.irCashStakeLaunch:focus-visible{outline:2px solid #f4d68e;outline-offset:3px}
+.irCashStakeAccess p{margin:6px 0 0;color:#bac1d2;font:13px/1.35 'Rajdhani',sans-serif}
+#matchmakingTierScreen{flex-direction:column;overflow-y:auto;gap:6px}
+#matchmakingTierScreen .daStakeModal.daStakeImageBox{width:min(calc(100vw - 12px),calc((100dvh - 112px) * 0.472328767),560px)}
+#matchmakingTierScreen .irCashStakeAccess{max-width:420px;margin:0 auto}
 .irCash{width:min(520px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #a68242;border-radius:20px;background:#10131d;color:#f2f0ea;box-shadow:0 24px 90px #000b;font-family:'Rajdhani',sans-serif;overflow:auto;overscroll-behavior:contain}
 .irCash::backdrop{background:#030711d9;backdrop-filter:blur(7px)}
 .irCash [hidden]{display:none!important}.irCash *{box-sizing:border-box}.irCash header{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid #ffffff15;background:linear-gradient(135deg,#282237,#141923)}
