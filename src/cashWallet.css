@@ -60,3 +60,32 @@
 }
 @media(max-width:340px){.irCashActions small{font-size:12px}.irCashStakeLaunch .irCashCoinArt{width:42px;height:42px;flex-basis:42px}.irCashStakeLabel strong{font-size:15px}}
 @media(max-height:560px){#titleScreen{padding-top:108px;padding-bottom:12px}#titleScreen .content{max-height:calc(100dvh - 124px);overflow-y:auto;transform:none}}
+/* Approved option 2: direct, lossless extracts of the Neon Vault artwork. */
+.irCash{border-color:#30baf6;background:#030c17;box-shadow:0 24px 90px #000b,0 0 24px #159bdf30}
+.irCash header{background:linear-gradient(135deg,#082336,#06111f);border-bottom-color:#22b8ff40}
+.irCashEyebrow,.irCashBalance>span,.irCashFlowIntro>span,.irCashShopHero>span{color:#66dfff}
+.irCashVaultArt{display:block;width:100%;height:auto;aspect-ratio:474/215;object-fit:contain;border-radius:10px;margin:0 auto 14px;pointer-events:none}
+.irCashBalance{border-color:#29bfff80;background:linear-gradient(145deg,#071d30,#040d18)}
+.irCashBalance strong,.irCashBalance small{color:#e6faff}.irCashBreakdown b{color:#e6faff}
+.irCashActions button{padding:0 0 12px;overflow:hidden;border-color:#3fceff99;background:#041422;color:#edfaff;text-align:center}
+.irCashActions button>img{display:block;width:100%;height:auto;aspect-ratio:210/180;object-fit:contain;pointer-events:none;margin:0 0 8px}
+.irCashActions strong{font-family:'Cinzel Decorative',serif;font-size:clamp(13px,3.5vw,18px)}
+.irCashActions small{padding:0 8px;color:#b0d0e1}
+.irCashHistoryLink{border-color:#30baf666;background:#062035;color:#d9f6ff}
+.irCash button:focus-visible,.irCash select:focus-visible{outline-color:#64dcff}
+.irCashInput:focus-within{border-color:#64dcff;box-shadow:0 0 0 2px #64dcff30}
+.irCash .irCashInput input{caret-color:#64dcff}.irCash #irCashAddress:focus{outline-color:#64dcff}
+.irCashServiceState{border-color:#43c9ff40;background:#0c8aca0a}.irCashServiceState strong{color:#b5eaff}
+.irCashPrimary,.irCashSecondary{border-color:#1faee4;background:linear-gradient(120deg,#07668e,#08324d);color:#e2f8ff}
+.irCashSecondary{background:transparent;color:#90e1ff}
+.irCashShopHero h3,.irCashRules b{color:#c6f1ff}.irCashRules span{color:#8cbad0}
+.irCashStakeLaunch{display:flex;flex-direction:column;gap:0;padding:0;min-height:0;border:1px solid #2dbaff;border-radius:12px;clip-path:none;background:#031324;color:#e9faff;overflow:hidden;box-shadow:0 0 16px #009bee25}
+.irCashStakeLaunch::before,.irCashStakeLaunch::after{display:none}
+.irCashStakeArt{display:block;width:100%;height:auto;aspect-ratio:490/143;object-fit:contain;pointer-events:none}
+.irCashStakeLabel{display:block;width:100%;padding:10px 8px 12px;background:linear-gradient(#07243a,#040e1c)}
+.irCashStakeLabel strong{text-shadow:0 0 12px #37caff80;font-size:clamp(17px,4.5vw,23px)}
+.irCashStakeLabel small{color:#77d7ff}
+.irCashStakeLaunch:focus-visible{outline:2px solid #b8f1ff;outline-offset:3px}
+#titleScreen .titleWalletActions .irCashLaunch{border-color:#29baff;background:#061525e8;color:#a5e9ff}
+#titleScreen .irCashBuyLaunch{border-color:#29baff80;color:#a5e9ff;background:#06233d70}
+#titleScreen .titleWalletActions button:focus-visible{outline-color:#70dbff}
