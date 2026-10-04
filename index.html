@@ -3719,6 +3719,25 @@
   html.phantom-stake-return #titleScreen { display: none !important; }
 </style>
 <link rel="stylesheet" href="./src/cashWallet.css?v=5">
+
+<style id="dragonSelectionActions">
+#dragonSelectScreen .dsCarouselWrap{min-height:0;overflow-y:auto;overflow-x:hidden;justify-content:flex-start;padding-top:12px;padding-bottom:max(16px,env(safe-area-inset-bottom));overscroll-behavior:contain}
+#dragonSelectScreen .dsCarouselWrap>div{flex-shrink:0}
+#dragonSelectScreen .dsSelectRow{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+#dragonSelectScreen #dsSelectBtn{display:flex;clip-path:none;border:1px solid #8695ad70;border-radius:10px;background:#111b2c;color:#c1cbdc;padding:0;box-shadow:none;text-shadow:none;font-size:12px;letter-spacing:1px}
+#dragonSelectScreen #dsSelectBtn span{clip-path:none;background:transparent;padding:10px 20px}
+#dragonSelectScreen #dsSelectBtn i{color:#aebcd1;text-shadow:none}
+#dragonSelectScreen .dsBattleActions{display:flex;align-items:stretch;justify-content:center;gap:8px;width:min(100%,440px);padding:0 8px}
+#dragonSelectScreen #dsDragonAgeBtn{display:flex;flex:1;min-width:0;min-height:54px;padding:0;border:1px solid #4cdbff;border-radius:12px;clip-path:none;background:linear-gradient(135deg,#0578c2,#003b74);color:#effcff;box-shadow:0 0 20px #009fff55,inset 0 1px 0 #c6f5ff40;font-size:clamp(11px,3vw,14px);letter-spacing:1px}
+#dragonSelectScreen #dsDragonAgeBtn span{padding:12px 10px;clip-path:none;background:transparent;gap:8px}
+#dragonSelectScreen #dsDragonAgeBtn svg{width:21px;height:21px;flex-shrink:0}
+#dragonSelectScreen #dsDragonAgeBtn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none}
+#dragonSelectScreen #dsCancelSelectionBtn{display:flex;align-items:center;justify-content:center;gap:5px;flex:0 1 135px;min-width:0;padding:8px;border:1px solid #8da1bb60;border-radius:10px;background:#091321;color:#b5c3d7;font:700 clamp(10px,2.8vw,12px)/1.3 'Rajdhani',sans-serif;letter-spacing:.8px;cursor:pointer;touch-action:manipulation}
+#dragonSelectScreen #dsCancelSelectionBtn svg{width:16px;height:16px;flex-shrink:0}
+#dragonSelectScreen #dsCancelSelectionBtn[hidden]{display:none}
+#dragonSelectScreen .dsBattleActions button:focus-visible,#dragonSelectScreen #dsSelectBtn:focus-visible{outline:2px solid #88eaff;outline-offset:3px}
+#dragonSelectScreen #dsCancelSelectionBtn:hover{border-color:#d0e4ff;color:#fff}
+</style>
 </head>
 <body> 
 
@@ -3990,7 +4009,10 @@
       <div class="dsSelectRow"> 
         <span class="dsSelectBadge" id="dsSelectBadge">NOT SELECTED</span> 
         <button class="dsSelectBtn" id="dsSelectBtn"><span><i class="fa-solid fa-dragon"></i> VIEW DRAGON</span></button> 
-        <button class="dsDragonAgeBtn" id="dsDragonAgeBtn" style="display:none;"><span><i class="fa-solid fa-swords"></i> ENTER BATTLE</span></button> 
+        <div class="dsBattleActions">
+          <button class="dsDragonAgeBtn" id="dsDragonAgeBtn" type="button" disabled><span><i data-lucide="swords" aria-hidden="true"></i> ENTER BATTLE</span></button>
+          <button id="dsCancelSelectionBtn" type="button" hidden><i data-lucide="x" aria-hidden="true"></i><span>CANCEL SELECTION</span></button>
+        </div>
       </div> 
       <div class="dsNavDots" id="dsNavDots"></div> 
     </div> 
@@ -4433,7 +4455,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=101"></script>
+<script type="module" src="./src/main.js?v=102"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
