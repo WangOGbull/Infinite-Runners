@@ -88,10 +88,13 @@ class AssetLoader {
       if (progressCb) progressCb(done, total, src);
     };
     try {
-      const dragons = await this.loadDragons();
-      await Promise.all(extraUrls.map(u =>
-        this._tracked(u).catch(() => { /* extras are nice-to-have */ })
-      ));
+      // UI artwork and dragon sprites can load concurrently.
+      const [dragons] = await Promise.all([
+        this.loadDragons(),
+        Promise.all(extraUrls.map(u =>
+          this._tracked(u).catch(() => { /* extras are nice-to-have */ })
+        ))
+      ]);
       if (this.failedRequired.length > 0) {
         throw new Error('Required assets failed: ' + this.failedRequired.join(', '));
       }
@@ -102,8 +105,8 @@ class AssetLoader {
   }
 
   async loadDragons() {
-    const dragons = [];
-    for (const name of DRAGONS) {
+    // Promise.all retains config order even when downloads finish out of order.
+    const loaded = await Promise.all(DRAGONS.map(async name => {
       const headSrc = `${CONFIG.ASSET_BASE_URL}${name}_head.png`;
       const headCloseSrc = `${CONFIG.ASSET_BASE_URL}${name}_head_close.png`;
       const headOpenSrc = `${CONFIG.ASSET_BASE_URL}${name}_head_open.png`;
@@ -115,23 +118,24 @@ class AssetLoader {
         // the _close/_open frames took over, so demanding it killed every
         // dragon (a missing file returns the SPA fallback HTML page,
         // which a browser cannot decode as an image).
-        const [body, tail] = await Promise.all([
-          this._tracked(bodySrc),
-          this._tracked(tailSrc)
+        const [body, tail, headClose, headOpen] = await Promise.all([
+          this._tracked(bodySrc).catch(() => null),
+          this._tracked(tailSrc).catch(() => null),
+          this._tracked(headCloseSrc).catch(() => null),
+          this._tracked(headOpenSrc).catch(() => null)
         ]);
-        // Head frames, each optional individually: _close = default
-        // (mouth closed), _open = attack mode, plain = legacy fallback.
-        // A dragon only fails if NONE of the three made it through.
-        let headClose = null;
-        let headOpen = null;
         let head = null;
-        try { headClose = await this._tracked(headCloseSrc); } catch (e) { /* optional */ }
-        try { headOpen = await this._tracked(headOpenSrc); } catch (e) { /* optional */ }
-        try { head = await this._tracked(headSrc); } catch (e) { /* optional */ }
+        if (!headClose && !headOpen) {
+          try { head = await this._tracked(headSrc); } catch (_) { /* legacy fallback */ }
+        } else {
+          // The legacy head is unnecessary; keep progress accounting accurate.
+          this._report(headSrc);
+        }
+        if (!body || !tail) throw new Error(`Missing body or tail for ${name}`);
         const defaultHead = headClose || head || headOpen;
         const attackHead = headOpen || null;
         if (!defaultHead) throw new Error(`No head frame for ${name}`);
-        dragons.push({
+        return {
           name,
           head: defaultHead,
           headOpen: attackHead,
@@ -146,12 +150,14 @@ class AssetLoader {
             body: { scale: BODY_DISPLAY_SCALE[name] || 0.85 },
             tail: { scale: 0.8 }
           }
-        });
+        };
       } catch (error) {
         console.warn(`Dragon asset failed: ${name}`);
         this.failedRequired.push(name);
+        return null;
       }
-    }
+    }));
+    const dragons = loaded.filter(Boolean);
     this.loadedDragons = dragons;
     return dragons;
   }
@@ -172,3 +178,4 @@ class AssetLoader {
 
 const instance = new AssetLoader();
 export default instance;
+
