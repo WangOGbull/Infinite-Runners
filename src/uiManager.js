@@ -373,6 +373,20 @@ class UIManager {
   initDragonCarousel(dragons) {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
+    // Keep a valid player choice; otherwise select the first loaded dragon.
+    const nameOf = dragon => typeof dragon === 'string' ? dragon : (dragon?.name || dragon?.type);
+    const previous = this.selectedDragonName || this.selectedDragon;
+    const previousIndex = dragons.findIndex(dragon => nameOf(dragon) === previous);
+    const defaultIndex = dragons.findIndex(dragon => Boolean(nameOf(dragon)));
+    const index = previousIndex >= 0 ? previousIndex : defaultIndex;
+    if (index >= 0) {
+      const name = nameOf(dragons[index]);
+      const changed = this.selectedDragon !== name || this.selectedDragonName !== name;
+      this.carouselIndex = index;
+      this.selectedDragon = name;
+      this.selectedDragonName = name;
+      if (changed) this.eventBus.emit('ui:dragonSelected', { name });
+    }
     // Progress fetch is owned by setAccount() (see comments there). At this
     // point auth usually hasn't restored yet, so uid is unknown and
     // _progressReady is either null or an already-resolved placeholder -
