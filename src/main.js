@@ -14,7 +14,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=72';
+import UIManager from './uiManager.js?v=73';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -1383,6 +1383,7 @@ class Game {
     this.eventBus.on('ui:showDragonSelect', () => {
       this.uiManager.showScreen('dragonSelectScreen');
     });
+    this.eventBus.on('ui:dragonSelectionCancelled', () => { this.selectedDragon = null; });
     this.eventBus.on('ui:dragonSelected', ({ name }) => {
       this.selectedDragon = name;
       if (this.db && this.authUid) {
