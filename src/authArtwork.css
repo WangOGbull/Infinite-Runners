@@ -1,0 +1,57 @@
+/* Approved INFINITE artwork is decorative; all text and controls remain HTML. */
+#loginScreen .authInner,#usernameScreen .authInner,#stakingTermsOverlay .termsCard {
+  background:#020c19 url('../assets/auth/dragon-frame.webp') center/100% 100% no-repeat;
+  border:1px solid #48d6ff;
+  box-shadow:0 0 0 1px #0a72a1,0 0 20px #00b9ff35,0 22px 64px #0009;
+  border-radius:22px;
+}
+#loginScreen .authInner,#usernameScreen .authInner {padding:18px 28px 26px;width:min(440px,100%);scroll-padding:20px}
+.authInner .authCrest {width:100%;height:auto;min-height:0;display:block;margin:0 auto 6px;border:0;border-radius:0;background:none;box-shadow:none;color:inherit}
+.authCrest img {display:block;width:min(100%,340px);height:auto;max-height:190px;object-fit:contain;margin:auto;filter:drop-shadow(0 0 10px #00aeff40)}
+.authInner .authTitle {font-size:clamp(19px,5vw,25px);line-height:1.25;text-transform:uppercase;letter-spacing:.025em;text-shadow:0 0 14px #50caff40}
+.authInner .authArena {font-family:'Cinzel Decorative',Georgia,serif;letter-spacing:.17em;font-size:13px;text-transform:uppercase;margin:8px 0 12px}
+.authInner .authSub {font-size:13px;margin:0 0 20px}
+.authInner .authGoogleBtn {min-height:44px;font:600 14px Arial,sans-serif;gap:12px;margin:0 0 18px;padding:12px}
+.authGoogleMark {display:block;width:20px;height:20px;flex-shrink:0}
+.authInner .authTabs {background:transparent;border:0;border-bottom:1px solid #2e80a6;border-radius:0;padding:0;gap:0;margin:0 0 16px}
+.authInner .authTab {position:relative;background:transparent;box-shadow:none;border-radius:0;min-height:38px;color:#a9cee5}
+.authInner .authTab.active {color:#e9faff;background:transparent;box-shadow:none}
+.authInner .authTab.active::after {content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#43dbff;box-shadow:0 0 8px #00bfff}
+.authField {position:relative;display:flex;align-items:center;min-width:0;width:100%}
+.authFieldIcon {position:absolute;left:13px;top:50%;transform:translateY(-50%);width:18px;height:18px;pointer-events:none;color:#afd3ed}
+.authInner .authForm .authField input {padding-left:40px;background:#08192beb;border-color:#386986;font-size:16px;min-height:44px}
+.authInner .authForm .authPasswordWrap input {padding-right:48px}
+.authInner .authTogglePassword {right:3px;width:44px;height:44px;min-height:44px;min-width:44px;padding:11px}
+.authInner .authTogglePassword svg {display:block;width:20px;height:20px}
+.authForgot {border:0;background:transparent;color:#7ce6ff;text-align:right;align-self:flex-end;font:12px Arial,sans-serif;padding:5px 0;min-height:30px;cursor:pointer}
+.authInner .authError:empty {min-height:0;display:none}
+.authInner .authError {margin:0;font:12px/1.4 Arial,sans-serif}
+.authNotice {color:#9edcff;font:12px/1.4 Arial,sans-serif;text-align:left}
+.authNotice:empty {display:none}
+.authInner .authSubmitBtn {font-family:'Cinzel Decorative',Georgia,serif;text-transform:uppercase;letter-spacing:.08em;min-height:46px;margin-top:4px;background:linear-gradient(#03c9f0,#0082ff);border:1px solid #70eaff;border-radius:8px;box-shadow:inset 0 0 0 1px #36c9ff,0 0 16px #00bfff40}
+.authInner .authGuestLink {background:#001324c9;border:2px solid #35d6ff;border-radius:8px;font-family:'Cinzel Decorative',Georgia,serif;letter-spacing:.06em;min-height:46px;margin-top:12px}
+.authFreeNote {color:#a8cbe1;font:12px/1.4 Arial,sans-serif;margin:10px 0 0}
+#stakingTermsOverlay .termsCard {padding:16px 20px;height:min(800px,calc(100dvh - 24px));min-height:0}
+.termsArtworkHeader {flex:0 0 auto;text-align:center;padding:0 0 12px}
+.termsArtworkCrest {display:block;width:155px;height:78px;object-fit:contain;margin:0 auto 6px;filter:drop-shadow(0 0 8px #00aeff40)}
+.termsArtworkBrand {font:600 15px 'Cinzel Decorative',Georgia,serif;color:#d9f4ff;margin:0 0 10px;text-transform:uppercase}
+.termsCard .termsBadge {display:none}
+.termsCard h2 {text-transform:uppercase;margin:0 0 6px;font-size:22px;letter-spacing:.05em}
+.termsCard .termsSub {margin:0;font:12px/1.4 Arial,sans-serif}
+#stakingTermsOverlay .termsBody {background:#02111fd9;padding:14px;flex:1 1 0;min-height:48px;line-height:1.65;font:13px/1.65 Arial,sans-serif;border-color:#26a7d2;border-radius:10px}
+.termsCard .termsBody .termsSection {position:relative;padding:0 0 14px 44px;margin:0 0 14px;border-color:#3286a94d}
+.termsSectionIcon {position:absolute;top:0;left:0;display:grid;place-items:center;width:32px;height:32px;border:1px solid #4bd9ff;border-radius:50%;color:#7cdeff;background:#03253a;box-shadow:inset 0 0 8px #008bd025}
+.termsSectionIcon svg {width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.termsSectionIcon span {font-size:12px;font-weight:bold}
+.termsCard .termsBody .termsSection h3 {font:600 13px 'Cinzel Decorative',Georgia,serif;color:#d2f2ff;margin:0 0 7px;letter-spacing:.025em}
+.termsCard .termsBody .termsSection p {margin:0;font-size:13px}
+.termsCard .termsBody strong {color:#8fe3ff}
+#stakingTermsOverlay .termsFooter {background:#020e1ce8;padding-top:12px;margin-top:12px;border-color:#2a536b;flex:0 0 auto}
+.termsCard .termsCheckboxRow label {font-size:11px;line-height:1.5}
+.termsCard .termsAcceptBtn,.termsCard .termsDeclineBtn {font:600 12px 'Cinzel Decorative',Georgia,serif;min-height:46px;border-radius:8px;text-transform:uppercase;letter-spacing:.02em}
+.termsCard .termsAcceptBtn {background:linear-gradient(#02caf0,#0082ff);box-shadow:0 0 12px #00bfff30;padding:10px}
+.termsCard .termsDeclineBtn {background:#041629;border:1px solid #38d5ff;color:#d2edff;padding:10px 14px}
+.termsCard .termsContact {font-size:10px;line-height:1.4;margin-top:8px;padding-top:8px}
+@media(max-width:360px){#loginScreen .authInner,#usernameScreen .authInner{padding:16px 18px 22px}#stakingTermsOverlay .termsCard{padding:12px 14px}.termsArtworkCrest{width:120px;height:60px}.termsArtworkBrand{font-size:13px}.termsCard h2{font-size:18px}.termsCard .termsBody .termsSection{padding-left:0}.termsSectionIcon{display:none}}
+@media(max-height:600px){.authCrest img{max-height:130px}.termsArtworkCrest{height:44px;width:90px}.termsArtworkBrand{display:none}.termsArtworkHeader{padding-bottom:8px}.termsCard h2{font-size:18px}.termsCard .termsSub{display:block;font-size:11px}.termsCard .termsContact{display:none}.termsCard .termsCheckboxRow{margin-bottom:8px}.termsCard .termsBtnRow{gap:8px}}
+@media(max-height:420px){.termsArtworkCrest{display:none}.termsArtworkHeader{padding-bottom:5px}.termsCard .termsSub{display:none}.termsCard .termsBody{padding:8px!important}.termsCard .termsCheckboxRow label{font-size:10px}.termsCard .termsAcceptBtn,.termsCard .termsDeclineBtn{min-height:36px}.termsCard h2{font-size:16px}}

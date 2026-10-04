@@ -874,6 +874,11 @@ class UIManager {
       this.eventBus.emit('auth:googleSignIn');
     });
 
+    const btnForgotPassword = document.getElementById('btnForgotPassword');
+    if (btnForgotPassword) btnForgotPassword.addEventListener('click', () => {
+      this.clearAuthError();
+      this.eventBus.emit('auth:forgotPassword', { email: document.getElementById('authEmail')?.value.trim() });
+    });
     this._authMode = 'signin';
     const authTabSignIn = document.getElementById('authTabSignIn');
     const authTabSignUp = document.getElementById('authTabSignUp');
@@ -915,7 +920,8 @@ class UIManager {
       btnTogglePassword.addEventListener('click', () => {
         const isHidden = authPassword.type === 'password';
         authPassword.type = isHidden ? 'text' : 'password';
-        btnTogglePassword.innerHTML = isHidden ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+        btnTogglePassword.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+        btnTogglePassword.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>' + (isHidden ? '<path d="m3 3 18 18"/>' : '') + '</svg>';
       });
     }
 
@@ -2840,4 +2846,5 @@ class UIManager {
 }
 
 export default UIManager;
+
 
