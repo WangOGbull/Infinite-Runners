@@ -1,6 +1,6 @@
 // ==================== START OF main.js ====================
 import CONFIG, { DRAGON_IMAGES, AI_WAVES, AI_DIFFICULTY_TIERS } from './config.js';
-import AssetLoader from './assetLoader.js?v=2';
+import AssetLoader from './assetLoader.js';
 import { DragonManager } from './dragonManager.js?v=58';
 import {
   REMOTE_SYNC,
