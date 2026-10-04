@@ -3764,6 +3764,22 @@
 #networkQualityButton::before,#networkQualityButton::after{display:none!important}
 #networkQualityButton:focus-visible{outline:2px solid #65dfff;outline-offset:2px}
 </style>
+
+<style id="infiniteAuthDesign">
+#loginScreen,#usernameScreen{background:radial-gradient(ellipse at top,#102b48,#020914 75%);padding:12px;box-sizing:border-box;overflow-y:auto;align-items:safe center}
+#loginScreen .authInner,#usernameScreen .authInner{box-sizing:border-box;width:min(420px,100%);max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow-y:auto;padding:24px 22px;border:1px solid #54cfff;border-radius:20px;background:radial-gradient(ellipse at top,rgba(17,75,110,.3),transparent 55%),linear-gradient(160deg,#061827,#020914);box-shadow:0 0 30px #008dd525,0 20px 60px #0009;color:#d8eeff;scrollbar-color:#53cfff #061827}
+.authInner .authCrest{border-color:#55dbff;color:#70e7ff;background:radial-gradient(circle,#097baf55,transparent);box-shadow:0 0 24px #00bfff40;gap:3px;width:82px;height:66px;border-radius:16px}.authCrest .authInfinity{font-size:36px;font-family:Arial,sans-serif}
+.authInner .authTitle{color:#d5f3ff;font-size:clamp(19px,5.5vw,25px)}.authArena{color:#7cddff;margin:4px 0 10px;font:18px Georgia,serif}.authInner .authSub{color:#b3cbdf;font:14px/1.5 Arial,sans-serif;margin-bottom:20px}
+.authInner .authDivider{color:#97bbd2;font-family:Arial,sans-serif}.authInner .authDivider span{background:#54cfff35}.authInner .authTabs{border:1px solid #369bd0;background:#041321;padding:3px;gap:4px}.authInner .authTab{color:#b8d6e8;font:600 14px Arial,sans-serif;min-height:42px}.authInner .authTab.active{background:linear-gradient(135deg,#0874d6,#00a9e0);color:white;box-shadow:inset 0 0 0 1px #7ce7ff}
+.authInner .authForm input{box-sizing:border-box;min-width:0;width:100%;min-height:48px;background:#081c2b;border-color:#4d86a7;color:#e6f6ff;font:16px Arial,sans-serif}.authInner .authForm input::placeholder{color:#b0c4d4}.authInner .authForm input:focus{border-color:#6ce6ff;box-shadow:0 0 0 2px #00bfff30}.authInner .authPasswordWrap input{padding-right:48px}.authInner .authTogglePassword{color:#bcecff;min-width:44px;min-height:44px}.authInner .authSubmitBtn{min-height:48px;color:white;background:linear-gradient(135deg,#006ac8,#00ace7);border:1px solid #62e0ff;box-shadow:0 0 14px #00bfff45;font:700 16px Arial,sans-serif}.authInner .authGuestLink{min-height:48px;border:1px solid #54d6ff;border-radius:10px;color:#8be8ff;font:700 14px Arial,sans-serif;text-decoration:none;background:#041624;margin-top:16px}.authInner .authGuestLink span{display:block;font:12px Arial,sans-serif;margin-top:4px;color:#bed4e3;opacity:1}.authInner button:focus-visible{outline:2px solid #a1efff;outline-offset:3px}
+#stakingTermsOverlay{box-sizing:border-box;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));overflow:auto;background:#010712e8}
+#stakingTermsOverlay .termsCard{box-sizing:border-box;width:min(460px,100%);height:min(760px,calc(100vh - 24px));height:min(760px,calc(100dvh - 24px));max-height:none;display:flex;flex-direction:column;overflow:hidden;padding:20px;border:1px solid #54cfff;border-radius:20px;background:linear-gradient(155deg,#082034,#020b17);box-shadow:0 0 32px #008dd530;animation:none}
+.termsCard .termsBadge{position:static;transform:none;align-self:center;background:#063b58;color:#83e7ff;box-shadow:none;margin:0 0 4px}.termsCard h2{font-family:'Cinzel Decorative',serif;font-size:clamp(18px,5vw,23px);color:#d6f5ff;margin:8px 0}.termsCard .termsSub{color:#a9cfe2;margin:0 0 14px;font-size:13px;line-height:1.4}
+#stakingTermsOverlay .termsBody{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;padding:14px;border:1px solid #3385b4;border-radius:12px;background:#061827;font-size:14px;line-height:1.65;scrollbar-color:#73d4ff #061827;color:#c1d9e8}.termsCard .termsBody strong,.termsCard .termsBody .termsSection h3{color:#7bdeff}.termsCard .termsBody .termsSection{border-color:#53cfff25}
+.termsFooter{flex:0 0 auto;background:#030f1f;padding-top:12px;margin-top:12px;border-top:1px solid #53cfff35}.termsCard .termsCheckboxRow{margin:0 0 12px;gap:10px}.termsCard .termsCheckboxRow label{color:#c4deed;font:12px/1.5 Arial,sans-serif}.termsCard .termsCheckboxRow input[type=checkbox]{accent-color:#00afff;width:20px;height:20px}.termsCard .termsBtnRow{margin:0;gap:10px}.termsCard .termsAcceptBtn{color:white;background:linear-gradient(135deg,#0078da,#00ace0);border:1px solid #62e0ff;min-height:46px;font-size:14px;padding:12px}.termsCard .termsAcceptBtn:not(:disabled):hover{transform:none;box-shadow:0 0 18px #00bfff45}.termsCard .termsDeclineBtn{color:#d5eaff;border-color:#6194af;background:#071a2b;min-height:46px;padding:12px 16px}.termsCard .termsContact{margin-top:10px;padding-top:8px;color:#a1bdcf;font-size:11px;overflow-wrap:anywhere}.termsCard .termsContact a{color:#7bdfff}.termsError{color:#ffb0b0;font:12px/1.4 Arial,sans-serif;margin:0 0 8px}.termsError:empty{display:none}
+@media(max-height:520px){#stakingTermsOverlay .termsCard{padding:12px;min-height:290px}.termsCard .termsSub{display:none}.termsCard .termsBadge{display:none}.termsCard .termsContact{display:none}.termsFooter{padding-top:8px;margin-top:8px}.termsCard .termsCheckboxRow{margin-bottom:8px}.authInner .authCrest{height:42px;margin-bottom:8px}}
+</style>
+
 </head>
 <body> 
 
@@ -3873,9 +3889,9 @@
 <div id="loginScreen" class="screen"> 
   <div class="darken"></div> 
   <div class="authInner"> 
-    <div class="authCrest"><i class="fa-solid fa-dragon"></i></div> 
+    <div class="authCrest" aria-hidden="true"><i class="fa-solid fa-dragon"></i><span class="authInfinity">∞</span></div> 
     <h2 class="authTitle">Infinite Runners</h2> 
-    <p class="authSub">Sign in to save your progress and play multiplayer</p> 
+    <p class="authArena">Enter the arena</p><p class="authSub">Sign in to save your progress</p> 
 
     <button id="btnGoogleSignIn" class="authGoogleBtn"><i class="fa-brands fa-google"></i> Continue with Google</button> 
 
@@ -3883,7 +3899,7 @@
 
     <div class="authTabs"> 
       <button class="authTab active" id="authTabSignIn" data-authtab="signin">Sign In</button> 
-      <button class="authTab" id="authTabSignUp" data-authtab="signup">Sign Up</button> 
+      <button class="authTab" id="authTabSignUp" data-authtab="signup">Create Account</button> 
     </div> 
 
     <form id="authForm" class="authForm"> 
@@ -3897,7 +3913,7 @@
       <button type="submit" id="btnAuthSubmit" class="authSubmitBtn">Sign In</button> 
     </form> 
 
-    <button id="btnContinueGuest" class="authGuestLink">Continue as Guest <span>(Easy AI mode only)</span></button> 
+    <button id="btnContinueGuest" class="authGuestLink">PLAY FREE <span>Practice against AI · No deposit required</span></button> 
   </div> 
 </div> 
 
@@ -3905,7 +3921,7 @@
 <div id="usernameScreen" class="screen"> 
   <div class="darken"></div> 
   <div class="authInner"> 
-    <div class="authCrest"><i class="fa-solid fa-dragon"></i></div> 
+    <div class="authCrest" aria-hidden="true"><i class="fa-solid fa-dragon"></i><span class="authInfinity">∞</span></div> 
     <h2 class="authTitle">Choose Your Name</h2> 
     <p class="authSub">This is how other dragonriders will see you</p> 
     <form id="usernameForm" class="authForm"> 
@@ -4481,7 +4497,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=103"></script>
+<script type="module" src="./src/main.js?v=104"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
@@ -4595,12 +4611,12 @@
      STAKING TERMS MODAL — one-time acceptance
      =========================================== -->
 <div id="stakingTermsOverlay">
-  <div class="termsCard">
+  <div class="termsCard" role="dialog" aria-modal="true" aria-labelledby="stakingTermsTitle">
     <div class="termsBadge">Important Notice</div>
-    <h2>Terms & Risk of Staking</h2>
+    <h2 id="stakingTermsTitle">Terms &amp; Risk of Staking</h2>
     <p class="termsSub">Please read carefully before playing InfiniteRunners</p>
 
-    <div class="termsBody">
+    <div class="termsBody" tabindex="0" aria-label="Full staking terms">
       <div class="termsSection">
         <h3>Real Money at Stake</h3>
         <p>InfiniteRunners involves <strong>real monetary stakes</strong>. When you enter a match, the coins or tokens you bet are locked and at risk. If you lose the match, <strong>you forfeit your stake</strong>.</p>
@@ -4627,6 +4643,8 @@
       </div>
     </div>
 
+    <div class="termsFooter">
+    <p id="termsError" class="termsError" role="alert"></p>
     <div class="termsCheckboxRow">
       <input type="checkbox" id="termsCheckbox" />
       <label for="termsCheckbox">I have read and understood the Terms & Risk of Staking. I accept that I may lose my stake and bear all losses myself. I am 18 or older.</label>
@@ -4634,11 +4652,12 @@
 
     <div class="termsBtnRow">
       <button class="termsDeclineBtn" id="termsDeclineBtn">Decline</button>
-      <button class="termsAcceptBtn" id="termsAcceptBtn" disabled>I Accept</button>
+      <button class="termsAcceptBtn" id="termsAcceptBtn" disabled>Accept &amp; Continue</button>
     </div>
 
     <div class="termsContact">
       Questions? Contact us at <a href="mailto:Contact@InfiniteCoinHQ.com">Contact@InfiniteCoinHQ.com</a>
+    </div>
     </div>
   </div>
 </div>
@@ -4649,3 +4668,4 @@
 <script src="./src/cashWallet.js?v=4" defer></script>
 </body> 
 </html>
+
