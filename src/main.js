@@ -14,7 +14,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=73';
+import UIManager from './uiManager.js?v=74';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -1012,7 +1012,9 @@ class Game {
               this._checkStakingTerms(user, () => finish('titleScreen'));
             });
         } else {
+          const firstAuthResult = !settled;
           finish('loginScreen');
+          if (firstAuthResult) this._requirePreAuthTerms(() => {});
         }
       });
     });
@@ -1022,11 +1024,25 @@ class Game {
   // ================================================================
   // STAKING TERMS — one-time acceptance on first login
   // ================================================================
+  _requirePreAuthTerms(onProceed) {
+    if (this._preAuthTermsAccepted) { onProceed(); return; }
+    this._showStakingTermsModal(null, onProceed);
+  }
+
   async _checkStakingTerms(user, onProceed) {
     if (!user || !this.db) { onProceed(); return; }
     try {
       const snap = await this.db.ref('users/' + user.uid + '/termsAccepted').once('value');
       if (snap.exists() && snap.val() === true) {
+        this._termsAcceptedUid = user.uid;
+        onProceed();
+      } else if (this._preAuthTermsAccepted) {
+        // The new visitor accepted before authentication. Persist it only
+        // after Firebase establishes the actual account identity.
+        await this.db.ref('users/' + user.uid).update({
+          termsAccepted: true,
+          termsAcceptedAt: firebase.database.ServerValue.TIMESTAMP
+        });
         this._termsAcceptedUid = user.uid;
         onProceed();
       } else {
@@ -1041,11 +1057,12 @@ class Game {
   _showStakingTermsModal(user, onProceed) {
     const overlay = document.getElementById('stakingTermsOverlay');
     if (!overlay) { console.error('Terms dialog missing'); return; }
-    if (this._termsModalUid === user.uid) {
+    const modalUid = user ? user.uid : 'pre-auth';
+    if (this._termsModalUid === modalUid) {
       this._termsCallbacks.push(onProceed);
       return;
     }
-    this._termsModalUid = user.uid;
+    this._termsModalUid = modalUid;
     this._termsCallbacks = [onProceed];
 
     const checkbox = document.getElementById('termsCheckbox');
@@ -1078,10 +1095,12 @@ class Game {
       acceptBtn.disabled = true;
       acceptBtn.textContent = 'Accepting...';
       try {
-        await this.db.ref('users/' + user.uid).update({
-          termsAccepted: true,
-          termsAcceptedAt: firebase.database.ServerValue.TIMESTAMP
-        });
+        if (user) {
+          await this.db.ref('users/' + user.uid).update({
+            termsAccepted: true,
+            termsAcceptedAt: firebase.database.ServerValue.TIMESTAMP
+          });
+        }
       } catch (e) {
         console.warn('Failed to save terms acceptance:', e);
         if (error) error.textContent = 'Could not save acceptance. Check your connection and try again.';
@@ -1092,7 +1111,8 @@ class Game {
         acceptBtn.textContent = 'Accept & Continue';
         return;
       }
-      this._termsAcceptedUid = user.uid;
+      if (user) this._termsAcceptedUid = user.uid;
+      else this._preAuthTermsAccepted = true;
       this._termsModalUid = null;
       const callbacks = this._termsCallbacks;
       this._termsCallbacks = [];
@@ -1110,6 +1130,7 @@ class Game {
       this._termsModalUid = null;
       this._termsCallbacks = [];
       this._termsAcceptedUid = null;
+      this._preAuthTermsAccepted = false;
       this.authUid = null;
       this.isGuest = true;
       overlay.onkeydown = null;
@@ -1252,6 +1273,8 @@ class Game {
   }
 
   async signOut() {
+    this._preAuthTermsAccepted = false;
+    this._termsAcceptedUid = null;
     try { if (this.auth) await this.auth.signOut(); } catch (_) {}
     this._clearAuthSnapshot();
     this.authUid = null;
@@ -1376,17 +1399,33 @@ class Game {
     this.eventBus.on('settings:soundEnabled', ({ enabled }) => this.effectsSystem.setSoundEnabled(enabled));
     this.eventBus.on('settings:volume', ({ volume }) => this.effectsSystem.setMasterVolume(volume));
     this.eventBus.on('settings:reducedMotion', ({ enabled }) => this.effectsSystem.setReducedMotion(enabled));
-    this.eventBus.on('auth:googleSignIn', async () => {
-      const result = await this.signInWithGoogle();
-      if (result.error) this.uiManager.showAuthError(result.error);
+    this.eventBus.on('auth:googleSignIn', () => {
+      this._requirePreAuthTerms(() => {
+        // Keep popup sign-in on the user click, including the acceptance click.
+        this.signInWithGoogle().then(result => {
+          if (result.error) this.uiManager.showAuthError(result.error);
+        });
+      });
     });
-    this.eventBus.on('auth:emailSubmit', async ({ mode, email, password, username }) => {
-      const result = mode === 'signup'
-        ? await this.signUpWithEmail(email, password, username)
-        : await this.signInWithEmail(email, password);
-      if (result.error) this.uiManager.showAuthError(result.error);
+    this.eventBus.on('auth:emailSubmit', ({ mode, email, password, username }) => {
+      this._requirePreAuthTerms(async () => {
+        const result = mode === 'signup'
+          ? await this.signUpWithEmail(email, password, username)
+          : await this.signInWithEmail(email, password);
+        if (result.error) this.uiManager.showAuthError(result.error);
+      });
     });
-    this.eventBus.on('auth:continueAsGuest', () => this.continueAsGuest());
+    this.eventBus.on('auth:forgotPassword', async ({ email }) => {
+      const notice = document.getElementById('authNotice');
+      if (notice) notice.textContent = '';
+      if (!email) { this.uiManager.showAuthError('Enter your email address first.'); return; }
+      if (!this.auth) { this.uiManager.showAuthError('Login unavailable right now.'); return; }
+      try {
+        await this.auth.sendPasswordResetEmail(email);
+        if (notice) notice.textContent = 'If this email has an account, a reset link will be sent. Check your inbox.';
+      } catch (error) { this.uiManager.showAuthError(this._friendlyAuthError(error)); }
+    });
+    this.eventBus.on('auth:continueAsGuest', () => this._requirePreAuthTerms(() => this.continueAsGuest()));
     this.eventBus.on('auth:submitUsername', async ({ username }) => {
       const result = await this.claimUsername(username);
       if (result.error) this.uiManager.showUsernameError(result.error);
@@ -5367,4 +5406,5 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
