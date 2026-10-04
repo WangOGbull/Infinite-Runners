@@ -3738,6 +3738,20 @@
 #dragonSelectScreen .dsBattleActions button:focus-visible,#dragonSelectScreen #dsSelectBtn:focus-visible{outline:2px solid #88eaff;outline-offset:3px}
 #dragonSelectScreen #dsCancelSelectionBtn:hover{border-color:#d0e4ff;color:#fff}
 </style>
+
+<style id="approvedDragonButtonArt">
+#dragonSelectScreen #dsSelectBtn,#dragonSelectScreen #dsDragonAgeBtn,#dragonSelectScreen #dsCancelSelectionBtn{position:relative;padding:0;border:0;background:none;box-shadow:none;clip-path:none;border-radius:0;overflow:visible;min-height:44px}
+#dragonSelectScreen #dsSelectBtn{width:min(260px,75vw);aspect-ratio:540/158}
+#dragonSelectScreen .dsBattleActions{width:min(100%,480px);gap:6px;align-items:center}
+#dragonSelectScreen #dsDragonAgeBtn{flex:2 1 0;aspect-ratio:650/185}
+#dragonSelectScreen #dsCancelSelectionBtn{flex:1 1 0;aspect-ratio:330/163}
+#dragonSelectScreen .dsButtonArtwork{display:block;width:100%;height:auto;pointer-events:none}
+#dragonSelectScreen #dsSelectBtn span,#dragonSelectScreen #dsDragonAgeBtn span,#dragonSelectScreen #dsCancelSelectionBtn span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#dragonSelectScreen #dsSelectBtn i,#dragonSelectScreen #dsDragonAgeBtn svg,#dragonSelectScreen #dsCancelSelectionBtn svg{display:none}
+#dragonSelectScreen #dsDragonAgeBtn:disabled{opacity:.35;filter:grayscale(.6);cursor:not-allowed}
+#dragonSelectScreen .dsBattleActions button:not(:disabled):hover,#dragonSelectScreen #dsSelectBtn:hover{filter:brightness(1.2);transform:none}
+#dragonSelectScreen .dsBattleActions button:focus-visible,#dragonSelectScreen #dsSelectBtn:focus-visible{outline:2px solid #84eaff;outline-offset:3px}
+</style>
 </head>
 <body> 
 
@@ -4008,10 +4022,10 @@
       <div class="dsPowersGrid" id="dsPowersGrid" style="display:none;"></div> 
       <div class="dsSelectRow"> 
         <span class="dsSelectBadge" id="dsSelectBadge">NOT SELECTED</span> 
-        <button class="dsSelectBtn" id="dsSelectBtn"><span><i class="fa-solid fa-dragon"></i> VIEW DRAGON</span></button> 
+        <button class="dsSelectBtn" id="dsSelectBtn"><img class="dsButtonArtwork" src="./assets/selection/view-dragon.webp" alt="" decoding="async"><span><i class="fa-solid fa-dragon"></i> VIEW DRAGON</span></button> 
         <div class="dsBattleActions">
-          <button class="dsDragonAgeBtn" id="dsDragonAgeBtn" type="button" disabled><span><i data-lucide="swords" aria-hidden="true"></i> ENTER BATTLE</span></button>
-          <button id="dsCancelSelectionBtn" type="button" hidden><i data-lucide="x" aria-hidden="true"></i><span>CANCEL SELECTION</span></button>
+          <button class="dsDragonAgeBtn" id="dsDragonAgeBtn" type="button" disabled><img class="dsButtonArtwork" src="./assets/selection/enter-battle.webp" alt="" decoding="async"><span><i data-lucide="swords" aria-hidden="true"></i> ENTER BATTLE</span></button>
+          <button id="dsCancelSelectionBtn" type="button" hidden><img class="dsButtonArtwork" src="./assets/selection/cancel-selection.webp" alt="" decoding="async"><i data-lucide="x" aria-hidden="true"></i><span>CANCEL SELECTION</span></button>
         </div>
       </div> 
       <div class="dsNavDots" id="dsNavDots"></div> 
