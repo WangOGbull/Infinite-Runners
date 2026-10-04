@@ -373,13 +373,14 @@ class UIManager {
   initDragonCarousel(dragons) {
     this.dragonsData = dragons;
     this.carouselIndex = 0;
-    // Keep a valid player choice; otherwise select the first loaded dragon.
+    // Keep a valid choice; default to INFINITE unless selection was canceled.
     const nameOf = dragon => typeof dragon === 'string' ? dragon : (dragon?.name || dragon?.type);
     const previous = this.selectedDragonName || this.selectedDragon;
     const previousIndex = dragons.findIndex(dragon => nameOf(dragon) === previous);
-    const defaultIndex = dragons.findIndex(dragon => Boolean(nameOf(dragon)));
+    const infiniteIndex = dragons.findIndex(dragon => nameOf(dragon)?.toLowerCase() === 'infinite');
+    const defaultIndex = infiniteIndex >= 0 ? infiniteIndex : dragons.findIndex(dragon => Boolean(nameOf(dragon)));
     const index = previousIndex >= 0 ? previousIndex : defaultIndex;
-    if (index >= 0) {
+    if (index >= 0 && !this._selectionCancelled) {
       const name = nameOf(dragons[index]);
       const changed = this.selectedDragon !== name || this.selectedDragonName !== name;
       this.carouselIndex = index;
@@ -473,13 +474,14 @@ class UIManager {
     const rightArrow = document.getElementById('dsArrowRight');
     const ageBtn = document.getElementById('dsDragonAgeBtn');
     const selectBtn = document.getElementById('dsSelectBtn');
-    if (isSelected) {
-      if (selectBtn) selectBtn.style.display = 'none';
-      if (ageBtn) ageBtn.style.display = 'flex';
-    } else {
-      if (selectBtn) selectBtn.style.display = 'flex';
-      if (ageBtn) ageBtn.style.display = 'none';
+    if (selectBtn) selectBtn.style.display = 'flex';
+    if (ageBtn) {
+      ageBtn.style.display = 'flex';
+      ageBtn.disabled = !isSelected;
+      ageBtn.setAttribute('aria-disabled', String(!isSelected));
     }
+    const cancelBtn = document.getElementById('dsCancelSelectionBtn');
+    if (cancelBtn) cancelBtn.hidden = !this.selectedDragonName;
     if (leftArrow) leftArrow.style.display = 'flex';
     if (rightArrow) rightArrow.style.display = 'flex';
     this.renderNavDots();
@@ -704,9 +706,11 @@ class UIManager {
     const d = this._modalDragon || this.dragonsData[this.carouselIndex];
     if (!d) return;
     const dragonName = typeof d === 'string' ? d : (d.name || d.type);
+    this._selectionCancelled = false;
     this.selectedDragon = dragonName;
     this.selectedDragonName = dragonName;
     this.hideDragonModal();
+    this.showScreen('dragonSelectScreen');
     this.carouselIndex = this.dragonsData.findIndex(dr => {
       const drName = typeof dr === 'string' ? dr : (dr.name || dr.type);
       return drName === dragonName;
@@ -716,7 +720,20 @@ class UIManager {
     this.eventBus.emit('ui:dragonSelected', { name: this.selectedDragon });
   }
 
-  goToBattleMode() { this.showScreen('modeSelectScreen'); }
+  cancelDragonSelection() {
+    this._selectionCancelled = true;
+    this.selectedDragon = null;
+    this.selectedDragonName = null;
+    this.renderCarousel();
+    this.eventBus.emit('ui:dragonSelectionCancelled');
+  }
+
+  goToBattleMode() {
+    const dragon = this.dragonsData[this.carouselIndex];
+    const name = typeof dragon === 'string' ? dragon : (dragon?.name || dragon?.type);
+    if (!this.selectedDragonName || name !== this.selectedDragonName) return;
+    this.showScreen('modeSelectScreen');
+  }
   buildDragonSelect(dragons) { this.initDragonCarousel(dragons); }
   initLucide() { if (typeof lucide !== 'undefined') lucide.createIcons(); }
 
@@ -1006,6 +1023,7 @@ class UIManager {
     this._tap(nextBtn, () => this.goToBattleMode());
     const ageBtn = document.getElementById('dsDragonAgeBtn');
     this._tap(ageBtn, () => this.goToBattleMode());
+    this._tap(document.getElementById('dsCancelSelectionBtn'), () => this.cancelDragonSelection());
     const arrowLeft = document.getElementById('dsArrowLeft');
     this._tap(arrowLeft, () => this.carouselPrev());
     const arrowRight = document.getElementById('dsArrowRight');
@@ -2822,3 +2840,4 @@ class UIManager {
 }
 
 export default UIManager;
+
