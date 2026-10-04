@@ -581,6 +581,10 @@ class Game {
   }
 
   enterMainMenu() {
+    if (!this.isGuest && this.authUid && this.db && this._termsAcceptedUid !== this.authUid) {
+      this._checkStakingTerms({ uid: this.authUid }, () => this.enterMainMenu());
+      return;
+    }
     this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showScreen('titleScreen');
     this.uiManager.showLoginDrop(this.username, this.isGuest);
@@ -1023,35 +1027,54 @@ class Game {
     try {
       const snap = await this.db.ref('users/' + user.uid + '/termsAccepted').once('value');
       if (snap.exists() && snap.val() === true) {
+        this._termsAcceptedUid = user.uid;
         onProceed();
       } else {
         this._showStakingTermsModal(user, onProceed);
       }
     } catch (e) {
-      console.warn('Terms check failed, proceeding:', e);
-      onProceed();
+      console.warn('Terms check failed; requesting acceptance:', e);
+      this._showStakingTermsModal(user, onProceed);
     }
   }
 
   _showStakingTermsModal(user, onProceed) {
     const overlay = document.getElementById('stakingTermsOverlay');
-    if (!overlay) { onProceed(); return; }
+    if (!overlay) { console.error('Terms dialog missing'); return; }
+    if (this._termsModalUid === user.uid) {
+      this._termsCallbacks.push(onProceed);
+      return;
+    }
+    this._termsModalUid = user.uid;
+    this._termsCallbacks = [onProceed];
 
     const checkbox = document.getElementById('termsCheckbox');
     const acceptBtn = document.getElementById('termsAcceptBtn');
     const declineBtn = document.getElementById('termsDeclineBtn');
 
-    // Reset state
+    const error = document.getElementById('termsError');
+    const previousFocus = document.activeElement;
+    const body = overlay.querySelector('.termsBody');
+    if (body) body.scrollTop = 0;
+    if (error) error.textContent = '';
+    acceptBtn.textContent = 'Accept & Continue';
+    let saving = false;
+    // Reset state for every player.
     checkbox.checked = false;
     acceptBtn.disabled = true;
 
     // Checkbox enables accept button
     checkbox.onchange = () => {
-      acceptBtn.disabled = !checkbox.checked;
+      acceptBtn.disabled = saving || !checkbox.checked;
     };
 
     // Accept handler — write to Firebase, hide modal, proceed
     acceptBtn.onclick = async () => {
+      if (saving || !checkbox.checked) return;
+      saving = true;
+      declineBtn.disabled = true;
+      checkbox.disabled = true;
+      if (error) error.textContent = '';
       acceptBtn.disabled = true;
       acceptBtn.textContent = 'Accepting...';
       try {
@@ -1061,13 +1084,35 @@ class Game {
         });
       } catch (e) {
         console.warn('Failed to save terms acceptance:', e);
+        if (error) error.textContent = 'Could not save acceptance. Check your connection and try again.';
+        saving = false;
+        checkbox.disabled = false;
+        declineBtn.disabled = false;
+        acceptBtn.disabled = !checkbox.checked;
+        acceptBtn.textContent = 'Accept & Continue';
+        return;
       }
+      this._termsAcceptedUid = user.uid;
+      this._termsModalUid = null;
+      const callbacks = this._termsCallbacks;
+      this._termsCallbacks = [];
+      checkbox.disabled = false;
+      declineBtn.disabled = false;
       overlay.classList.remove('active');
-      onProceed();
+      overlay.onkeydown = null;
+      if (previousFocus && previousFocus.focus) previousFocus.focus();
+      callbacks.forEach(callback => callback());
     };
 
     // Decline handler — sign out and go back to login
     declineBtn.onclick = () => {
+      if (saving) return;
+      this._termsModalUid = null;
+      this._termsCallbacks = [];
+      this._termsAcceptedUid = null;
+      this.authUid = null;
+      this.isGuest = true;
+      overlay.onkeydown = null;
       overlay.classList.remove('active');
       try { if (this.auth) this.auth.signOut(); } catch (_) {}
       this.uiManager.showScreen('loginScreen');
@@ -1075,6 +1120,14 @@ class Game {
 
     // Show the modal
     overlay.classList.add('active');
+    overlay.onkeydown = (event) => {
+      if (event.key !== 'Tab') return;
+      const controls = [...overlay.querySelectorAll('button:not(:disabled), input:not(:disabled), a, [tabindex="0"]')];
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    checkbox.focus();
   }
 
   _friendlyAuthError(e) {
@@ -5314,3 +5367,4 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
