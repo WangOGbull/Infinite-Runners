@@ -14,7 +14,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=75';
+import UIManager from './uiManager.js?v=76';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -5422,6 +5422,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
 
 
