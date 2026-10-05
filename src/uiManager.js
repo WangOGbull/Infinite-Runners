@@ -284,7 +284,7 @@ class UIManager {
       <div class="difficultyBox">
         <div class="difficultyGrid">
           <img class="difficultyBgImg" src="./assets/select-trial-celestial-v1.jpg" alt="Select Trial" draggable="false" onerror="this.style.display='none'">
-          ${AI_DIFFICULTY_TIERS.map(tier => `<button type="button" class="diffBtn" data-tier="${tier.id}" aria-label="${tier.label}"><span class="legacyDifficultyLock" hidden><span class="selectionLock" hidden>${lockIcon}</span><span class="tierAccessLabel"></span></span></button>`).join('')}
+          ${AI_DIFFICULTY_TIERS.map(tier => `<button type="button" class="diffBtn" data-tier="${tier.id}" aria-label="${tier.label}"><span class="legacyDifficultyLock" hidden><span class="trialMetalLock" aria-hidden="true"></span><span class="tierAccessLabel"></span></span></button>`).join('')}
         </div>
         <button class="menuBtn" id="btnDiffBack" aria-label="Back to battle mode"></button>
       </div>`;
@@ -1272,7 +1272,7 @@ class UIManager {
     });
     const playAgain = document.getElementById('btnPlayAgain');
     if (playAgain) playAgain.addEventListener('click', () => this.eventBus.emit('game:restart'));
-    const bindMainMenu = (button) => {
+    const bindMainMenu = (button, screenId = 'titleScreen') => {
       if (!button) return;
       let navigating = false;
       const activate = (event) => {
@@ -1283,8 +1283,8 @@ class UIManager {
 
         // The button itself opens the title immediately. Game cleanup is a
         // follow-up and cannot block or undo the visible navigation.
-        this.showScreen('titleScreen');
-        this.eventBus.emit('game:returnToMainMenu');
+        this.showScreen(screenId);
+        this.eventBus.emit('game:returnToMainMenu', { screenId });
         setTimeout(() => { navigating = false; }, 700);
       };
 
@@ -1293,8 +1293,7 @@ class UIManager {
       button.onclick = activate;
       button.ontouchend = activate;
     };
-    // btnMainMenu is intentionally not bound in JavaScript. Its native
-    // href="/" target="_self" navigation cannot be cancelled by game state.
+    bindMainMenu(document.getElementById('btnMainMenu'), 'dragonSelectScreen');
     bindMainMenu(document.getElementById('btnMpMainMenu'));
     document.getElementById('btnReturnLobby')?.addEventListener('click', () => this.eventBus.emit('game:returnToMultiplayerMenu'));
     const returnToActiveRoomBtn = document.getElementById('btnReturnToActiveRoom');
@@ -1312,7 +1311,7 @@ class UIManager {
       if (this._pendingTierId) this.eventBus.emit('ui:tierRestart', { tierId: this._pendingTierId });
     });
     const btnTierMainMenu = document.getElementById('btnTierMainMenu');
-    if (btnTierMainMenu) btnTierMainMenu.addEventListener('click', () => { this.eventBus.emit('game:quit'); this.showScreen('dragonSelectScreen'); });
+    bindMainMenu(btnTierMainMenu, 'dragonSelectScreen');
 
     const walletBtn = document.getElementById('walletBtn');
     if (walletBtn) walletBtn.addEventListener('click', () => {
@@ -2938,6 +2937,7 @@ class UIManager {
 }
 
 export default UIManager;
+
 
 
 
