@@ -14,7 +14,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=76';
+import UIManager from './uiManager.js?v=77';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -1517,8 +1517,8 @@ class Game {
     this.eventBus.on('game:pause', () => this.pauseGame());
     this.eventBus.on('game:resume', () => this.resumeGame());
     this.eventBus.on('game:quit', () => this.quitGame());
-    this.eventBus.on('game:returnToMainMenu', () => {
-      this._returnToMainMenuSafely();
+    this.eventBus.on('game:returnToMainMenu', (options = {}) => {
+      this._returnToMainMenuSafely(options.screenId);
     });
     this.eventBus.on('game:returnToMultiplayerMenu', () => {
       this.quitGame();
@@ -5278,7 +5278,21 @@ class Game {
     }
   }
 
-  _returnToMainMenuSafely() {
+  _returnToMainMenuSafely(screenId = 'titleScreen') {
+    const destination = screenId === 'dragonSelectScreen' ? screenId : 'titleScreen';
+    // Release held controls before returning from an AI result screen.
+    if (destination === 'dragonSelectScreen') {
+      this.movementSystem?.endJoystick?.();
+      if (this.movementSystem) {
+        this.movementSystem.attackHeld = false;
+        this.movementSystem.keys?.clear?.();
+        this.movementSystem.inputAngles?.clear?.();
+        this.movementSystem.boosting?.clear?.();
+      }
+      this._inputMap.clear();
+      this.effectsSystem.stopSearchSound();
+      this.effectsSystem.particles.length = 0;
+    }
     if (this._returningToMainMenu) return;
     this._returningToMainMenu = true;
 
@@ -5309,8 +5323,8 @@ class Game {
         if (id === 'networkReconnectOverlay') element.style.display = 'none';
       });
 
-      this.uiManager.showScreen('titleScreen');
-      const titleScreen = document.getElementById('titleScreen');
+      this.uiManager.showScreen(destination);
+      const titleScreen = document.getElementById(destination);
       if (titleScreen) {
         titleScreen.classList.add('active');
         titleScreen.style.removeProperty('display');
@@ -5422,6 +5436,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
 
 
