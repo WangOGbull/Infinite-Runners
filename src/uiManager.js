@@ -87,12 +87,59 @@ class UIManager {
 
   isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
-  selectDifficultyTier(tierId) {
+  getTierAccess(tierId) {
+    const index = AI_DIFFICULTY_TIERS.findIndex(t => t.id === tierId);
+    if (index < 0) return { allowed: false, reason: 'Unknown challenge' };
+    if (!this._uid && tierId === 'hard') return { allowed: false, reason: this.clearedTiers.medium ? 'Create an account to unlock Hard' : 'Beat Medium + create an account' };
+    if (this._uid && this._progressLoading) return { allowed: false, reason: 'Loading your saved progress…' };
+    if (this._uid && this._progressLoadFailed) return { allowed: false, reason: 'Reconnect to load your saved progress' };
+    if (index === 0 || this.clearedTiers[tierId] || this.clearedTiers[AI_DIFFICULTY_TIERS[index - 1].id]) return { allowed: true, reason: this.clearedTiers[tierId] ? 'COMPLETED · PLAY AGAIN' : 'AVAILABLE' };
+    return { allowed: false, reason: `Beat ${AI_DIFFICULTY_TIERS[index - 1].label} to unlock` };
+  }
+
+  renderSelectionLocks() {
+    document.querySelectorAll('#difficultyModal .diffBtn').forEach(button => {
+      const access = this.getTierAccess(button.dataset.tier);
+      button.classList.toggle('is-locked', !access.allowed);
+      button.setAttribute('aria-disabled', String(!access.allowed));
+      const lock = button.querySelector('.selectionLock');
+      if (lock) lock.hidden = access.allowed;
+      const status = button.querySelector('.tierAccessLabel');
+      if (status) status.textContent = access.reason;
+      const play = button.querySelector('.tierPlayLabel');
+      if (play) play.hidden = !access.allowed;
+    });
+    document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(button => {
+      const locked = !this._uid && Number(button.dataset.arena) !== 0;
+      button.classList.toggle('is-locked', locked);
+      button.classList.toggle('selected', !locked && Number(button.dataset.arena) === (this.selectedArena || 0));
+      button.setAttribute('aria-disabled', String(locked));
+      const lock = button.querySelector('.selectionLock');
+      if (lock) lock.hidden = !locked;
+      const status = button.querySelector('.arenaAccessLabel');
+      if (status) status.textContent = locked ? 'Create an account to unlock' : (Number(button.dataset.arena) === (this.selectedArena || 0) ? 'SELECTED' : 'AVAILABLE');
+    });
+    const enter = document.getElementById('btnArenaEnter');
+    if (enter) enter.textContent = 'ENTER ' + ['STONE CASTLE', 'GRASS FIELD', 'PURPLE MAGIC', 'FIRE ARENA'][this.selectedArena || 0];
+    const register = document.getElementById('btnArenaRegister');
+    if (register) register.hidden = !!this._uid;
+    const note = document.getElementById('arenaAccessNote');
+    if (note) note.textContent = this._uid ? 'Choose your battlefield.' : 'Stone Castle is ready for free play.';
+  }
+
+  async selectDifficultyTier(tierId) {
+    if (this._progressReady) await this._progressReady;
     const tier = AI_DIFFICULTY_TIERS.find(t => t.id === tierId);
     if (!tier) return;
+    const access = this.getTierAccess(tierId);
+    if (!access.allowed) {
+      if (!this._uid && tierId === 'hard' && this.clearedTiers.medium) this.showScreen('loginScreen');
+      return;
+    }
     this.selectedMode = 'wave1';
     this.selectedDifficulty = tier.aiDifficulty;
     this.selectedTierId = tier.id;
+    if (!this._uid) this.selectedArena = 0;
     this.showScreen('arenaSelectModal');
   }
 
@@ -189,7 +236,7 @@ class UIManager {
     if (advanceBtn) {
       advanceBtn.style.display = nextTier ? 'flex' : 'none';
       const span = advanceBtn.querySelector('span');
-      if (span && nextTier) span.textContent = `ADVANCE TO ${nextTier.label.toUpperCase()}`;
+      if (span && nextTier) span.textContent = (!this._uid && nextTier.id === 'hard') ? 'CREATE ACCOUNT · UNLOCK HARD' : `ADVANCE TO ${nextTier.label.toUpperCase()}`;
     }
     if (restartBtn) {
       const span = restartBtn.querySelector('span');
@@ -197,6 +244,7 @@ class UIManager {
     }
     this._pendingTierId = tier.id;
     this._pendingNextTierId = nextTier ? nextTier.id : null;
+    if (!this._uid && tier.id === 'medium' && subEl) subEl.textContent = 'Medium conquered. Create your account to unlock Hard and pursue the INFINITE Sovereign Crown. Save your progress, create rooms and invite friends. Competitive INFINITE matches are optional—only stake what you can afford to lose.';
     this.showScreen('tierCompleteScreen');
   }
 
@@ -228,15 +276,15 @@ class UIManager {
       NOTICE: The text and inner HTML for the buttons below have been removed.
       The JS logic still fires, but the CSS in index.html now overlays the PNG.
     */
+    const lockIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10" width="14" height="12" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="16" r="1"/></svg>';
     diffModal.innerHTML = `
-      <div class="difficultyBox">
+      <div class="difficultyBox selectionArtworkPanel">
+        <img class="selectionCrest" src="./assets/auth/infinity-dragon.webp" alt="">
+        <h2>AI CHALLENGES</h2><p class="selectionSubtitle">Start with Easy. Earn your next challenge.</p>
         <div class="difficultyGrid">
-          <img class="difficultyBgImg" src="./assets/select-trial-celestial-v1.jpg" alt="Select Trial" draggable="false" onerror="this.style.display='none'">
-          <button class="diffBtn" data-tier="easy"></button>
-          <button class="diffBtn" data-tier="medium"></button>
-          <button class="diffBtn" data-tier="hard"></button>
-        </div>
-        <button class="menuBtn" id="btnDiffBack"><i data-lucide="arrow-left"></i> Back</button>
+          ${AI_DIFFICULTY_TIERS.map((tier, index) => `<button type="button" class="diffBtn" data-tier="${tier.id}"><img class="tierDragonArtwork" src="${DRAGON_IMAGES[index === 2 ? 'ignis' : index === 1 ? 'aegis' : 'infinite']}" alt=""><span class="tierCardContent"><span class="selectionLock" hidden>${lockIcon}</span><strong>${tier.label.toUpperCase()}</strong><span class="tierAccessLabel"></span><span class="tierPlayLabel">PLAY ${tier.label.toUpperCase()} ›</span>${tier.id === 'hard' ? '<small>Sovereign Crown challenge</small>' : ''}</span></button>`).join('')}
+        </div><p class="selectionFootnote">Unlocked challenges stay available to replay.</p>
+        <button type="button" class="menuBtn" id="btnDiffBack">‹ BACK</button>
       </div>`;
     document.body.appendChild(diffModal);
     this.screens['difficultyModal'] = diffModal;
@@ -285,15 +333,14 @@ class UIManager {
     arenaModal.id = 'arenaSelectModal';
     arenaModal.className = 'screen';
     arenaModal.innerHTML = `
-      <div class="arenaSelectInner">
-        <h2>Select Arena</h2>
+      <div class="arenaSelectInner selectionArtworkPanel">
+        <img class="selectionCrest" src="./assets/auth/infinity-dragon.webp" alt="">
+        <h2>SELECT ARENA</h2><p id="arenaAccessNote" class="selectionSubtitle"></p>
         <div class="arenaGrid">
-          <div class="arenaCard" data-arena="0"><div class="arenaPreview" style="background-image:url(/arenas/arena_stone.png)"></div><div class="arenaName">Stone Castle</div></div>
-          <div class="arenaCard" data-arena="1"><div class="arenaPreview" style="background-image:url(/arenas/arena_grass.png)"></div><div class="arenaName">Grass Field</div></div>
-          <div class="arenaCard" data-arena="2"><div class="arenaPreview" style="background-image:url(/arenas/arena_purple.png)"></div><div class="arenaName">Purple Magic</div></div>
-          <div class="arenaCard" data-arena="3"><div class="arenaPreview" style="background-image:url(/arenas/arena_fire.png)"></div><div class="arenaName">Fire Arena</div></div>
+          ${[['stone','Stone Castle'],['grass','Grass Field'],['purple','Purple Magic'],['fire','Fire Arena']].map(([file,name],index) => `<button type="button" class="arenaCard" data-arena="${index}"><span class="arenaPreview" style="background-image:url(/arenas/arena_${file}.png)"><span class="selectionLock" hidden>${lockIcon}</span></span><span class="arenaName">${name.toUpperCase()}</span><span class="arenaAccessLabel"></span></button>`).join('')}
         </div>
-        <button id="btnArenaBack"><i data-lucide="arrow-left"></i> Back</button>
+        <button type="button" id="btnArenaRegister" class="selectionRegister">CREATE ACCOUNT · UNLOCK MORE ARENAS</button>
+        <button type="button" id="btnArenaEnter" class="selectionEnter">ENTER STONE CASTLE</button><button type="button" id="btnArenaBack">‹ BACK</button>
       </div>`;
     document.body.appendChild(arenaModal);
     this.screens['arenaSelectModal'] = arenaModal;
@@ -335,8 +382,12 @@ class UIManager {
   // entry, sign out) so this file can read/write real per-account progress
   // instead of per-device localStorage.
   setAccount(uid, db) {
+    const previousUid = this._uid;
+    const rememberedProgress = previousUid === uid ? { ...this.clearedTiers } : {};
     this._uid = uid;
     this._db = db;
+    this._progressLoading = !!(uid && db);
+    this._progressLoadFailed = false;
     if (uid && db) {
       // Single source of truth for persisted account progress. This is
       // called every time the auth state resolves (login restore, guest
@@ -347,23 +398,44 @@ class UIManager {
       // clearedTiers/dragonPowers/playerCoins. Without it, powers appear
       // locked after a page refresh even though they were already earned.
       this._progressReady = db.ref('users/' + uid).once('value').then((snap) => {
+        if (this._uid !== uid) return;
         const data = snap.val() || {};
+        this._progressLoading = false;
         this.dragonPowers = data.dragonPowers || {};
         if (typeof data.playerCoins === 'number') this.playerCoins = data.playerCoins;
-        this.clearedTiers = data.clearedTiers || {};
+        this.clearedTiers = { ...(data.clearedTiers || {}) };
+        Object.entries(rememberedProgress).forEach(([id, cleared]) => { if (cleared === true) this.clearedTiers[id] = true; });
+        // Historical highestTierCleared records remain valid. Infer earlier
+        // victories in memory only; never overwrite the account's stored data.
+        const highest = Math.max(AI_DIFFICULTY_TIERS.findIndex(t => t.id === data.highestTierCleared), ...AI_DIFFICULTY_TIERS.map((t, i) => this.clearedTiers[t.id] ? i : -1));
+        AI_DIFFICULTY_TIERS.forEach((t, i) => { if (i <= highest) this.clearedTiers[t.id] = true; });
+        this.renderSelectionLocks();
         this.renderCarousel();
         if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
         this.updateCoinDisplay();
       }).catch(() => {
+        if (this._uid !== uid) return;
+        this._progressLoading = false;
+        this._progressLoadFailed = true;
+        this.renderSelectionLocks();
         this.renderCarousel();
         if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
         this.updateCoinDisplay();
       });
     } else {
-      // Guest / signed out - no persisted progress.
+      // Guest practice progress is isolated from account data.
+      this.selectedArena = 0;
       this.dragonPowers = {};
-      this.clearedTiers = {};
+      if (!this._guestClearedTiers) {
+        this._guestClearedTiers = {};
+        try {
+          const saved = JSON.parse(sessionStorage.getItem('irGuestClearedTiers') || '{}');
+          ['easy', 'medium'].forEach(id => { if (saved[id] === true) this._guestClearedTiers[id] = true; });
+        } catch (_) {}
+      }
+      this.clearedTiers = { ...this._guestClearedTiers };
       this._progressReady = Promise.resolve();
+      this.renderSelectionLocks();
       this.renderCarousel();
       if (this._modalDragon) this.renderSpecialPowers(this._modalDragon);
       this.updateCoinDisplay();
@@ -671,6 +743,11 @@ class UIManager {
   markTierCleared(tierId) {
     if (!tierId || this.clearedTiers[tierId]) return; // already unlocked, nothing to do
     this.clearedTiers[tierId] = true;
+    if (!this._uid) {
+      this._guestClearedTiers = { ...this.clearedTiers };
+      try { sessionStorage.setItem('irGuestClearedTiers', JSON.stringify(this._guestClearedTiers)); } catch (_) {}
+    }
+    this.renderSelectionLocks();
     if (this._uid && this._db) {
       this._db.ref('users/' + this._uid + '/clearedTiers').update({ [tierId]: true }).catch(e => {
         console.error('[Progress] Failed to persist clearedTiers:', e.message);
@@ -1055,9 +1132,21 @@ class UIManager {
 
     document.querySelectorAll('#arenaSelectModal .arenaCard').forEach(btn => {
       btn.addEventListener('click', () => {
-        this.selectedArena = parseInt(btn.dataset.arena);
-        this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, tierId: this.selectedTierId, arenaIndex: this.selectedArena });
+        const arenaIndex = Number(btn.dataset.arena);
+        if (!this._uid && arenaIndex !== 0) { this.showScreen('loginScreen'); return; }
+        if (this.selectedTierId && !this.getTierAccess(this.selectedTierId).allowed) return;
+        this.selectedArena = arenaIndex;
+        this.renderSelectionLocks();
       });
+    });
+    document.getElementById('btnArenaEnter')?.addEventListener('click', () => {
+      if (this.selectedTierId && !this.getTierAccess(this.selectedTierId).allowed) return;
+      if (!this._uid && Number(this.selectedArena || 0) !== 0) return;
+      this.eventBus.emit('ui:arenaSelected', { mode: this.selectedMode, difficulty: this.selectedDifficulty, tierId: this.selectedTierId, arenaIndex: this.selectedArena || 0 });
+    });
+    document.getElementById('btnArenaRegister')?.addEventListener('click', () => {
+      this.showScreen('loginScreen');
+      document.getElementById('authTabSignUp')?.click();
     });
     const arenaBack = document.getElementById('btnArenaBack');
     if (arenaBack) arenaBack.addEventListener('click', () => this.showScreen(this.selectedTierId ? 'difficultyModal' : 'modeSelectScreen'));
@@ -2615,6 +2704,7 @@ class UIManager {
 
 
   showScreen(screenId) {
+    if (screenId === 'difficultyModal' || screenId === 'arenaSelectModal') this.renderSelectionLocks();
     const requested = this.screens[screenId];
     const safeTarget = requested || this.screens.titleScreen;
     if (!safeTarget) {
@@ -2846,5 +2936,6 @@ class UIManager {
 }
 
 export default UIManager;
+
 
 
