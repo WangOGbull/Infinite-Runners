@@ -14,7 +14,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=74';
+import UIManager from './uiManager.js?v=75';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -1494,7 +1494,7 @@ class Game {
       this.startLocalGame(mode, difficulty, arenaIndex);
     });
     this.eventBus.on('ui:tierAdvance', ({ tierId }) => {
-      if (this.isGuest) { this.uiManager.showScreen('loginScreen'); return; }
+      if (this.isGuest && tierId === 'hard') { this.uiManager.showScreen('loginScreen'); return; }
       const tier = AI_DIFFICULTY_TIERS.find(t => t.id === tierId);
       if (tier) this.startWaveRun(tier);
     });
@@ -2128,7 +2128,7 @@ class Game {
   // timePlayedMs (session time added on top of running total), and a
   // per-tier "cleared" flag so the picker can show completed tiers.
   async _saveTierProgress(tier, tierIdx) {
-    if (!this.authUid || !this.db || typeof firebase === 'undefined') return;
+    if (this.isGuest || !this.authUid || !this.db || typeof firebase === 'undefined') return;
     try {
       const sessionMs = this.gameStartTime ? (Date.now() - this.gameStartTime) : 0;
       const localKills = this.localDragon ? (this.localDragon.kills || 0) : 0;
@@ -2165,6 +2165,10 @@ class Game {
   }
 
   startWaveRun(tier) {
+    if (!this.uiManager.getTierAccess(tier.id).allowed) {
+      this.uiManager.showScreen(this.isGuest && tier.id === 'hard' ? 'loginScreen' : 'difficultyModal');
+      return;
+    }
     this.currentTier = tier.id;
     this.selectedMode = 'wave1';
     this.aiDifficulty = tier.aiDifficulty;
@@ -2673,6 +2677,18 @@ class Game {
   }
 
   async startLocalGame(mode, difficulty, arenaIndex) {
+    if (typeof mode === 'string' && /^wave\d+$/.test(mode)) {
+      if (this.uiManager._progressReady) await this.uiManager._progressReady;
+      const tier = AI_DIFFICULTY_TIERS.find(t => t.aiDifficulty === difficulty);
+      if (!tier || !this.uiManager.getTierAccess(tier.id).allowed) {
+        this.uiManager.showScreen('difficultyModal');
+        return false;
+      }
+      if (this.isGuest && Number(arenaIndex || 0) !== 0) {
+        this.uiManager.showScreen('arenaSelectModal');
+        return false;
+      }
+    }
     // A match must not outrun the sound preload started by the player's tap.
     // Every request runs concurrently and has its own timeout, so this cannot
     // recreate the previous minute-long sequential delay.
@@ -5406,5 +5422,6 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
 
