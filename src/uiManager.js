@@ -102,6 +102,9 @@ class UIManager {
       const access = this.getTierAccess(button.dataset.tier);
       button.classList.toggle('is-locked', !access.allowed);
       button.setAttribute('aria-disabled', String(!access.allowed));
+      const overlay = button.querySelector('.legacyDifficultyLock');
+      if (overlay) overlay.hidden = access.allowed;
+      button.setAttribute('aria-label', button.dataset.tier + ': ' + access.reason);
       const lock = button.querySelector('.selectionLock');
       if (lock) lock.hidden = access.allowed;
       const status = button.querySelector('.tierAccessLabel');
@@ -278,13 +281,12 @@ class UIManager {
     */
     const lockIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10" width="14" height="12" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="16" r="1"/></svg>';
     diffModal.innerHTML = `
-      <div class="difficultyBox selectionArtworkPanel">
-        <img class="selectionCrest" src="./assets/auth/infinity-dragon.webp" alt="">
-        <h2>AI CHALLENGES</h2><p class="selectionSubtitle">Start with Easy. Earn your next challenge.</p>
+      <div class="difficultyBox">
         <div class="difficultyGrid">
-          ${AI_DIFFICULTY_TIERS.map((tier, index) => `<button type="button" class="diffBtn" data-tier="${tier.id}"><img class="tierDragonArtwork" src="${DRAGON_IMAGES[index === 2 ? 'ignis' : index === 1 ? 'aegis' : 'infinite']}" alt=""><span class="tierCardContent"><span class="selectionLock" hidden>${lockIcon}</span><strong>${tier.label.toUpperCase()}</strong><span class="tierAccessLabel"></span><span class="tierPlayLabel">PLAY ${tier.label.toUpperCase()} ›</span>${tier.id === 'hard' ? '<small>Sovereign Crown challenge</small>' : ''}</span></button>`).join('')}
-        </div><p class="selectionFootnote">Unlocked challenges stay available to replay.</p>
-        <button type="button" class="menuBtn" id="btnDiffBack">‹ BACK</button>
+          <img class="difficultyBgImg" src="./assets/select-trial-celestial-v1.jpg" alt="Select Trial" draggable="false" onerror="this.style.display='none'">
+          ${AI_DIFFICULTY_TIERS.map(tier => `<button type="button" class="diffBtn" data-tier="${tier.id}" aria-label="${tier.label}"><span class="legacyDifficultyLock" hidden><span class="selectionLock" hidden>${lockIcon}</span><span class="tierAccessLabel"></span></span></button>`).join('')}
+        </div>
+        <button class="menuBtn" id="btnDiffBack" aria-label="Back to battle mode"></button>
       </div>`;
     document.body.appendChild(diffModal);
     this.screens['difficultyModal'] = diffModal;
@@ -2936,6 +2938,7 @@ class UIManager {
 }
 
 export default UIManager;
+
 
 
 
