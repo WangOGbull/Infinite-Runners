@@ -1167,12 +1167,8 @@ class UIManager {
         this.eventBus.emit('mp:createRoom', { mode: chosen });
       });
     });
-    document.getElementById('btnFreeMatchBack')?.addEventListener('click', () => this.showScreen('modeSelectScreen'));
-    document.getElementById('btnFreeFindOpponent')?.addEventListener('click', () => {
-      // Guest search must never be submitted to the funded matchmaking queue.
-      const status = document.getElementById('freeMatchStatus');
-      if (status) status.textContent = 'Free online matchmaking is not available yet. You can still play the AI challenges.';
-    });
+    document.getElementById('btnFreeMatchBack')?.addEventListener('click', () => this.eventBus.emit('ui:freeSearchBack'));
+    document.getElementById('btnFreeFindOpponent')?.addEventListener('click', () => this.eventBus.emit('ui:freeSearch'));
     const mpSearchBattle = document.getElementById('btnMpSearchBattle');
     if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => { this.selectedMpMode = '1v1'; this.showScreen('matchmakingTierScreen'); });
 
@@ -2710,6 +2706,13 @@ class UIManager {
   }
 
 
+  setFreeMatchStatus(message = '', action = 'FIND OPPONENT', disabled = false) {
+    const status = document.getElementById('freeMatchStatus');
+    const button = document.getElementById('btnFreeFindOpponent');
+    if (status) status.textContent = message;
+    if (button) { button.textContent = action; button.disabled = disabled; }
+  }
+
   showScreen(screenId) {
     if (screenId === 'mpMenuScreen' && !this._uid) screenId = 'freeMatchScreen';
     if (screenId === 'difficultyModal' || screenId === 'arenaSelectModal') this.renderSelectionLocks();
@@ -2944,6 +2947,7 @@ class UIManager {
 }
 
 export default UIManager;
+
 
 
 
