@@ -123,3 +123,11 @@
 .freeMatchArtwork button:focus-visible{outline:2px solid #85e2ff;outline-offset:-7px}
 .freeMatchArtwork button:hover{filter:drop-shadow(0 0 5px #00bdff)}
 #freeMatchStatus{position:absolute;left:16%;top:72%;width:68%;color:#b5d8e8;font:13px/1.5 Arial,sans-serif}
+
+
+/* Text stays within the approved card at every viewport width. */
+.freeSearchCopy{top:44%;left:39.8%;width:43%;box-sizing:border-box}
+.freeSearchCopy h3{font-size:clamp(13px,3.4vw,22px);line-height:1.15;margin-bottom:5px}
+.freeSearchCopy p{font-size:clamp(9px,2.25vw,13px);line-height:1.3;overflow-wrap:normal}
+#freeMatchStatus{font-size:clamp(11px,2.6vw,14px);line-height:1.4}
+#btnFreeFindOpponent:disabled{cursor:default;color:#b4deef}

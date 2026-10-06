@@ -14,12 +14,12 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=78';
+import UIManager from './uiManager.js?v=79';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
 import AIController from './aiController.js?v=52';
-import FirebaseMatchmaking from './firebaseMatchmaking.js';
+import FirebaseMatchmaking from './firebaseMatchmaking.js?v=2';
 
 const BACKEND_URL = 'https://infiniterunners-firebase-backend-production.up.railway.app';
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
@@ -331,7 +331,7 @@ class Game {
           });
         });
       }
-      if (!user) return null;
+      if (!user || user.isAnonymous) return null;
       return user.getIdToken(forceRefresh);
     });
     // ── Late-arrival auth recovery ──
@@ -343,6 +343,7 @@ class Game {
     // so stat saves resume and the leaderboard "YOU" tag works again.
     if (this.auth) {
       this.auth.onAuthStateChanged((user) => {
+        if (user?.isAnonymous) { this.authUid = user.uid; this.isGuest = true; return; }
         if (user && (!this.authUid || this.isGuest)) {
           console.log('[Auth] Late recovery: real account arrived after guest fallback. uid:', user.uid);
           this.authUid = user.uid;
@@ -676,6 +677,7 @@ class Game {
 
   async _tryRestoreFirebaseAuth() {
     if (!this.auth || this.authUid) return;
+    if (this.auth.currentUser?.isAnonymous) { this.authUid = this.auth.currentUser.uid; this.isGuest = true; return; }
     if (this.auth.currentUser) {
       this.authUid = this.auth.currentUser.uid;
       this.isGuest = false;
@@ -698,6 +700,7 @@ class Game {
       try {
         unsubscribe = this.auth.onAuthStateChanged((user) => {
           if (resolved) return;
+          if (user?.isAnonymous) { resolved = true; clearTimeout(timeout); if (unsubscribe) unsubscribe(); this.authUid = user.uid; this.isGuest = true; resolve(); return; }
           if (user) {
             resolved = true; clearTimeout(timeout); if (unsubscribe) unsubscribe();
             this.authUid = user.uid;
@@ -943,6 +946,7 @@ class Game {
             uid: this.authUid || ((this.walletManager && this.walletManager.publicKey)
               ? this.walletManager.publicKey.toString()
               : 'anon_' + Math.random().toString(36).slice(2)),
+            isGuest: this.isGuest,
             name: this.username || 'Player',
             dragon: this.selectedDragon || null,
           }),
@@ -951,6 +955,37 @@ class Game {
     } catch (e) {
       console.log('Firebase not available, running in local mode');
     }
+  }
+
+  async _ensureFreeIdentity() {
+    if (!this.auth || !this.db) throw new Error('Multiplayer is not ready. Please reconnect.');
+    let user = this.auth.currentUser;
+    if (!user) {
+      try { user = (await this.auth.signInAnonymously()).user; }
+      catch (error) {
+        if (error.code === 'auth/operation-not-allowed') {
+          console.error('[FreeMatch] Enable the Anonymous sign-in provider in Firebase Authentication.');
+          throw new Error('Free multiplayer is temporarily unavailable. Please try again later.');
+        }
+        throw error;
+      }
+    }
+    if (!user?.isAnonymous) throw new Error('Your account is signed in. Return to the account multiplayer menu.');
+    this.authUid = user.uid;
+    this.isGuest = true;
+    this.uiManager.setAccount(null, this.db);
+    return user;
+  }
+
+  async _joinFreeMatch(match) {
+    if (!match?.roomReady || this._freeJoining) return;
+    this._freeJoining = true;
+    try {
+      this.effectsSystem.stopSearchSound();
+      this.effectsSystem.playOpponentFoundSound();
+      this.uiManager.setFreeMatchStatus('Opponent found. Preparing Stone Castle…', 'PREPARING', true);
+      await this.joinRoom(match.roomCode);
+    } finally { this._freeJoining = false; }
   }
 
   async determineStartScreen() {
@@ -975,6 +1010,7 @@ class Game {
       }, AUTH_TIMEOUT_MS);
       this.auth.onAuthStateChanged((user) => {
         clearTimeout(timeoutId);
+        if (user?.isAnonymous) { this.authUid = user.uid; this.isGuest = true; finish('titleScreen'); return; }
         if (user) {
           this.authUid = user.uid;
           this.isGuest = false;
@@ -1829,6 +1865,43 @@ class Game {
         this._clearLastRoom();
       }
     });
+    this.eventBus.on('ui:freeSearch', async () => {
+      if (this._freeSearching) {
+        this._freeSearching = false;
+        this._freeSearchGeneration = (this._freeSearchGeneration || 0) + 1;
+        await this.matchmaking?.cancelSearch({ silent: true });
+        this.effectsSystem.stopSearchSound();
+        this.uiManager.setFreeMatchStatus('Search cancelled.');
+        return;
+      }
+      this._freeSearching = true;
+      const generation = this._freeSearchGeneration = (this._freeSearchGeneration || 0) + 1;
+      this.uiManager.setFreeMatchStatus('Connecting…', 'CANCEL SEARCH');
+      try {
+        await this._releaseStaleRoomForMatchmaking();
+        await this._ensureFreeIdentity();
+        if (!this._freeSearching) return;
+        this.effectsSystem.startSearchSound();
+        this.uiManager.setFreeMatchStatus('Searching for another free player…', 'CANCEL SEARCH');
+        await this.matchmaking.startSearch('Free');
+        if (generation !== this._freeSearchGeneration) await this.matchmaking.cancelSearch({ silent: true });
+      } catch (error) {
+        if (generation !== this._freeSearchGeneration) return;
+        this._freeSearching = false;
+        this.effectsSystem.stopSearchSound();
+        this.uiManager.setFreeMatchStatus(error?.message || 'Could not search. Please try again.');
+      }
+    });
+    this.eventBus.on('ui:freeSearchBack', async () => {
+      this._freeSearchGeneration = (this._freeSearchGeneration || 0) + 1;
+      if (this.roomRef && this._freeMatch) { await this.leaveRoom(); }
+      this._freeSearching = false;
+      this._pendingMatch = null;
+      await this.matchmaking?.cancelSearch({ silent: true });
+      this.effectsSystem.stopSearchSound();
+      this.uiManager.setFreeMatchStatus();
+      this.uiManager.showScreen('modeSelectScreen');
+    });
     this.eventBus.on('ui:searchBattleTierSelected', async ({ tier }) => {
       try {
         await this._releaseStaleRoomForMatchmaking();
@@ -1854,6 +1927,12 @@ class Game {
     });
     this.eventBus.on('matchmaking:matched', ({ roomCode, isInitiator, tier, matchId, roomReady, opponentUid }) => {
       this._pendingMatch = { roomCode, isInitiator, tier, matchId, roomReady: !!roomReady, opponentUid };
+      if (tier === 'Free') {
+        this._freeSearching = false;
+        this.uiManager.setFreeMatchStatus('Opponent found. Preparing the arena…', 'PREPARING', true);
+        this._joinFreeMatch(this._pendingMatch).catch(error => this.eventBus.emit('matchmaking:error', { message: error.message }));
+        return;
+      }
       this.uiManager.showOpponentFound({
         tier,
         yourName: this.username || 'You',
@@ -1880,6 +1959,7 @@ class Game {
       if (this._pendingMatch && this._pendingMatch.matchId === matchId) {
         this._pendingMatch.roomCode = roomCode;
         this._pendingMatch.roomReady = true;
+        if (this._pendingMatch.tier === 'Free') this._joinFreeMatch(this._pendingMatch).catch(error => this.eventBus.emit('matchmaking:error', { message: error.message }));
       }
     });
     this.eventBus.on('matchmaking:proceed', async () => {
@@ -1950,16 +2030,23 @@ class Game {
     this.eventBus.on('ui:cancelSearch', () => {
       if (this.matchmaking) this.matchmaking.cancelSearch();
     });
-    this.eventBus.on('matchmaking:cancelled', () => {
+    this.eventBus.on('matchmaking:cancelled', ({ reason } = {}) => {
+      this._freeSearching = false;
+      this.effectsSystem.stopSearchSound();
+      if (this.isGuest) this.uiManager.setFreeMatchStatus(reason === 'search_timeout' ? 'No free opponent found yet. Try again.' : 'Search cancelled.');
       this.uiManager.showScreen('mpMenuScreen');
     });
     this.eventBus.on('matchmaking:opponentLeft', () => {
       this._pendingMatch = null;
       this.uiManager.showScreen('mpMenuScreen');
       const err = document.getElementById('mpJoinError');
+      if (this.isGuest) { this._freeSearching = false; this.effectsSystem.stopSearchSound(); this.uiManager.setFreeMatchStatus('Your opponent left. Search again.'); }
       if (err) err.textContent = 'Your opponent left before staking. Search again.';
     });
     this.eventBus.on('matchmaking:error', ({ message }) => {
+      this._freeSearching = false;
+      this.effectsSystem.stopSearchSound();
+      if (this.isGuest) this.uiManager.setFreeMatchStatus(message || 'Could not find an opponent. Try again.');
       if (this.matchmaking) this.matchmaking.cancelSearch();
       this.uiManager.showScreen('mpMenuScreen');
       const err = document.getElementById('mpJoinError');
@@ -2300,6 +2387,7 @@ class Game {
       this.roomRef = null;
       return false;
     }
+    this._freeMatch = room.freeMatch === true && !room.tier;
     this._matchedMode = !!room.matched;
     this.selectedMpMode = room.mode || this.selectedMpMode;
     this.lobbyTier = room.tier || this.lobbyTier;
@@ -2307,12 +2395,12 @@ class Game {
     this.uiManager.setAccount(this.isGuest ? null : this.authUid, this.db);
     this.uiManager.showLoginDrop(this.username, this.isGuest);
     this.uiManager.setMatchedLobbyMode(this._matchedMode, this.lobbyTier);
-    if (!this._holdPhantomStakeReturn) this.uiManager.showScreen('lobbyScreen');
+    if (!this._holdPhantomStakeReturn) this.uiManager.showScreen(this._freeMatch ? 'freeMatchScreen' : 'lobbyScreen');
     this.uiManager.updateLobbyArena(this.lobbyArenaIndex, this.isHost && !this._matchedMode);
     this._attachRoomListener();
     this._ensurePresence();
     this._persistLastRoom();
-    this._syncStakeFromChain();
+    if (!this._freeMatch) this._syncStakeFromChain();
     return true;
   }
 
@@ -2559,6 +2647,7 @@ class Game {
   }
 
   async handleDeposit() {
+    if (this._freeMatch || this.isGuest) return;
     if (!this.walletManager.connected) {
       this.eventBus.emit('staking:error', { message: 'Connect your wallet first.' });
       this.uiManager.showScreen('walletModal');
@@ -2633,6 +2722,7 @@ class Game {
   }
 
   _refreshStakingUI() {
+    if (this._freeMatch) return;
     const stakingApplies = !!this.lobbyTier;
     const tierSelector = document.getElementById('lobbyTierSelector');
     if (tierSelector) tierSelector.style.display = 'flex';
@@ -2915,8 +3005,12 @@ class Game {
         if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 700));
       }
 
+      if (this.roomRef !== candidateRoomRef) return;
       const data = snapshot && snapshot.val();
       if (!data) throw new Error('ROOM_NOT_FOUND');
+      const isFreeRoom = data.freeMatch === true && !data.tier;
+      if (this.isGuest && !isFreeRoom) throw new Error('ACCOUNT_REQUIRED');
+      if (isFreeRoom && !Object.values(data.players || {}).some(p => p?.authUid === this.authUid)) throw new Error('ROOM_UNAVAILABLE');
       if (['playing', 'finished', 'completed', 'expired'].includes(data.status)) {
         throw new Error('ROOM_UNAVAILABLE');
       }
@@ -2961,27 +3055,36 @@ class Game {
         if (!result.committed) throw new Error('ROOM_FULL');
       }
 
+      this._freeMatch = isFreeRoom;
       this.localPlayerId = playerId;
       this.lobbyArenaIndex = data.arenaIndex !== undefined ? data.arenaIndex : 0;
       this.selectedMpMode = data.mode || this.selectedMpMode;
       this.lobbyTier = data.tier || null;
       this._matchedMode = !!data.matched;
       this.uiManager.setMatchedLobbyMode(this._matchedMode, this.lobbyTier);
-      this.uiManager.showScreen('lobbyScreen');
+      this.uiManager.showScreen(this._freeMatch ? 'freeMatchScreen' : 'lobbyScreen');
       this.uiManager.updateLobbyArena(this.lobbyArenaIndex, false);
       this._attachRoomListener();
       this._ensurePresence();
       this._persistLastRoom();
+      if (this._freeMatch) {
+        await this._ensureGameAssetsReady(this.selectedDragon || 'infinite', 0);
+        if (this.roomRef === candidateRoomRef) await candidateRoomRef.child(`players/${playerId}/freeReadyMatchId`).set(data.matchId);
+      }
       if (errEl) errEl.textContent = '';
     } catch (error) {
       console.error('[joinRoom] failed:', error);
+      if (this._pendingMatch?.tier === 'Free') this.eventBus.emit('matchmaking:error', { message: 'Could not prepare your free match. Please try again.' });
       const messages = {
         ROOM_NOT_FOUND: 'Room not found. Double-check the code and try again.',
         ROOM_UNAVAILABLE: 'This room is no longer available.',
         ROOM_FULL: 'Room is full.',
       };
       if (errEl) errEl.textContent = messages[error?.message] || 'Connection error. Try again.';
-      if (this.roomRef === candidateRoomRef) this.roomRef = null;
+      if (this.roomRef === candidateRoomRef) {
+        if (this._roomListener) { try { candidateRoomRef.off('value', this._roomListener); } catch (_) {} this._roomListener = null; }
+        this.roomRef = null;
+      }
       this.roomCode = '';
       this.localPlayerId = null;
     } finally {
@@ -2997,6 +3100,7 @@ class Game {
     this._roomListener = (snap) => {
       const data = snap.val();
       if (!data) return;
+      this._freeMatch = data.freeMatch === true && !data.tier;
       this._matchedMode = !!data.matched;
       this.uiManager.setMatchedLobbyMode(this._matchedMode, data.tier || this.lobbyTier);
       if (this.localPlayerId && data.kickedPlayers && data.kickedPlayers[this.localPlayerId]) {
@@ -3060,8 +3164,14 @@ class Game {
         this._clearLastRoom();
         this.uiManager.showScreen('mpMenuScreen');
         const err = document.getElementById('mpJoinError');
+        if (this._freeMatch) this.uiManager.setFreeMatchStatus('Your opponent did not become ready. Search again.');
         if (err) err.textContent = 'Auto Match timed out. Confirmed stakes were returned automatically.';
         return;
+      }
+      if (this._freeMatch && this.state !== 'PLAYING') {
+        const ready = Object.values(this.roomPlayers).filter(p => p?.freeReadyMatchId === data.matchId).length;
+        const seconds = Math.max(0, Math.ceil((Number(data.autoMatchStartAt || 0) - Date.now()) / 1000));
+        this.uiManager.setFreeMatchStatus(data.autoMatchStartAt ? `Battle starts in ${seconds}…` : `Preparing players ${ready}/2…`, 'PREPARING', true);
       }
       if (this._matchedMode) {
         const readyCount = Object.values(this.roomPlayers).filter(p => p && p.deposited).length;
@@ -3347,7 +3457,7 @@ class Game {
     const opponent = this.dragonManager.getAllDragons().find(d => d !== this.localDragon) || null;
     this.winner = opponent;
     this.endGame(true);
-    this.uiManager.showForfeitDefeat('You forfeited the match. Your opponent has been awarded the victory and pot.');
+    this.uiManager.showForfeitDefeat(this._freeMatch ? 'You forfeited this free match. Your opponent won.' : 'You forfeited the match. Your opponent has been awarded the victory and pot.');
   }
 
   async _releaseStaleRoomForMatchmaking(nextRoomCode = null) {
@@ -3404,6 +3514,7 @@ class Game {
   }
 
   _prepareForNewRoom() {
+    this._freeMatch = false;
     // Reset room and match UI only. Wallet/provider state is intentionally
     // outside this method and remains connected.
     this.state = 'MENU';
@@ -3998,7 +4109,7 @@ class Game {
   }
 
   _watchSettlement() {
-    if (!this.roomRef) return;
+    if (!this.roomRef || this._freeMatch) return;
     if (this._settlementRef && this._settlementListener) {
       try { this._settlementRef.off('value', this._settlementListener); } catch (_) {}
     }
@@ -5235,6 +5346,7 @@ class Game {
     this._lastPlayerCount = 0;
     this._stakingResumeInFlight = false;
     this._matchedMode = false;
+    this._freeMatch = false;
     this.remotePositions = {};
     this.winner = null;
     this._pendingPurge = [];
@@ -5436,6 +5548,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
 
 
