@@ -3780,7 +3780,7 @@
 @media(max-height:520px){#stakingTermsOverlay .termsCard{padding:12px;min-height:290px}.termsCard .termsSub{display:none}.termsCard .termsBadge{display:none}.termsCard .termsContact{display:none}.termsFooter{padding-top:8px;margin-top:8px}.termsCard .termsCheckboxRow{margin-bottom:8px}.authInner .authCrest{height:42px;margin-bottom:8px}}
 </style>
 
-<link rel="stylesheet" href="./src/authArtwork.css?v=5">
+<link rel="stylesheet" href="./src/authArtwork.css?v=6">
 <link rel="preload" as="image" href="./assets/auth/infinity-dragon.webp">
 </head>
 <body> 
@@ -4087,6 +4087,16 @@
   </div>
 </div>
 
+<!-- Guest-only free match: paid multiplayer remains a separate screen. -->
+<div id="freeMatchScreen" class="screen">
+  <div class="freeMatchArtwork">
+    <h2>FREE MATCH</h2>
+    <section class="freeSearchCopy" aria-label="Free multiplayer"><h3>Search Battle</h3><p>Find another player for a free 1v1 match.</p></section>
+    <button id="btnFreeFindOpponent" type="button">FIND OPPONENT</button>
+    <button id="btnFreeMatchBack" type="button">BACK</button>
+    <p id="freeMatchStatus" role="status" aria-live="polite"></p>
+  </div>
+</div>
 <!-- ===== SEARCH BATTLE: Dragon Age stake selection ===== -->
 <div id="matchmakingTierScreen" class="screen">
   <div class="daStakeModal daStakeImageBox">
@@ -4499,7 +4509,7 @@
 <!-- CRITICAL: YOUR ORIGINAL JAVASCRIPT IMPORTS ARE HERE.          --> 
 <!-- DO NOT DELETE THESE TAGS.                                     --> 
 <!-- ============================================================= --> 
-<script type="module" src="./src/main.js?v=108"></script>
+<script type="module" src="./src/main.js?v=109"></script>
 
 <!-- ===== DRAGON DETAIL MODAL ===== --> 
 <div id="dragonDetailModal" class="screen"> 
@@ -4668,6 +4678,7 @@
 <script src="./src/cashWallet.js?v=4" defer></script>
 </body> 
 </html>
+
 
 
 
