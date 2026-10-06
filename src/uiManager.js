@@ -253,7 +253,7 @@ class UIManager {
 
   initScreens() {
     const ids = [
-      'titleScreen','dragonSelectScreen','modeSelectScreen','mpMenuScreen',
+      'titleScreen','dragonSelectScreen','modeSelectScreen','mpMenuScreen','freeMatchScreen',
       'matchmakingTierScreen','matchmakingSearchScreen','opponentFoundScreen',
       'bettingArenaScreen','lobbyScreen','loadingScreen','gameScreen',
       'gameOverScreen','howToPlayScreen','walletModal','walletSelectionModal',
@@ -1166,6 +1166,12 @@ class UIManager {
         this._closeModeSelectModal();
         this.eventBus.emit('mp:createRoom', { mode: chosen });
       });
+    });
+    document.getElementById('btnFreeMatchBack')?.addEventListener('click', () => this.showScreen('modeSelectScreen'));
+    document.getElementById('btnFreeFindOpponent')?.addEventListener('click', () => {
+      // Guest search must never be submitted to the funded matchmaking queue.
+      const status = document.getElementById('freeMatchStatus');
+      if (status) status.textContent = 'Free online matchmaking is not available yet. You can still play the AI challenges.';
     });
     const mpSearchBattle = document.getElementById('btnMpSearchBattle');
     if (mpSearchBattle) mpSearchBattle.addEventListener('click', () => { this.selectedMpMode = '1v1'; this.showScreen('matchmakingTierScreen'); });
@@ -2705,6 +2711,7 @@ class UIManager {
 
 
   showScreen(screenId) {
+    if (screenId === 'mpMenuScreen' && !this._uid) screenId = 'freeMatchScreen';
     if (screenId === 'difficultyModal' || screenId === 'arenaSelectModal') this.renderSelectionLocks();
     const requested = this.screens[screenId];
     const safeTarget = requested || this.screens.titleScreen;
@@ -2937,6 +2944,7 @@ class UIManager {
 }
 
 export default UIManager;
+
 
 
 
