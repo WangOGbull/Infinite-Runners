@@ -68,7 +68,7 @@
 #arenaSelectModal .arenaGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
 #arenaSelectModal button.arenaCard{position:relative!important;display:flex!important;flex-direction:column;gap:0;width:100%;padding:0!important;margin:0!important;overflow:hidden!important;border:1px solid #466e8d!important;border-radius:10px!important;background:#021426!important;box-shadow:none!important;color:#e1f4ff;cursor:pointer}
 #arenaSelectModal button.arenaCard.selected{border:2px solid #46d9ff!important;box-shadow:0 0 12px #00bfff35!important}
-#arenaSelectModal .arenaPreview{display:block!important;position:relative!important;width:100%!important;height:auto!important;min-height:0!important;aspect-ratio:1.25!important;padding:0!important;background-position:center;background-size:cover}
+#arenaSelectModal .arenaPreview{display:block!important;position:relative!important;width:100%!important;height:auto!important;min-height:0!important;aspect-ratio:1.25!important;flex:0 0 auto!important;align-self:stretch;padding:0!important;background-position:center;background-size:cover}
 #arenaSelectModal .arenaPreview::before{content:none!important}#arenaSelectModal .is-locked .arenaPreview::after{content:'';position:absolute;inset:0;background:#01152870;pointer-events:none}
 #arenaSelectModal .arenaPreview .selectionLock{position:absolute;z-index:2;left:50%;top:50%;transform:translate(-50%,-50%)}
 #arenaSelectModal .arenaName{display:block!important;color:#e2f4ff!important;font:700 13px/1.3 Arial,sans-serif!important;letter-spacing:.02em!important;padding:10px 4px 4px!important;background:none!important}
@@ -90,3 +90,6 @@
 #difficultyModal [data-tier="hard"] .trialMetalLock{background-position:right center}
 #difficultyModal .legacyDifficultyLock .tierAccessLabel{position:absolute;left:32%;right:5%;bottom:9%;font:600 clamp(9px,2.5vw,14px)/1.3 Arial,sans-serif;text-align:center;color:#eee0c9;letter-spacing:0;text-transform:none;text-shadow:0 2px 4px #000,0 0 8px #000}
 #difficultyModal .diffBtn:focus-visible{outline:2px solid #ba9b65!important;outline-offset:2px!important}
+
+/* Lock requirements remain available to assistive text and the existing tap handler. */
+#difficultyModal .legacyDifficultyLock .tierAccessLabel{display:none!important}
