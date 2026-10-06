@@ -1886,6 +1886,7 @@ class Game {
         await this.matchmaking.startSearch('Free');
         if (generation !== this._freeSearchGeneration) await this.matchmaking.cancelSearch({ silent: true });
       } catch (error) {
+        if (generation !== this._freeSearchGeneration) return;
         this._freeSearching = false;
         this.effectsSystem.stopSearchSound();
         this.uiManager.setFreeMatchStatus(error?.message || 'Could not search. Please try again.');
@@ -3004,6 +3005,7 @@ class Game {
         if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 700));
       }
 
+      if (this.roomRef !== candidateRoomRef) return;
       const data = snapshot && snapshot.val();
       if (!data) throw new Error('ROOM_NOT_FOUND');
       const isFreeRoom = data.freeMatch === true && !data.tier;
