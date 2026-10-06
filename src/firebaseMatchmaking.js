@@ -1,4 +1,4 @@
-const VALID_TIERS = new Set(['Small', 'Medium', 'High']);
+const VALID_TIERS = new Set(['Small', 'Medium', 'High', 'Free']);
 
 class FirebaseMatchmaking {
   constructor(eventBus, db, opts = {}) {
@@ -23,7 +23,7 @@ class FirebaseMatchmaking {
     await this.cancelSearch({ silent: true });
 
     const identity = this.getIdentity() || {};
-    if (!identity.uid || String(identity.uid).startsWith('anon_')) {
+    if (!identity.uid || String(identity.uid).startsWith('anon_') || (tier !== 'Free' && identity.isGuest)) {
       throw new Error('Sign in before searching for an opponent.');
     }
 
@@ -167,3 +167,4 @@ class FirebaseMatchmaking {
 }
 
 export default FirebaseMatchmaking;
+
