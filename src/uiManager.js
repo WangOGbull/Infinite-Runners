@@ -387,6 +387,7 @@ class UIManager {
     const previousUid = this._uid;
     const rememberedProgress = previousUid === uid ? { ...this.clearedTiers } : {};
     this._uid = uid;
+    this._syncWalletVisibility();
     this._db = db;
     this._progressLoading = !!(uid && db);
     this._progressLoadFailed = false;
@@ -1317,6 +1318,7 @@ class UIManager {
 
     const walletBtn = document.getElementById('walletBtn');
     if (walletBtn) walletBtn.addEventListener('click', () => {
+      if (!this._uid) return;
       if (walletBtn.classList.contains('connected')) {
         this.setWalletModalState('connected');
         this.showScreen('walletModal');
@@ -2443,7 +2445,13 @@ class UIManager {
     this.updateWalletButton(address);
   }
 
+  _syncWalletVisibility() {
+    const button = document.getElementById('walletBtn');
+    if (button) button.style.display = this._uid ? '' : 'none';
+  }
+
   updateWalletButton(address) {
+    this._syncWalletVisibility();
     const btn = document.getElementById('walletBtn');
     if (!btn) return;
     const label = btn.querySelector('span');
@@ -2714,6 +2722,7 @@ class UIManager {
   }
 
   showScreen(screenId) {
+    this._syncWalletVisibility();
     if (screenId === 'mpMenuScreen' && !this._uid) screenId = 'freeMatchScreen';
     if (screenId === 'difficultyModal' || screenId === 'arenaSelectModal') this.renderSelectionLocks();
     const requested = this.screens[screenId];
@@ -2947,6 +2956,7 @@ class UIManager {
 }
 
 export default UIManager;
+
 
 
 
