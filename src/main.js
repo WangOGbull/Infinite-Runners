@@ -14,7 +14,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=79';
+import UIManager from './uiManager.js?v=80';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -25,6 +25,7 @@ const BACKEND_URL = 'https://infiniterunners-firebase-backend-production.up.rail
 const LOBBY_CONTEXT_KEY = 'mpLobbyContext';
 const LAST_ROOM_KEY = 'lastRoomInfo';
 const BOOT_COMPLETE_KEY = 'infiniteRunnersBootCompleteV2';
+const GUEST_TERMS_KEY = 'infiniteRunnersGuestTermsAcceptedV1';
 
 function isWalletReturnLaunch() {
   try {
@@ -1050,7 +1051,7 @@ class Game {
         } else {
           const firstAuthResult = !settled;
           finish('loginScreen');
-          if (firstAuthResult) this._requirePreAuthTerms(() => {});
+          if (firstAuthResult) this._requirePreAuthTerms(() => {}, true);
         }
       });
     });
@@ -1060,8 +1061,13 @@ class Game {
   // ================================================================
   // STAKING TERMS — one-time acceptance on first login
   // ================================================================
-  _requirePreAuthTerms(onProceed) {
-    if (this._preAuthTermsAccepted) { onProceed(); return; }
+  _hasGuestTermsAcceptance() {
+    try { return localStorage.getItem(GUEST_TERMS_KEY) === 'accepted'; }
+    catch (_) { return false; }
+  }
+
+  _requirePreAuthTerms(onProceed, guestEntry = false) {
+    if (this._preAuthTermsAccepted || (guestEntry && this._hasGuestTermsAcceptance())) { onProceed(); return; }
     this._showStakingTermsModal(null, onProceed);
   }
 
@@ -1148,7 +1154,11 @@ class Game {
         return;
       }
       if (user) this._termsAcceptedUid = user.uid;
-      else this._preAuthTermsAccepted = true;
+      else {
+        this._preAuthTermsAccepted = true;
+        try { localStorage.setItem(GUEST_TERMS_KEY, 'accepted'); }
+        catch (_) { /* Acceptance remains valid for this session if storage is unavailable. */ }
+      }
       this._termsModalUid = null;
       const callbacks = this._termsCallbacks;
       this._termsCallbacks = [];
@@ -1461,7 +1471,7 @@ class Game {
         if (notice) notice.textContent = 'If this email has an account, a reset link will be sent. Check your inbox.';
       } catch (error) { this.uiManager.showAuthError(this._friendlyAuthError(error)); }
     });
-    this.eventBus.on('auth:continueAsGuest', () => this._requirePreAuthTerms(() => this.continueAsGuest()));
+    this.eventBus.on('auth:continueAsGuest', () => this._requirePreAuthTerms(() => this.continueAsGuest(), true));
     this.eventBus.on('auth:submitUsername', async ({ username }) => {
       const result = await this.claimUsername(username);
       if (result.error) this.uiManager.showUsernameError(result.error);
@@ -1815,6 +1825,7 @@ class Game {
         }
       }
     });this.eventBus.on('wallet:connectRequest', async () => {
+      if (this.isGuest || !this.authUid) return;
       if (this.authUid && this.db && !this.isGuest) {
         const handoffCode = await this._createAuthHandoffCode();
         if (handoffCode) this.walletManager.pendingHandoffCode = handoffCode;
@@ -5548,6 +5559,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
 
 
