@@ -4,9 +4,11 @@ import AssetLoader from './assetLoader.js';
 import { DragonManager } from './dragonManager.js?v=58';
 import {
   REMOTE_SYNC,
+  advanceSendDeadline,
+  getSnapshotDurationMs,
   classifyRemoteSnapshot,
   isConfirmedRemoteRespawn,
-} from './remoteSync.js?v=1';
+} from './remoteSync.js?v=2';
 import MovementSystem from './movementSystem.js';
 import GrowthSystem from './growthSystem.js';
 import CameraSystem from './cameraSystem.js';
@@ -4350,10 +4352,10 @@ class Game {
     
     // Cloudflare sends movement at 20 Hz. Firebase keeps its conservative
     // interval and becomes active automatically whenever the socket is down.
-    const syncInterval = this._realtimeReady ? 50 : 120
+    const syncInterval = this._realtimeReady ? REMOTE_SYNC.websocketSendMs : 120;
     if (this.lastBroadcast && now - this.lastBroadcast < syncInterval) return;
     
-    this.lastBroadcast = now;
+    this.lastBroadcast = advanceSendDeadline(this.lastBroadcast, now, syncInterval);
     const payload = {
       type: 'state',
       x: this.localDragon.head.x,
@@ -4511,7 +4513,7 @@ class Game {
           let vy = previous && Number.isFinite(previous.vy) ? previous.vy : 0;
           if (previous) {
             const arrivalMs = Math.max(1, now - Number(previous.receivedAt || now));
-            const seconds = Math.max(0.025, Math.min(0.25, arrivalMs / 1000));
+            const seconds = getSnapshotDurationMs(previous, snapshotT, streamId, arrivalMs) / 1000;
             const measuredVx = (pos.x - previous.x) / seconds;
             const measuredVy = (pos.y - previous.y) / seconds;
             const measuredSpeed = Math.hypot(measuredVx, measuredVy);
