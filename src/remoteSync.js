@@ -79,3 +79,19 @@ export function isConfirmedRemoteRespawn({
     && Number(reportedLives) < Number(deathLives)
     && Number(reportedLives) > 0;
 }
+
+// Carry fractional frame time forward instead of lowering the send rate
+// whenever a render frame lands just after the network deadline.
+export function advanceSendDeadline(previous, now, interval) {
+  if (!Number.isFinite(previous) || previous <= 0 || now < previous) return now;
+  return now - ((now - previous) % interval);
+}
+
+export function getSnapshotDurationMs(previous, snapshotT, streamId, arrivalMs) {
+  const elapsed = snapshotT - Number(previous?.snapshotT || 0);
+  const sameStream = !!streamId && streamId === previous?.streamId;
+  // Compare durations from one sender, never absolute clocks across devices.
+  const duration = sameStream && elapsed >= 25 && elapsed <= 250
+    ? elapsed : arrivalMs;
+  return Math.max(25, Math.min(250, duration));
+}
