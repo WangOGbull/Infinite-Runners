@@ -618,7 +618,7 @@ class Game {
   async _createAuthHandoffCode(roomCode) {
     try {
       if (!this.auth || !this.auth.currentUser || this.isGuest) return null;
-      const idToken = await this.auth.currentUser.getIdToken();
+      const idToken = await this.auth.currentUser.getIdToken(true);
       const resp = await fetch(`${BACKEND_URL}/handoff/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1265,7 +1265,7 @@ class Game {
 
   async _accountRequest(path, body, authenticated = false) {
     const headers = { 'Content-Type': 'application/json' };
-    if (authenticated) headers.Authorization = 'Bearer ' + await this.auth.currentUser.getIdToken();
+    if (authenticated) headers.Authorization = 'Bearer ' + await this.auth.currentUser.getIdToken(true);
     let response;
     try {
       response = await fetch(BACKEND_URL + path, {
