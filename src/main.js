@@ -16,7 +16,7 @@ import ArenaManager from './arenaManager.js';
 import FoodSystem from './foodSystem.js?v=52';
 import CollisionSystem from './collisionSystem.js?v=56';
 import GameModeManager from './gameModeManager.js';
-import UIManager from './uiManager.js?v=80';
+import UIManager from './uiManager.js?v=81';
 import EffectsSystem from './effectsSystem.js?v=56';
 import WalletManager from './walletManager.js?v=54';
 import StakingManager, { TIER_AMOUNTS } from './stakingManager.js';
@@ -618,7 +618,7 @@ class Game {
   async _createAuthHandoffCode(roomCode) {
     try {
       if (!this.auth || !this.auth.currentUser || this.isGuest) return null;
-      const idToken = await this.auth.currentUser.getIdToken();
+      const idToken = await this.auth.currentUser.getIdToken(true);
       const resp = await fetch(`${BACKEND_URL}/handoff/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1208,7 +1208,7 @@ class Game {
       return "Google Sign-In is not enabled in Firebase Console. Please enable it in Authentication > Sign-in method > Google.";
     }
     if (code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
-      return 'Incorrect email or password.';
+      return 'Incorrect email, username, or password.';
     }
     if (code === 'auth/email-already-in-use') {
       return 'An account already exists with that email - try Sign In instead.';
@@ -1244,44 +1244,58 @@ class Game {
   async signUpWithEmail(email, password, username) {
     if (!this.auth) return { error: 'Login unavailable right now.' };
     try {
-      const result = await this.auth.createUserWithEmailAndPassword(email, password);
+      // Upgrade an active guest identity so its saved progress keeps the same UID.
+      const guest = this.auth.currentUser;
+      const result = guest?.isAnonymous
+        ? await guest.linkWithCredential(firebase.auth.EmailAuthProvider.credential(email, password))
+        : await this.auth.createUserWithEmailAndPassword(email, password);
       this.authUid = result.user.uid;
       this.isGuest = false;
-      await result.user.sendEmailVerification();
       const claim = await this.claimUsername(username);
       if (claim.error) {
         this.uiManager.showScreen('usernameScreen');
         this.uiManager.showUsernameError(claim.error);
       }
+      // An email delivery failure must not report account creation as failed.
+      try { await result.user.sendEmailVerification(); }
+      catch (_) { this.uiManager.showAuthError('Account created. Verification email could not be sent. Please try again later.'); }
       return { success: true };
-    } catch (e) {
-      if (e && e.code === 'auth/network-request-failed') {
-        this.uiManager.showAuthError('Connection slow... retrying in 2 seconds');
-        await new Promise(r => setTimeout(r, 2000));
-        try {
-          const result = await this.auth.createUserWithEmailAndPassword(email, password);
-          this.authUid = result.user.uid;
-          this.isGuest = false;
-          await result.user.sendEmailVerification();
-          const claim = await this.claimUsername(username);
-          if (claim.error) {
-            this.uiManager.showScreen('usernameScreen');
-            this.uiManager.showUsernameError(claim.error);
-          }
-          return { success: true };
-        } catch (e2) {
-          return { error: this._friendlyAuthError(e2) };
-        }
-      }
-      return { error: this._friendlyAuthError(e) };
-    }
+    } catch (error) { return { error: this._friendlyAuthError(error) }; }
   }
 
-  async signInWithEmail(email, password) {
+  async _accountRequest(path, body, authenticated = false) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authenticated) headers.Authorization = 'Bearer ' + await this.auth.currentUser.getIdToken(true);
+    let response;
+    try {
+      response = await fetch(BACKEND_URL + path, {
+        method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(15000)
+      });
+    } catch (_) { throw new Error('Connection trouble. Please try again.'); }
+    let result;
+    try { result = await response.json(); }
+    catch (_) { throw new Error('Account service unavailable. Please try again shortly.'); }
+    if (!response.ok || !result.ok) {
+      const messages = {
+        invalid_credentials: 'Incorrect email, username, or password.',
+        invalid_identifier: 'Enter your email address or username.',
+        invalid_username: 'Username must be 3–20 letters, numbers, or underscores.',
+        username_unavailable: 'That username is unavailable. Choose another name.',
+        authentication_required: 'Please sign in to save your username.',
+        rate_limited: 'Too many attempts. Wait a minute and try again.'
+      };
+      throw new Error(messages[result.reason] || 'Account service unavailable. Please try again shortly.');
+    }
+    return result;
+  }
+
+  async signInWithEmail(identifier, password) {
     if (!this.auth) return { error: 'Login unavailable right now.' };
     try {
-      const result = await this.auth.signInWithEmailAndPassword(email, password);
-      this.authUid = result.user.uid;
+      const login = identifier.includes('@')
+        ? await this.auth.signInWithEmailAndPassword(identifier, password)
+        : await this.auth.signInWithCustomToken((await this._accountRequest('/auth/username-login', { identifier, password })).customToken);
+      this.authUid = login.user.uid;
       this.isGuest = false;
       const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
       if (snap.exists()) {
@@ -1291,28 +1305,7 @@ class Game {
         this.uiManager.showScreen('usernameScreen');
       }
       return { success: true };
-    } catch (e) {
-      if (e && e.code === 'auth/network-request-failed') {
-        this.uiManager.showAuthError('Connection slow... retrying in 2 seconds');
-        await new Promise(r => setTimeout(r, 2000));
-        try {
-          const result = await this.auth.signInWithEmailAndPassword(email, password);
-          this.authUid = result.user.uid;
-          this.isGuest = false;
-          const snap = await this.db.ref('users/' + this.authUid + '/username').once('value');
-          if (snap.exists()) {
-            this.username = snap.val();
-            this.enterMainMenu();
-          } else {
-            this.uiManager.showScreen('usernameScreen');
-          }
-          return { success: true };
-        } catch (e2) {
-          return { error: this._friendlyAuthError(e2) };
-        }
-      }
-      return { error: this._friendlyAuthError(e) };
-    }
+    } catch (error) { return { error: this._friendlyAuthError(error) }; }
   }
 
   continueAsGuest() {
@@ -1338,23 +1331,8 @@ class Game {
     if (!/^[a-zA-Z0-9_]+$/.test(name)) return { error: 'Letters, numbers, and underscores only.' };
     if (!this.authUid || !this.db) return { error: 'Not logged in.' };
     try {
-      const allUsers = await this.db.ref('users').once('value');
-      const taken = Object.values(allUsers.val() || {}).some(
-        u => u && u.username && u.username.toLowerCase() === name.toLowerCase()
-      );
-      if (taken) return { error: 'That username is already taken.' };
-      await this.db.ref('users/' + this.authUid).update({
-        username: name,
-        rank: 'Wingling',
-        dragonKills: 0,
-        multiplayerWins: 0,
-        matchesPlayed: 0,
-        timePlayedMs: 0,
-        highestTierCleared: null,
-        clearedTiers: {},
-        createdAt: Date.now()
-      });
-      this.username = name;
+      const result = await this._accountRequest('/auth/claim-username', { username: name }, true);
+      this.username = result.username;
       this.enterMainMenu();
       return { success: true };
     } catch (e) {
@@ -1466,11 +1444,11 @@ class Game {
     this.eventBus.on('auth:forgotPassword', async ({ email }) => {
       const notice = document.getElementById('authNotice');
       if (notice) notice.textContent = '';
-      if (!email) { this.uiManager.showAuthError('Enter your email address first.'); return; }
+      if (!email) { this.uiManager.showAuthError('Enter your email address or username first.'); return; }
       if (!this.auth) { this.uiManager.showAuthError('Login unavailable right now.'); return; }
       try {
-        await this.auth.sendPasswordResetEmail(email);
-        if (notice) notice.textContent = 'If this email has an account, a reset link will be sent. Check your inbox.';
+        await this._accountRequest('/auth/password-reset', { identifier: email });
+        if (notice) notice.textContent = 'If this account supports password sign-in, a reset link will be sent to its registered email. Check your inbox and spam folder.';
       } catch (error) { this.uiManager.showAuthError(this._friendlyAuthError(error)); }
     });
     this.eventBus.on('auth:continueAsGuest', () => this._requirePreAuthTerms(() => this.continueAsGuest(), true));
@@ -5561,6 +5539,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
 
 
