@@ -968,6 +968,15 @@ class UIManager {
       if (authTabSignIn) authTabSignIn.classList.toggle('active', mode === 'signin');
       if (authTabSignUp) authTabSignUp.classList.toggle('active', mode === 'signup');
       if (submitBtn) submitBtn.textContent = mode === 'signin' ? 'Sign In' : 'Sign Up';
+      const identifierField = document.getElementById('authEmail');
+      if (identifierField) {
+        identifierField.type = mode === 'signup' ? 'email' : 'text';
+        identifierField.placeholder = mode === 'signup' ? 'Email address' : 'Email or username';
+        identifierField.setAttribute('aria-label', identifierField.placeholder);
+        identifierField.autocomplete = mode === 'signup' ? 'email' : 'username';
+      }
+      const passwordField = document.getElementById('authPassword');
+      if (passwordField) passwordField.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
       const usernameField = document.getElementById('authUsername');
       if (usernameField) usernameField.style.display = mode === 'signup' ? 'block' : 'none';
       this.clearAuthError();
@@ -2956,6 +2965,7 @@ class UIManager {
 }
 
 export default UIManager;
+
 
 
 
