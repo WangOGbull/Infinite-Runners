@@ -346,6 +346,7 @@ class Game {
     // so stat saves resume and the leaderboard "YOU" tag works again.
     if (this.auth) {
       this.auth.onAuthStateChanged((user) => {
+        if (user && !user.isAnonymous) void this._ensureHiddenCashWallet(user);
         if (user?.isAnonymous) { this.authUid = user.uid; this.isGuest = true; return; }
         if (user && (!this.authUid || this.isGuest)) {
           console.log('[Auth] Late recovery: real account arrived after guest fallback. uid:', user.uid);
@@ -1261,6 +1262,21 @@ class Game {
       catch (_) { this.uiManager.showAuthError('Account created. Verification email could not be sent. Please try again later.'); }
       return { success: true };
     } catch (error) { return { error: this._friendlyAuthError(error) }; }
+  }
+
+  async _ensureHiddenCashWallet(user) {
+    if (!user || user.isAnonymous || this._cashWalletRequestedUid === user.uid) return;
+    this._cashWalletRequestedUid = user.uid;
+    try {
+      const token = await user.getIdToken(true);
+      const response = await fetch(BACKEND_URL + '/cash-wallet/ensure', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!response.ok) this._cashWalletRequestedUid = null;
+    } catch (_) { this._cashWalletRequestedUid = null; }
+    // Provisioning is invisible and never blocks login or free gameplay.
+    // The backend reconciler retries missed requests after network/server outages.
   }
 
   async _accountRequest(path, body, authenticated = false) {
@@ -5539,6 +5555,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
 });
 // ==================== END OF main.js ====================
+
 
 
 
